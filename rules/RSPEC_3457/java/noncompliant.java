@@ -1,0 +1,32 @@
+// TODO: Add includes
+
+public class Main
+{
+    public void main() {
+        String.format("First {0} and then {1}", "foo", "bar");  //Noncompliant. Looks like there is a confusion with the use of {{java.text.MessageFormat}}, parameters "foo" and "bar" will be simply ignored here
+        String.format("Display %3$d and then %d", 1, 2, 3);   //Noncompliant; the second argument '2' is unused
+        String.format("Too many arguments %d and %d", 1, 2, 3);  //Noncompliant; the third argument '3' is unused
+        String.format("First Line\n");   //Noncompliant; %n should be used in place of \n to produce the platform-specific line separator
+        String.format("Is myObject null ? %b", myObject);   //Noncompliant; when a non-boolean argument is formatted with %b, it prints true for any nonnull value, and false for null. Even if intended, this is misleading. It's better to directly inject the boolean value (myObject == null in this case)
+        String.format("value is " + value); // Noncompliant
+        String s = String.format("string without arguments"); // Noncompliant
+
+        MessageFormat.format("Result '{0}'.", value); // Noncompliant; String contains no format specifiers. (quote are discarding format specifiers)
+        MessageFormat.format("Result {0}.", value, value);  // Noncompliant; 2nd argument is not used
+        MessageFormat.format("Result {0}.", myObject.toString()); // Noncompliant; no need to call toString() on objects
+
+        java.util.Logger logger;
+        logger.log(java.util.logging.Level.SEVERE, "Result {0}.", myObject.toString()); // Noncompliant; no need to call toString() on objects
+        logger.log(java.util.logging.Level.SEVERE, "Result.", new Exception()); // compliant, parameter is an exception
+        logger.log(java.util.logging.Level.SEVERE, "Result '{0}'", 14); // Noncompliant - String contains no format specifiers.
+        logger.log(java.util.logging.Level.SEVERE, "Result " + param, exception); // Noncompliant; Lambda should be used to differ string concatenation.
+
+        org.slf4j.Logger slf4jLog;
+        org.slf4j.Marker marker;
+        slf4jLog.debug(marker, "message {}");
+        slf4jLog.debug(marker, "message", 1); // Noncompliant - String contains no format specifiers.
+
+        org.apache.logging.log4j.Logger log4jLog;
+        log4jLog.debug("message", 1); // Noncompliant - String contains no format specifiers.
+    }
+}
