@@ -7,15 +7,16 @@ for dir in rules/*
 do
     dir=${dir%*/} 
     echo ${dir##*/}
-    if test -f "$dir/metadata.json"; then
+    FILE="$dir/metadata.json"
+    if test -f $FILE; then
       echo "$FILE exists."
-      HAS_TITLE=`cat $dir/metadata.json | jq 'has("title")'`
+      HAS_TITLE=`cat $FILE | jq 'has("title")'`
       if [ "$HAS_TITLE" != "true" ]; then
-        echo "$dir/metadata.json has no title"
+        echo "$FILE has no title"
         exit_code=1
       fi
     else
-      echo "no $dir/metadata.json"
+      echo "no $FILE"
       exit_code=1
     fi
 done
