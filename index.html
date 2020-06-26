@@ -6,20 +6,14 @@
     <link href="asciidoctor/asciidoctor.css" rel="stylesheet" />
 </head>
 <body onload="init()">
-<p>
-    <input type="button" value="Test Requests" onclick="test_request()" />
-</p>
 <h3><label for="branch-name-selector">Repository branch</label></h3>
 <select id="branch-name-selector" onchange="onChangeBranch(this.value)">
     <!-- dynamically filled by initBranchNameSelector() -->
 </select>
-<h3>Render a Rule</h3>
-<select onchange="renderRule(this.value)">
-    <option value="">--Please choose a rule--</option>
-    <option value="S3457/c-family">S3457/c-family</option>
-    <option value="S3457/java">S3457/java</option>
-    <option value="S3457/python">S3457/python</option>
-</select><br />
+<h3><label for="rule-key-selector">Rule Key</label></h3>
+<select id="rule-key-selector" onchange="onChangeRuleKey(this.value)">
+    <!-- dynamically filled by initRuleKeySelector() -->
+</select>
 <br />
 <div id="div-result"></div>
 </body>
@@ -29,21 +23,102 @@
       initBranchNameSelector();
     }
 
+    /** @type HTMLSelectElement */
+    function branchNameSelector() {
+      return /** @type HTMLSelectElement */ document.getElementById("branch-name-selector");
+    }
+
+    /** @type HTMLSelectElement */
+    function ruleKeySelector() {
+      return /** @type HTMLSelectElement */ document.getElementById("rule-key-selector");
+    }
+
+    /** @type HTMLDivElement */
+    function divResult() {
+      return /** @type HTMLDivElement */ document.getElementById("div-result");
+    }
+
     function initBranchNameSelector() {
-      let selectElement = document.getElementById("branch-name-selector");
+       const selectElement = branchNameSelector();
+      clearSelect(selectElement);
+      addSelectOption(selectElement, "", "loading...");
       httpGetGithubApi("/repos/SonarSource/rspec/branches", function(body) {
-        let branchList = JSON.parse(body);
+        const branchList = JSON.parse(body);
+        clearSelect(selectElement);
         for (let i = 0; i < branchList.length; i++) {
-          let branchName = branchList[i].name;
+          const branchName = branchList[i].name;
           addSelectOption(selectElement, branchName, branchName);
           if (branchName === "master") {
             selectElement.selectedIndex = i;
           }
         }
+        initRuleKeySelector();
       });
     }
 
-    function addSelectOption(/*object*/selectElement, /*string*/value, /*string*/text) {
+    function fileList(/*string*/relativePath, /*string*/branchName, /*function*/fileListConsumer) {
+      httpGetGithubApi("/repos/SonarSource/rspec/contents/" + relativePath + "?ref=" + branchName, function (body) {
+        let files = /** @type object[] */ JSON.parse(body);
+        fileListConsumer(files);
+      });
+    }
+
+    function initRuleKeySelector() {
+      const selectElement = ruleKeySelector();
+      const branchName = branchNameSelector().value;
+      clearSelect(selectElement);
+      addSelectOption(selectElement, "", "loading...");
+      fileList("rules", branchName, function(files) {
+        clearSelect(selectElement);
+        files.filter(file => file.type === "dir")
+             .sort((a,b) => (parseInt(a.name.substr(1)) < parseInt(b.name.substr(1))) ? -1 : 1)
+             .forEach(file => addSelectOption(selectElement, file.name, file.name));
+        displaySelectedRule();
+      });
+    }
+
+    function displaySelectedRule() {
+      const branchName = branchNameSelector().value;
+      const ruleKey = ruleKeySelector().value;
+      divResult().innerHTML = "loading...";
+      if (ruleKey === "") {
+        return;
+      }
+      fileList("rules/" + ruleKey, branchName, function(files) {
+        const languages = /** @type string[] */ files.filter(file => file.type === "dir")
+          .map(file => file.name)
+          .sort();
+        divResult().innerHTML = "" +
+          "<p>" +
+          "Languages: " + languages.map(language => "<a href='#language-" + language + "'>" + language + "</a>").join(", ") +
+          "</p>";
+
+        languages.forEach(language => {
+          const asciiDoctor = Asciidoctor();
+          const rulesDir = "https://raw.githubusercontent.com/SonarSource/rspec/" + branchName + "/rules";
+          const ruleFile = rulesDir + "/" + ruleKey + "/" +  language + "/rule.adoc";
+          httpGet(ruleFile, function(body) {
+            const baseDir = parentDirectory(ruleFile);
+            const opts = {safe: 'safe', base_dir: baseDir, attributes: { } };
+            divResult().innerHTML += "<hr /><h1 id='language-" + language + "'>◖ " + language + " ◗</h1><hr />";
+            divResult().innerHTML += asciiDoctor.convert(body, opts);
+          },
+          "*",
+          function(errorMessage) {
+            divResult().innerHTML += "<hr /><h1 id='language-" + language + "'>◖ " + language + " ◗</h1><hr />";
+            divResult().innerHTML += "<p>" + errorMessage + + "</p>";
+          });
+        });
+      });
+    }
+
+    function clearSelect(/*HTMLSelectElement*/selectElement) {
+      while (selectElement.options.length > 0) {
+        selectElement.options.remove(0);
+      }
+    }
+
+    function addSelectOption(/*HTMLSelectElement*/selectElement, /*string*/value, /*string*/text) {
       const opt = document.createElement('option');
       opt.appendChild(document.createTextNode(text));
       opt.value = value;
@@ -51,41 +126,39 @@
     }
 
     function onChangeBranch(/*string*/branchName) {
-
+      initRuleKeySelector();
     }
 
-    function renderRule(/*string*/ruleId) {
-      if (ruleId === "") {
-        document.getElementById("div-result").innerHTML = "";
-        return;
-      }
-      const asciiDoctor = Asciidoctor();
-      const rulesDir = parentDirectory(location.href) + "rules";
-      const ruleFile = rulesDir + "/" + ruleId + "/rule.adoc";
-      httpGet(ruleFile, function(body) {
-        const baseDir = parentDirectory(ruleFile);
-        const opts = {safe: 'safe', base_dir: baseDir, attributes: { } };
-        document.getElementById("div-result").innerHTML = asciiDoctor.convert(body, opts);
-      });
+    function onChangeRuleKey(/*string*/ruleKey) {
+      displaySelectedRule();
     }
 
-    function httpGet(/*string*/url, /*function*/bodyConsumer, /*string?*/accept) /*void*/ {
+    function httpGet(/*string*/url, /*function*/bodyConsumer, /*string?*/accept, /*function*/errorConsumer) /*void*/ {
       if (typeof accept === "undefined") {
         accept = "*";
       }
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', url, true);
-      xhr.setRequestHeader("Accept", accept);
-      xhr.onreadystatechange = function() {
-        if(xhr.readyState === 4) {
-          if (xhr.status === 0 /*local files*/ || xhr.status === 200) {
-            bodyConsumer(xhr.responseText);
-          } else {
-            console.error("ERROR " + xhr.status + " while loading " + url);
+      if (typeof errorConsumer === "undefined") {
+        errorConsumer = function (errorMessage) {
+          console.error(errorMessage);
+        };
+      }
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader("Accept", accept);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 0 /*local files*/ || xhr.status === 200) {
+              bodyConsumer(xhr.responseText);
+            } else {
+              errorConsumer("ERROR " + xhr.status + " while loading " + url);
+            }
           }
         }
+        xhr.send();
+      } catch (e) {
+        errorConsumer("ERROR: " +exceptionMessage(e));
       }
-      xhr.send();
     }
 
     function httpGetGithubApi(/*string*/relativeUrl, /*function*/bodyConsumer) {
@@ -93,53 +166,6 @@
       httpGet(url, bodyConsumer, "application/vnd.github.v3.html");
     }
 
-    function test_request() {
-      const asciiDoctor = Asciidoctor();
-      const github_v3 ="application/vnd.github.v3.html";
-      const divResult = document.getElementById("div-result");
-      divResult.innerHTML = "";
-      const requestDataList = [
-        { url: "https://api.github.com/repos/SonarSource/rspec/branches", accept: github_v3, data: null },
-        { url: "https://raw.githubusercontent.com/SonarSource/rspec/master/rules/S3457/java/rule.adoc", accept: "*", data: null },
-        { url: "https://sonarsource.github.io/rspec/rules/S3457/see.adoc", accept: "*", data: null },
-        { url: "https://sonarsource.github.io/rspec/rules/S3457/java/rule.adoc", accept: "*", data: null }
-      ];
-      for (let i = 0; i < requestDataList.length; i++) {
-        const requestData = requestDataList[i];
-        try {
-          const xhr = new XMLHttpRequest();
-          divResult.innerText = divResult.innerText + "Call " + requestData.url + "\n";
-          xhr.open('GET', requestData.url, true);
-          xhr.setRequestHeader("Accept", requestData.accept);
-          if (requestData.type) {
-            xhr.setRequestHeader("Content-Type", requestData.type);
-          }
-          xhr.onreadystatechange = function() {
-            let requestState =  "Request " + requestData.url + " readyState: " + xhr.readyState;
-            if(xhr.readyState === 4) {
-              requestState +=  " status: " + xhr.status;
-              if (xhr.status === 200) {
-                requestState += "\n----------------------\n" +
-                  xhr.getAllResponseHeaders() +
-                  "\n" +
-                  xhr.responseText +
-                  "\n----------------------\n";
-                if (requestData.url.endsWith(".adoc")) {
-                  const baseDir = parentDirectory(requestData.url);
-                  const opts = {safe: 'safe', base_dir: baseDir, attributes: { } };
-                  let html = asciiDoctor.convert(xhr.responseText, opts);
-                  requestState += html + "\n----------------------\n";
-                }
-              }
-            }
-            divResult.innerText = divResult.innerText + requestState + "\n";
-          }
-          xhr.send(requestData.data);
-        } catch (e) {
-          divResult.innerText = divResult.innerText + "Exception while calling " + requestData.url + "\n" + exceptionMessage(e) + "\n";
-        }
-      }
-    }
 
     function exceptionMessage(e) {
       let message = "";
