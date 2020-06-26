@@ -10,11 +10,7 @@ do
     FILE="$dir/metadata.json"
     if test -f $FILE; then
       echo "$FILE exists."
-      HAS_TITLE=`cat $FILE | jq 'has("title")'`
-      if [ "$HAS_TITLE" != "true" ]; then
-        echo "$FILE has no title"
-        exit_code=1
-      fi
+      validate-json $FILE ./validation/schema.json       
     else
       echo "no $FILE"
       exit_code=1
