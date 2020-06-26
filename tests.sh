@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 echo "Test metadata.json"
 
 exit_code=0
