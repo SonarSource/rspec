@@ -3,7 +3,7 @@ const path = require('path');
 const asciidoctor = require("asciidoctor")();
 
 const RULE_SRC_DIRECTORY = path.join("..", "rules");
-const RULE_DST_DIRECTORY = path.join("build", "static", "generated", "rules");
+const RULE_DST_DIRECTORY = path.join("build", "generated", "rules");
 
 function generate_rules_metadata_and_description() {
     const ruleIndex = {};
