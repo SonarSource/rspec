@@ -3,7 +3,12 @@ const path = require('path');
 const asciidoctor = require("asciidoctor")();
 
 const RULE_SRC_DIRECTORY = path.join("..", "rules");
-const RULE_DST_DIRECTORY = path.join("build", "static", "generated", "rules");
+const RULE_DST_DIRECTORY = path.join("public", "rules");
+
+function clean_rules() {
+    console.log("Deleting rules."); 
+    fs.rmdirSync(RULE_DST_DIRECTORY, { recursive: true });
+}
 
 function generate_rules_metadata_and_description() {
     const ruleIndex = {};
@@ -77,4 +82,5 @@ function fileExtension(/*string*/language) /*string*/ {
     return language === "cobol" ? "cbl" : language;
 }
 
+clean_rules()
 generate_rules_metadata_and_description()
