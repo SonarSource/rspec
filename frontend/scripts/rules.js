@@ -3,7 +3,7 @@ const path = require('path');
 const asciidoctor = require("asciidoctor")();
 
 const RULE_SRC_DIRECTORY = path.join("..", "rules");
-const RULE_DST_DIRECTORY = path.join("build", "generated", "rules");
+const RULE_DST_DIRECTORY = path.join("public", "generated", "rules");
 
 function generate_rules_metadata_and_description() {
     const ruleIndex = {};
@@ -54,6 +54,7 @@ function generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language)
     };
     const adoc = fs.readFileSync(ruleSrcFile, 'utf8');
     const html = /** @type string*/ asciidoctor.convert(adoc, opts);
+    console.log("Writing '" + ruleDstFile + "' (" + html.length + " bytes)");
     fs.writeFileSync(ruleDstFile, html, {encoding: 'utf8'});
 }
 
@@ -64,6 +65,7 @@ function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language) {
     const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
     const mergedJson = {...parentJson, ...childJson};
     const dstJsonFile = path.join(ruleDstDirectory, language + "-metadata.json");
+    console.log("Writing '" + dstJsonFile + "' (" + dstJsonFile.length + " bytes)");
     fs.writeFileSync(dstJsonFile, JSON.stringify(mergedJson, null, 2), {encoding: 'utf8'});
 }
 
