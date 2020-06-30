@@ -1,0 +1,57 @@
+In C, a string is just a buffer of characters, usually using the <code>null</code> character as a sentinel for the end of the string. Which mean that the developer has to be aware of low level details such as buffer sizes, having an extra character to store the final null character... Doing that correctly and consistently is notoriously difficult, and any error can lead to a security vulnerability, for instance giving access to sensitive data, or allowing arbitrary code execution.
+
+The function <code>char *strcat( char *restrict dest, const char *restrict src );</code> appends the characters of string <code>src</code> at the end of <code>dest</code>. The <code>wcscat</code> does the same for wide characters, and should be used with the same guidelines.
+
+
+Note: the functions <code>strncat</code> and <code>wcsncat</code> might look like attractive safe replacements for <code>strcat</code> and <code>wcscaty</code>, but they have their own set of issues (see S5815), and you should probably prefer another more adapted alternative.
+
+
+== Ask Yourself Whether
+
+* There is a possibility that either the <code>src</code> or the <code>dest</code> pointer is null
+* The current string length of <code>dest</code> plus the current string length of <code>src</code> plus 1 (for the final null character) is larger than the size of the buffer pointer-to by <code>src</code> 
+* There is a possibility that either string is not correctly null-terminated
+
+There is a risk if you answered yes to any of those questions.
+
+
+== Recommended Secure Coding Practices
+
+* C11 provides, in its annex K, the <code>strcat_s</code> and the <code>wcscat_s</code> that were designed as safer alternative to <code>strcat</code> and <code>wcscat</code>. It's not recommended to use them in all circumstances, because they introduce a runtime overhead and require to write more code for error handling, but they perform checks that will limit the consequences of calling the function with bad arguments.
+* Even if your compiler does not exactly support annex K, you probably have access to similar functions
+* If you are writing C++ code, using <code>std::string</code> to manipulate strings is much simpler and less error-prone
+
+
+== Sensitive Code Example
+
+----
+int f(char *src) {
+  char dest[256];
+  strcpy(dest, "Result: ");
+  strcat(dest, src); // Sensitive: might overflow
+  return doSomethingWith(dest);
+}
+----
+
+
+== Compliant Solution
+
+----
+int f(char *src) {
+  char result[] = "Result: ";
+  char *dest = malloc(sizeof(result) + strlen(src)); // Not need of +1 for final 0 because sizeof will already count one 0
+  strcpy(dest, result);
+  strcat(dest, src); // Compliant: the buffer size was carefully crafted
+  int r = doSomethingWith(dest);
+  free(dest);
+  return r;
+}
+----
+
+
+== See
+
+* http://cwe.mitre.org/data/definitions/120[MITRE, CWE-120] - Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')
+* https://www.securecoding.cert.org/confluence/x/QwY[CERT, STR07-C.] - Use the bounds-checking interfaces for string manipulation
+
+

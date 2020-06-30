@@ -1,0 +1,53 @@
+In C, a string is just a buffer of characters, usually using the <code>null</code> character as a sentinel for the end of the string. Which mean that the developer has to be aware of low level details such as buffer sizes, having an extra character to store the final null character... Doing that correctly and consistently is notoriously difficult, and any error can lead to a security vulnerability, for instance giving access to sensitive data, or allowing arbitrary code execution.
+
+The function <code>char *strcpy(char * restrict dest, const char * restrict src);</code> copies characters from <code>src</code> to <code>dest</code>. The <code>wcscpy</code> does the same for wide characters, and should be used with the same guidelines.
+
+Note: the functions <code>strncpy</code> and <code>wcsncpy</code> might look like attractive safe replacements for <code>strcpy</code> and <code>wcscpy</code>, but they have their own set of issues (see S5816), and you should probably prefer another more adapted alternative.
+
+
+== Ask Yourself Whether
+
+* There is a possibility that either the source or the destination pointers is null
+* There is a possibility that the source string is not correctly null-terminated, or that its length (including the final null character) can be larger than the size of the destination buffer.
+* There is an overlap between source and destination
+
+There is a risk if you answered yes to any of those questions.
+
+
+== Recommended Secure Coding Practices
+
+* C11 provides, in its annex K, the <code>strcpy_s</code> and the <code>wcscpy_s</code> that were designed as safer alternative to <code>strcpy</code> and <code>wcscpy</code>. It's not recommended to use them in all circumstances, because they introduce a runtime overhead and require to write more code for error handling, but they perform checks that will limit the consequences of calling the function with bad arguments.
+* Even if your compiler does not exactly support annex K, you probably have access to similar functions, for example <code>strlcpy</code> in FreeBSD
+* If you are writing C++ code, using <code>std::string</code> to manipulate strings is much simpler and less error-prone
+
+
+== Sensitive Code Example
+
+----
+int f(char *src) {
+  char dest[256];
+  strcpy(dest, src); // Sensitive: might overflow
+  return doSomethingWith(dest);
+}
+----
+
+
+== Compliant Solution
+
+----
+int f(char *src) {
+  char *dest = malloc(strlen(src) + 1); // For the final 0
+  strcpy(dest, src); // Compliant: we made sure the buffer is large enough
+  int r= doSomethingWith(dest);
+  free(dest);
+  return r;
+}
+----
+
+
+== See
+
+* http://cwe.mitre.org/data/definitions/120[MITRE, CWE-120] - Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')
+* https://www.securecoding.cert.org/confluence/x/QwY[CERT, STR07-C.] - Use the bounds-checking interfaces for string manipulation
+
+

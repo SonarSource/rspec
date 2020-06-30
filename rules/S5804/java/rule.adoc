@@ -1,0 +1,67 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+In a Spring-security web application the username leaks when:
+* The string used as argument of https://docs.spring.io/spring-security/site/docs/current/api/org/springframework/security/core/userdetails/UserDetailsService.html[loadUserByUsername] method is part of the exception's message:
+----
+public String authenticate(String username, String password) {
+  // ....
+  MyUserDetailsService s1 = new MyUserDetailsService();
+  MyUserPrincipal u1 = s1.loadUserByUsername(username);
+
+  if(u1 == null) {
+    throw new BadCredentialsException(username+" doesn't exist in our database"); // Sensitive
+  }
+  // ....
+}
+----
+* https://docs.spring.io/spring-security/site/docs/4.0.x/apidocs/org/springframework/security/authentication/dao/AbstractUserDetailsAuthenticationProvider.html#setHideUserNotFoundExceptions-boolean-[HideUserNotFoundExceptions] is set to false:
+----
+DaoAuthenticationProvider daoauth = new DaoAuthenticationProvider();
+daoauth.setUserDetailsService(new MyUserDetailsService());
+daoauth.setPasswordEncoder(new BCryptPasswordEncoder()); 
+daoauth.setHideUserNotFoundExceptions(false); // Sensitive
+builder.authenticationProvider(daoauth);
+----
+* https://docs.spring.io/spring-security/site/docs/3.0.x/apidocs/org/springframework/security/core/userdetails/UsernameNotFoundException.html[UsernameNotFoundException] is thrown:
+----
+public MyUserPrincipal loadUserByUsername(String username) {
+  // ....
+  if(user == null) {
+      throw new UsernameNotFoundException("user not found"); // Sensitive
+  }
+  // ....
+}
+----
+
+== Compliant Solution
+
+In a Spring-security web application:
+* when the user is unknown a BadCredentialsException should be thrown with a "generic" message:
+----
+public String authenticate(String username, String password) {
+  // ....
+  MyUserDetailsService s1 = new MyUserDetailsService();
+  MyUserPrincipal u1 = s1.loadUserByUsername(username);
+
+  if(u1 == null) {
+    throw new BadCredentialsException("bad credentials"); // Compliant
+  }
+  // ....
+}
+----
+* https://docs.spring.io/spring-security/site/docs/4.0.x/apidocs/org/springframework/security/authentication/dao/AbstractUserDetailsAuthenticationProvider.html#setHideUserNotFoundExceptions-boolean-[HideUserNotFoundExceptions] should be set to true:
+----
+DaoAuthenticationProvider daoauth = new DaoAuthenticationProvider();
+daoauth.setUserDetailsService(new MyUserDetailsService());
+daoauth.setPasswordEncoder(new BCryptPasswordEncoder()); 
+daoauth.setHideUserNotFoundExceptions(true); // Compliant
+builder.authenticationProvider(daoauth);
+----
+
+include::../see.adoc[]
