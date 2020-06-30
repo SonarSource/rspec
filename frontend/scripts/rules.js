@@ -28,12 +28,12 @@ function generate_rules_metadata_and_description() {
 }
 
 function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*string*/ruleDstDirectory, /*object*/ruleIndex) {
-    const languages = findSupportedLanguage(ruleSrcDirectory);
-    ruleIndex[path.basename(ruleSrcDirectory)] = languages;
-    console.log("Converting '" + ruleSrcDirectory + "' into '" + ruleDstDirectory + "' for languages: " + languages.join(", "));
-    languages.forEach(language => {
+    const all_languages = findSupportedLanguage(ruleSrcDirectory);
+    ruleIndex[path.basename(ruleSrcDirectory)] = all_languages;
+    console.log("Converting '" + ruleSrcDirectory + "' into '" + ruleDstDirectory + "' for languages: " + all_languages.join(", "));
+    all_languages.forEach(language => {
         fs.mkdirSync(ruleDstDirectory, { recursive: true });
-        generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language);
+        generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages);
         generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language);
     });
 }
@@ -62,12 +62,13 @@ function generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language)
     fs.writeFileSync(ruleDstFile, html, {encoding: 'utf8'});
 }
 
-function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language) {
+function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages) {
     let parentFile = path.join(ruleSrcDirectory, language, "metadata.json");
     const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
     let childFile = path.join(ruleSrcDirectory, "metadata.json");
     const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
     const mergedJson = {...childJson, ...parentJson};
+    mergedJson["all_languages"] = all_languages;
     const dstJsonFile = path.join(ruleDstDirectory, language + "-metadata.json");
     fs.writeFileSync(dstJsonFile, JSON.stringify(mergedJson, null, 2), {encoding: 'utf8'});
 }
