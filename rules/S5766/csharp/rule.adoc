@@ -1,0 +1,151 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+When a <code>serializable</code> class doesn't inherit from https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.iserializable?view=netframework-4.8[ISerializable] or https://docs.microsoft.com/fr-fr/dotnet/api/system.runtime.serialization.ideserializationcallback?view=netframework-4.8[IDeserializationCallback] types and has a constructor using its parameters in conditions:
+----
+[Serializable]
+public class InternalUrl
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl) // Sensitive
+    {
+       if(!tmpUrl.StartsWith("http://localhost/") { // there is some input validation
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+    }
+}
+----
+
+When a class inherit from https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.iserializable?view=netframework-4.8[ISerializable] type, has a regular constructor using its parameters in conditions, but doesn't perform the same validation after deserialization:
+----
+[Serializable]
+public class InternalUrl : ISerializable
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl) // Sensitive
+    {
+       if(!tmpUrl.StartsWith("http://localhost/") { // there is some input validation
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+    }
+
+    // special constructor used during deserialization
+    protected InternalUrl(SerializationInfo info, StreamingContext context) // Sensitive
+    {
+       url= (string) info.GetValue("url", typeof(string));
+       // the same validation as seen in the regular constructor is not performed
+     }
+
+    void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
+    {
+        info.AddValue("url", url);
+    }
+}
+----
+
+When a class inherit from https://docs.microsoft.com/fr-fr/dotnet/api/system.runtime.serialization.ideserializationcallback?view=netframework-4.8[IDeserializationCallback] type, has a constructor using its parameters in conditions but the <code>IDeserializationCallback.OnDeserialization</code> method doesn't perform any conditional checks:
+----
+[Serializable]
+public class InternalUrl : IDeserializationCallback
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl) // Sensitive
+    {
+       if(!tmpUrl.StartsWith("http://localhost/") { // there is some input validation
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+    }
+
+    void IDeserializationCallback.OnDeserialization(object sender) // Sensitive
+    {
+       // the same validation as seen in the constructor is not performed
+    }
+}
+----
+
+== Compliant Solution
+
+When using https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.iserializable?view=netframework-4.8[ISerializable] type to control deserialization, perform the same checks inside regular constructors than in the special constructor <code>SerializationInfo info, StreamingContext context</code> used during deserialization:
+----
+[Serializable]
+public class InternalUrl : ISerializable
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl)
+    {
+       if(!tmpUrl.StartsWith("http://localhost/") { // there is some input validation
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+    }
+
+    // special constructor used during deserialization
+    protected InternalUrl(SerializationInfo info, StreamingContext context)
+    {
+       string tmpUrl= (string) info.GetValue("url", typeof(string));
+
+       if(!tmpUrl.StartsWith("http://localhost/") { // Compliant
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+     }
+
+    void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
+    {
+        info.AddValue("url", url);
+    }
+}
+----
+
+When using https://docs.microsoft.com/fr-fr/dotnet/api/system.runtime.serialization.ideserializationcallback?view=netframework-4.8[IDeserializationCallback] type to control deserialization, perform the same checks inside regular constructors than after deserialization with <code>IDeserializationCallback.OnDeserialization</code> method:
+----
+[Serializable]
+public class InternalUrl : IDeserializationCallback
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl)
+    {
+       if(!tmpUrl.StartsWith("http://localhost/") { // there is some input validation
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+    }
+
+    void IDeserializationCallback.OnDeserialization(object sender) // Compliant
+    {
+       if(!url.StartsWith("http://localhost/") {
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+    }
+}
+----
+
+include::../see.adoc[]

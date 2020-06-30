@@ -1,0 +1,41 @@
+The compiler is generally allowed to remove code that does not have any effect, according to the abstract machine of the C language. This means that if you have a buffer that contains sensitive data (for instance passwords), calling <code>memset</code> on the buffer before releasing the memory will probably be optimized away.
+
+The function https://en.cppreference.com/w/c/string/byte/memset[<code>memset_s</code>] behaves similarly to <code>memset</code>, but he main difference is that it cannot be optimized away, the memory will be overwritten in all cases. You should always use this function to scrub security sensitive data.
+
+This rule raises an issue when a call to <code>memset</code> is followed by the destruction of the buffer.
+
+Note that <code>memset_s</code> is defined in annex K of C11, so to have access to it, you need a standard library that supports it (this can be tested with the macro <code>__STDC_LIB_EXT1__</code>), and you need to enable it by defining the macro <code>__STDC_WANT_LIB_EXT1__</code> before including <code><string.h></code>. Other platform specific functions can perform the same operation, for instance https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa366877(v=vs.85)?redirectedfrom=MSDN[SecureZeroMemory] (Windows) or https://www.freebsd.org/cgi/man.cgi?query=explicit_bzero[explicit_bzero] (FreeBSD)
+
+
+== Noncompliant Code Example
+
+----
+void f(char *password, size_t bufferSize) {
+  char localToken[256];
+  init(localToken, password);
+  memset(password, ' ', strlen(password)); // Noncompliant, password is about to be freed
+  memset(localToken, ' ', strlen(localBuffer)); // Noncompliant, localToken is about to go out of scope
+  free(password);
+}
+----
+
+
+== Compliant Solution
+
+----
+void f(char *password, size_t bufferSize) {
+  char localToken[256];
+  init(localToken, password);
+  memset_s(password, bufferSize, ' ', strlen(password));
+  memset_s(localToken, sizeof(localToken), ' ', strlen(localBuffer));
+  free(password);
+}
+----
+
+
+== See
+
+
+* https://cwe.mitre.org/data/definitions/14.html[MITRE, CWE-14] - Compiler Removal of Code to Clear Buffers
+
+
