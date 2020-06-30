@@ -1,0 +1,61 @@
+Handling files is security-sensitive. It has led in the past to the following vulnerabilities:
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-0358[CVE-2018-0358]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-7560[CVE-2017-7560]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2005-4015[CVE-2005-4015]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-3835[CVE-2018-3835]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-8008[CVE-2018-8008]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2010-2320[CVE-2010-2320]
+
+Any access to the file system can create a vulnerability. Exposing a file's content, path or even its existence or absence is dangerous. It is also extremely risky to create or write files without making sure that their permission and content is safe and controlled. Using a file path or reading a file content must be always done with caution as they could have been tampered with.
+
+The file system is a resource which can be easily exhausted. Opening too many files will use up all file descriptors, preventing other software from opening files. Filling the storage space will also prevent any additional write from happening.
+
+This rule raises an issue on http://php.net/manual/en/ref.filesystem.php[filesystem functions] which have a high impact on security and are often subject to injection. The goal is to guide manual security code reviews.
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+----
+function handle_file($filename, $directory, $group, $data, $mode, $flags, $use_include_path, $pattern, $recursive, $context)
+{
+    file_put_contents($filename, $data, $flags); // Sensitive
+    copy($filename, $filename); // Sensitive
+    tmpfile(); // Sensitive
+    parse_ini_file($filename); // Sensitive
+
+    // The following calls will raise an issue if and only if the $filename or $directory is not hardcoded
+    move_uploaded_file($filename, $filename); // Sensitive
+    rmdir($directory); // Sensitive
+    unlink($filename); // Sensitive
+
+    move_uploaded_file("mypath1", "mypath2"); // Compliant
+    rmdir("dir1"); // Compliant
+    unlink("dir2"); // Compliant
+
+    // The following functions can also be used to perform network requests (http, socket, ftp, etc...)
+    // in some case they won't raise issues, see below.
+    file_get_contents($filename, $use_include_path); // Sensitive
+    file($filename, $flags); // Sensitive
+    fopen($filename, $mode, $use_include_path); // Sensitive
+    readfile($filename, $use_include_path); // Sensitive
+
+    // No issue is raised if the source path, cleaned from prefixed wrappers (like 'rar://', 'zlib://', 'bzip2://', 'zip://', 'compress.zlib://',
+    // 'compress.bzip2://', 'glob://', 'ogg://') still contains '://' without starting by 'file://'
+    file_get_contents("zip://http://example.com/file.zip" $use_include_path); // Compliant
+    file("http://example.com", $flags); // Compliant
+    fopen("http://example.com", $mode, $use_include_path); // Compliant
+    readfile("http://example.com", $use_include_path); // Compliant
+
+    // No issue is created if a context is given as there is a high chance that it is not a filesystem access.
+    // Note that this will create some false negatives with "zip" contexts.
+    file_get_contents($filename, $use_include_path, $context); // Compliant
+    file($filename, $flags, $context); // Compliant
+    fopen($filename, $mode, $use_include_path, $context); // Compliant
+    readfile($filename, $use_include_path, $context); // Compliant
+}
+----
+
+include::../see.adoc[]

@@ -1,0 +1,43 @@
+include::../description.adoc[]
+
+== Noncompliant Code Example
+
+----
+Enumeration<? extends ZipEntry> entries = zipFile.entries();
+while (entries.hasMoreElements()) {
+  ZipEntry entry = entries.nextElement();
+  File extractedFile = new File(toDir, entry.getName()); 
+
+  FileOutputStream fos = new FileOutputStream(extractedFile); // Noncompliant; entry.getName() that was used to created "extractedFile" may be tainted with "../../../../../../../../tmp/evil.sh"
+  InputStream input = zipFile.getInputStream(entry);
+  IOUtils.copy(input, fos);
+}
+----
+
+== Compliant Solution
+
+----
+Enumeration<? extends ZipEntry> entries = zipFile.entries();
+while (entries.hasMoreElements()) {
+  ZipEntry zipEntry = entries.nextElement();
+  String fileName = zipEntry.getName();
+  File extractedFile = new File(toDir, fileName);
+
+  String canonicalDirPath = toDir.getCanonicalPath();
+  String canonicalDestPath = extractedFile.getCanonicalPath();
+
+  sanitizeAgainstZipFlipVulnerability(fileName, canonicalDestPath, canonicalDirPath); // Compliant
+
+  FileOutputStream fos = new FileOutputStream(extractedFile);
+  InputStream input = zipFile.getInputStream(entry);
+  IOUtils.copy(input, fos);
+}
+
+public static void sanitizeAgainstZipFlipVulnerability(String fileName, String canonicalDestPath, String canonicalDirPath) throws ArchiverException {
+    if (fileName.indexOf("..") != -1 && !canonicalDestPath.startsWith(canonicalDirPath + File.separator)) { // Sanitizer
+      throw new ArchiverException("The file " + fileName + " is trying to leave the target output directory.");
+    }
+  }
+----
+
+include::../see.adoc[]

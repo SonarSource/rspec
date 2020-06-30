@@ -1,0 +1,96 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+This rule supports the following libraries: Log4J, <code>java.util.logging</code> and Logback
+
+----
+// === Log4J 2 ===
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.*;
+import org.apache.logging.log4j.core.config.*;
+
+// Sensitive: creating a new custom configuration 
+abstract class CustomConfigFactory extends ConfigurationFactory {
+    // ...
+}
+
+class A {
+    void foo(Configuration config, LoggerContext context, java.util.Map<String, Level> levelMap,
+            Appender appender, java.io.InputStream stream, java.net.URI uri,
+            java.io.File file, java.net.URL url, String source, ClassLoader loader, Level level, Filter filter)
+            throws java.io.IOException {
+        // Creating a new custom configuration
+        ConfigurationBuilderFactory.newConfigurationBuilder();  // Sensitive
+
+        // Setting loggers level can result in writing sensitive information in production
+        Configurator.setAllLevels("com.example", Level.DEBUG);  // Sensitive
+        Configurator.setLevel("com.example", Level.DEBUG);  // Sensitive
+        Configurator.setLevel(levelMap);  // Sensitive
+        Configurator.setRootLevel(Level.DEBUG);  // Sensitive
+
+        config.addAppender(appender); // Sensitive: this modifies the configuration
+
+        LoggerConfig loggerConfig = config.getRootLogger();
+        loggerConfig.addAppender(appender, level, filter); // Sensitive
+        loggerConfig.setLevel(level); // Sensitive
+
+        context.setConfigLocation(uri); // Sensitive
+
+        // Load the configuration from a stream or file
+        new ConfigurationSource(stream);  // Sensitive
+        new ConfigurationSource(stream, file);  // Sensitive
+        new ConfigurationSource(stream, url);  // Sensitive
+        ConfigurationSource.fromResource(source, loader);  // Sensitive
+        ConfigurationSource.fromUri(uri);  // Sensitive
+    }
+}
+
+
+
+----
+
+----
+// === java.util.logging ===
+import java.util.logging.*;
+
+class M {
+    void foo(LogManager logManager, Logger logger, java.io.InputStream is, Handler handler)
+            throws SecurityException, java.io.IOException {
+        logManager.readConfiguration(is); // Sensitive
+
+        logger.setLevel(Level.FINEST); // Sensitive
+        logger.addHandler(handler); // Sensitive
+    }
+}
+----
+
+----
+// === Logback ===
+import ch.qos.logback.classic.util.ContextInitializer;
+import ch.qos.logback.core.Appender;
+import ch.qos.logback.classic.joran.JoranConfigurator;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.*;
+
+class M {
+    void foo(Logger logger, Appender<ILoggingEvent> fileAppender) {
+        System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "config.xml"); // Sensitive
+        JoranConfigurator configurator = new JoranConfigurator(); // Sensitive
+
+        logger.addAppender(fileAppender); // Sensitive
+        logger.setLevel(Level.DEBUG); // Sensitive
+    }
+}
+----
+
+== Exceptions
+
+Log4J 1.x is not covered as it has reached https://blogs.apache.org/foundation/entry/apache_logging_services_project_announces[end of life].
+
+include::../see.adoc[]
