@@ -67,7 +67,7 @@ function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language) {
     const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
     let childFile = path.join(ruleSrcDirectory, "metadata.json");
     const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
-    const mergedJson = {...parentJson, ...childJson};
+    const mergedJson = {...childJson, ...parentJson};
     const dstJsonFile = path.join(ruleDstDirectory, language + "-metadata.json");
     fs.writeFileSync(dstJsonFile, JSON.stringify(mergedJson, null, 2), {encoding: 'utf8'});
 }
