@@ -3,24 +3,28 @@ Failure to control types during deserialization can lead to runtime errors and v
 During the deserialization process, the state of an object will be reconstructed from the serialized data stream which can contain dangerous operations. For example, a well-known attack vector consists in serializing an object of type <code>https://docs.microsoft.com/en-us/dotnet/api/system.codedom.compiler.tempfilecollection.-ctor?view=netframework-4.8#System_CodeDom_Compiler_TempFileCollection__ctor[TempFileCollection]</code> with arbitrary files defined by the attacker which will be deleted on the application deserializing this object (more precisely when the https://docs.microsoft.com/en-us/dotnet/api/system.codedom.compiler.tempfilecollection.finalize?view=netframework-4.8[finalize() ]method of the TempFileCollection object is called).
 
 To restrict the types allowed to be deserialized:
+
 * implement a whitelist of safe and required types that can be deserialized.
 * or/and implement tamper protection, such as https://en.wikipedia.org/wiki/HMAC[message authentication codes] (MAC), this way only objects serialized with the correct MAC hash will be deserialized. 
 
 == Noncompliant Code Example
 
 For https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?view=netframework-4.8[BinaryFormatter], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer?view=netframework-4.8[NetDataContractSerializer ], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter?view=netframework-4.8[SoapFormatter] serializers:
+
 ----
 var myBinaryFormatter = new BinaryFormatter();
 myBinaryFormatter.Deserialize(stream); // Noncompliant: a binder is not used to limit types during deserialization
 ----
 
 https://docs.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer?view=netframework-4.8[JavaScriptSerializer] should not use SimpleTypeResolver or other weak resolvers:
+
 ----
 JavaScriptSerializer serializer1 = new JavaScriptSerializer(new SimpleTypeResolver()); // Noncompliant: SimpleTypeResolver is unsecure (every types is resolved)
 serializer1.Deserialize<ExpectedType>(json);
 ----
 
 https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.losformatter?view=netframework-4.8[LosFormatter] should not be used without MAC verification:
+
 ----
 LosFormatter formatter = new LosFormatter(); // Noncompliant
 formatter.Deserialize(fs); 
@@ -29,6 +33,7 @@ formatter.Deserialize(fs);
 == Compliant Solution
 
 https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?view=netframework-4.8[BinaryFormatter], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer?view=netframework-4.8[NetDataContractSerializer ], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter?view=netframework-4.8[SoapFormatter] serializers should use a binder implementing a whitelist approach to limit types during deserialization (at least one exception should be thrown or a null value returned):
+
 ----
 sealed class CustomBinder : SerializationBinder
 {
@@ -48,6 +53,7 @@ myBinaryFormatter.Deserialize(stream);
 ----
 
 https://docs.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer?view=netframework-4.8[JavaScriptSerializer] should use a resolver implementing a whitelist to limit types during deserialization (at least one exception should be thrown or a null value  returned):
+
 ----
 public class CustomSafeTypeResolver : JavaScriptTypeResolver
 {
@@ -64,6 +70,7 @@ JavaScriptSerializer serializer = new JavaScriptSerializer(new CustomSafeTypeRes
 serializer.Deserialize<ExpectedType>(json);
 ----
 https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.losformatter?view=netframework-4.8[LosFormatter] serializer with MAC verification:
+
 ----
 LosFormatter formatter = new LosFormatter(true, secret); // Compliant
 formatter.Deserialize(fs); 
