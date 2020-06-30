@@ -1,0 +1,78 @@
+User provided data, such as URL parameters, should always be considered untrusted and tainted. Constructing SQL or SQL-like queries directly from tainted data enables attackers to inject specially crafted values that change the initial meaning of the query itself. Successful database query injection attacks can read, modify, or delete sensitive information from the database and sometimes even shut it down or execute arbitrary operating system commands.
+
+Typically, the solution is to rely on prepared statements rather than string concatenation, which ensures that user provided data will be properly escaped. Also, the use of database ORMs is generally safe as most implementations rely on prepared statements.
+An other solution is to validate every parameter used to build the query. This can be achieved by transforming string values to primitive types or by validating them against a white list of accepted values.
+
+This rule supports: sqlite3, mysql, pymysql, psycopg2, pgdb, Django ORM and Flask-SQLAlchemy.
+
+== Noncompliant Code Example
+
+Flask application
+----
+from flask import request
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+from database.users import User
+
+@app.route('hello')
+def hello():
+    id = request.args.get("id")
+    stmt = text("SELECT * FROM users where id=%s" % id) # Query is constructed based on user inputs
+    query = SQLAlchemy().session.query(User).from_statement(stmt) # Noncompliant
+    user = query.one()
+    return "Hello %s" % user.username
+----
+
+Django application
+----
+from django.http import HttpResponse
+from django.db import connection
+
+def hello(request):
+    id = request.GET.get("id", "")
+    cursor = connection.cursor()
+    cursor.execute("SELECT username FROM auth_user WHERE id=%s" % id) # Noncompliant; Query is constructed based on user inputs
+    row = cursor.fetchone()
+    return HttpResponse("Hello %s" % row[0])
+----
+
+== Compliant Solution
+
+Flask application
+----
+from flask import request
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+from database.users import User
+
+@app.route('hello')
+def hello():
+    id = request.args.get("id")
+    stmt = text("SELECT * FROM users where id=:id")
+    query = SQLAlchemy().session.query(User).from_statement(stmt).params(id=id) # Compliant
+    user = query.one()
+    return "Hello %s" % user.username
+----
+
+Django application
+----
+from django.http import HttpResponse
+from django.db import connection
+
+def hello(request):
+    id = request.GET.get("id", "")
+    cursor = connection.cursor()
+    cursor.execute("SELECT username FROM auth_user WHERE id=:id", {"id": id}) # Compliant
+    row = cursor.fetchone()
+    return HttpResponse("Hello %s" % row[0])
+----
+
+== See
+
+* https://www.owasp.org/index.php/Top_10-2017_A1-Injection[OWASP Top 10 2017 Category A1] - Injection
+* http://cwe.mitre.org/data/definitions/89[MITRE, CWE-89] - Improper Neutralization of Special Elements used in an SQL Command
+* http://cwe.mitre.org/data/definitions/564.html[MITRE, CWE-564] - SQL Injection: Hibernate
+* http://cwe.mitre.org/data/definitions/20.html[MITRE, CWE-20] - Improper Input Validation
+* http://cwe.mitre.org/data/definitions/943.html[MITRE, CWE-943] - Improper Neutralization of Special Elements in Data Query Logic
+* https://www.securecoding.cert.org/confluence/x/PgIRAg[CERT, IDS00-J.] - Prevent SQL injection
+* https://www.sans.org/top25-software-errors/#cat1[SANS Top 25] - Insecure Interaction Between Components 

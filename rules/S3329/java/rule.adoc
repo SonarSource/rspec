@@ -1,0 +1,66 @@
+In encryption, when Cipher Block Chaining (CBC) is used, the Initialization Vector (IV) must be random and unpredictable. Otherwise, the encrypted value is vulnerable to crypto-analysis attacks such as the "Chosen-Plaintext Attack".
+
+An IV value should be associated to one, and only one encryption cycle, because the IV's purpose is to ensure that the same plaintext encrypted twice will yield two different ciphertexts.
+
+To that end, IV's should be:
+* random
+* unpredictable
+* publishable (IVs are frequently published)
+* authenticated, along with the ciphertext, with a Message Authentication Code (MAC)
+
+This rule raises an issue when the IV is:
+* hard-coded
+* created using <code>java.util.Random</code> rather than <code>java.security.SecureRandom</code>.
+
+== Noncompliant Code Example
+
+----
+public class MyCbcClass {
+
+  public String applyCBC(String strKey, String plainText) {
+    byte[] bytesIV = "7cVgr5cbdCZVw5WY".getBytes("UTF-8");
+
+    /* KEY + IV setting */
+    IvParameterSpec iv = new IvParameterSpec(bytesIV);
+    SecretKeySpec skeySpec = new SecretKeySpec(strKey.getBytes("UTF-8"), "AES");
+
+    /* Ciphering */
+    Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
+    cipher.init(Cipher.ENCRYPT_MODE, skeySpec, iv);  // Noncompliant because IV hard coded and cannot vary with each ciphering round
+    byte[] encryptedBytes = cipher.doFinal(plainText.getBytes("UTF-8"));
+    return DatatypeConverter.printBase64Binary(bytesIV) // IV is typically published
+            + ";" + DatatypeConverter.printBase64Binary(encryptedBytes);
+  }
+}
+----
+
+== Compliant Solution
+
+----
+public class MyCbcClass {
+
+  SecureRandom random = new SecureRandom();
+
+  public String applyCBC(String strKey, String plainText) {
+    byte[] bytesIV = new byte[16];
+    random.nextBytes(bytesIV);
+
+    /* KEY + IV setting */
+    IvParameterSpec iv = new IvParameterSpec(bytesIV);
+    SecretKeySpec skeySpec = new SecretKeySpec(strKey.getBytes("UTF-8"), "AES");
+
+    /* Ciphering */
+    Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
+    cipher.init(Cipher.ENCRYPT_MODE, skeySpec, iv);
+    byte[] encryptedBytes = cipher.doFinal(plainText.getBytes("UTF-8"));
+    return DatatypeConverter.printBase64Binary(bytesIV)
+            + ";" + DatatypeConverter.printBase64Binary(encryptedBytes);
+  }
+}
+----
+
+== See
+
+* http://cwe.mitre.org/data/definitions/330[MITRE, CWE-330] - Use of Insufficiently Random Values 
+* OWASP Top 10 2017 Category A6 - Security Misconfiguration 
+* Derived from FindSecBugs rule https://find-sec-bugs.github.io/bugs.htm#STATIC_IV[STATIC_IV]
