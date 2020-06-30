@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function useFetch(url, options=null, handleResponse=(res) => res.json()) {
+export function useFetch(url, options=null, parseJSON=true) {
   const [response, setResponse] = React.useState(null);
   const [error, setError] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -9,7 +9,12 @@ export function useFetch(url, options=null, handleResponse=(res) => res.json()) 
     const fetchData = async () => {
       try {
         const res = await fetch(url, options);
-        const content = await handleResponse(res);
+        let content = null;
+        if (parseJSON) {
+          content = await res.json();
+        } else {
+          content = await res.text();
+        }
         setResponse(content);
         setIsLoading(false)
       } catch (exception) {
@@ -17,7 +22,7 @@ export function useFetch(url, options=null, handleResponse=(res) => res.json()) 
       }
     };
     fetchData();
-  }, [url]);
+  }, [url, options, parseJSON]);
 
   return [ response, error, isLoading ];
 }

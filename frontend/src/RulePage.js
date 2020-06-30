@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import Container from '@material-ui/core/Container';
 import Typography from '@material-ui/core/Typography';
-import { useState } from 'react';
 import { useFetch } from './utils/useFetch';
 
 
@@ -17,27 +16,31 @@ const useStyles = makeStyles((theme) => ({
 export function RulePage(props) {
   const ruleid = props.match.params.ruleid;
   const language = props.match.params.language;
-  const [ruleDesc, setRuleDesc] = useState("loading...");
-  const [ruleMeta, setRuleMeta] = useState("loading...");
 
   const classes = useStyles();
 
   const descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-description.html";
   const metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-metadata.json";
 
-  const [descHTML, descError, descIsLoading] = useFetch(descUrl, null, (res) => res.text());
+  const [descHTML, descError, descIsLoading] = useFetch(descUrl, null, false);
   const [metadataJSON, metadataError, metadataIsLoading] = useFetch(metadataUrl);
 
-  let metadata = null;
+  let metadata = <Typography variant="h2" component="h3">Loading...</Typography>;
   if (!metadataIsLoading && !metadataError) {
     metadata = <Typography variant="h2" component="h3">{metadataJSON.title}</Typography>
   }
+
+  let description = <div>Loading...</div>;
+  if (!descIsLoading && !descError) {
+    description = <div dangerouslySetInnerHTML={{__html: descHTML}}/>;
+  }
+
 
   return (
     <Container maxWidth="md">
       {metadata}
       <Typography className={classes.description}>
-        <div dangerouslySetInnerHTML={{__html: descHTML}}/>
+        {description}
       </Typography>
     </Container>
   );
