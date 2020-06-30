@@ -1,0 +1,75 @@
+Before trapping all possible exceptions, it is best to try to trap the specific ones and try to recover from those.
+
+== Noncompliant Code Example
+
+----
+SET SERVEROUTPUT ON
+
+CREATE TABLE hitCounter
+(
+  page VARCHAR2(42),
+  hits NUMBER,
+  CONSTRAINT pk PRIMARY KEY (page)
+);
+
+CREATE PROCEDURE hitPage(pageIn VARCHAR2) AS
+BEGIN
+  INSERT INTO hitCounter VALUES (pageIn, 1);
+EXCEPTION -- Noncompliant, the only exception handler is WHEN OTHERS
+  WHEN OTHERS THEN
+    IF SQLCODE = -1 THEN
+      UPDATE hitCounter SET hits = hits + 1 WHERE page = pageIn;
+    ELSE
+      DBMS_OUTPUT.PUT_LINE('An unknown error occured!');
+    END IF;
+END;
+/
+
+BEGIN
+  hitPage('index.html');
+  hitPage('index.html');
+END;
+/
+
+SELECT * FROM hitCounter;
+
+DROP PROCEDURE hitPage;
+DROP TABLE hitCounter;
+----
+
+== Compliant Solution
+
+----
+SET SERVEROUTPUT ON
+
+CREATE TABLE hitCounter
+(
+  page VARCHAR2(42),
+  hits NUMBER,
+  CONSTRAINT pk PRIMARY KEY (page)
+);
+
+CREATE PROCEDURE hitPage(pageIn VARCHAR2) AS
+BEGIN
+  INSERT INTO hitCounter VALUES (pageIn, 1);
+EXCEPTION
+  WHEN DUP_VAL_ON_INDEX THEN
+    UPDATE hitCounter SET hits = hits + 1 WHERE page = pageIn;
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('An unknown error occured!');
+END;
+/
+
+BEGIN
+  hitPage('index.html');
+  hitPage('index.html');
+END;
+/
+
+SELECT * FROM hitCounter;
+
+DROP PROCEDURE hitPage;
+DROP TABLE hitCounter;
+----
+
+include::../see.adoc[]

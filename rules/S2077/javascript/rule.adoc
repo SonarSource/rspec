@@ -1,0 +1,68 @@
+Formatting strings used as SQL queries is security-sensitive. It has led in the past to the following vulnerabilities:
+ * http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-9019[CVE-2018-9019]
+ * http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-7318[CVE-2018-7318]
+ * http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-5611[CVE-2017-5611]
+
+SQL queries often need to use a hardcoded SQL string with a dynamic parameter coming from a user request. Formatting a string to add those parameters to the request is a bad practice as it can result in an https://www.owasp.org/index.php/SQL_Injection[SQL injection]. The safe way to add parameters to a SQL query is to use SQL binding mechanisms.
+
+This rule flags the execution of SQL queries which are built using formatting of strings, even if there is no injection. This rule does not detect SQL injections. The goal is to guide security code reviews and to prevent a common bad practice.
+
+This rule raises an issue when any of the following NodeJS APIs are used:
+* <code>mysql.query()</code>
+* <code>mysql2.query()</code>
+* <code>pg.query()</code>
+* <code>sequelize.query()</code>
+
+The following formatting methods will raise an issue:
+* <code>"string" + "string"</code> concatenation 
+* <code>`string ${var}`</code> templates
+* <code>string.concat()</code>
+* <code>string.replace()</code>
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+----
+// === MySQL ===
+const mysql = require('mysql');
+const mycon = mysql.createConnection({ host: host, user: user, password: pass, database: db });
+mycon.connect(function(err) {
+  mycon.query('SELECT * FROM users WHERE id = ' + userinput, (err, res) => {}); // Sensitive
+});
+
+// === PostgreSQL ===
+const pg = require('pg');
+const pgcon = new pg.Client({ host: host, user: user, password: pass, database: db });
+pgcon.connect();
+pgcon.query('SELECT * FROM users WHERE id = ' + userinput, (err, res) => {}); // Sensitive
+----
+
+== Compliant Solution
+
+----
+// === MySQL ===
+const mysql = require('mysql');
+const mycon = mysql.createConnection({ host: host, user: user, password: pass, database: db });
+mycon.connect(function(err) {
+  mycon.query('SELECT name FROM users WHERE id = ?', [userinput], (err, res) => {});
+});
+
+// === PostgreSQL ===
+const pg = require('pg');
+const pgcon = new pg.Client({ host: host, user: user, password: pass, database: db });
+pgcon.connect();
+pgcon.query('SELECT name FROM users WHERE id = $1', [userinput], (err, res) => {});
+----
+
+== Exceptions
+
+This rule's current implementation does not follow variables. It will only detect SQL queries which are formatted directly in the function call.
+----
+const sql = 'SELECT * FROM users WHERE id = ' + userinput;
+mycon.query(sql, (err, res) => {}); // Sensitive but no issue is raised.
+----
+
+include::../see.adoc[]

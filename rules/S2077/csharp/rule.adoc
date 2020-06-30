@@ -1,0 +1,72 @@
+Formatting strings used as SQL queries is security-sensitive. It has led in the past to the following vulnerabilities:
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-9019[CVE-2018-9019]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-7318[CVE-2018-7318]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-5611[CVE-2017-5611]
+
+SQL queries often need to use a hardcoded SQL string with a dynamic parameter coming from a user request. Formatting a string to add those parameters to the request is a bad practice as it can result in an https://www.owasp.org/index.php/SQL_Injection[SQL injection]. The safe way to add parameters to a SQL query is to use SQL binding mechanisms.
+
+This rule flags the execution of SQL queries which are built using formatting of strings, even if there is no injection. This rule does not detect SQL injections. The goal is to guide security code reviews and to prevent a common bad practice.
+
+The following specific method signatures are tested:
+* <code>System.Data.SqlClient.SqlCommand.SqlCommand(string, ...)</code>
+* <code>System.Data.SqlClient.SqlDataAdapter.SqlDataAdapter(string, ...)</code>
+* <code>System.Data.Odbc.OdbcCommand.OdbcCommand(string, ...)</code>
+* <code>System.Data.Odbc.OdbcDataAdapter.OdbcDataAdapter(string, ...)</code>
+* <code>System.Data.SqlServerCe.SqlCeCommand.SqlCeCommand(string, ...)</code>
+* <code>System.Data.SqlServerCe.SqlCeDataAdapter.SqlCeDataAdapter(string, ...)</code>
+* <code>System.Data.OracleClient.OracleCommand.OracleCommand(string, ...)</code>
+* <code>System.Data.OracleClient.OracleDataAdapter.OracleDataAdapter(string, ...)</code>
+* <code>Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlCommand(...)</code>
+* <code>Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlCommandAsync(...)</code>
+* <code>Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSql<TEntity>(System.Linq.IQueryable<TEntity>, System.FormattableString)</code>
+* <code>System.Data.SqlClient.SqlCommand.CommandText.set</code>
+* <code>System.Data.Odbc.OdbcCommand.CommandText.set</code>
+* <code>System.Data.SqlServerCe.SqlCeCommand.CommandText.set</code>
+* <code>System.Data.OracleClient.OracleCommand.CommandText.set</code>
+
+The following formatting methods will raise an issue:
+* <code>String.Concat</code>
+* <code>String.Format</code>
+* <code>FormattableString</code>, with some exceptions (see the Exceptions section)
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+----
+public void Foo(DbContext context, string query, string param)
+{
+    string sensitiveQuery = string.Concat(query, param); 
+    context.Database.ExecuteSqlCommand(sensitiveQuery); // Sensitive
+    context.Query<User>().FromSql(sensitiveQuery); // Sensitive
+
+    context.Database.ExecuteSqlCommand($"SELECT * FROM mytable WHERE mycol={value}", param); // Sensitive, the FormattableString is evaluated and converted to RawSqlString
+    string query = $"SELECT * FROM mytable WHERE mycol={param}";
+    context.Database.ExecuteSqlCommand(query); // Sensitive, the FormattableString has already been evaluated, it won't be converted to a parametrized query.
+}
+
+public void Bar(SqlConnection connection, string param)
+{
+    SqlCommand command;
+    string sensitiveQuery = string.Format("INSERT INTO Users (name) VALUES (\"{0}\")", param);
+    command = new SqlCommand(sensitiveQuery); // Sensitive
+
+    command.CommandText = sensitiveQuery; // Sensitive
+
+    SqlDataAdapter adapter;
+    adapter = new SqlDataAdapter(sensitiveQuery, connection); // Sensitive
+}
+----
+
+== Compliant Solution
+
+----
+public void Foo(DbContext context, string query, string param)
+{
+    context.Database.ExecuteSqlCommand("SELECT * FROM mytable WHERE mycol=@p0", param); // Compliant, it's a parametrized safe query
+}
+----
+
+include::../see.adoc[]

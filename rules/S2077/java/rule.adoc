@@ -1,0 +1,113 @@
+Formatting strings used as SQL queries is security-sensitive. It has led in the past to the following vulnerabilities:
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-9019[CVE-2018-9019]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-7318[CVE-2018-7318]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-5611[CVE-2017-5611]
+
+SQL queries often need to use a hardcoded SQL string with a dynamic parameter coming from a user request. Formatting a string to add those parameters to the request is a bad practice as it can result in an https://www.owasp.org/index.php/SQL_Injection[SQL injection]. The safe way to add parameters to a SQL query is to use SQL binding mechanisms.
+
+This rule raises an issue when an SQL query is built by formatting Strings, even if there is no injection. This rule does not detect SQL injections. The goal is to guide security code reviews and to prevent a common bad practice.
+
+The following method signatures from Java JDBC, JPA, JDO, Hibernate and Spring are tested: 
+
+* <code>org.hibernate.Session.createQuery</code>
+* <code>org.hibernate.Session.createSQLQuery</code>
+
+* <code>java.sql.Statement.executeQuery</code>
+* <code>java.sql.Statement.execute</code>
+* <code>java.sql.Statement.executeUpdate</code>
+* <code>java.sql.Statement.executeLargeUpdate</code>
+* <code>java.sql.Statement.addBatch</code>
+
+* <code>java.sql.Connection.prepareStatement</code>
+* <code>java.sql.Connection.prepareCall</code>
+* <code>java.sql.Connection.nativeSQL</code>
+
+* <code>javax.persistence.EntityManager.createNativeQuery</code>
+* <code>javax.persistence.EntityManager.createQuery</code>
+
+* <code>org.springframework.jdbc.core.JdbcOperations.batchUpdate</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.execute</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.query</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.queryForList</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.queryForMap</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.queryForObject</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.queryForRowSet</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.queryForInt</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.queryForLong</code>
+* <code>org.springframework.jdbc.core.JdbcOperations.update</code>
+* <code>org.springframework.jdbc.core.PreparedStatementCreatorFactory.<init></code>
+* <code>org.springframework.jdbc.core.PreparedStatementCreatorFactory.newPreparedStatementCreator</code>
+
+* <code>javax.jdo.PersistenceManager.newQuery</code>
+* <code>javax.jdo.Query.setFilter</code>
+* <code>javax.jdo.Query.setGrouping</code>
+
+
+If a method is defined in an interface, implementations are also tested. For example this is the case for <code>org.springframework.jdbc.core.JdbcOperations</code> , which is usually used as <code>org.springframework.jdbc.core.JdbcTemplate</code>). 
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+----
+public User getUser(Connection con, String user) throws SQLException {
+
+  Statement stmt1 = null;
+  Statement stmt2 = null;
+  PreparedStatement pstmt;
+  try {
+    stmt1 = con.createStatement();
+    ResultSet rs1 = stmt1.executeQuery("GETDATE()"); // No issue; hardcoded query
+
+    stmt2 = con.createStatement();
+    ResultSet rs2 = stmt2.executeQuery("select FNAME, LNAME, SSN " +
+                 "from USERS where UNAME=" + user);  // Sensitive
+
+    pstmt = con.prepareStatement("select FNAME, LNAME, SSN " +
+                 "from USERS where UNAME=" + user);  // Sensitive
+    ResultSet rs3 = pstmt.executeQuery();
+
+    //...
+}
+
+public User getUserHibernate(org.hibernate.Session session, String data) {
+
+  org.hibernate.Query query = session.createQuery(
+            "FROM students where fname = " + data);  // Sensitive
+  // ...
+}
+----
+
+== Compliant Solution
+
+----
+public User getUser(Connection con, String user) throws SQLException {
+
+  Statement stmt1 = null;
+  PreparedStatement pstmt = null;
+  String query = "select FNAME, LNAME, SSN " +
+                 "from USERS where UNAME=?"
+  try {
+    stmt1 = con.createStatement();
+    ResultSet rs1 = stmt1.executeQuery("GETDATE()");
+
+    pstmt = con.prepareStatement(query);
+    pstmt.setString(1, user);  // Good; PreparedStatements escape their inputs.
+    ResultSet rs2 = pstmt.executeQuery();
+
+    //...
+  }
+}
+
+public User getUserHibernate(org.hibernate.Session session, String data) {
+
+  org.hibernate.Query query =  session.createQuery("FROM students where fname = ?");
+  query = query.setParameter(0,data);  // Good; Parameter binding escapes all input
+
+  org.hibernate.Query query2 =  session.createQuery("FROM students where fname = " + data); // Sensitive
+  // ...
+----
+
+include::../see.adoc[]
