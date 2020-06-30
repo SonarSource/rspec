@@ -1,8 +1,38 @@
 include::../description.adoc[]
 
+== Noncompliant Code Examples
+
+A "check function" (for instance <code>access</code>, <code>stat</code> ... in this case <code>fopen</code> to verify the existence of a file) is used, followed by a "use function" (<code>open</code>, <code>fopen</code> ...) to write data inside a non existing file. These two consecutive calls create a TOCTOU race condition:
+
+----
+#include <stdio.h>
+
+void open_with_toctou(const char *file) {
+  FILE *f = fopen(file, "r");
+  if (NULL == f) {
+    // the file doesn't exist
+
+    if (fclose(f) == EOF) {
+      /* Handle error */
+    }
+
+    // it is now created in order to write some data inside
+    f = fopen(file, "w"); // Noncompliant: a race condition window exist between these two calls
+    if (NULL == f) {
+      /* Handle error */
+    }
+
+    if (fclose(f) == EOF) {
+      /* Handle error */
+    }
+  }
+}
+----
+
 == Compliant Solution
 
 If the file already exists on the disk, <code>fopen</code> with <code>x</code> mode will fail:
+
 ----
 #include <stdio.h>
 
@@ -19,6 +49,7 @@ void open_without_toctou(const char *file) {
 ----
 
 A more generic solution is to use "file descriptors":
+
 ----
 void open_without_toctou(const char *file) {
   int fd = open(file, O_CREAT | O_EXCL | O_WRONLY);
