@@ -1,0 +1,64 @@
+There are three limits related to methods annotated with the <code>@future</code> keyword:
+
+* There is a maximum number of <code>@future</code> calls allowed per transaction.
+* There is a maximum number of <code>@future</code> calls allowed per organization and per a 24-hour period.
+* Salesforce protects its infrastructure from organizations calling too many <code>@future</code> methods: if more than 2000 <code>@future</code> requests are queued, any additional request [will be delayed]|https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm.
+
+Thus it is a best practice to avoid calling <code>@future</code> methods in loops and instead call it once with all the necessary data.
+
+See https://developer.salesforce.com/docs/atlas.en-us.222.0.apexcode.meta/apexcode/apex_gov_limits.htm[Execution Governors and Limits] for the exact number of <code>@future</code> calls allowed in each context.
+
+This rule raises an issue when a method annotated with the <code>@future</code> keyword is called in a loop.
+
+
+== Noncompliant Code Example
+
+----
+public class FutureClass {
+    @future
+    public static void processTaskFuture(ID taskId) {
+        Task task = [SELECT Id, Subject FROM Task WHERE Task.Id = :taskId];
+        task.Subject = 'new task subject';
+        update task;
+    }
+
+    public static void updateUserTasks(ID ownerID) {
+        List<Task> tasks = [SELECT Id, Subject FROM Task WHERE Task.ownerid = :ownerID];
+        for (Task task: tasks) {
+            processTaskFuture(task.Id);  // Noncompliant
+        }
+    }
+----
+
+
+== Compliant Solution
+
+----
+public class FutureClass {
+    @future
+    public static void processTasksFuture(List<ID> taskIds) {
+        List<Task> tasks = [SELECT Id, Subject FROM Task WHERE Task.Id IN :taskIds];
+        for (Task task : tasks) {
+            task.Subject = 'new task subject';
+        }
+        update tasks;
+    }
+
+    public static void updateUserTasks(ID ownerID) {
+        List<Task> tasks = [SELECT Id, Subject FROM Task WHERE Task.ownerid = :ownerID];
+        List<Id> ids = new List<ID>();
+        for (Task task: tasks) {
+            ids.add(task.Id);
+        }
+        processTasksFuture(ids);
+    }
+----
+
+
+== See
+
+* https://developer.salesforce.com/page/Apex_Code_Best_Practices[Apex Code Best Practices]
+* https://developer.salesforce.com/docs/atlas.en-us.222.0.apexcode.meta/apexcode/apex_gov_limits.htm[Execution Governors and Limits]
+* https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm[Future Methods]
+* https://trailhead.salesforce.com/content/learn/modules/asynchronous_apex/async_apex_future_methods[Use Future Methods]
+

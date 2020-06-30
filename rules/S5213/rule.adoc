@@ -1,0 +1,50 @@
+To configure an algorithm with a function in C++,  you can use one of the following techniques:
+
+* A function pointer (see S5205 that explains why it is a bad idea)
+* A <code>std::function</code>
+* A template argument
+
+How do you select between those two solutions?
+<code>std::function</code> offers the most flexibility. You can store them in a variable, in a container (as <code>std::map<string, std::function<void(void)>></code> for instance... This flexibility is provided by type erasure: A single <code>std::function</code> can wrap any kind of functor, as long as the signature is compatible. It also come with a cost: Due to this type erasure, a compiler will typically not be able to inline a call to a <code>std::function</code>.
+
+Template parameters, on the other hand, are less flexible. Each functor has its own type, which prevents storing several of them together, even if they all have compatible signatures. But since each template instance knows the type of the functor, calls can be inlined, making this a zero-cost abstraction.
+
+As a conclusion, if the functor can be known at compile-time, you should prefer using a template parameter, if it has to be dynamic, <code>std::function</code> will give you greater flexibility.
+
+This rule detects function parameters of type <code>std::function</code> that would probably benefit from being replaced by a template parameter. It does so by looking if the functor is only called inside the function, or if it participates in other operations.
+
+----
+using Criterion = std::function<bool(DataPoint const&)>;
+void filter(DataSet* data, Criterion criterion) { // Noncompliant
+  for (auto &dataPoint : data) {
+    if (criterion(dataPoint)) {
+      data.markForRemoval(dataPoint);
+    }
+  }
+}
+----
+
+
+== Compliant Solution
+
+----
+template<class Criterion>
+void filter(DataSet* data, Criterion criterion) { // Compliant
+  for (auto &dataPoint : data) {
+    if (criterion(dataPoint)) {
+      data.markForRemoval(dataPoint);
+    }
+  }
+}
+----
+
+
+== Exceptions
+
+This rule ignores virtual functions, that don't work well with templates.
+
+== See
+
+* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#t49-where-possible-avoid-type-erasure[C++ Core Guidelines T.49] - Where possible, avoid type-erasure
+
+

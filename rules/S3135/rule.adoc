@@ -1,0 +1,73 @@
+<code>sizeof</code> returns the size in bytes of a type. <code>alignof</code> (since C++-11) returns the alignment, in bytes, required for any instance of a type. Using any other kind of value with <code>sizeof</code>, or <code>alignof</code>, is likely a mistake - what is returned is the size, or alignment, of the operand's type.
+
+This rule raises issues for the following <code>sizeof</code>, and <code>alignof</code> calls:
+
+* with parameters that have a <code>void</code> type. That is forbidden by both the C and C++ standards
+* on a pointer type variable. This is typically a mistake; usually the intent is to get the size, or alignment, of the pointed-to value instead
+* when the parameter is another <code>sizeof</code>, or <code>alignof</code> call. <code>sizeof(sizeof(...))</code> indicates a misuse or misunderstanding of the <code>sizeof</code> construct
+* when side effects are intended in the parameter. The side effects don't actually occur; the expression is not evaluated because <code>sizeof</code> only acts on the type of the expression
+* when there are calculations within <code>sizeof</code>, or <code>alignof</code>; the result will be <code>sizeof(int)</code>, or <code>alignof(int)</code>, assuming the calculation's operands are <code>int</code>s
+* when numeric constants are used with <code>sizeof</code> or <code>alignof</code>. Such calls simply return <code>sizeof(int)</code> or <code>alignof(int)</code> respectively.
+
+
+== Noncompliant Code Example
+
+----
+void fun(int array[10]) {
+  int length = 42;
+
+  for (size_t i = 0; i < sizeof(array) / sizeof(*array); i++) { // Noncompliant, type of array decays to int *, so sizeof(array) evaluates to sizeof(int *)
+    array[i] = 0;
+  }
+
+  size_t size = sizeof(i = 1234); // Noncompliant, side effect
+  size = sizeof(i++); // Noncompliant, side effect
+
+  size = sizeof(sizeof(i)); // Noncompliant, one sizeof call was intended
+
+  char *cp = malloc(sizeof(length + 1));  // Noncompliant, calculation in parameter
+
+  size = sizeof(10); // Noncompliant, constant as parameter
+
+  void* p;
+  alignof(*p);  // Noncompliant, void type
+  alignof(void);  // Noncompliant, void type
+}
+----
+
+
+== Compliant Solution
+
+----
+void fun(int array[10]) {
+  int length = 42;
+
+  for (size_t i = 0; i < count; i++) {
+    array[i] = 0;
+  }
+
+  int i = 1234;
+  size_t size = sizeof( i );
+  i++;
+  size = sizeof (i);
+
+  size = sizeof(i);
+
+  char *cp = malloc((length + 1) * sizeof(char));
+
+  size = sizeof(int);
+}
+----
+
+
+== See
+
+* MISRA C:2004, 12.3 - The sizeof operator shall not be used on expressions that contain side effects.
+* MISRA C++:2008, 5-3-4 - Evaluation of the operand to the sizeof operator shall not contain side effects.
+* MISRA C:2012, 13.6 - The operand of the sizeof operator shall not contain any expression which has potential side effects
+* https://www.securecoding.cert.org/confluence/x/6wE[CERT, ARR01-C.] - Do not apply the <code>sizeof</code> operator to a pointer when taking the size of an array
+* https://www.securecoding.cert.org/confluence/x/LQo[CERT, EXP44-C.] - Do not rely on side effects in operands to <code>sizeof</code>, <code>_Alignof</code>, or <code>_Generic</code>
+* https://www.securecoding.cert.org/confluence/x/KYDxC[CERT, EXP52-CPP.] - Do not rely on side effects in unevaluated operands
+* http://cwe.mitre.org/data/definitions/467[MITRE, CWE-467] - Use of sizeof() on a Pointer Type
+
+
