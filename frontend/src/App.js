@@ -1,7 +1,7 @@
 import React from 'react';
 import './App.css';
 import {
-  BrowserRouter as Router,
+  HashRouter as Router,
   Switch,
   Route,
   Link
@@ -13,7 +13,7 @@ function App() {
   return (
     <div className="App">
       <TopBar/>
-      <Router>
+      <Router basename="/rspec">
         <Switch>
           <Route path="/:ruleid/:language" component={RulePage} />
           <Route>
