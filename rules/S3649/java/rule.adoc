@@ -1,0 +1,50 @@
+User provided data, such as URL parameters, should always be considered untrusted and tainted. Constructing  SQL or SQL-like queries queries directly from tainted data enables attackers to inject specially crafted values that change the initial meaning of the query itself. Successful database query injection attacks can read, modify, or delete sensitive information from the database and sometimes even shut it down or execute arbitrary operating system commands.
+
+Typically, the solution is to rely on prepared statements rather than string concatenation, which ensures that user provided data will be properly escaped. Also, the use of database ORMs is generally safe as most implementations rely on prepared statements.
+An other solution is to validate every parameter used to build the query. This can be achieved by transforming string values to primitive types or by validating them against a white list of accepted values.
+
+This rule supports: JDBC, Java EE Entity Manager, Spring Framework, Hibernate, JDO, Android Database, Apache Torque, Rapidoid.
+
+== Noncompliant Code Example
+
+----
+public boolean authenticate(javax.servlet.http.HttpServletRequest request, java.sql.Connection connection) throws SQLException { 
+  String user = request.getParameter("user"); 
+  String pass = request.getParameter("pass"); 
+
+  String query = "SELECT * FROM users WHERE user = '" + user + "' AND pass = '" + pass + "'"; // Unsafe 
+
+  // If the special value "foo' OR 1=1 --" is passed as either the user or pass, authentication is bypassed 
+  // Indeed, if it is passed as a user, the query becomes: 
+  // SELECT * FROM users WHERE user = 'foo' OR 1=1 --' AND pass = '...' 
+  // As '--' is the comment till end of line syntax in SQL, this is equivalent to: 
+  // SELECT * FROM users WHERE user = 'foo' OR 1=1 
+  // which is equivalent to: 
+  // SELECT * FROM users WHERE 1=1 
+  // which is equivalent to: 
+  // SELECT * FROM users 
+
+  java.sql.Statement statement = connection.createStatement(); 
+  java.sql.ResultSet resultSet = statement.executeQuery(query); // Noncompliant 
+  return resultSet.next(); 
+} 
+----
+
+== Compliant Solution
+
+----
+public boolean authenticate(javax.servlet.http.HttpServletRequest request, java.sql.Connection connection) throws SQLException { 
+  String user = request.getParameter("user"); 
+  String pass = request.getParameter("pass"); 
+
+  String query = "SELECT * FROM users WHERE user = ? AND pass = ?"; // Safe even if authenticate() method is still vulnerable to brute-force attack in this specific case
+
+  java.sql.PreparedStatement statement = connection.prepareStatement(query); 
+  statement.setString(1, user); // Will be properly escaped 
+  statement.setString(2, pass); 
+  java.sql.ResultSet resultSet = statement.executeQuery();
+  return resultSet.next(); 
+} 
+----
+
+include::../see.adoc[]
