@@ -1,0 +1,50 @@
+Concurrent maps are used for thread-safety, but the use of such maps alone does not ensure thread-safety; they must also be _used_ in a thread-safe manner. Specifically, retrieving a key's value from a map, and then using <code>put</code> to add a map element if the value is <code>null</code> is not performed in an atomic manner. Here's what can happen
+
+----
+Thread1 cmap.get("key") => null
+Thread2 cmap.get("key") => null
+Thread1 cmap.put("key", new Value())
+Thread2 cmap.put("key", new Value())
+----
+Note that this example is written as though the threads take turns performing operations, but that's not necessarily the case.
+
+Instead of <code>put</code>, <code>putIfAbsent</code> should be used. 
+
+
+== Noncompliant Code Example
+
+----
+private static final ConcurrentMap<String,MyClass> cmap = new ConcurrentHashMap<String,MyClass>();
+
+public void populateMyClass(String key, String mcProp) {
+  MyClass mc = cmap.get(key);
+  if (mc == null) {
+    mc = new MyClass();
+    cmap.put(key, mc);  // Noncompliant
+  }
+  mc.setProp(mcProp);  // could be futile since mc may have been replaced in another thread!
+}
+----
+
+
+== Compliant Solution
+
+----
+private static final ConcurrentMap<String,MyClass> cmap = new ConcurrentHashMap<String,MyClass>();
+
+public void populateMyClass(String key, String mcProp) {
+  MyClass mc = cmap.get(key);
+  if (mc == null) {
+    mc = new MyClass();
+    cmap.putIfAbsent(key, mc);
+    mc = cmap.get(key); // re-retrieve value since another thread could have beaten this one to the "put"
+  }
+  mc.setProp(mcProp);
+}
+----
+
+
+== See
+
+* https://www.securecoding.cert.org/confluence/x/GQDpAQ[CERT, VNA03-J.] - Do not assume that a group of calls to independently atomic methods is atomic
+
