@@ -1,0 +1,70 @@
+include::../description.adoc[]
+
+== Noncompliant Code Example
+
+----
+using System.DirectoryServices;
+using Microsoft.AspNetCore.Mvc;
+
+namespace WebApplicationDotNetCore.Controllers
+{
+    public class RSPEC2078LDAPInjectionNoncompliantController : Controller
+    {
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        public DirectorySearcher ds { get; set; }
+
+        public IActionResult Authenticate(string user, string pass)
+        {
+            ds.Filter = "(&(uid=" + user + ")(userPassword=" + pass + "))"; // Noncompliant
+
+            // If the special value "*)(uid=*))(|(uid=*" is passed as user, authentication is bypassed
+            // Indeed, if it is passed as a user, the filter becomes:
+            // (&(uid=*)(uid=*))(|(uid=*)(userPassword=...))
+            // as uid=* match all users, it is equivalent to:
+            // (|(uid=*)(userPassword=...))
+            // again, as uid=* match all users, the filter becomes useless
+
+            return Content(ds.FindOne() != null ? "success" : "fail");
+        }
+    }
+}
+----
+
+== Compliant Solution
+
+----
+using System.DirectoryServices;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc;
+
+namespace WebApplicationDotNetCore.Controllers
+{
+    public class RSPEC2078LDAPInjectionCompliantController : Controller
+    {
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        public DirectorySearcher ds { get; set; }
+
+        public IActionResult Authenticate(string user, string pass)
+        {
+            // restrict the username and password to letters only
+            if (!Regex.IsMatch(user, "^[a-zA-Z]+$") || !Regex.IsMatch(pass, "^[a-zA-Z]+$"))
+            {
+                return BadRequest();
+            }
+
+            ds.Filter = "(&(uid=" + user + ")(userPassword=" + pass + "))"; // Now safe
+            return Content(ds.FindOne() != null ? "success" : "fail");
+        }
+    }
+}
+----
+
+include::../see.adoc[]

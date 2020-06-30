@@ -1,0 +1,76 @@
+Formatting strings used as SQL queries is security-sensitive. It has led in the past to the following vulnerabilities:
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-9019[CVE-2018-9019]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-7318[CVE-2018-7318]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-5611[CVE-2017-5611]
+
+SQL queries often need to use a hardcoded SQL string with a dynamic parameter coming from a user request. Formatting a string to add those parameters to the request is a bad practice as it can result in an https://www.owasp.org/index.php/SQL_Injection[SQL injection]. The safe way to add parameters to a SQL query is to use SQL binding mechanisms.
+
+Note that this rule does not detect SQL injections.
+
+This rule flags the execution of formatted SQL via Django APIs. The goal is to guide security code reviews and to prevent a common bad practice.
+
+A string is considered formatted if it uses one of the following operations:
+* <code>str.format(...)</code>
+* <code>str % str</code>
+* <code>str + str</code>
+* <code>f"SELECT * FROM mytable WHERE name = '\{value\}'"</code>
+* <code>F"SELECT * FROM mytable WHERE name = '\{value\}'"</code>
+
+include::../ask-yourself.adoc[]
+
+== Recommended Secure Coding Practices
+
+* Avoid building queries manually using formatting. If you do it anyway, do not include user input in this building process.
+* Use https://www.owasp.org/index.php/Query_Parameterization_Cheat_Sheet[parameterized queries, prepared statements, or stored procedures] whenever possible.
+* Avoid executing SQL queries containing unsafe input in stored procedures or functions.
+* https://www.owasp.org/index.php/Input_Validation_Cheat_Sheet[Sanitize] every unsafe input.
+* Follow https://docs.djangoproject.com/en/3.0/topics/security/#sql-injection-protection[Django best practices].
+
+You can also reduce the impact of an attack by using a database account with low privileges.
+
+== Sensitive Code Example
+
+----
+from django.db import models
+from django.db import connection
+from django.db import connections
+from django.db.models.expressions import RawSQL
+
+value = input()
+
+
+class MyUser(models.Model):
+    name = models.CharField(max_length=200)
+
+
+def query_my_user(request, params, value):
+    with connection.cursor() as cursor:
+        cursor.execute("{0}".format(value))  # Sensitive
+
+    # https://docs.djangoproject.com/en/2.1/ref/models/expressions/#raw-sql-expressions
+
+    RawSQL("select col from %s where mycol = %s and othercol = " + value, ("test",))  # Sensitive
+
+    # https://docs.djangoproject.com/en/2.1/ref/models/querysets/#extra
+
+    MyUser.objects.extra(
+        select={
+            'mycol':  "select col from sometable here mycol = %s and othercol = " + value}, # Sensitive
+           select_params=(someparam,),
+        },
+    )
+----
+
+== Compliant Solution
+
+----
+cursor = connection.cursor(prepared=True)
+sql_insert_query = """ select col from sometable here mycol = %s and othercol = %s """
+
+select_tuple = (1, value)
+
+cursor.execute(sql_insert_query, select_tuple) # Compliant, the query is parameterized
+connection.commit()
+----
+
+include::../see.adoc[]
