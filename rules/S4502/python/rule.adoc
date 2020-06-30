@@ -1,0 +1,127 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+For a https://docs.djangoproject.com/fr/3.0/ref/csrf/[Django] application, the code is sensitive when,
+
+* <code>django.middleware.csrf.CsrfViewMiddleware</code> is not used in the https://docs.djangoproject.com/en/3.0/topics/settings/[Django settings]: 
+
+----
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+] # Sensitive: django.middleware.csrf.CsrfViewMiddleware is missing
+----
+
+* the CSRF protection is disabled on a view:
+
+----
+@csrf_exempt # Sensitive
+def example(request):
+    return HttpResponse("default")
+----
+
+
+For a https://flask-wtf.readthedocs.io/en/latest/csrf.html[Flask] application, the code is sensitive when,
+
+* the <code>WTF_CSRF_ENABLED</code> setting is set to <code>false</code>:
+
+----
+app = Flask(__name__)
+app.config['WTF_CSRF_ENABLED'] = False # Sensitive
+----
+
+* the  application doesn't use the <code>CSRFProtect</code> module:
+
+----
+app = Flask(__name__) # Sensitive: CSRFProtect is missing
+
+@app.route('/')
+def hello_world():
+    return 'Hello, World!'
+----
+
+* the CSRF protection is disabled on a view:
+
+----
+app = Flask(__name__)
+csrf = CSRFProtect()
+csrf.init_app(app) 
+
+@app.route('/example/', methods=['POST'])
+@csrf.exempt # Sensitive
+def example():
+    return 'example '
+----
+
+* the CSRF protection is disabled on a form:
+
+----
+class unprotectedForm(FlaskForm):
+    class Meta:
+        csrf = False # Sensitive
+
+    name = TextField('name')
+    submit = SubmitField('submit')
+----
+
+== Compliant Solution
+
+For a https://docs.djangoproject.com/fr/3.0/ref/csrf/[Django] application,
+
+* it is recommended to protect all the views with <code>django.middleware.csrf.CsrfViewMiddleware</code>:
+
+----
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware', # Compliant
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+] 
+----
+
+* and to not disable the CSRF protection on specific views:
+
+----
+def example(request): # Compliant
+    return HttpResponse("default")
+----
+
+
+For a https://flask-wtf.readthedocs.io/en/latest/csrf.html[Flask] application, 
+
+* the <code>CSRFProtect</code> module should be used (and not disabled further with <code>WTF_CSRF_ENABLED</code> set to <code>false</code>):
+
+----
+app = Flask(__name__)
+csrf = CSRFProtect()
+csrf.init_app(app) # Compliant
+----
+
+* and it is recommended to not disable the CSRF protection on specific views or forms:
+
+----
+@app.route('/example/', methods=['POST']) # Compliant
+def example():
+    return 'example '
+
+class unprotectedForm(FlaskForm):
+    class Meta:
+        csrf = True # Compliant
+
+    name = TextField('name')
+    submit = SubmitField('submit')
+----
+
+include::../see.adoc[]
