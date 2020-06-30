@@ -1,0 +1,54 @@
+<code>COALESCE</code> and <code>IIF</code> (which evaluate to <code>CASE</code> expressions under the covers), as well as <code>CASE</code> input expressions should not be used with subqueries because the subquery will be evaluated once for each option in the expression, and each evaluation could return different results depending on the isolation level. To ensure consistent results, use the <code>SNAPSHOT ISOLATION</code> isolation level. To ensure consistent results _and_ better performance, move the subquery out of the expression. 
+
+Note it is also an option to replace <code>COALESCE</code> with <code>ISNULL</code>.
+
+
+== Noncompliant Code Example
+
+----
+... 
+COALESCE((SELECT a FROM b WHERE c) , 1)  -- Noncompliant
+...
+----
+
+----
+...
+CASE  
+WHEN (SELECT COUNT(*) FROM A) > 0 THEN (SELECT COUNT(*) FROM A) + 42
+...  
+ELSE otherExpression
+END  
+...
+----
+
+
+== Compliant Solution
+
+----
+SET @a = SELECT a FROM b WHERE c
+...
+COALESCE(@a, 1)
+...
+----
+or
+----
+SET TRANSACTION ISOLATION LEVEL SNAPSHOT
+BEGIN TRANSACTION
+... 
+COALESCE((SELECT a FROM b WHERE c) , 1)
+...
+----
+
+----
+...
+
+SET @a = SELECT COUNT(*) FROM A
+
+CASE  
+WHEN @a > 0 THEN @a + 42
+...  
+ELSE otherExpression
+END  
+...
+----
+

@@ -1,0 +1,131 @@
+Handling files is security-sensitive. It has led in the past to the following vulnerabilities:
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-0358[CVE-2018-0358]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-7560[CVE-2017-7560]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2005-4015[CVE-2005-4015]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-3835[CVE-2018-3835]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-8008[CVE-2018-8008]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2010-2320[CVE-2010-2320]
+
+Any access to the file system can create a vulnerability. Exposing a file's content, path or even its existence or absence is dangerous. It is also extremely risky to create or write files without making sure that their permission and content is safe and controlled. Using a file path or reading a file content must be always done with caution as they could have been tampered with.
+
+The file system is a resource which can be easily exhausted. Opening too many files will use up all file descriptors, preventing other software from opening files. Filling the storage space will also prevent any additional write from happening.
+
+This rule flags code that initiates the use of files. It does not highlight how the files are used as this is often done in external libraries or via abstractions like <code>InputStream</code>. It focuses instead on the creation of <code>java.io.File</code> or equivalent from a <code>String</code>. This action indicates that one or multiple files will be processed just after this code. The goal is to guide manual security code reviews.
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+----
+// === java.io.File ===
+import java.io.File;
+
+class A {
+    void foo(String strPath, String StrParent, String StrChild, String prefix, String suffix, java.net.URI uri) throws Exception {
+
+        // Sensitive: check what is done with this file
+        new File(strPath);
+        new File(StrParent, StrChild);
+        new File(uri);
+        File.createTempFile(prefix, suffix);
+    }
+}
+----
+
+----
+// === java.nio.file ===
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.*;
+
+class A {
+    void foo(FileSystem fileSystem, java.net.URI uri, String part1, String part2, String prefix, FileAttribute<?> attrs,
+            String suffix) throws Exception {
+        Path path = Paths.get(part1, part2); // Sensitive
+        Path path2 = Paths.get(uri); // Sensitive
+
+        Iterable<Path> paths = fileSystem.getRootDirectories(); // Sensitive
+        Path path3 = fileSystem.getPath(part1, part2); // Sensitive
+
+        Path path4 = Files.createTempDirectory(prefix, attrs); // Sensitive
+        Path path5 = Files.createTempFile(prefix, suffix, attrs); // Sensitive
+    }
+}
+----
+
+----
+// === Opening file from a string path ===
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.RandomAccessFile;
+
+class A {
+    void foo(String mode) throws Exception {
+        FileReader reader = new FileReader("test.txt"); // Sensitive
+        FileInputStream instream = new FileInputStream("test.txt"); // Sensitive
+        FileWriter writer = new FileWriter("out.txt"); // Sensitive
+        FileOutputStream outstream = new FileOutputStream("out2.txt"); // Sensitive
+        RandomAccessFile file = new RandomAccessFile("test.txt", mode); // Sensitive
+    }
+}
+----
+
+----
+// ===  org.apache.commons.io.FileUtils ===
+import org.apache.commons.io.FileUtils;
+
+class A {
+    void foo() {
+        FileUtils.getFile("test.txt"); // Sensitive
+        FileUtils.getTempDirectory(); // Sensitive
+        FileUtils.getUserDirectory(); // Sensitive
+    }
+}
+----
+
+----
+// === Guava ===
+import java.nio.charset.Charset;
+
+import com.google.common.io.FileBackedOutputStream;
+import com.google.common.io.MoreFiles;
+import com.google.common.io.Resources;
+import com.google.common.io.Files;
+import com.google.common.io.LineProcessor;
+
+class M {
+    void foo(java.net.URL url, Charset charset, java.io.OutputStream stream, String resourceName, Class<?> contextClass,
+            LineProcessor<Object> callback, int fileThreshold, boolean resetOnFinalize) throws Exception {
+
+        Files.createTempDir(); // Sensitive
+        Files.fileTreeTraverser(); // Sensitive (removed from public API in Guava 25.0)
+        Files.fileTraverser(); // Sensitive
+        MoreFiles.directoryTreeTraverser(); // Sensitive (removed from public API in Guava 25.0)
+        MoreFiles.fileTraverser(); // Sensitive
+        Resources.asByteSource(url); // Sensitive
+        Resources.asCharSource(url, charset); // Sensitive
+        Resources.copy(url, stream); // Sensitive
+        Resources.getResource(contextClass, resourceName); // Sensitive
+        Resources.getResource(resourceName); // Sensitive
+        Resources.readLines(url, charset); // Sensitive
+        Resources.readLines(url, charset, callback); // Sensitive
+        Resources.toByteArray(url); // Sensitive
+        Resources.toString(url, charset); // Sensitive
+
+        // these OutputStreams creates files
+        new FileBackedOutputStream(fileThreshold); // Sensitive
+        new FileBackedOutputStream(fileThreshold, resetOnFinalize); // Sensitive
+    }
+}
+----
+
+== Exceptions
+
+This rule doesn't highlight any function call receiving a <code>Path</code> or <code>File</code> arguments as the arguments themselves have been highlighted before.
+
+For example we highlight new <code>File(String parent, String child)</code> but not new <code>File(File parent, String child)</code> as the parent <code>File</code> should have been flagged earlier.
+
+include::../see.adoc[]

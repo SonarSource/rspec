@@ -1,0 +1,101 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+This rule raises an issue as soon as there is a reference to argv, be it for direct use or via a CLI library like JCommander, GetOpt or Apache CLI.
+----
+public class Main {
+  public static void main (String[] argv) {
+    String option = argv[0];  // Sensitive: check how the argument is used
+  }
+}
+----
+
+----
+// === JCommander ===
+import com.beust.jcommander.*;
+
+public class Main {
+  public static void main (String[] argv) {
+    Main main = new Main();
+    JCommander.newBuilder()
+      .addObject(main)
+      .build()
+      .parse(argv); // Sensitive
+    main.run();
+  }
+}
+----
+
+----
+// === GNU Getopt ===
+import gnu.getopt.Getopt;
+
+public class Main { 
+  public static void main (String[] argv) {
+    Getopt g = new Getopt("myprog", argv, "ab"); // Sensitive
+  }
+}
+----
+
+----
+// === Apache CLI ===
+import org.apache.commons.cli.*;
+
+public class Main {
+  public static void main (String[] argv) {
+    Options options = new Options();
+    CommandLineParser parser = new DefaultParser();
+    try {
+      CommandLine line = parser.parse(options, argv); // Sensitive
+    }
+  }
+}
+----
+
+In the case of Args4J, an issue is created on the <code>public void run</code> method of any class using <code>org.kohsuke.args4j.Option</code> or <code>org.kohsuke.args4j.Argument</code>.
+Such a class is called directly by <code>org.kohsuke.args4j.Starter</code> outside of any <code>public static void main</code> method. If the class has no <code>run</code> method, no issue will be raised as there must be a <code>public static void main</code> and its argument is already highlighted.
+
+----
+// === argv4J ===
+import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.Argument;
+
+public class Main { 
+  @Option(name="-myopt",usage="An option")
+  public String myopt;
+
+  @Argument(usage = "An argument", metaVar = "<myArg>")
+  String myarg;
+
+  String file;
+
+  @Option(name="-file")
+  public void setFile(String file) {
+    this.file = file;
+  }
+
+  String arg2;
+
+  @Argument(index=1)
+  public void setArg2(String arg2) {
+    this.arg2 = arg2;
+  }
+
+  public void run() { // Sensitive: This function
+     myarg.toString(); // check how this argument is used
+  }
+}
+----
+
+== Exceptions
+
+The support of Argv4J without the use of <code>org.kohsuke.argv4j.Option</code> is out of scope as there is no way to know which Bean will be used as the mainclass.
+
+No issue will be raised on <code>public static void main(String[] argv)</code> if <code>argv</code> is not referenced in the method.
+
+include::../see.adoc[]

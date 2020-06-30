@@ -1,0 +1,50 @@
+Using regular expressions is security-sensitive. It has led in the past to the following vulnerabilities:
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-16021[CVE-2017-16021]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-13863[CVE-2018-13863]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-8926[CVE-2018-8926]
+
+Evaluating regular expressions against input strings is potentially an extremely CPU-intensive task. Specially crafted regular expressions such as <code>/(a+)+s/</code> will take several seconds to evaluate the input string <code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaabs</code>. The problem is that with every additional <code>a</code> character added to the input, the time required to evaluate the regex doubles. However, the equivalent regular expression, <code>a\+s</code> (without grouping) is efficiently evaluated in milliseconds and scales linearly with the input size.
+
+Evaluating such regular expressions opens the door to https://www.owasp.org/index.php/Regular_expression_Denial_of_Service_-_ReDoS[Regular expression Denial of Service (ReDoS)] attacks. In the context of a web application, attackers can force the web server to spend all of its resources evaluating regular expressions thereby making the service inaccessible to genuine users.
+
+This rule flags any execution of a hardcoded regular expression which has at least 3 characters and contains at at least two instances of any of the following characters <code>*+\{</code>.
+Example: <code>(a+)\*</code>
+
+The following functions are detected as executing regular expressions:
+* http://php.net/manual/en/book.pcre.php[PCRE]: Perl style regular expressions: http://php.net/manual/en/function.preg-filter.php[preg_filter], http://php.net/manual/en/function.preg-grep.php[preg_grep], http://php.net/manual/en/function.preg-match-all.php[preg_match_all], http://php.net/manual/en/function.preg-match.php[preg_match], http://php.net/manual/en/function.preg-replace-callback.php[preg_replace_callback], http://php.net/manual/en/function.preg-replace.php[preg_replace], http://php.net/manual/en/function.preg-split.php[preg_split]
+* http://php.net/manual/en/book.regex.php[POSIX extended], which are deprecated: http://php.net/manual/en/function.ereg-replace.php[ereg_replace], http://php.net/manual/en/function.ereg.php[ereg], http://php.net/manual/en/function.eregi-replace.php[eregi_replace], http://php.net/manual/en/function.eregi.php[eregi], http://php.net/manual/en/function.split.php[split], http://php.net/manual/en/function.spliti.php[spliti].
+* http://php.net/manual/en/function.fnmatch.php[fnmatch]
+* Any of the multibyte string regular expressions: http://php.net/manual/en/function.mb-eregi-replace.php[mb_eregi_replace], http://php.net/manual/en/function.mb-ereg-match.php[mb_ereg_match], http://php.net/manual/en/function.mb-ereg-replace-callback.php[mb_ereg_replace_callback], http://php.net/manual/en/function.mb-ereg-replace.php[mb_ereg_replace], http://php.net/manual/en/function.mb-ereg-search-init.php[mb_ereg_search_init], http://php.net/manual/en/function.mb-ereg-search-pos.php[mb_ereg_search_pos], http://php.net/manual/en/function.mb-ereg-search-regs.php[mb_ereg_search_regs], http://php.net/manual/en/function.mb-ereg-search.php[mb_ereg_search], http://php.net/manual/en/function.mb-ereg.php[mb_ereg], http://php.net/manual/en/function.mb-eregi-replace.php[mb_eregi_replace], http://php.net/manual/en/function.mb-eregi.php[mb_eregi]
+
+Note that <code>ereg*</code> functions have been removed in PHP 7 and *PHP 5 end of life date is the 1st of January 2019. Using PHP 5 is dangerous as there will be no security fix*.
+
+This rule's goal is to guide security code reviews.
+
+include::../ask-yourself.adoc[]
+
+== Recommended Secure Coding Practices
+
+Do not set the constant <code>pcre.backtrack_limit</code> to a high value as it will increase the resource consumption of PCRE functions.
+Check the error codes of PCRE functions via <code>preg_last_error</code>.
+
+Check whether your regular expression engine (the algorithm executing your regular expression) has any known vulnerabilities. Search for vulnerability reports mentioning the one engine you're are using. Do not run vulnerable regular expressions on user input.
+
+Use if possible a library which is not vulnerable to Redos Attacks such as https://github.com/google/re2[Google Re2].
+
+Remember also that a ReDos attack is possible if a user-provided regular expression is executed. This rule won't detect this kind of injection.
+Avoid executing a user input string as a regular expression or use at least <code>preg_quote</code> to escape regular expression characters.
+
+== Exceptions
+
+An issue will be created for the functions <code>mb_ereg_search_pos</code>, <code>mb_ereg_search_regs</code> and <code>mb_ereg_search</code> if and only if at least the first argument, i.e. the $pattern, is provided.
+
+The current implementation does not follow variables. It will only detect regular expressions hard-coded directly in the function call.
+----
+$pattern = "/(a+)+/";
+$result = eregi($pattern, $input);  // No issue will be raised even if it is Sensitive
+----
+
+Some corner-case regular expressions will not raise an issue even though they might be vulnerable. For example: <code>(a|aa)+</code>, <code>(a|a?)+</code>.
+It is a good idea to test your regular expression if it has the same pattern on both side of a "<code>|</code>".
+
+include::../see.adoc[]
