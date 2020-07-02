@@ -4,7 +4,7 @@ import * as lunr from 'lunr'
 
 import { useFetch } from './useFetch';
 
-export function useSearch(query) {
+export function useSearch(query, pageSize, pageNumber) {
   let indexDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index.json`;
   let storeDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-store.json`;
 
@@ -12,6 +12,8 @@ export function useSearch(query) {
   const [storeData, storeDataError, storeDataIsLoading] = useFetch(storeDataUrl);
 
   const [results, setResults] = useState([]);
+  const [numberOfHits, setNumberOfHits] = useState(null);
+  const [error, setError] = useState(null);
   const [resultsAreloading, setResultsAreLoading] = useState(true);
 
   React.useEffect(() => {
@@ -23,11 +25,25 @@ export function useSearch(query) {
       if (query) {
         finalQuery = `titles:${query}`
       }
-      const hits = index.search(finalQuery);
-      setResults(hits.map(({ ref }) => storeData[ref]));
+
+      let hits = []
+      setError(null);
+      try {
+        hits = index.search(finalQuery);
+      } catch (exception) {
+        if (exception instanceof lunr.QueryParseError) {
+          setError(exception.message);
+        } else {
+          throw exception;
+        }
+      }
+      setNumberOfHits(hits.length)
+      // const pageResults = hits;
+      const pageResults = hits.slice(pageSize*(pageNumber - 1), pageSize*(pageNumber));
+      setResults(pageResults.map(({ ref }) => storeData[ref]));
       setResultsAreLoading(false);
     }
-  }, [query, indexData, storeData, indexDataError, storeDataError, indexDataIsLoading, storeDataIsLoading]);
+  }, [query, pageSize, pageNumber, error, indexData, storeData, indexDataError, storeDataError, indexDataIsLoading, storeDataIsLoading]);
 
-  return [results, resultsAreloading];
+  return [results, numberOfHits, error, resultsAreloading];
 }

@@ -5,8 +5,13 @@ import Paper from '@material-ui/core/Paper';
 import Typography from '@material-ui/core/Typography';
 import TextField from '@material-ui/core/TextField';
 import Container from '@material-ui/core/Container';
+import Pagination from '@material-ui/lab/Pagination';
 
 import { useSearch } from './utils/useSearch';
+import {
+  useLocationSearch,
+  useLocationSearchState
+} from './utils/routing';
 import { SearchHit } from './SearchHit';
 
 
@@ -22,11 +27,15 @@ const classes = makeStyles((theme) => ({
   },
 }));
 
-
 export const SearchPage = () => {
-  const [titleQuery, setTitleQuery] = useState("");
+  const pageSize = 20;
+  const [query, setQuery] = useLocationSearchState('query', '');
+  const [pageNumber, setPageNumber] = useLocationSearchState('page', 1, parseInt);
+  const [_, setLocationSearch] = useLocationSearch();
 
-  const [results, resultsAreLoading] =  useSearch(titleQuery);
+
+  const [results, numberOfHits, error, resultsAreLoading] =  useSearch(query, pageSize, pageNumber);
+  const totalPages = Math.ceil(numberOfHits/pageSize);
 
   let resultsDisplay="No rule found...";
   if (resultsAreLoading) {
@@ -34,6 +43,14 @@ export const SearchPage = () => {
   }
   else if (results.length > 0) {
     resultsDisplay = results.map(result => <SearchHit key={result.id} data={result}/>)
+  }
+
+  function handleQueryUpdate(event) {
+    if (pageNumber > 1) {
+      setLocationSearch({query: event.target.value, page: 1});
+    } else {
+      setQuery(event.target.value, {push: false});
+    }
   }
  
   return (
@@ -52,15 +69,21 @@ export const SearchPage = () => {
             shrink: true,
           }}
           variant="outlined"
-          value={titleQuery}
-          onChange={e => setTitleQuery(e.target.value)}
+          value={query}
+          onChange={handleQueryUpdate}
+          error={error}
+          helperText={error}
       />
     </Container>
   </Paper>
-    <h1>Results</h1>
+      <Typography variant="h5" className={classes.searchBar}>Number of rules found: {numberOfHits}</Typography>
     <ul>
       {resultsDisplay}
     </ul>
+    <Pagination count={totalPages} page={pageNumber} siblingCount={2}
+      onChange={(event, value) => setPageNumber(value)}
+      />
+    <Paper/>
     </div>
   )
 }
