@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const asciidoctor = require("asciidoctor")();
+const lunr = require('lunr');
 
 const RULE_SRC_DIRECTORY = path.join("..", "rules");
 const RULE_DST_DIRECTORY = path.join("public", "rules");
@@ -11,31 +12,64 @@ function clean_rules() {
 }
 
 function generate_rules_metadata_and_description() {
-    const ruleIndex = {};
+    const ruleIndexStore = {};
     fs.mkdirSync(RULE_DST_DIRECTORY, { recursive: true });
     fs.readdirSync(RULE_SRC_DIRECTORY).forEach(fileName => {
         const ruleSrcDirectory = path.join(RULE_SRC_DIRECTORY, fileName);
         const ruleDstDirectory = path.join(RULE_DST_DIRECTORY, fileName);
         try {
-            generate_rule_metadata_and_description(ruleSrcDirectory, ruleDstDirectory, ruleIndex);
+            generate_rule_metadata_and_description(ruleSrcDirectory, ruleDstDirectory, ruleIndexStore);
         } catch (e) {
             console.error("ERROR while generating " + fileName + ": " + e);
         }
     });
-    const ruleIndexJson = JSON.stringify(ruleIndex, null, 2);
+    const ruleIndexStoreJson = JSON.stringify(ruleIndexStore, null, 2);
+    fs.writeFileSync(path.join(RULE_DST_DIRECTORY, "rule-index-store.json"), ruleIndexStoreJson, {encoding: 'utf8'});
+    const ruleIndexJson = JSON.stringify(build_search_index(ruleIndexStore));
     fs.writeFileSync(path.join(RULE_DST_DIRECTORY, "rule-index.json"), ruleIndexJson, {encoding: 'utf8'});
-    fs.writeFileSync(path.join(RULE_DST_DIRECTORY, "rule-index.js"), "const RULE_INDEX = " + ruleIndexJson + ";", {encoding: 'utf8'});
 }
 
-function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*string*/ruleDstDirectory, /*object*/ruleIndex) {
+function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*string*/ruleDstDirectory, ruleIndexStore) {
     const all_languages = findSupportedLanguage(ruleSrcDirectory);
-    ruleIndex[path.basename(ruleSrcDirectory)] = all_languages;
+    // Search records will be indexed by lunr search engine
+    const ruleKey = parseInt(ruleSrcDirectory.split('/').pop().substring(1))
+    const searchRecord = {
+        id: ruleKey,
+        languages: all_languages,
+        type: null,
+        defaultSeverity: null,
+        titles: new Set(),
+        tags: new Set(),
+        qualityProfiles: new Set(),
+    }
+    ruleIndexStore[ruleKey] = (searchRecord);
+
     console.log("Converting '" + ruleSrcDirectory + "' into '" + ruleDstDirectory + "' for languages: " + all_languages.join(", "));
     all_languages.forEach(language => {
         fs.mkdirSync(ruleDstDirectory, { recursive: true });
-        generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages);
         generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language);
+        const metadata = generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages);
+
+        // populate the search record
+        searchRecord.titles.add(metadata.title);
+        searchRecord.type = metadata.type;
+        searchRecord.defaultSeverity = metadata.defaultSeverity;
+        if (metadata.tags) {
+            for (const tag of metadata.tags.values()) {
+                searchRecord.tags.add(tag);
+            }
+        }
+        if (metadata.qualityProfiles) {
+            for (const qualityProfile of metadata.qualityProfiles.values()) {
+                searchRecord.qualityProfiles.add(qualityProfile);
+            }
+        }
     });
+
+    // replace Set with lists so that it can be used with JSON.stringify
+    searchRecord.titles = Array.from(searchRecord.titles).join('\n');
+    searchRecord.tags = Array.from(searchRecord.tags);
+    searchRecord.qualityProfiles = Array.from(searchRecord.qualityProfiles);
 }
 
 function generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language) {
@@ -71,6 +105,25 @@ function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, al
     mergedJson["all_languages"] = all_languages;
     const dstJsonFile = path.join(ruleDstDirectory, language + "-metadata.json");
     fs.writeFileSync(dstJsonFile, JSON.stringify(mergedJson, null, 2), {encoding: 'utf8'});
+    return mergedJson;
+}
+
+function build_search_index(ruleIndexStore) {
+    var ruleIndex = lunr(function () {
+        this.ref('id');
+        this.field('titles');
+        this.field('type');
+        this.field('defaultSeverity');
+        this.field('tags');
+        this.field('qualityProfiles');
+
+
+        for (const searchRecord of Object.values(ruleIndexStore)) {
+            this.add(searchRecord);
+        }
+    })
+
+    return ruleIndex;
 }
 
 function findSupportedLanguage(/*string*/ruleDirectory) /*string[]*/ {
