@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 import { makeStyles } from '@material-ui/core/styles';
 import Paper from '@material-ui/core/Paper';
@@ -31,7 +31,7 @@ export const SearchPage = () => {
   const pageSize = 20;
   const [query, setQuery] = useLocationSearchState('query', '');
   const [pageNumber, setPageNumber] = useLocationSearchState('page', 1, parseInt);
-  const [_, setLocationSearch] = useLocationSearch();
+  const [, setLocationSearch] = useLocationSearch();
 
 
   const [results, numberOfHits, error, resultsAreLoading] =  useSearch(query, pageSize, pageNumber);

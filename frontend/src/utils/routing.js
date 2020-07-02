@@ -30,12 +30,12 @@ export function useLocationSearchState(name, defaultValue, convert=value=>value)
 
   React.useEffect(() => {
     const search = new URLSearchParams(location.search);
-    if (search.has(name) && search.get(name) != state) {
+    if (search.has(name) && search.get(name) !== state) {
       setState(convert(search.get(name)));
-    } else if (!search.has(name) && state != defaultValue) {
+    } else if (!search.has(name) && state !== defaultValue) {
       setState(defaultValue);
     }
-  }, [location, history]);
+  }, [name, defaultValue, convert, state, location, history]);
 
   function setSearchParam(value, {push=true, skipURI=false} = {}) {
     const search = new URLSearchParams(location.search);
