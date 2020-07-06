@@ -19,15 +19,15 @@ export function useSearch(query, pageSize, pageNumber) {
 
   React.useEffect(() => {
     console.log(`trying to load index`);
-    if (!indexDataIsLoading && !indexDataError && !storeDataIsLoading && !storeDataError) {
+    if (!indexDataIsLoading && !indexDataError) {
       console.log("Loading Index");
       setIndex(lunr.Index.load(indexData));
     }
-  }, [indexData, storeData, indexDataError, storeDataError, indexDataIsLoading, storeDataIsLoading]);
+  }, [indexData, indexDataError, indexDataIsLoading]);
 
   React.useEffect(() => {
     console.log(`trying to run query`);
-    if (index != null) {
+    if (index != null && !storeDataIsLoading && !storeDataError) {
       console.log("run Query");
       let finalQuery = "";
       if (query) {
@@ -51,7 +51,7 @@ export function useSearch(query, pageSize, pageNumber) {
       setResults(pageResults.map(({ ref }) => storeData[ref]));
       setResultsAreLoading(false);
     }
-  }, [query, pageSize, pageNumber, index]);
+  }, [query, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
 
   return [results, numberOfHits, error, resultsAreloading];
 }
