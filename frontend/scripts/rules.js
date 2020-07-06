@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const asciidoctor = require("asciidoctor")();
+const stripHtml = require("string-strip-html");
 const lunr = require('lunr');
 
 const RULE_SRC_DIRECTORY = path.join("..", "rules");
@@ -23,10 +24,14 @@ function generate_rules_metadata_and_description() {
             console.error("ERROR while generating " + fileName + ": " + e);
         }
     });
-    const ruleIndexStoreJson = JSON.stringify(ruleIndexStore, null, 2);
-    fs.writeFileSync(path.join(RULE_DST_DIRECTORY, "rule-index-store.json"), ruleIndexStoreJson, {encoding: 'utf8'});
     const ruleIndexJson = JSON.stringify(build_search_index(ruleIndexStore));
     fs.writeFileSync(path.join(RULE_DST_DIRECTORY, "rule-index.json"), ruleIndexJson, {encoding: 'utf8'});
+    // Remove the descriptions as they are only interesting for indexing
+    for (const rule of Object.values(ruleIndexStore)) {
+        delete rule.descriptions;
+    }
+    const ruleIndexStoreJson = JSON.stringify(ruleIndexStore, null, 2);
+    fs.writeFileSync(path.join(RULE_DST_DIRECTORY, "rule-index-store.json"), ruleIndexStoreJson, {encoding: 'utf8'});
 }
 
 function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*string*/ruleDstDirectory, ruleIndexStore) {
@@ -41,13 +46,14 @@ function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*st
         titles: new Set(),
         tags: new Set(),
         qualityProfiles: new Set(),
+        descriptions: new Set(),
     }
     ruleIndexStore[ruleKey] = (searchRecord);
 
     console.log("Converting '" + ruleSrcDirectory + "' into '" + ruleDstDirectory + "' for languages: " + all_languages.join(", "));
     all_languages.forEach(language => {
         fs.mkdirSync(ruleDstDirectory, { recursive: true });
-        generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language);
+        const htmlDescription = generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language);
         const metadata = generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages);
 
         // populate the search record
@@ -64,10 +70,15 @@ function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*st
                 searchRecord.qualityProfiles.add(qualityProfile);
             }
         }
+        // Remove HTML tags from the description, extract unique words and normalize them.
+        // This reduces a bit the footprint of descriptions in the index.
+        descriptionWords = stripHtml(htmlDescription).split(/[\s,.:;!?()"'-+*/\\%#]+/)
+        descriptionWords.forEach(item => searchRecord.descriptions.add(item.toUpperCase()));
     });
 
     // replace Set with lists so that it can be used with JSON.stringify
     searchRecord.titles = Array.from(searchRecord.titles).join('\n');
+    searchRecord.descriptions = Array.from(searchRecord.descriptions).join(' ');
     searchRecord.tags = Array.from(searchRecord.tags);
     searchRecord.qualityProfiles = Array.from(searchRecord.qualityProfiles);
 }
@@ -94,6 +105,7 @@ function generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language)
     const adoc = fs.readFileSync(ruleSrcFile, 'utf8');
     const html = /** @type string*/ asciidoctor.convert(adoc, opts);
     fs.writeFileSync(ruleDstFile, html, {encoding: 'utf8'});
+    return html;
 }
 
 function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages) {
@@ -110,12 +122,16 @@ function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, al
 
 function build_search_index(ruleIndexStore) {
     var ruleIndex = lunr(function () {
+        // Remove the stopword filter to allow words such as "do", "while", "for"
+        this.pipeline.remove(lunr.stopWordFilter)
+
         this.ref('id');
         this.field('titles');
         this.field('type');
         this.field('defaultSeverity');
         this.field('tags');
         this.field('qualityProfiles');
+        this.field('descriptions');
 
 
         for (const searchRecord of Object.values(ruleIndexStore)) {

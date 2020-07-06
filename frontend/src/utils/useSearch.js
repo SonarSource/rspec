@@ -23,7 +23,7 @@ export function useSearch(query, pageSize, pageNumber) {
       const index = lunr.Index.load(indexData);
       let finalQuery = "";
       if (query) {
-        finalQuery = `titles:${query}`
+        finalQuery = `${query}`
       }
 
       let hits = []

@@ -60,9 +60,9 @@ export const SearchPage = () => {
       <Typography variant="h4" className={classes.searchBar}>Search Rule Specifications</Typography>
       <TextField
           id="title-query"
-          label="Rule Title"
+          label="Rule Title and Description"
           style={{ margin: 8 }}
-          placeholder="Search for a rule title"
+          placeholder="Search in rule titles and descriptions"
           fullWidth
           margin="normal"
           InputLabelProps={{
