@@ -10,6 +10,7 @@ export function useSearch(query, pageSize, pageNumber) {
 
   const [indexData, indexDataError, indexDataIsLoading] = useFetch(indexDataUrl);
   const [storeData, storeDataError, storeDataIsLoading] = useFetch(storeDataUrl);
+  const [index, setIndex] = useState(null);
 
   const [results, setResults] = useState([]);
   const [numberOfHits, setNumberOfHits] = useState(null);
@@ -20,7 +21,14 @@ export function useSearch(query, pageSize, pageNumber) {
     console.log(`trying to load index`);
     if (!indexDataIsLoading && !indexDataError && !storeDataIsLoading && !storeDataError) {
       console.log("Loading Index");
-      const index = lunr.Index.load(indexData);
+      setIndex(lunr.Index.load(indexData));
+    }
+  }, [indexData, storeData, indexDataError, storeDataError, indexDataIsLoading, storeDataIsLoading]);
+
+  React.useEffect(() => {
+    console.log(`trying to run query`);
+    if (index != null) {
+      console.log("run Query");
       let finalQuery = "";
       if (query) {
         finalQuery = `${query}`
@@ -43,7 +51,7 @@ export function useSearch(query, pageSize, pageNumber) {
       setResults(pageResults.map(({ ref }) => storeData[ref]));
       setResultsAreLoading(false);
     }
-  }, [query, pageSize, pageNumber, error, indexData, storeData, indexDataError, storeDataError, indexDataIsLoading, storeDataIsLoading]);
+  }, [query, pageSize, pageNumber, index]);
 
   return [results, numberOfHits, error, resultsAreloading];
 }
