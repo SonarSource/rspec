@@ -5,6 +5,8 @@ import json
 from git import Repo
 from git import Git
 
+#repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml']
+repos=['sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml']
 
 def load_json(file):
   with open(file) as json_file:
@@ -62,11 +64,12 @@ def checkout(repo,version,batch_mode):
         print(f"{tag.name}")
         g.checkout(tag.name)
         dump_rules(repo,tag.name)
+    os.chdir('..')
   else:
     g=Git(repo)
     g.checkout(version)
     os.chdir(repo)
-
+  
 def main():
   parser = argparse.ArgumentParser(description='rules coverage')
   parser.add_argument('command', nargs='+', help='see code for help')  
@@ -80,12 +83,20 @@ def main():
   else:
     rules={}
   
-  repo=args.command[0]
+  
     
-  if args.command[1] == "batch":
+  if args.command[0] == "batchall":
+    print(f"batch mode for {repos}")
+    for repo in repos:
+      checkout(repo,None,True)
+  elif args.command[0] == "batch":
+    repo=args.command[1]
+    print(f"batch mode for {repo}")
     checkout(repo,None,True)
   else: 
+    repo=args.command[0]
     version=args.command[1]
+    print(f"checking {repo} version {version}")
     checkout(repo,version,False)
     dump_rules(repo,version)
 
