@@ -33,7 +33,7 @@ export const SearchPage = () => {
   const pageSize = 20;
   const [query, setQuery] = useLocationSearchState('query', '');
 
-  const [ruleType, setRuleType] = useLocationSearchState('types', '');
+  const [ruleType, setRuleType] = useLocationSearchState('types', 'ALL');
   const allRuleTypes = {'BUG': 'Bug', 'CODE_SMELL': 'Code Smell', 'SECURITY_HOTSPOT': 'Security Hotspot', 'VULNERABILITY': 'Vulnerability'};
 
   const [ruleTags, setRuleTags] = useLocationSearchState('tags', [], value => value ? value.split(',') : []);
