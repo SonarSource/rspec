@@ -23,19 +23,19 @@ export function useLocationSearch() {
   return [new URLSearchParams(location.search), setLocationSearch];
 }
 
-export function useLocationSearchState(name, defaultValue, convert=value=>value) {
+export function useLocationSearchState(name, defaultValue, paramToState=value=>value ? value: defaultValue, stateToParam=value=>value ? value.toString(): defaultValue) {
   const [state, setState] = useState(defaultValue);
   const location = useLocation();
   const history = useHistory();
 
   React.useEffect(() => {
     const search = new URLSearchParams(location.search);
-    if (search.has(name) && search.get(name) !== state) {
-      setState(convert(search.get(name)));
-    } else if (!search.has(name) && state !== defaultValue) {
+    if (search.has(name) && search.get(name) !== stateToParam(state)) {
+      setState(paramToState(search.get(name)));
+    } else if (!search.has(name) && stateToParam(state) !== stateToParam(defaultValue)) {
       setState(defaultValue);
     }
-  }, [name, defaultValue, convert, state, location, history]);
+  }, [name, defaultValue, paramToState, stateToParam, state, location, history]);
 
   function setSearchParam(value, {push=true, skipURI=false} = {}) {
     const search = new URLSearchParams(location.search);

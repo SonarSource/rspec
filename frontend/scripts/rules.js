@@ -121,9 +121,22 @@ function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, al
 }
 
 function build_search_index(ruleIndexStore) {
+    function selectivePipeline(token) {
+        const fields = token.metadata["fields"];
+        // process only titles and descriptions
+        if (fields.includes('titles') || fields.includes('descriptions') ) {
+            // We don't use the stopword filter to allow words such as "do", "while", "for"
+            const trimmed = lunr.trimmer(token);
+            return lunr.stemmer(trimmed);
+        }
+        return token;        
+    }
+    lunr.Pipeline.registerFunction(selectivePipeline, 'selectivePipeline');
+
     var ruleIndex = lunr(function () {
-        // Remove the stopword filter to allow words such as "do", "while", "for"
-        this.pipeline.remove(lunr.stopWordFilter)
+        // Set our own token processing pipeline
+        this.pipeline.reset();
+        this.pipeline.add(selectivePipeline);
 
         this.ref('id');
         this.field('titles');

@@ -4,7 +4,7 @@ import * as lunr from 'lunr'
 
 import { useFetch } from './useFetch';
 
-export function useSearch(query, pageSize, pageNumber) {
+export function useSearch(query, ruleType, ruleTags, pageSize, pageNumber) {
   let indexDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index.json`;
   let storeDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-store.json`;
 
@@ -28,16 +28,36 @@ export function useSearch(query, pageSize, pageNumber) {
   React.useEffect(() => {
     console.log(`trying to run query`);
     if (index != null && !storeDataIsLoading && !storeDataError) {
-      console.log("run Query");
-      let finalQuery = "";
-      if (query) {
-        finalQuery = `${query}`
-      }
-
       let hits = []
       setError(null);
       try {
-        hits = index.search(finalQuery);
+        // We use index.query instead if index.search in order to fully
+        // control how each filter is added and how the query is processed.
+        hits = index.query(q => {
+          // Add rule type filter
+          if (ruleType) {
+            q.term(ruleType.toLowerCase(), {
+              fields: ['type'],
+              presence: lunr.Query.presence.REQUIRED,
+              usePipeline: false
+            });
+          }
+
+          // Add rule tags filter
+          ruleTags.forEach(ruleTag => {
+            q.term(ruleTag, {
+              fields: ['tags'],
+              presence: lunr.Query.presence.REQUIRED,
+              usePipeline: false
+            });
+          });
+
+          // Search for each query token in titles and descriptions
+          lunr.tokenizer(query).forEach(token => {
+            q.term(token, {fields: ['titles', 'descriptions'], presence: lunr.Query.presence.REQUIRED})
+          })
+          
+        });
       } catch (exception) {
         if (exception instanceof lunr.QueryParseError) {
           setError(exception.message);
@@ -46,12 +66,11 @@ export function useSearch(query, pageSize, pageNumber) {
         }
       }
       setNumberOfHits(hits.length)
-      // const pageResults = hits;
       const pageResults = hits.slice(pageSize*(pageNumber - 1), pageSize*(pageNumber));
       setResults(pageResults.map(({ ref }) => storeData[ref]));
       setResultsAreLoading(false);
     }
-  }, [query, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
+  }, [query, ruleType, ruleTags, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
 
   return [results, numberOfHits, error, resultsAreloading];
 }
