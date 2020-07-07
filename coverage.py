@@ -43,11 +43,11 @@ def dump_rules(repo,version):
     languages=sonarpedia['languages']
     get_rules_json(path,languages,version)
     with open(f"../{rules_filename}", 'w') as outfile:
-      json.dump(rules, outfile)
+      json.dump(rules, outfile, indent=2)
   else:
     print(f"no {sp_file} file")
 
-def checkout(repo,version):
+def checkout(repo,version,batch_mode):
   git_url=f"git@github.com:SonarSource/{repo}"
   git_repo=None
   g=Git(repo)
@@ -55,14 +55,17 @@ def checkout(repo,version):
     git_repo=Repo.clone_from(git_url, repo)
   else:
     git_repo=Repo(repo)
-  os.chdir(repo)
-  for tag in git_repo.tags:
-    if not '-' in tag.name:
-      print(f"{tag.name}")
-      g.checkout(tag.name)
-      dump_rules(repo,tag.name)
-  #g=Git(repo)
-  #g.checkout(version)
+  if batch_mode:
+    os.chdir(repo)  
+    for tag in git_repo.tags:
+      if not '-' in tag.name:
+        print(f"{tag.name}")
+        g.checkout(tag.name)
+        dump_rules(repo,tag.name)
+  else:
+    g=Git(repo)
+    g.checkout(version)
+    os.chdir(repo)
 
 def main():
   parser = argparse.ArgumentParser(description='rules coverage')
@@ -71,16 +74,20 @@ def main():
 
   global rules
   global rules_filename
-  version=args.command[1]
   rules_filename='covered_rules.json'
   if os.path.exists(rules_filename):
     rules=load_json(rules_filename)
   else:
     rules={}
+  
   repo=args.command[0]
-
-  checkout(repo,version)
-  #dump_rules(repo,version)
+    
+  if args.command[1] == "batch":
+    checkout(repo,None,True)
+  else: 
+    version=args.command[1]
+    checkout(repo,version,False)
+    dump_rules(repo,version)
 
 if __name__ == '__main__':
   main()
