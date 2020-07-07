@@ -4,9 +4,10 @@ import argparse
 import json
 from git import Repo
 from git import Git
+from pathlib import Path
 
-#repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml']
-repos=['sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml']
+repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml']
+#repos=['sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml']
 
 def load_json(file):
   with open(file) as json_file:
@@ -38,17 +39,16 @@ def store_rule(name,rule,language,version):
     rules[language][name]=version
   
 def dump_rules(repo,version):
-  sp_file='sonarpedia.json'
-  if os.path.exists(sp_file):
+  for sp_file in Path('.').rglob('sonarpedia.json'):
+    print(sp_file)
+    sonarpedia_path=sp_file.parents[0]
     sonarpedia = load_json(sp_file)
-    path=sonarpedia['rules-metadata-path']
+    path=str(sonarpedia_path)+'/'+sonarpedia['rules-metadata-path'].replace('\\','/')
     languages=sonarpedia['languages']
     get_rules_json(path,languages,version)
     with open(f"../{rules_filename}", 'w') as outfile:
       json.dump(rules, outfile, indent=2)
-  else:
-    print(f"no {sp_file} file")
-
+  
 def checkout(repo,version,batch_mode):
   git_url=f"git@github.com:SonarSource/{repo}"
   git_repo=None
@@ -61,7 +61,7 @@ def checkout(repo,version,batch_mode):
     os.chdir(repo)  
     for tag in git_repo.tags:
       if not '-' in tag.name:
-        print(f"{tag.name}")
+        print(f"{repo} {tag.name}")
         g.checkout(tag.name)
         dump_rules(repo,tag.name)
     os.chdir('..')
