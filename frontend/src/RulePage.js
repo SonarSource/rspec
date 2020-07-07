@@ -35,23 +35,31 @@ export function RulePage(props) {
 
   let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-description.html";
   let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-metadata.json";
+  let editOnGithubUrl = 'https://github.com/SonarSource/rspec/tree/master/rules/' + ruleid + '/' + language;
 
   let [descHTML, descError, descIsLoading] = useFetch(descUrl, null, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch(metadataUrl, null, true);
 
   let title = "Loading..."
+  let metadataJSONString;
   let languagesTabs = null;
   if (!metadataIsLoading && !metadataError) {
     title = metadataJSON.title
     metadataJSON.all_languages.sort()
     languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>)
+    metadataJSONString = JSON.stringify(metadataJSON, null, 2);
   }
 
   let description = <div>Loading...</div>;
   if (!descIsLoading && !descError) {
-    description = <div dangerouslySetInnerHTML={{__html: descHTML}}/>;
+    description = <div>
+      <div dangerouslySetInnerHTML={{__html: descHTML}}/>
+      <hr />
+      <a href={editOnGithubUrl}>Edit on Github</a><br/>
+      <hr />
+      <pre>{metadataJSONString}</pre>
+    </div>;
   }
-
 
   return (
     <div>
