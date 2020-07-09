@@ -57,33 +57,18 @@ export const SearchPage = () => {
     resultsDisplay = results.map(result => <SearchHit key={result.id} data={result}/>)
   }
 
-  function updateSearchAndResetPage({newQuery=query, newRuleType=ruleType, newRuleTags=ruleTags}) {
-    setLocationSearch({query: newQuery, ruleType: newRuleType, ruleTags: newRuleTags, page: 1});
-  }
-
-  function handleQueryUpdate(event) {
-    if (pageNumber > 1) {
-      updateSearchAndResetPage({newQuery: event.target.value});
-    } else {
-      setQuery(event.target.value, {push: false});
+  const paramSetters = {types: setRuleType, tags: setRuleTags, query: setQuery};
+  function handleUpdate(field) {
+    return function(event) {
+      if (pageNumber > 1) {
+        const uriSearch = {query: query, types: ruleType, tags: ruleTags, page: 1};
+        uriSearch[field] = event.target.value;
+        setLocationSearch(uriSearch);
+      } else {
+        paramSetters[field](event.target.value, {push: false});
+      }
     }
   }
-
-  const handleRuleTypeUpdate = (event) => {
-    if (pageNumber > 1) {
-      updateSearchAndResetPage({newRuleType: event.target.value});
-    } else {
-      setRuleType(event.target.value, {push: false});
-    }
-  };
-
-  const handleRuleTagsUpdate = (event) => {
-    if (pageNumber > 1) {
-      updateSearchAndResetPage({newRuleTags: event.target.value});
-    } else {
-      setRuleTags(event.target.value, {push: false});
-    }
-  };
 
   return (
     <div>
@@ -105,7 +90,7 @@ export const SearchPage = () => {
             }}
             variant="outlined"
             value={query}
-            onChange={handleQueryUpdate}
+            onChange={handleUpdate("query")}
             error={error}
             helperText={error}
         />
@@ -118,7 +103,7 @@ export const SearchPage = () => {
           variant="outlined"
           label="Rule types"
           value={ruleType}
-          onChange={handleRuleTypeUpdate}
+          onChange={handleUpdate("types")}
         >
           <MenuItem key="All" value="ALL">
             All
@@ -141,7 +126,7 @@ export const SearchPage = () => {
           variant="outlined"
           label="Rule Tags"
           value={ruleTags}
-          onChange={handleRuleTagsUpdate}
+          onChange={handleUpdate("tags")}
           renderValue={(selected) => {
             return selected.join(', ');
           }}
