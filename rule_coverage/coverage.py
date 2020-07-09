@@ -35,6 +35,8 @@ def store_rule(name,rule,language,version):
   if language not in rules:
     print(f"create entry for {language}")
     rules[language] = {}
+  if '_' in name:
+      name=name[:name.find('_')]
   if name not in rules[language]:
     rules[language][name]=version
   
