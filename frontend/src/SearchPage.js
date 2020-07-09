@@ -1,14 +1,14 @@
 import React from 'react';
 
-import { makeStyles } from '@material-ui/core/styles';
-import Paper from '@material-ui/core/Paper';
 import Typography from '@material-ui/core/Typography';
 import TextField from '@material-ui/core/TextField';
 import MenuItem from '@material-ui/core/MenuItem';
 import Container from '@material-ui/core/Container';
 import Grid from '@material-ui/core/Grid';
 import Pagination from '@material-ui/lab/Pagination';
+import Box from '@material-ui/core/Box';
 
+import useStyles from './SearchPage.style';
 import { useSearch } from './utils/useSearch';
 import {
   useLocationSearch,
@@ -16,20 +16,9 @@ import {
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
 
-
-const classes = makeStyles((theme) => ({
-  root: {
-    display: 'flex',
-    flexWrap: 'wrap',
-  },
-  textField: {
-    marginLeft: theme.spacing(1),
-    marginRight: theme.spacing(1),
-    width: '25ch',
-  }
-}));
-
 export const SearchPage = () => {
+  const classes = useStyles();
+  
   const pageSize = 20;
   const [query, setQuery] = useLocationSearchState('query', '');
 
@@ -54,7 +43,11 @@ export const SearchPage = () => {
     resultsDisplay = "Searching";
   }
   else if (results.length > 0) {
-    resultsDisplay = results.map(result => <SearchHit key={result.id} data={result}/>)
+    resultsDisplay = results.map(result =>
+      <Box className={classes.searchHitBox}>
+        <SearchHit key={result.id} data={result}/>
+      </Box>
+    )
   }
 
   const paramSetters = {types: setRuleType, tags: setRuleTags, query: setQuery};
@@ -71,12 +64,12 @@ export const SearchPage = () => {
   }
 
   return (
-    <div>
-    <Paper className={classes.languagesBar}>
+    <div className={classes.root}>
+    <div className={classes.searchBar}>
     <Container maxWidth="md">
     <Grid container spacing={3}>
       <Grid item xs={12}>
-        <Typography variant="h4" className={classes.searchBar}>Search Rule Specifications</Typography>
+        <Typography variant="h4">Search Rule Specifications</Typography>
       </Grid>
       <Grid item xs={12}>
         <TextField
@@ -140,20 +133,22 @@ export const SearchPage = () => {
       </Grid>
     </Grid>
     </Container>
-  </Paper>
-  <Container maxWidth="md" className={classes.searchHitsContainer}>
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Typography variant="h5" className={classes.searchBar}>Number of rules found: {numberOfHits}</Typography>
-        <ul>
-          {resultsDisplay}
-        </ul>
-        <Pagination count={totalPages} page={pageNumber} siblingCount={2}
-          onChange={(event, value) => setPageNumber(value)}
-          />
+  </div>
+  <div className={classes.searchResults}>
+    <Container maxWidth="md">
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Box className={classes.resultsCount}>
+            <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
+          </Box>
+            {resultsDisplay}
+          <Pagination count={totalPages} page={pageNumber} siblingCount={2}
+            onChange={(event, value) => setPageNumber(value)}
+            />
+        </Grid>
       </Grid>
-    </Grid>
-  </Container>
+    </Container>
+  </div>
   </div>
   )
 }
