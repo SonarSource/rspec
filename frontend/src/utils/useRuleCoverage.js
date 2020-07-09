@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { useFetch } from './useFetch';
 
 export function useRuleCoverage() {
@@ -31,7 +29,6 @@ export function useRuleCoverage() {
     'vb6': ['VB'],
     'WEB': ['WEB'],
     'xml': ['XML']
-    // 'ABAP', 'CPP', 'C', 'OBJC', 'COBOL', 'CSH', 'VBNET', 'CSS', 'FLEX', 'KOTLIN', 'APEX', 'SCALA', 'RUBY', 'GO', 'JAVA', 'JS', 'JAVASCRIPT', 'TYPESCRIPT', 'PHP', 'PLI', 'PLSQL', 'PY', 'RPG', 'SWIFT', 'TSQL', 'VB', 'WEB', 'XML'
   };
   function ruleCoverage(language, ruleKeys, mapper) {
     if (coveredRulesError) {
