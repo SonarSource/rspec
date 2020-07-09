@@ -53,10 +53,14 @@ function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*st
     ruleIndexStore[ruleKey] = (searchRecord);
 
     console.log("Converting '" + ruleSrcDirectory + "' into '" + ruleDstDirectory + "' for languages: " + all_languages.join(", "));
+
+    const allKeys = new Set();
+    const metadatas = new Map();
     all_languages.forEach(language => {
         fs.mkdirSync(ruleDstDirectory, { recursive: true });
         const htmlDescription = generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language);
         const metadata = generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages);
+        metadatas.set(language, metadata);
 
         // populate the search record
         searchRecord.titles.add(metadata.title);
@@ -72,11 +76,21 @@ function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*st
                 searchRecord.qualityProfiles.add(qualityProfile);
             }
         }
+        allKeys.add(metadata.sqKey);
         // Remove HTML tags from the description, extract unique words and normalize them.
         // This reduces a bit the footprint of descriptions in the index.
-        descriptionWords = stripHtml(htmlDescription).split(/[\s,.:;!?()"'-+*/\\%#]+/)
+        const descriptionWords = stripHtml(htmlDescription).split(/[\s,.:;!?()"'-+*/\\%#]+/)
         descriptionWords.forEach(item => searchRecord.descriptions.add(item.toUpperCase()));
     });
+
+    for (const [language, metadata] of metadatas.entries()) {
+        // update each language metadata with aggregated metadatas (ex: legacy keys)
+        metadata['allKeys'] = Array.from(allKeys);
+
+        // write metadatas
+        const dstJsonFile = path.join(ruleDstDirectory, language + "-metadata.json");
+        fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), {encoding: 'utf8'});
+    }
 
     // replace Set with lists so that it can be used with JSON.stringify
     searchRecord.titles = Array.from(searchRecord.titles).join('\n');
@@ -175,8 +189,6 @@ function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, al
     const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
     const mergedJson = {...childJson, ...parentJson};
     mergedJson["all_languages"] = all_languages;
-    const dstJsonFile = path.join(ruleDstDirectory, language + "-metadata.json");
-    fs.writeFileSync(dstJsonFile, JSON.stringify(mergedJson, null, 2), {encoding: 'utf8'});
     return mergedJson;
 }
 

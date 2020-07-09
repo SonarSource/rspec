@@ -1,24 +1,47 @@
 import React from 'react';
-import Container from '@material-ui/core/Container';
-import Typography from '@material-ui/core/Typography';
-import Paper from '@material-ui/core/Paper';
-import Tabs from '@material-ui/core/Tabs';
-import Tab from '@material-ui/core/Tab';
-import { useFetch } from './utils/useFetch';
-import { useHistory } from "react-router-dom";
 
 import { makeStyles } from '@material-ui/core/styles';
+import Container from '@material-ui/core/Container';
+import Typography from '@material-ui/core/Typography';
+import Tabs from '@material-ui/core/Tabs';
+import Tab from '@material-ui/core/Tab';
+import Box from '@material-ui/core/Box';
+
+import { useHistory } from "react-router-dom";
+
+import { useRuleCoverage } from './utils/useRuleCoverage';
+import { useFetch } from './utils/useFetch';
+
 
 const useStyles = makeStyles((theme) => ({
+  ruleBar: {
+    borderBottom: '1px solid lightgrey',
+  },
+  ruleid: {
+    textAlign: 'center',
+    marginTop: theme.spacing(3),
+    marginBottom: theme.spacing(3),
+  },
+  title: {
+    textAlign: 'justify',
+    marginTop: theme.spacing(4),
+    marginBottom: theme.spacing(4),
+  },
+  coverage: {
+    marginBottom: theme.spacing(3),
+  },
   description: {
-    textAlign: 'justify'
+    textAlign: 'justify',
+    // marginBottom: theme.spacing(3),
   },
-  languageBar: {
-    ruleid: {
-      textAlign: 'left',
-    },
-    flexGrow: 1,
+
+  // style used to center the tabs when there too few of them to fill the container
+  tabRoot: {
+    justifyContent: "center"
   },
+  tabScroller: {
+    flexGrow: "0"
+  }
 }));
 
 
@@ -40,6 +63,9 @@ export function RulePage(props) {
   let [descHTML, descError, descIsLoading] = useFetch(descUrl, null, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch(metadataUrl, null, true);
 
+  const ruleCoverage = useRuleCoverage();
+  let coverage = "Loading...";
+
   let title = "Loading..."
   let metadataJSONString;
   let languagesTabs = null;
@@ -48,6 +74,12 @@ export function RulePage(props) {
     metadataJSON.all_languages.sort()
     languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>)
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
+
+    coverage = ruleCoverage(language, metadataJSON.allKeys, (key, version) => {
+      return (
+      <li>{key}: {version}</li>
+      )
+    });
   }
 
   let description = <div>Loading...</div>;
@@ -61,27 +93,43 @@ export function RulePage(props) {
     </div>;
   }
 
+
   return (
     <div>
-    <Paper className={classes.languagesBar}>
-    <Typography variant="h4" className={classes.languagesBar_ruleid}>{ruleid}</Typography>
+    <div className={classes.ruleBar}>
+      <Container>
+      <Typography variant="h2" classes={{root: classes.ruleid}}>{ruleid}</Typography>
       <Tabs
           value={language}
           onChange={handleLanguageChange}
           indicatorColor="primary"
           textColor="primary"
           centered
+          variant="scrollable"
+          scrollButtons="auto"
+          classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
       >
         {languagesTabs}
       </Tabs>
-  </Paper>
+      </Container>
+    </div>
   
     <Container maxWidth="md">
-      <Typography variant="h3">{title}</Typography>
-      <Typography className={classes.description}>
-        {description}
-      </Typography>
+      <Typography variant="h3" classes={{root: classes.title}}>{title}</Typography>
+      <Box classes={{root: classes.coverage}}>
+        <Typography variant="h4" >Covered Since</Typography>
+        <ul>
+        {coverage}
+        </ul>
+      </Box>
+      <Box classes={{root: classes.description}}>
+        <Typography variant="h4">Description</Typography>
+        <Typography className={classes.description}>
+          {description}
+        </Typography>
+      </Box>
     </Container>
     </div>
+    
   );
 }
