@@ -6,11 +6,13 @@
 # Stop script in case of error.
 set -e
 
+RSPEC_ID_COUNTER_FILE=$1
+
 # Increment the next_id counter.
-next_id=`cat next_rspec_id.txt`
+next_id=`cat ${RSPEC_ID_COUNTER_FILE}`
 new_next_id=`expr $next_id + 1`
-echo $new_next_id > next_rspec_id.txt
-git add next_rspec_id.txt
+echo $new_next_id > ${RSPEC_ID_COUNTER_FILE}
+git add ${RSPEC_ID_COUNTER_FILE}
 git commit "Increment RSPEC ID counter"
 git push origin rspec-id-counter
 
