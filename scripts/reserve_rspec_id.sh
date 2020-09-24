@@ -18,3 +18,4 @@ git push origin rspec-id-counter
 
 # Set the Environment variable for the next Github Action.
 echo "::set-env name=RSPEC_ID::${next_id}"
+echo "::set-output name=rspec-id::${next_id}"
