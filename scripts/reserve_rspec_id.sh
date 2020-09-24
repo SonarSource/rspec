@@ -13,7 +13,7 @@ next_id=`cat ${RSPEC_ID_COUNTER_FILE}`
 new_next_id=`expr $next_id + 1`
 echo $new_next_id > ${RSPEC_ID_COUNTER_FILE}
 git add ${RSPEC_ID_COUNTER_FILE}
-git commit "Increment RSPEC ID counter"
+git commit -m "Increment RSPEC ID counter"
 git push origin rspec-id-counter
 
 # Set the Environment variable for the next Github Action.
