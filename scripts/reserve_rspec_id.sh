@@ -17,4 +17,4 @@ git commit -m "Increment RSPEC ID counter"
 git push origin rspec-id-counter
 
 # Set the Environment variable for the next Github Action.
-echo "::set-env name RSPEC_ID=${next_id}"
+echo "::set-env name=RSPEC_ID::${next_id}"
