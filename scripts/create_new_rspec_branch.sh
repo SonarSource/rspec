@@ -25,4 +25,4 @@ done
 
 cd $rule_directory
 
-grep -rl '${RSPEC_ID}' . | xargs sed -i '' "s/\${RSPEC_ID}/${RSPEC_ID}/g"
+grep -rl '${RSPEC_ID}' . | xargs sed -i "s/\${RSPEC_ID}/${RSPEC_ID}/g"
