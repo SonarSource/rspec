@@ -6,6 +6,7 @@ import Typography from '@material-ui/core/Typography';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
+import { Link } from '@material-ui/core';
 
 import { useHistory } from "react-router-dom";
 
@@ -43,6 +44,57 @@ const useStyles = makeStyles((theme) => ({
     flexGrow: "0"
   }
 }));
+
+const languageToJiraProject = {
+  "PYTHON": "SONARPY",
+  "ABAP": "SONARABAP",
+  "CFAMILY": "CPP",
+  "JAVA": "SONARJAVA",
+  "COBOL": "SONARCOBOL",
+  "FLEX": "SONARFLEX",
+  "HTML": "SONARHTML",
+  "PHP": "SONARPHP",
+  "PLI": "SONARPLI",
+  "PLSQL": "SONARPLSQL",
+  "RPG": "SONARRPG",
+  "APEX": "SONARSLANG",
+  "RUBY": "SONARSLANG",
+  "KOTLIN": "SONARSLANG",
+  "SCALA": "SONARSLANG",
+  "GO": "SONARSLANG",
+  "SWIFT": "SONARSWIFT",
+  "TSQL": "SONARTSQL",
+  "VB6": "SONARVBSIX",
+  "XML": "SONARXML",
+};
+
+const languageToGithubProject = {
+  "ABAP": "sonar-abap",
+  "CSHARP": "sonar-dotnet",
+  "VBNET": "sonar-dotnet",
+  "JAVASCRIPT": "SonarJS",
+  "TYPESCRIPT": "SonarJS",
+  "SWIFT": "sonar-swift",
+  "KOTLIN": "slang-enterprise",
+  "GO": "slang-enterprise",
+  "SCALA": "slang-enterprise",
+  "RUBY": "slang-enterprise",
+  "APEX": "slang-enterprise",
+  "HTML": "sonar-html",
+  "COBOL": "sonar-cobol",
+  "VB6": "sonar-vb",
+  "JAVA": "sonar-java",
+  "PLI": "sonar-pli",
+  "CFAMILY": "sonar-cpp",
+  "CSS": "sonar-css",
+  "PHP": "sonar-php",
+  "PL/SQL": "sonar-plsql",
+  "Python": "sonar-python",
+  "RPG": "sonar-rpg",
+  "Swift": "sonar-swift",
+  "T-SQL": "sonar-tsql",
+  "XML": "sonar-xml",
+}
 
 
 export function RulePage(props) {
@@ -92,7 +144,32 @@ export function RulePage(props) {
       <pre>{metadataJSONString}</pre>
     </div>;
   }
+  const ruleNumber = ruleid.substring(1)
+  
+  const upperCaseLanguage = language.toUpperCase();
+  const jiraProject = languageToJiraProject[upperCaseLanguage];
+  const githubProject = languageToGithubProject[upperCaseLanguage];
 
+  let ticketsLink;
+  if (upperCaseLanguage in languageToJiraProject) {
+    ticketsLink = (
+        <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${title}")`}>
+          Jira Tickets
+        </Link>
+      );
+  } else {
+    ticketsLink = (
+      <Link href={`https://github.com/SonarSource/${githubProject}/issues?q=is%3Aissue+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
+        Github Tickets
+      </Link>
+    );
+  }
+  
+  const pullRequestsLink = (
+    <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
+      Github Pull Requests
+    </Link>
+  );
 
   return (
     <div>
@@ -122,6 +199,17 @@ export function RulePage(props) {
         {coverage}
         </ul>
       </Box>
+
+      <Box classes={{root: classes.coverage}}>
+        <Typography variant="h4" >Related Tickets and Pull Requests</Typography>
+        <ul>
+          {ticketsLink}
+        </ul>
+        <ul>
+          {pullRequestsLink}
+        </ul>
+      </Box>
+      
       <Box classes={{root: classes.description}}>
         <Typography variant="h4">Description</Typography>
         <Typography className={classes.description}>
