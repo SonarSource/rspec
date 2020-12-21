@@ -1,29 +1,35 @@
-Passing a std::moved variable as a function call argument makes sense only if the variable can actually be moved in that context.
- This is the case if:
+Calling `+std::move+` on objects that cannot be moved is suspicious and might hide nasty performance bug.
 
-* the corresponding argument of the function is an r-value reference.
-* the corresponding argument of the function is passed by copy and the argument type has a move constructor.
+This can happen when calling `+std::move+` with const argument or with non-movable types.
 
-For other cases, it cannot be achieved or it should be avoided:
+This can also happen when passing the result of `+std::move+` as a const reference argument.  In this case, no object will be moved since the result is in a context where calling the move constructor is not possible. It makes sense to call `+std::move+` on a function argument when:
 
-* if the corresponding argument is a non-const l-value reference, this is illegal and the code will not compile.
-* if the corresponding argument is a const l-value reference, the variable will never be actually moved. So, the std::move is misleading and useless. It should not be used. This rule rule will raise an issue in this case.
+* The result of `+std::move+` is passed as an r-value reference.
+* The result of `+std::move+` is passed by copy.
 
 
 == Noncompliant Code Example
 
 ----
-#include <utility>
+struct NonMovable{
+  NonMovable() = default;
+  NonMovable(NonMovable&) = default;
+};
 
-class S{};
-
-void f(S s);
-void g(const S &s);
+void f(NonMovable s);
+void f(std::string s);
+void g(const std::string &s);
 
 void test() {
-    S s;
-    f(std::move(s));  // compliant: argument copy is constructed by move constructor. s is moved.
-    g(std::move(s)); //  noncompliant: s is cast back to const l-value reference. s can never be moved.
+  std::string s="****";
+  f(std::move(s));
+  g(std::move(s)); // Noncompliant: s is cast back to const l-value reference. s will not be moved.
+
+  const std::string constS="***";
+  f(std::move(constS)); // Noncompliant: constS will not be moved.
+
+  NonMovable t;
+  f(std::move(t)); // Noncompliant: std::move is useless on non-movable objects like t. Copy constructor is called.
 }
 ----
 
@@ -31,22 +37,28 @@ void test() {
 == Compliant Solution
 
 ----
-#include <utility>
+struct Movable{
+  Movable() = default;
+  Movable(Movable&) = default;
+  Movable(Movable&&) = default;
+};
 
-class S{};
-
-void f(S s);
-void g(const S &s);
+void f(Movable);
+void f(std::string s);
+void g(const std::string &s);
 
 void test() {
-    S s;
-    f(std::move(s));  // compliant: argument copy is constructed by move constructor. s is moved.
-    g(s); //  compliant: no useless and misleading std::move is used.
+  std::string s="****";
+  f(std::move(s)); // Compliant:  move constructor is called.
+  g(s); // Compliant: no misleading std::move is used.
+
+  Movables t;
+  f(std::move(t)); // Compliant: move constructor is called.
 }
 ----
 
 
 == See
 
-* https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#es56-write-stdmove-only-when-you-need-to-explicitly-move-an-object-to-another-scope[C++ Core Guidelines - ES.56] - Write "std::move()" only when you need to explicitly move an object to another scope
+* https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#es56-write-stdmove-only-when-you-need-to-explicitly-move-an-object-to-another-scope[C++ Core Guidelines ES.56] - Write "std::move()" only when you need to explicitly move an object to another scope
 

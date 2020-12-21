@@ -7,15 +7,59 @@ include::../recommended.adoc[]
 == Sensitive Code Example
 
 ----
+FileStream zipToOpen = new FileStream(@"ZipBomb.zip", FileMode.Open);
+ZipArchive archive = new ZipArchive(zipToOpen, ZipArchiveMode.Read);
 foreach (ZipArchiveEntry entry in archive.Entries)
 {
-    //  entry.FullName could contain parent directory references ".." and the destinationPath variable could become outside of the desired path
-    string destinationPath = Path.GetFullPath(Path.Combine(path, entry.FullName));
+  entry.ExtractToFile("./output_onlyfortesting.txt", true); // Sensitive
+}
+----
 
-    entry.ExtractToFile(destinationPath); // Sensitive, extracts the entry in a file
+== Compliant Solution
 
-    Stream stream;
-    stream = entry.Open(); // Sensitive, the entry is about to be extracted
+----
+int THRESHOLD_ENTRIES = 10000;        
+int THRESHOLD_SIZE = 1000000000; // 1 GB
+double THRESHOLD_RATIO = 10;         
+int totalSizeArchive = 0;
+int totalEntryArchive = 0;
+
+FileStream zipToOpen = new FileStream(@"ZipBomb.zip", FileMode.Open);
+ZipArchive archive = new ZipArchive(zipToOpen, ZipArchiveMode.Read);
+foreach (ZipArchiveEntry entry in archive.Entries)
+{
+  totalEntryArchive ++;
+
+  Stream st = entry.Open();
+  byte[] buffer = new byte[1024];
+  int totalSizeEntry = 0;
+  int numBytesRead = 0;
+
+  do
+  {
+      numBytesRead = st.Read(buffer, 0, 1024);
+      totalSizeEntry += numBytesRead;
+      totalSizeArchive += numBytesRead;
+      double compressionRatio = totalSizeEntry / entry.CompressedLength;          
+
+      if(compressionRatio > THRESHOLD_RATIO) {
+        // ratio between compressed and uncompressed data is highly suspicious, looks like a Zip Bomb Attack
+        break;
+      }
+  } 
+  while (numBytesRead > 0);
+
+  st.Close();
+
+  if(totalSizeArchive > THRESHOLD_SIZE) {
+      // the uncompressed data size is too much for the application resource capacity
+      break;
+  }
+
+  if(totalEntryArchive > THRESHOLD_ENTRIES) {
+      // too much entries in this archive, can lead to inodes exhaustion of the system
+      break;
+  } 
 }
 ----
 

@@ -1,14 +1,24 @@
-Regular expressions can have an https://en.wikipedia.org/wiki/Regular_expression#Implementations_and_running_times[exponential execution time] depending on the pattern and the length of the input string. The example below, for instance,  can lead to a denial of service of the application:
+Most of the regular expression engines use `+backtracking+` to try all possible execution paths of the regular expression when evaluating an input, in some cases it can cause performance issues, called `+catastrophic backtracking+` situations. In the worst case, the complexity of the regular expression is exponential in the size of the input, this means that a small carefully-crafted input (like 20 chars) can trigger `+catastrophic backtracking+` and cause a denial of service of the application. Super-linear regex complexity can lead to the same impact too with, in this case, a large carefully-crafted input (thousands chars).
 
-* Pattern: <code>/(a+)+b/</code>
-* Input string: <code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacb</code>
+The first regex evaluation will never end in `+OpenJDK+` <= 9 and the second regex evaluation will never end in any versions of `+OpenJDK+`:
 
-It is recommended:
+----
+java.util.regex.Pattern.compile("(a+)+").matcher(
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+aaaaaaaaaaaaaaa!").matches(); // Sensitive
 
-* to fix the hard-coded regex patterns that use CPU intensive features (avoid if possible captures, possessive quantifiers and back-references, for instance replace the above pattern with (/a+b/)).
-* when the regex pattern is defined with an user-controlled input, this last should be sanitized in order to escape characters which are part of the https://en.wikipedia.org/wiki/Regular_expression#Syntax[regular expression syntax].
+java.util.regex.Pattern.compile("(h|h|ih(((i|a|c|c|a|i|i|j|b|a|i|b|a|a|j))+h)ahbfhba|c|i)*").matcher(
+"hchcchicihcchciiicichhcichcihcchiihichiciiiihhcchi"+
+"cchhcihchcihiihciichhccciccichcichiihcchcihhicchcciicchcccihiiihhihihihi"+
+"chicihhcciccchihhhcchichchciihiicihciihcccciciccicciiiiiiiiicihhhiiiihchccch"+
+"chhhhiiihchihcccchhhiiiiiiiicicichicihcciciihichhhhchihciiihhiccccccciciihh"+
+"ichiccchhicchicihihccichicciihcichccihhiciccccccccichhhhihihhcchchihih"+
+"iihhihihihicichihiiiihhhhihhhchhichiicihhiiiiihchccccchichci").matches(); // Sensitive
+----
 
-Java runtimes like OpenJDK 9+ are mitigating this problem by having additional protections in their implementation of regular expression evaluation to limit the CPU consumption but it is still recommended to validate/escape input strings.
+It is not recommended to construct a regular expression pattern from a user-controlled input, if no other choice, sanitize the input to remove/annihilate regex metacharacters.
 
 == Noncompliant Code Example
 
@@ -28,7 +38,7 @@ public boolean validate(javax.servlet.http.HttpServletRequest request) {
   String regex = request.getParameter("regex");
   String input = request.getParameter("input");
 
-  input.matches(Pattern.quote(regex));  // Compliant 
+  input.matches(Pattern.quote(regex));  // Compliant : with Pattern.quote metacharacters or escape sequences will be given no special meaning
 }
 ----
 

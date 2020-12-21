@@ -1,0 +1,159 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+For https://www.php.net/manual/en/class.ziparchive.php[ZipArchive] module:
+
+----
+$zip = new ZipArchive();
+if ($zip->open($file) === true) {
+    $zip->extractTo('.'); // Sensitive
+    $zip->close();
+}
+----
+
+For https://www.php.net/manual/en/ref.zip.php[Zip] module:
+
+----
+$zip = zip_open($file);
+while ($file = zip_read($zip)) {
+    $filename = zip_entry_name($file);
+    $size = zip_entry_filesize($file);
+
+    if (substr($filename, -1) !== '/') {
+        $content = zip_entry_read($file, zip_entry_filesize($file)); // Sensitive - zip_entry_read() uses zip_entry_filesize()
+        file_put_contents($filename, $content);
+    } else {
+        mkdir($filename);
+    }
+}
+zip_close($zip);
+----
+
+== Compliant Solution
+
+For https://www.php.net/manual/en/class.ziparchive.php[ZipArchive] module:
+
+----
+define('MAX_FILES', 10000);
+define('MAX_SIZE', 1000000000); // 1 GB
+define('MAX_RATIO', 10);
+define('READ_LENGTH', 1024);
+
+$fileCount = 0;
+$totalSize = 0;
+
+$zip = new ZipArchive();
+if ($zip->open($file) === true) {
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $filename = $zip->getNameIndex($i);
+        $stats = $zip->statIndex($i);
+
+        // Prevent ZipSlip path traversal (S6096)
+        if (strpos($filename, '../') !== false || substr($filename, 0, 1) === '/') {
+            throw new Exception();
+        }
+
+        if (substr($filename, -1) !== '/') {
+            $fileCount++;
+            if ($fileCount > MAX_FILES) {
+                // Reached max. number of files
+                throw new Exception();
+            }
+
+            $fp = $zip->getStream($filename); // Compliant
+            $currentSize = 0;
+            while (!feof($fp)) {
+                $currentSize += READ_LENGTH;
+                $totalSize += READ_LENGTH;
+
+                if ($totalSize > MAX_SIZE) {
+                    // Reached max. size
+                    throw new Exception();
+                }
+
+                // Additional protection: check compression ratio
+                if ($stats['comp_size'] > 0) {
+                    $ratio = $currentSize / $stats['comp_size'];
+                    if ($ratio > MAX_RATIO) {
+                        // Reached max. compression ratio
+                        throw new Exception();
+                    }
+                }
+
+                file_put_contents($filename, fread($fp, READ_LENGTH), FILE_APPEND);
+            }
+
+            fclose($fp);
+        } else {
+            mkdir($filename);
+        }
+    }
+    $zip->close();
+}
+----
+
+For https://www.php.net/manual/en/ref.zip.php[Zip] module:
+
+----
+define('MAX_FILES', 10000);
+define('MAX_SIZE', 1000000000); // 1 GB
+define('MAX_RATIO', 10);
+define('READ_LENGTH', 1024);
+
+$fileCount = 0;
+$totalSize = 0;
+
+$zip = zip_open($file);
+while ($file = zip_read($zip)) {
+    $filename = zip_entry_name($file);
+
+    // Prevent ZipSlip path traversal (S6096)
+    if (strpos($filename, '../') !== false || substr($filename, 0, 1) === '/') {
+        throw new Exception();
+    }
+
+    if (substr($filename, -1) !== '/') {
+        $fileCount++;
+        if ($fileCount > MAX_FILES) {
+            // Reached max. number of files
+            throw new Exception();
+        }
+
+        $currentSize = 0;
+        while ($data = zip_entry_read($file, READ_LENGTH)) { // Compliant
+            $currentSize += READ_LENGTH;
+            $totalSize += READ_LENGTH;
+
+            if ($totalSize > MAX_SIZE) {
+                // Reached max. size
+                throw new Exception();
+            }
+
+            // Additional protection: check compression ratio
+            if (zip_entry_compressedsize($file) > 0) {
+                $ratio = $currentSize / zip_entry_compressedsize($file);
+                if ($ratio > MAX_RATIO) {
+                    // Reached max. compression ratio
+                    throw new Exception();
+                }
+            }
+
+            file_put_contents($filename, $data, FILE_APPEND);
+        }
+    } else {
+        mkdir($filename);
+    }
+}
+zip_close($zip);
+----
+
+== See
+
+* https://owasp.org/www-project-top-ten/OWASP_Top_Ten_2017/Top_10-2017_A6-Security_Misconfiguration[OWASP Top 10 2017 Category A6] - Security Misconfiguration
+* http://cwe.mitre.org/data/definitions/409.html[MITRE, CWE-409] - Improper Handling of Highly Compressed Data (Data Amplification)
+* https://www.bamsoftware.com/hacks/zipbomb/[bamsoftware.com] - A better Zip Bomb

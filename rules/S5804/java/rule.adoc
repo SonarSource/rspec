@@ -8,7 +8,7 @@ include::../recommended.adoc[]
 
 In a Spring-security web application the username leaks when:
 
-* The string used as argument of https://docs.spring.io/spring-security/site/docs/current/api/org/springframework/security/core/userdetails/UserDetailsService.html[loadUserByUsername] method is part of the exception's message:
+* The string used as argument of https://docs.spring.io/spring-security/site/docs/current/api/org/springframework/security/core/userdetails/UserDetailsService.html[loadUserByUsername] method is used in an exception message:
 
 ----
 public String authenticate(String username, String password) {
@@ -18,6 +18,18 @@ public String authenticate(String username, String password) {
 
   if(u1 == null) {
     throw new BadCredentialsException(username+" doesn't exist in our database"); // Sensitive
+  }
+  // ....
+}
+----
+
+* https://docs.spring.io/spring-security/site/docs/3.0.x/apidocs/org/springframework/security/core/userdetails/UsernameNotFoundException.html[UsernameNotFoundException] is thrown (except when it is in the loadUserByUsername method):
+
+----
+public String authenticate(String username, String password) {
+  // ....
+  if(user == null) {
+      throw new UsernameNotFoundException("user not found"); // Sensitive
   }
   // ....
 }
@@ -33,34 +45,24 @@ daoauth.setHideUserNotFoundExceptions(false); // Sensitive
 builder.authenticationProvider(daoauth);
 ----
 
-* https://docs.spring.io/spring-security/site/docs/3.0.x/apidocs/org/springframework/security/core/userdetails/UsernameNotFoundException.html[UsernameNotFoundException] is thrown:
-
-----
-public MyUserPrincipal loadUserByUsername(String username) {
-  // ....
-  if(user == null) {
-      throw new UsernameNotFoundException("user not found"); // Sensitive
-  }
-  // ....
-}
-----
-
 == Compliant Solution
 
 In a Spring-security web application:
 
-* when the user is unknown a BadCredentialsException should be thrown with a "generic" message:
+* the same message should be used regardless of whether it is the wrong user or password:
 
 ----
-public String authenticate(String username, String password) {
-  // ....
-  MyUserDetailsService s1 = new MyUserDetailsService();
-  MyUserPrincipal u1 = s1.loadUserByUsername(username);
-
-  if(u1 == null) {
-    throw new BadCredentialsException("bad credentials"); // Compliant
+public String authenticate(String username, String password) throws AuthenticationException {
+  Details user = null;
+  try {
+    user = loadUserByUsername(username);
+  } catch (UsernameNotFoundException | DataAccessException e) {
+    // Hide this exception reason to not disclose that the username doesn't exist
   }
-  // ....
+  if (user == null || !user.isPasswordCorrect(password)) {
+     // User should not be able to guess if the bad credentials message is related to the username or the password
+    throw new BadCredentialsException("Bad credentials");
+  }
 }
 ----
 

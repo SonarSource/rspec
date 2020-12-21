@@ -1,0 +1,282 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+For https://github.com/npm/node-tar[tar] module:
+
+----
+const tar = require('tar');
+
+tar.x({ // Sensitive
+  file: 'foo.tar.gz'
+});
+----
+
+For https://github.com/cthackers/adm-zip[adm-zip] module:
+
+----
+const AdmZip = require('adm-zip');
+
+let zip = new AdmZip("./foo.zip");
+zip.extractAllTo("."); // Sensitive
+----
+
+For https://stuk.github.io/jszip/[jszip] module:
+
+----
+const fs = require("fs");
+const JSZip = require("jszip");
+
+fs.readFile("foo.zip", function(err, data) {
+  if (err) throw err;
+  JSZip.loadAsync(data).then(function (zip) { // Sensitive
+    zip.forEach(function (relativePath, zipEntry) {
+      if (!zip.file(zipEntry.name)) {
+        fs.mkdirSync(zipEntry.name);
+      } else {
+        zip.file(zipEntry.name).async('nodebuffer').then(function (content) {
+          fs.writeFileSync(zipEntry.name, content);
+        });
+      }
+    });
+  });
+});
+----
+
+For https://github.com/thejoshwolfe/yauzl[yauzl] module
+
+----
+const yauzl = require('yauzl');
+
+yauzl.open('foo.zip', function (err, zipfile) {
+  if (err) throw err;
+
+  zipfile.on("entry", function(entry) {
+    zipfile.openReadStream(entry, function(err, readStream) {
+      if (err) throw err;
+      // TODO: extract
+    });
+  });
+});
+----
+
+For https://github.com/maxogden/extract-zip[extract-zip] module:
+
+----
+const extract = require('extract-zip')
+
+async function main() {
+  let target = __dirname + '/test';
+  await extract('test.zip', { dir: target }); // Sensitive
+}
+main();
+----
+
+== Compliant Solution
+
+For https://github.com/npm/node-tar[tar] module:
+
+----
+const tar = require('tar');
+const MAX_FILES = 10000;
+const MAX_SIZE = 1000000000; // 1 GB
+
+let fileCount = 0;
+let totalSize = 0;
+
+tar.x({
+  file: 'foo.tar.gz',
+  filter: (path, entry) => {
+    fileCount++;
+    if (fileCount > MAX_FILES) {
+      throw 'Reached max. number of files';
+    }
+
+    totalSize += entry.size;
+    if (totalSize > MAX_SIZE) {
+      throw 'Reached max. size';
+    }
+
+    return true;
+  }
+});
+----
+
+For https://github.com/cthackers/adm-zip[adm-zip] module:
+
+----
+const AdmZip = require('adm-zip');
+const MAX_FILES = 10000;
+const MAX_SIZE = 1000000000; // 1 GB
+const THRESHOLD_RATIO = 10;
+
+let fileCount = 0;
+let totalSize = 0;
+let zip = new AdmZip("./foo.zip");
+let zipEntries = zip.getEntries();
+zipEntries.forEach(function(zipEntry) {
+    fileCount++;
+    if (fileCount > MAX_FILES) {
+        throw 'Reached max. number of files';
+    }
+
+    let entrySize = zipEntry.getData().length;
+    totalSize += entrySize;
+    if (totalSize > MAX_SIZE) {
+        throw 'Reached max. size';
+    }
+
+    let compressionRatio = entrySize / zipEntry.header.compressedSize;
+    if (compressionRatio > THRESHOLD_RATIO) {
+        throw 'Reached max. compression ratio';
+    }
+
+    if (!zipEntry.isDirectory) {
+        zip.extractEntryTo(zipEntry.entryName, ".");
+    }
+});
+----
+
+For https://stuk.github.io/jszip/[jszip] module:
+
+----
+const fs = require("fs");
+const pathmodule = require("path");
+const JSZip = require("jszip");
+
+const MAX_FILES = 10000;
+const MAX_SIZE = 1000000000; // 1 GB
+
+let fileCount = 0;
+let totalSize = 0;
+let targetDirectory = __dirname + '/archive_tmp';
+
+fs.readFile("foo.zip", function(err, data) {
+  if (err) throw err;
+  JSZip.loadAsync(data).then(function (zip) {
+    zip.forEach(function (relativePath, zipEntry) {
+      fileCount++;
+      if (fileCount > MAX_FILES) {
+        throw 'Reached max. number of files';
+      }
+
+      // Prevent ZipSlip path traversal (S6096)
+      const resolvedPath = pathmodule.join(targetDirectory, zipEntry.name);
+      if (!resolvedPath.startsWith(targetDirectory)) {
+        throw 'Path traversal detected';
+      }
+
+      if (!zip.file(zipEntry.name)) {
+        fs.mkdirSync(resolvedPath);
+      } else {
+        zip.file(zipEntry.name).async('nodebuffer').then(function (content) {
+          totalSize += content.length;
+          if (totalSize > MAX_SIZE) {
+            throw 'Reached max. size';
+          }
+
+          fs.writeFileSync(resolvedPath, content);
+        });
+      }
+    });
+  });
+});
+----
+Be aware that due to the similar structure of sensitive and compliant code the issue will be raised in both cases. It is up to the developer to decide if the implementation is secure.
+
+For https://github.com/thejoshwolfe/yauzl[yauzl] module
+
+----
+const yauzl = require('yauzl');
+
+const MAX_FILES = 10000;
+const MAX_SIZE = 1000000000; // 1 GB
+const THRESHOLD_RATIO = 10;
+
+yauzl.open('foo.zip', function (err, zipfile) {
+  if (err) throw err;
+
+  let fileCount = 0;
+  let totalSize = 0;
+
+  zipfile.on("entry", function(entry) {
+    fileCount++;
+    if (fileCount > MAX_FILES) {
+      throw 'Reached max. number of files';
+    }
+
+    // The uncompressedSize comes from the zip headers, so it might not be trustworthy.
+    // Alternatively, calculate the size from the readStream.
+    let entrySize = entry.uncompressedSize;
+    totalSize += entrySize;
+    if (totalSize > MAX_SIZE) {
+      throw 'Reached max. size';
+    }
+
+    if (entry.compressedSize > 0) {
+      let compressionRatio = entrySize / entry.compressedSize;
+      if (compressionRatio > THRESHOLD_RATIO) {
+        throw 'Reached max. compression ratio';
+      }
+    }
+
+    zipfile.openReadStream(entry, function(err, readStream) {
+      if (err) throw err;
+      // TODO: extract
+    });
+  });
+});
+----
+Be aware that due to the similar structure of sensitive and compliant code the issue will be raised in both cases. It is up to the developer to decide if the implementation is secure.
+
+For https://github.com/maxogden/extract-zip[extract-zip] module:
+
+----
+const extract = require('extract-zip')
+
+const MAX_FILES = 10000;
+const MAX_SIZE = 1000000000; // 1 GB
+const THRESHOLD_RATIO = 10;
+
+async function main() {
+  let fileCount = 0;
+  let totalSize = 0;
+
+  let target = __dirname + '/foo';
+  await extract('foo.zip', {
+    dir: target,
+    onEntry: function(entry, zipfile) {
+      fileCount++;
+      if (fileCount > MAX_FILES) {
+        throw 'Reached max. number of files';
+      }
+
+      // The uncompressedSize comes from the zip headers, so it might not be trustworthy.
+      // Alternatively, calculate the size from the readStream.
+      let entrySize = entry.uncompressedSize;
+      totalSize += entrySize;
+      if (totalSize > MAX_SIZE) {
+        throw 'Reached max. size';
+      }
+
+      if (entry.compressedSize > 0) {
+        let compressionRatio = entrySize / entry.compressedSize;
+        if (compressionRatio > THRESHOLD_RATIO) {
+          throw 'Reached max. compression ratio';
+        }
+      }
+    }
+  });
+}
+main();
+----
+
+== See
+
+* https://owasp.org/www-project-top-ten/OWASP_Top_Ten_2017/Top_10-2017_A6-Security_Misconfiguration[OWASP Top 10 2017 Category A6] - Security Misconfiguration
+* http://cwe.mitre.org/data/definitions/409.html[MITRE, CWE-409] - Improper Handling of Highly Compressed Data (Data Amplification)
+* https://www.bamsoftware.com/hacks/zipbomb/[bamsoftware.com] - A better Zip Bomb
