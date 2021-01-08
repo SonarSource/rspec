@@ -6,7 +6,7 @@ In a MongoDB context, https://docs.mongodb.com/manual/faq/fundamentals/#how-does
 
 ----
 let username = req.query.username;
-query = { $where: `this.username == '${username}'` }
+query = { $where: `this.username == '${username}'` } // Noncompliant
 User.find(query, function (err, users) {
   if (err) {
     // Handle errors
@@ -14,6 +14,36 @@ User.find(query, function (err, users) {
     res.render('userlookup', { title: 'User Lookup', users: users });
   }
 });
+----
+
+User-input should not be used in combination with ``eval`` or other functions that dynamically evaluate code:
+
+----
+let input = req.query.input;
+eval(input); // Noncompliant
+(new Function(input))(); // Noncompliant
+----
+
+----
+const vm = require("vm");
+
+let input = req.query.input;
+vm.runInThisContext(input);  // Noncompliant
+const context = {};
+vm.createContext(context);
+vm.runInContext(input, context); // Noncompliant
+vm.runInNewContext(input, context); // Noncompliant
+vm.compileFunction(input)(); // Noncompliant
+(new vm.Script(input)).runInThisContext(); // Noncompliant
+----
+
+----
+var Module = require('module');
+
+let name = req.query.name;
+let input = req.query.input;
+var mod = new Module(name, module.parent);
+mod._compile(input, name); // Noncompliant
 ----
 
 == Compliant Solution
@@ -22,7 +52,7 @@ In a MongoDB context, don't use ``$where`` operator or validate the data:
 
 ----
 let username = req.query.username;
-query = { username: username }
+query = { username: username } // Compliant
 User.find(query, function (err, users) {
   if (err) {
     // Handle errors
@@ -30,6 +60,12 @@ User.find(query, function (err, users) {
     res.render('userlookup', { title: 'User Lookup', users: users });
   }
 });
+----
+
+If ``eval`` is used to parse a JSON string this should be done instead with ``JSON.parse``:
+
+----
+let obj = JSON.parse(req.query.input); // Compliant
 ----
 
 include::../see.adoc[]
