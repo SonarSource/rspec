@@ -1,1 +1,61 @@
-include::../rule.adoc[]
+If a JSON Web Token (JWT) is not signed with a strong cipher algorithm (or not signed at all) an attacker can forge it and impersonate user identities.
+
+* Don't use ``none`` algorithm to sign or verify the validity of a token.
+* Don't use a token without verifying its signature before.
+
+In addition, be extra careful when using https://github.com/jwtk/jjwt[jwtk/Java JWT] library "``parse``" method, parsing a signed token (JWT + JWS (signature)) or an unsigned one. To guess how to parse the token the parse method will look at the token headers (which are not signed and thus could be forged by an attacker). This attack is sometimes referred as the "None algorithm attack". Instead, you should consider using "``parseClaimsJws``" parsing signed token. If the signature is not provided together with the JWT, the method will fail as expected.
+
+== Noncompliant Code Examples
+
+Using https://github.com/jwtk/jjwt[jwtk/Java JWT] library:
+
+----
+// Signinig:
+io.jsonwebtoken.Jwts.builder() // Noncompliant, token is not signed.
+  .setSubject(USER_LOGIN)
+  .compact();
+// Verifying:
+io.jsonwebtoken.Jwts.parser().setSigningKey(SECRET_KEY).parse(token).getBody(); // Noncompliant, if the token has no signature, this method will still parse it correctly.
+----
+
+Using https://github.com/auth0/java-jwt[auth0/Java JWT] library:
+
+----
+// Signinig:
+com.auth0.jwt.JWT.create()
+  .withSubject(SUBJECT)
+  .sign(Algorithm.none()); // Noncompliant, use only strong cipher algorithms when signing this JWT.
+// Verifying:
+JWTVerifier nonCompliantVerifier = com.auth0.jwt.JWT.require(Algorithm.none()) // Noncompliant
+  .withSubject(LOGIN)
+  .build();
+----
+
+== Compliant Solution
+
+Using https://github.com/jwtk/jjwt[Java JWT] library:
+
+----
+// Signinig:
+Jwts.builder() // Compliant
+  .setSubject(USER_LOGIN)
+  .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
+  .compact();
+// Verifying:
+Jwts.parser().setSigningKey(SECRET_KEY).parseClaimsJws(token).getBody(); // Compliant
+----
+
+Using https://github.com/auth0/java-jwt[auth0/Java JWT] library:
+
+----
+// Signinig:
+JWT.create()
+  .withSubject(SUBJECT)
+  .sign(Algorithm.HMAC256(SECRET_KEY)); // Noncompliant, use only strong cipher algorithms when signing this JWT.
+// Verifying:
+JWTVerifier nonCompliantVerifier = JWT.require(Algorithm.HMAC256(SECRET_KEY)) // Noncompliant
+  .withSubject(LOGIN)
+  .build();
+----
+
+include::../see.adoc[]

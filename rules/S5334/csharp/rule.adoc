@@ -1,0 +1,66 @@
+include::../description.adoc[]
+
+== Noncompliant Code Example
+
+----
+using Microsoft.AspNetCore.Mvc;
+using System.CodeDom.Compiler;
+
+namespace WebApplicationDotNetCore.Controllers
+{
+    public class DynamicCodeExecutionNoncompliantController : Controller
+    {
+        public ActionResult UnsafeCodeExecution(string code)
+        {
+            var provider = CodeDomProvider.CreateProvider("CSharp");
+            var compilerParameters = new CompilerParameters { ReferencedAssemblies = { "System.dll", "System.Runtime.dll" } };
+            var compilerResults = provider.CompileAssemblyFromSource(compilerParameters, code);  // Noncompliant
+            object myInstance = compilerResults.CompiledAssembly.CreateInstance("MyClass");
+            var result = (string)myInstance.GetType().GetMethod("MyMethod").Invoke(myInstance, new object[0]);
+            return Content(result);
+        }
+    }
+}
+----
+
+== Compliant Solution
+
+----
+using Microsoft.AspNetCore.Mvc;
+using System.CodeDom.Compiler;
+using System.Linq;
+
+namespace WebApplicationDotNetCore.Controllers
+{
+    public class DynamicCodeExecutionCompliantController : Controller
+    {
+        private readonly string[] allowedInnerInvocations = { "method1", "method2" };
+
+        public ActionResult SafeCodeExecution(string innerInvocationCode)
+        {
+            // Match the input against a whitelist
+            if (!allowedInnerInvocations.Contains(innerInvocationCode))
+            {
+                return BadRequest();
+            }
+            // Code created is based on controlled template
+            var code = CreateFromTemplate(innerInvocationCode);
+
+            var provider = CodeDomProvider.CreateProvider("CSharp");
+            var compilerParameters = new CompilerParameters { ReferencedAssemblies = { "System.dll", "System.Runtime.dll" } };
+            var compilerResults = provider.CompileAssemblyFromSource(compilerParameters, code);
+            object myInstance = compilerResults.CompiledAssembly.CreateInstance("MyClass");
+            var result = (string)myInstance.GetType().GetMethod("MyMethod").Invoke(myInstance, new object[0]);
+            return Content(result);
+        }
+
+        private string CreateFromTemplate(string innerInvocationCode)
+        {
+            // Create code to be compiled from known template using a validated input
+            // ...
+        }
+    }
+}
+----
+
+include::../see.adoc[]
