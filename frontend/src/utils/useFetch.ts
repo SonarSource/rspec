@@ -1,7 +1,11 @@
 import React from 'react';
 
-export function useFetch(url, options=null, parseJSON=true) {
-  const [response, setResponse] = React.useState(null);
+export function useFetch<FetchedType>(
+    url: string,
+    parseJSON=true,
+    options?: Record<string, any>
+  ): [FetchedType|null, any, boolean] {
+  const [response, setResponse] = React.useState<FetchedType|null>(null);
   const [error, setError] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(true);
 

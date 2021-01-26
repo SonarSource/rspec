@@ -11,6 +11,7 @@ import Box from '@material-ui/core/Box';
 import useStyles from './SearchPage.style';
 import { useSearch } from './utils/useSearch';
 import {
+  SearchParamSetter,
   useLocationSearch,
   useLocationSearchState
 } from './utils/routing';
@@ -23,23 +24,28 @@ export const SearchPage = () => {
   const [query, setQuery] = useLocationSearchState('query', '');
 
   const [ruleType, setRuleType] = useLocationSearchState('types', 'ALL');
-  const allRuleTypes = {'BUG': 'Bug', 'CODE_SMELL': 'Code Smell', 'SECURITY_HOTSPOT': 'Security Hotspot', 'VULNERABILITY': 'Vulnerability'};
+  const allRuleTypes: Record<string,string> = {
+    'BUG': 'Bug',
+    'CODE_SMELL': 'Code Smell', 
+    'SECURITY_HOTSPOT': 'Security Hotspot',
+    'VULNERABILITY': 'Vulnerability'
+  };
 
-  const [ruleTags, setRuleTags] = useLocationSearchState('tags', [], value => value ? value.split(',') : []);
+  const [ruleTags, setRuleTags] = useLocationSearchState<string[]>('tags', [], value => value ? value.split(',') : []);
   const allRuleTags = ["confusing", 'pitfall', 'clumsy', 'junit', 'tests']; // TODO: generate this list
 
   const [pageNumber, setPageNumber] = useLocationSearchState('page', 1, parseInt);
-  const [, setLocationSearch] = useLocationSearch();
+  const {setLocationSearch} = useLocationSearch();
 
 
-  const [results, numberOfHits, error, resultsAreLoading] = useSearch(query,
+  const {results, numberOfHits, error, loading} = useSearch(query,
     ruleType === "ALL" ? null : ruleType,
     ruleTags,
     pageSize, pageNumber);
-  const totalPages = Math.ceil(numberOfHits/pageSize);
+  const totalPages = numberOfHits ? Math.ceil(numberOfHits/pageSize) : 0;
 
-  let resultsDisplay="No rule found...";
-  if (resultsAreLoading) {
+  let resultsDisplay: string|JSX.Element[] = "No rule found...";
+  if (loading) {
     resultsDisplay = "Searching";
   }
   else if (results.length > 0) {
@@ -50,11 +56,13 @@ export const SearchPage = () => {
     )
   }
 
-  const paramSetters = {types: setRuleType, tags: setRuleTags, query: setQuery};
-  function handleUpdate(field) {
-    return function(event) {
+  const paramSetters: Record<string, SearchParamSetter<any>> = {types: setRuleType, tags: setRuleTags, query: setQuery};
+  function handleUpdate(field: string) {
+    return function(event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) {
       if (pageNumber > 1) {
-        const uriSearch = {query: query, types: ruleType, tags: ruleTags, page: 1};
+        const uriSearch: Record<string, any> = {
+          query: query, types: ruleType, tags: ruleTags, page: 1
+        };
         uriSearch[field] = event.target.value;
         setLocationSearch(uriSearch);
       } else {
@@ -84,7 +92,7 @@ export const SearchPage = () => {
             variant="outlined"
             value={query}
             onChange={handleUpdate("query")}
-            error={error}
+            error={!!error}
             helperText={error}
         />
       </Grid>
@@ -114,15 +122,15 @@ export const SearchPage = () => {
           fullWidth
           SelectProps={{
             multiple: true,
+            renderValue: (selected: any) => {
+              return selected.join(', ');
+            }
           }}
           margin="normal"
           variant="outlined"
           label="Rule Tags"
           value={ruleTags}
           onChange={handleUpdate("tags")}
-          renderValue={(selected) => {
-            return selected.join(', ');
-          }}
         >
           {allRuleTags.map((ruleType) => (
             <MenuItem key={ruleType} value={ruleType}>

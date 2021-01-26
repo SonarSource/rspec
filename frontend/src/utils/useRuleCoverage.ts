@@ -1,10 +1,12 @@
 import { useFetch } from './useFetch';
 
+type RuleCoverage = Record<string, Record<string, string>>;
+
 export function useRuleCoverage() {
 
   const coveredRulesUrl = `${process.env.PUBLIC_URL}/covered_rules.json`;
-  const [coveredRules, coveredRulesError, coveredRulesIsLoading] = useFetch(coveredRulesUrl);
-  const languageToSonarpedia = {
+  const [coveredRules, coveredRulesError, coveredRulesIsLoading] = useFetch<RuleCoverage>(coveredRulesUrl);
+  const languageToSonarpedia = new Map<string, string[]>(Object.entries({
     'abap': ['ABAP'],
     'apex': ['APEX'],
     'cfamily': ['CPP', 'C', 'OBJC'],
@@ -29,18 +31,25 @@ export function useRuleCoverage() {
     'vb6': ['VB'],
     'WEB': ['WEB'],
     'xml': ['XML']
-  };
-  function ruleCoverage(language, ruleKeys, mapper) {
+  }));
+  function ruleCoverage(language: string, ruleKeys: string[], mapper: any) {
     if (coveredRulesError) {
       return 'Failed Loading';
     }
     if (coveredRulesIsLoading) {
       return 'Loading';
     }
+    if (!coveredRules) {
+      throw new Error('coveredRules is empty');
+    }
     // return "FIXME"
-    const result = [];
+    const result: any[] = [];
     // const keys = coveredRules.keys;
-    languageToSonarpedia[language].forEach(sonarpediaKey => {
+    const languageKeys = languageToSonarpedia.get(language);
+    if (!languageKeys) {
+      throw new Error(`Unknown key ${language}`)
+    }
+    languageKeys.forEach(sonarpediaKey => {
       ruleKeys.forEach(ruleKey => {
         if (ruleKey in coveredRules[sonarpediaKey]) {
           result.push(mapper(sonarpediaKey, coveredRules[sonarpediaKey][ruleKey]))
