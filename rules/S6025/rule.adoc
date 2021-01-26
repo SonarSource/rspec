@@ -1,67 +1,46 @@
-In order to save memory, unions allow you to use the same memory to store objects from a list of possible types as long as one object is stored at a time. Unions are inherently unsafe, as they expect you to externally keep track of the type of value they currently hold.
+In order to save memory, unions allow you to use the same memory to store objects from a list of possible types as long as one object is stored at a time.
 
-Additionally, they are inconvenient when you need to store objects of non-trivial types (only possible since C++11):
+In C and in C++ prior to C++11, unions are restricted to trivial types.
+
+Starting from C++11, it is possible to use unions with non-trivial types with the following limitations :
 
 * You have to manually handle the lifetime of the active member, using placement new and explicit object destruction.
 * You have to define special members like destructor and copy-constructor while taking into consideration the active member.
 
-To avoid the unsafety and the inconvenience of unions, C++17 introduced ``std::variant``.
- In general, ``std::variant`` is:
+In some cases, code that fails to perfectly follow those rules may still compile, but lead to memory corruption.
 
-* Safer as the type of the current value is always known and checked before usage.
-* More practical as it can have members of any type. It also supports redundant type which is useful when alternatives have the same type with different semantic meanings.
-* Easier to use as it provides many member/helper functions.
-* One downside is that the alternatives in a ``std::variant`` do not have a name. You access them by type or by index.
-
-This rule will flag unions with non-trivial types as well as unions that do not have a clear discriminant to indicate the active member. This discriminant can be written in several ways:
-
-* The union can be wrapped in a ``struct`` or a ``class`` and another member of the ``struct`` is used as a discriminant
-* The union is made-up of types that share a common initial subsequence, which can then be accessed without knowing the active alternative. This subsequence can therefore be used as a discriminant.
-
-Note that except for this special case of the common initial subsequence, writing to a member of the union followed by reading another member of the same union is undefined behavior. Some compiler will generate optimized code that assume this scenario cannot happen, and will break if it does.
+C++17 introduced std::variant which can replace unions while removing this burden and the associated risk. As a safer and more readable alternative, they should be preferred.
 
 
 == Noncompliant Code Example
 
 ----
-void rawUnion() {
-  union IntOrDouble { // Noncompliant: union is not wrapped
-    int i;
-    double d;
-  };
-  IntOrDouble intOrDouble;
-  intOrDouble.d = 10.5;
+#include <new> // Required for placement 'new'.
 
-}
-
-struct IntOrStringWrapper {
-  enum Tag { INT, STRING };
-  union IntOrString { // Noncompliant: union with non-trivial type
-    int i;
-    std::string s;
-    IntOrString(int i) : i(i) {
-    }
-    IntOrString(const std::string& s) : s(s) {
-    }
-    ~IntOrString() {
-    }
-  };
-  IntOrStringWrapper(int i) : intOrString(i), tag(INT) {
-  }
-  IntOrStringWrapper(const std::string& s) : intOrString(s), tag(STRING) {
-  }
-  ~IntOrStringWrapper() {
-    if (tag == STRING){
-      intOrString.s.~basic_string();
-     }
-  }
-  IntOrString intOrString;
-  Tag tag;
+struct Point {
+    Point() {}
+    Point(int x, int y) : x(x), y(y) {}
+    Point(const Point& p) : Point(p.x, p.y) {}
+    int x, y;
 };
 
-void useIntOrStringWrapper() {
-  using namespace std::string_literals;
-  IntOrStringWrapper intOrStringWrapper = "str"s;
+union U {
+  int z;
+  double w;
+  Point p; // Noncompliant: non-trivial type in Union
+  U() {
+    new(&p) Point();
+  }
+  U(const Point& p) {
+    new(&this->p) Point(p);
+  }
+};
+
+int g(U& u);
+
+int f(const U &u1, const Point &p) {
+    U u2 = p;
+    return g(u2);
 }
 ----
 
@@ -69,21 +48,23 @@ void useIntOrStringWrapper() {
 == Compliant Solution
 
 ----
-struct IntOrChar {
-  enum { INT, CHAR } tag;
-  union { // Compliant
-    int i;
-    char c;
-  };
+#include <variant>
+
+struct Point {
+    Point() {}
+    Point(int x, int y) : x(x), y(y) {}
+    Point(const Point& p) : Point(p.x, p.y) {}
+    int x, y;
 };
 
-void simpleVariant() {
-  std::variant<int, double> intOrDouble = 10.5; // Compliant
+using V = std::variant<int, double, Point>; // Compliant
+
+int g(V& v);
+
+int f(const V &v1, const Point &p) {
+    V v2 = p;
+    return g(v2);
 }
 
-void IntOrStringVariant() {
-  using namespace std::string_literals;
-  std::variant<int, std::string> intOrString = "str"s; // Compliant
-}
 ----
 
