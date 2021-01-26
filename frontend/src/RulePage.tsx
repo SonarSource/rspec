@@ -12,6 +12,7 @@ import { useHistory } from "react-router-dom";
 
 import { useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
+import { RuleMetadata } from './types';
 
 
 const useStyles = makeStyles((theme) => ({
@@ -41,11 +42,11 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center"
   },
   tabScroller: {
-    flexGrow: "0"
+    flexGrow: 0
   }
 }));
 
-const languageToJiraProject = {
+const languageToJiraProject = new Map(Object.entries({
   "PYTHON": "SONARPY",
   "ABAP": "SONARABAP",
   "CFAMILY": "CPP",
@@ -66,9 +67,9 @@ const languageToJiraProject = {
   "TSQL": "SONARTSQL",
   "VB6": "SONARVBSIX",
   "XML": "SONARXML",
-};
+}));
 
-const languageToGithubProject = {
+const languageToGithubProject = new Map(Object.entries({
   "ABAP": "sonar-abap",
   "CSHARP": "sonar-dotnet",
   "VBNET": "sonar-dotnet",
@@ -94,15 +95,15 @@ const languageToGithubProject = {
   "Swift": "sonar-swift",
   "T-SQL": "sonar-tsql",
   "XML": "sonar-xml",
-}
+}));
 
 
-export function RulePage(props) {
+export function RulePage(props: any) {
   const ruleid = props.match.params.ruleid;
   const language = props.match.params.language;
 
   const history = useHistory();
-  function handleLanguageChange(event, lang) {
+  function handleLanguageChange(event: any, lang: string) {
     history.push(`/${ruleid}/${lang}`);
   }
 
@@ -112,22 +113,22 @@ export function RulePage(props) {
   let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-metadata.json";
   let editOnGithubUrl = 'https://github.com/SonarSource/rspec/tree/master/rules/' + ruleid + '/' + language;
 
-  let [descHTML, descError, descIsLoading] = useFetch(descUrl, null, false);
-  let [metadataJSON, metadataError, metadataIsLoading] = useFetch(metadataUrl, null, true);
+  let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
+  let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
   const ruleCoverage = useRuleCoverage();
-  let coverage = "Loading...";
+  let coverage: any = "Loading...";
 
   let title = "Loading..."
   let metadataJSONString;
   let languagesTabs = null;
-  if (!metadataIsLoading && !metadataError) {
+  if (metadataJSON && !metadataIsLoading && !metadataError) {
     title = metadataJSON.title
     metadataJSON.all_languages.sort()
     languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>)
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
-    coverage = ruleCoverage(language, metadataJSON.allKeys, (key, version) => {
+    coverage = ruleCoverage(language, metadataJSON.allKeys, (key: any, version: any) => {
       return (
       <li>{key}: {version}</li>
       )
@@ -135,7 +136,7 @@ export function RulePage(props) {
   }
 
   let description = <div>Loading...</div>;
-  if (!descIsLoading && !descError) {
+  if (descHTML !== null && !descIsLoading && !descError) {
     description = <div>
       <div dangerouslySetInnerHTML={{__html: descHTML}}/>
       <hr />
@@ -147,8 +148,8 @@ export function RulePage(props) {
   const ruleNumber = ruleid.substring(1)
   
   const upperCaseLanguage = language.toUpperCase();
-  const jiraProject = languageToJiraProject[upperCaseLanguage];
-  const githubProject = languageToGithubProject[upperCaseLanguage];
+  const jiraProject = languageToJiraProject.get(upperCaseLanguage);
+  const githubProject = languageToGithubProject.get(upperCaseLanguage);
 
   let ticketsLink;
   if (upperCaseLanguage in languageToJiraProject) {
@@ -193,14 +194,14 @@ export function RulePage(props) {
   
     <Container maxWidth="md">
       <Typography variant="h3" classes={{root: classes.title}}>{title}</Typography>
-      <Box classes={{root: classes.coverage}}>
+      <Box className={classes.coverage}>
         <Typography variant="h4" >Covered Since</Typography>
         <ul>
         {coverage}
         </ul>
       </Box>
 
-      <Box classes={{root: classes.coverage}}>
+      <Box className={classes.coverage}>
         <Typography variant="h4" >Related Tickets and Pull Requests</Typography>
         <ul>
           {ticketsLink}
@@ -210,7 +211,7 @@ export function RulePage(props) {
         </ul>
       </Box>
       
-      <Box classes={{root: classes.description}}>
+      <Box>
         <Typography variant="h4">Description</Typography>
         <Typography className={classes.description}>
           {description}

@@ -3,23 +3,24 @@ import React, { useState } from 'react';
 import * as lunr from 'lunr'
 
 import { useFetch } from './useFetch';
+import { IndexedRule, IndexStore } from '../types/IndexStore';
 
-export function useSearch(query, ruleType, ruleTags, pageSize, pageNumber) {
+export function useSearch(query: string, ruleType: string|null, ruleTags: string[], pageSize: number, pageNumber: number) {
   let indexDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index.json`;
   let storeDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-store.json`;
 
-  const [indexData, indexDataError, indexDataIsLoading] = useFetch(indexDataUrl);
-  const [storeData, storeDataError, storeDataIsLoading] = useFetch(storeDataUrl);
-  const [index, setIndex] = useState(null);
+  const [indexData, indexDataError, indexDataIsLoading] = useFetch<object>(indexDataUrl);
+  const [storeData, storeDataError, storeDataIsLoading] = useFetch<IndexStore>(storeDataUrl);
+  const [index, setIndex] = useState<lunr.Index|null>(null);
 
-  const [results, setResults] = useState([]);
-  const [numberOfHits, setNumberOfHits] = useState(null);
-  const [error, setError] = useState(null);
-  const [resultsAreloading, setResultsAreLoading] = useState(true);
+  const [results, setResults] = useState<IndexedRule[]>([]);
+  const [numberOfHits, setNumberOfHits] = useState<number|null>(null);
+  const [error, setError] = useState<string|null>(null);
+  const [loading, setResultsAreLoading] = useState(true);
 
   React.useEffect(() => {
     console.log(`trying to load index`);
-    if (!indexDataIsLoading && !indexDataError) {
+    if (indexData && !indexDataIsLoading && !indexDataError) {
       console.log("Loading Index");
       setIndex(lunr.Index.load(indexData));
     }
@@ -28,7 +29,7 @@ export function useSearch(query, ruleType, ruleTags, pageSize, pageNumber) {
   React.useEffect(() => {
     console.log(`trying to run query`);
     if (index != null && !storeDataIsLoading && !storeDataError) {
-      let hits = []
+      let hits: lunr.Index.Result[] = []
       setError(null);
       try {
         // We use index.query instead if index.search in order to fully
@@ -65,12 +66,14 @@ export function useSearch(query, ruleType, ruleTags, pageSize, pageNumber) {
           throw exception;
         }
       }
-      setNumberOfHits(hits.length)
-      const pageResults = hits.slice(pageSize*(pageNumber - 1), pageSize*(pageNumber));
-      setResults(pageResults.map(({ ref }) => storeData[ref]));
-      setResultsAreLoading(false);
+      if (storeData) {
+        setNumberOfHits(hits.length)
+        const pageResults = hits.slice(pageSize*(pageNumber - 1), pageSize*(pageNumber));
+        setResults(pageResults.map(({ ref }) => storeData[ref]));
+        setResultsAreLoading(false);
+      }
     }
   }, [query, ruleType, ruleTags, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
 
-  return [results, numberOfHits, error, resultsAreloading];
+  return {results, numberOfHits, error, loading};
 }

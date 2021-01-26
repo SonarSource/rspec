@@ -8,6 +8,7 @@ import Chip from '@material-ui/core/Chip';
 
 import { Link as RouterLink } from 'react-router-dom';
 import { Link } from '@material-ui/core';
+import { IndexedRule } from './types/IndexStore';
 
 
 const useStyles = makeStyles((theme) => ({
@@ -24,7 +25,11 @@ const useStyles = makeStyles((theme) => ({
   }
 }));
 
-export function SearchHit(props) {
+type SearchHitProps = {
+  data: IndexedRule
+}
+
+export function SearchHit(props: SearchHitProps) {
   const classes = useStyles();
   const languages = props.data.languages.map(lang => (
     <Chip
@@ -34,7 +39,7 @@ export function SearchHit(props) {
     />
   ));
   const titles = props.data.titles.split('\n').map(title => (
-    <Typography className={{root: classes.title}} variant="body1" component="p" gutterBottom>
+    <Typography variant="body1" component="p" gutterBottom>
       {title}
     </Typography>
   ));
@@ -46,7 +51,7 @@ export function SearchHit(props) {
             Rule {props.data.id}
           </Typography>
           {titles}
-          <Typography variant="body2" component="p" classes={{root: classes.languages}}>
+          <Typography variant="body2" component="p" classes={{root: classes.language}}>
             {languages}
           </Typography>
       </CardContent>
