@@ -1,11 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const asciidoctor = require("asciidoctor")();
-const stripHtml = require("string-strip-html");
+const { stripHtml } = require("string-strip-html");
 const lunr = require('lunr');
-const jsdom = require("jsdom");
 
-const { JSDOM } = jsdom;
 const RULE_SRC_DIRECTORY = path.join("..", "rules");
 const RULE_DST_DIRECTORY = path.join("public", "rules");
 
@@ -79,7 +77,7 @@ function generate_rule_metadata_and_description(/*string*/ruleSrcDirectory, /*st
         allKeys.add(metadata.sqKey);
         // Remove HTML tags from the description, extract unique words and normalize them.
         // This reduces a bit the footprint of descriptions in the index.
-        const descriptionWords = stripHtml(htmlDescription).split(/[\s,.:;!?()"'-+*/\\%#]+/)
+        const descriptionWords = stripHtml(htmlDescription).result.split(/[\s,.:;!?()"'-+*/\\%#]+/)
         descriptionWords.forEach(item => searchRecord.descriptions.add(item.toUpperCase()));
     });
 
@@ -121,65 +119,8 @@ function generate_rule_description(ruleSrcDirectory, ruleDstDirectory, language)
     };
     const adoc = fs.readFileSync(ruleSrcFile, 'utf8');
     let html = /** @type string*/ asciidoctor.convert(adoc, opts);
-    const jsDom = new JSDOM(html);
-    let body = jsDom.window.document.body;
-    forEachChildNode(body, cleanHtml);
-    forEachChildNode(body, removeUselessBlankLine);
-    html = body.innerHTML.trim() + '\n';
     fs.writeFileSync(ruleDstFile, html, {encoding: 'utf8'});
     return html;
-}
-
-function forEachChildNode(/*HTMLElement*/node, /*function*/consumer) {
-    for (let i = node.childNodes.length - 1; i >= 0; i--) {
-        consumer(node.childNodes[i]);
-    }
-}
-
-function cleanHtml(/*HTMLElement*/node) {
-    if (node.nodeType === 1/*HTMLElement*/) {
-        forEachChildNode(node, cleanHtml);
-        node.removeAttribute('id');
-        node.removeAttribute('class');
-        if (node.tagName === 'DIV') {
-            unwrapNode(node);
-        } else if (node.tagName === 'PRE') {
-            node.insertBefore(node.ownerDocument.createTextNode('\n'), node.firstChild);
-            node.appendChild(node.ownerDocument.createTextNode('\n'));
-        } else if (node.tagName === 'P') {
-            if (!node.previousElementSibling && !node.nextElementSibling && node.parentElement.tagName === 'LI') {
-                unwrapNode(node);
-            }
-        } else if (node.tagName === 'LI') {
-            if (node.firstChild && node.firstChild.nodeType === 3 && node.firstChild.nodeValue.match(/^[ \t\r\n]*$/)) {
-                node.removeChild(node.firstChild);
-            }
-        }
-    }
-}
-
-function removeUselessBlankLine(/*HTMLElement*/node) {
-    if (node.nodeType === 3/*Text*/) {
-        if (node.nextSibling && node.nextSibling.nodeType === 3/*Text*/) {
-             node.nodeValue = (node.nodeValue + node.nextSibling.nodeValue).replace(/(\r\n|\n|\r)[ \t]*(\r\n|\n|\r)/, '$1');
-             node.parentNode.removeChild(node.nextSibling);
-        }
-    } else if (node.nodeType === 1/*HTMLElement*/ && node.tagName !== 'PRE') {
-        forEachChildNode(node, removeUselessBlankLine);
-    }
-}
-
-function unwrapNode(/*HTMLElement*/node) {
-    while(node.firstChild) {
-        node.parentNode.insertBefore(node.removeChild(node.firstChild), node);
-    }
-    if (node.nextSibling && node.nextSibling.nodeType === 3 && node.nextSibling.nodeValue.match(/^[ \t\r\n]*$/)) {
-        node.parentNode.removeChild(node.nextSibling);
-    }
-    if (node.previousSibling && node.previousSibling.nodeType === 3 && node.previousSibling.nodeValue.match(/^[ \t\r\n]*$/)) {
-        node.parentNode.removeChild(node.previousSibling);
-    }
-    node.parentNode.removeChild(node);
 }
 
 function generate_rule_metadata(ruleSrcDirectory, ruleDstDirectory, language, all_languages) {
@@ -217,7 +158,6 @@ function build_search_index(ruleIndexStore) {
         this.field('tags');
         this.field('qualityProfiles');
         this.field('descriptions');
-
 
         for (const searchRecord of Object.values(ruleIndexStore)) {
             this.add(searchRecord);
