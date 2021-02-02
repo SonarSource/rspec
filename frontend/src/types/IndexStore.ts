@@ -1,11 +1,13 @@
+export type Severity = 'Blocker'|'Critical'|'Major'|'Minor'|'Info';
+
 export interface IndexedRule {
-    id: number;
+    id: string;
     languages: string[];
     // FIXME: type, defaultSeverity should never be null but the index generation has a bug
-    type: 'BUG'|'CODE_SMELL'|'VULNERABILITY'|'SECURITY_HOTSPOT'|null;
-    defaultSeverity: 'Blocker'|'Critical'|'Major'|'Minor'|'Info'|null,
+    type: 'BUG'|'CODE_SMELL'|'VULNERABILITY'|'SECURITY_HOTSPOT';
+    severities: Severity[],
     // FIXME: titles should be a list instead of being a concatenation of titles.
-    titles: string,
+    titles: string[],
     tags: string[],
     // FIXME: quality profiles seem to always be empty
     qualityProfiles: string[]

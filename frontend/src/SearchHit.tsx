@@ -38,13 +38,13 @@ export function SearchHit(props: SearchHitProps) {
       color="primary"
     />
   ));
-  const titles = props.data.titles.split('\n').map(title => (
+  const titles = props.data.titles.map(title => (
     <Typography variant="body1" component="p" gutterBottom>
       {title}
     </Typography>
   ));
   return (
-    <Link component={RouterLink} to={`/S${props.data.id}/${props.data.languages[0]}`}>
+    <Link component={RouterLink} to={`/${props.data.id}/${props.data.languages[0]}`}>
     <Card variant="outlined" classes={{root: classes.searchHit}}>
       <CardContent>
           <Typography classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>

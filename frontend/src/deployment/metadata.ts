@@ -1,0 +1,51 @@
+import fs from 'fs';
+import path from 'path';
+
+import { getRulesDirectories, listSupportedLanguage } from './utils';
+
+/**
+ * Generate rules metadata and write them in the destination directory.
+ * @param srcPath directory containing the original rules metadata and description.
+ * @param dstPath directory where the generated rules metadata and description will be written.
+ * @param rules an optional list of rules to list. Other rules won't be generated.
+ */
+export function generate_rules_metadata(srcPath: string, dstPath: string, rules?: string[]) {
+  for (const { srcDir, dstDir } of getRulesDirectories(srcPath, dstPath, rules)) {
+    fs.mkdirSync(dstDir, { recursive: true });
+    const allLanguages = listSupportedLanguage(srcDir);
+    const allMetadata = allLanguages.map((language) => {
+      const metadata = generate_rule_metadata(srcDir, language, allLanguages);
+      return {language, metadata};
+    });
+
+    // Merge all sqKeys in an array so that we can use it later to check rule coverage.
+    const allKeys = allMetadata
+      .reduce((set, {metadata}) => {
+        set.add(metadata.sqKey);
+        return set;
+      }, new Set<string>());
+    const allKeysArray = Array.from(allKeys);
+    allMetadata.forEach(({metadata}) => metadata.allKeys = allKeysArray);
+
+    for (const { language, metadata } of allMetadata) {
+      const dstJsonFile = path.join(dstDir, language + "-metadata.json");
+      fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' })
+    }
+  }
+}
+
+/**
+ * Generate the metadata corresponding to one rule and one language.
+ * @param srcDir rule's source directory.
+ * @param language language for which the metadata should be generated
+ * @param all_languages every language the rule supports.
+ */
+function generate_rule_metadata(srcDir: string, language: string, all_languages: string[]) {
+  let parentFile = path.join(srcDir, language, "metadata.json");
+  const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
+  let childFile = path.join(srcDir, "metadata.json");
+  const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
+  const mergedJson = {...childJson, ...parentJson};
+  mergedJson["all_languages"] = all_languages;
+  return mergedJson;
+}
