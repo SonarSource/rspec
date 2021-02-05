@@ -48,6 +48,7 @@ do
         if asciidoctor --failure-level=WARNING $TMP_ADOC; then
           echo "$RULE syntax is fine"
           pwd
+          ls
           pipenv run python ./rspec-tools/rspec_tools/checklinks.py
         else
           echo "ERROR: $RULE has incorrect asciidoc"
