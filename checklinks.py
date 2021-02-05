@@ -21,7 +21,7 @@ def live_url(url):
 
 def findurl_in_html(filename):
   with io.open(filename, 'r', encoding="utf8") as file:
-    soup = BeautifulSoup(file)
+    soup = BeautifulSoup(file,features="html.parser")
     for link in soup.findAll('a'):
       live_url(link.get('href'))
 
