@@ -45,8 +45,6 @@ do
         cat $RULE >> $TMP_ADOC
         if asciidoctor --failure-level=WARNING $TMP_ADOC; then
           echo "$RULE syntax is fine"
-          pwd
-          ls
           pipenv run python checklinks.py
         else
           echo "ERROR: $RULE has incorrect asciidoc"
