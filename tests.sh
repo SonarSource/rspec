@@ -3,9 +3,7 @@ set -euo pipefail
 exit_code=0
 
 #setup python
-cd rspec-tools
-pipenv install -e .
-cd ..
+pipenv install
 
 for dir in rules/*
 do
@@ -49,7 +47,7 @@ do
           echo "$RULE syntax is fine"
           pwd
           ls
-          pipenv run python ./rspec-tools/rspec_tools/checklinks.py
+          pipenv run python checklinks.py
         else
           echo "ERROR: $RULE has incorrect asciidoc"
           exit_code=1
