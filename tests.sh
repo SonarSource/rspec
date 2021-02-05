@@ -5,6 +5,7 @@ exit_code=0
 #setup python
 cd rspec-tools
 pipenv install -e .
+cd ..
 
 for dir in rules/*
 do
