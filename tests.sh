@@ -2,6 +2,10 @@
 set -euo pipefail
 exit_code=0
 
+#setup python
+cd rspec-tools
+pipenv install -e .
+
 for dir in rules/*
 do
   dir=${dir%*/}
@@ -40,8 +44,9 @@ do
         TMP_ADOC="$language/tmp.adoc"
         echo "== Description" > $TMP_ADOC
         cat $RULE >> $TMP_ADOC
-        if asciidoctor --failure-level=WARNING -o /dev/null $TMP_ADOC; then
+        if asciidoctor --failure-level=WARNING $TMP_ADOC; then
           echo "$RULE syntax is fine"
+          pipenv run python checklinks.py
         else
           echo "ERROR: $RULE has incorrect asciidoc"
           exit_code=1
