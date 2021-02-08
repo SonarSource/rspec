@@ -8,6 +8,7 @@ from urllib.error import URLError
 error=0
 
 def live_url(url):
+  code=None
   try:
     code = urlopen(url).code  
     if (code / 100 >= 4):
