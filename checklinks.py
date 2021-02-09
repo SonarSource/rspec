@@ -18,7 +18,7 @@ def live_url(url):
       print(f"Ok: {url}")
       return True
   except URLError:
-    print(f"Ko: {code} Could not access: {url}")
+    print(f"Ko: {URLError.code} Could not access: {url}")
     return False
 
 def findurl_in_html(filename, pr: bool=False):
