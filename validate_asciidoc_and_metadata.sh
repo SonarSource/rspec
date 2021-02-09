@@ -1,7 +1,3 @@
-#!/bin/bash
-set -euo pipefail
-exit_code=0
-
 for dir in rules/*
 do
   dir=${dir%*/}
@@ -10,7 +6,7 @@ do
   FILE="$dir/metadata.json"
   if test -f $FILE; then
     echo "$FILE exists."
-    #validate-json $FILE ./validation/schema.json
+    validate-json $FILE ./validation/schema.json
   else
     echo "ERROR: no metadata file $FILE"
     exit_code=1
@@ -37,6 +33,16 @@ do
       RULE="$language/rule.adoc"
       if test -f $RULE; then
         echo "$RULE exists."
+        TMP_ADOC="$language/tmp.adoc"
+        echo "== Description" > $TMP_ADOC
+        cat $RULE >> $TMP_ADOC
+        if asciidoctor --failure-level=WARNING -o /dev/null $TMP_ADOC; then
+          echo "$RULE syntax is fine"
+        else
+          echo "ERROR: $RULE has incorrect asciidoc"
+          exit_code=1
+        fi
+        rm $TMP_ADOC
       else
         echo "ERROR: no asciidoc file $RULE"
         exit_code=1
