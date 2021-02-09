@@ -2,14 +2,14 @@ import os,io
 import re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
-from urllib.request import urlopen
-from urllib.error import URLError
+from urllib.request import urlopen,Request
+from urllib.error import URLError,HTTPError
 
 error=0
 
 def live_url(filename,url):
   code=None
-  req = urllib.request.Request(
+  req = Request(
     url, 
     data=None, 
     headers={
