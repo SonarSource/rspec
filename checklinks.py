@@ -7,25 +7,25 @@ from urllib.error import URLError
 
 error=0
 
-def live_url(url):
+def live_url(filename,url):
   code=None
   try:
     code = urlopen(url).code  
     if (code / 100 >= 4):
-      print(f"Ko: {code} Nothing there: {url}")
+      print(f"Ko: {filename} {code} Nothing there: {url}")
       return False
     else:
       print(f"Ok: {url}")
       return True
   except URLError as e:
-    print(f"Ko: {e.reason} {url}")
+    print(f"Ko: {filename} {e.reason} {url}")
     return False
 
 def findurl_in_html(filename, pr: bool=False):
   with io.open(filename, 'r', encoding="utf8") as file:
     soup = BeautifulSoup(file,features="html.parser")
     for link in soup.findAll('a'):
-      if not live_url(link.get('href')) and pr:
+      if not live_url(filename,link.get('href')) and pr:
         exit(1)
 
 
