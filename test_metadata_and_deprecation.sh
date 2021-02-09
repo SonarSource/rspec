@@ -13,11 +13,12 @@ do
   FILE="$dir/metadata.json"
   if test -f $FILE; then
     echo "$FILE exists."
-    validate-json $FILE ./validation/schema.json
+    #validate-json $FILE ./validation/schema.json
   else
     echo "ERROR: no metadata file $FILE"
     exit_code=1
   fi
+
   subdircount=$(find $dir -maxdepth 1 -type d | wc -l)
 
   # check if there are language specializations
@@ -30,13 +31,21 @@ do
         echo "ERROR: non-deprecated generic rule $dir with no language specializations"
         exit_code=1
     fi
+  else
+    #validate asciidoc
+    for language in $dir/*/
+    do
+      language=${language%*/}
+      echo ${language##*/}
+      RULE="$language/rule.adoc"
+      if test -f $RULE; then
+        echo "$RULE exists."
+      else
+        echo "ERROR: no asciidoc file $RULE"
+        exit_code=1
+      fi
+    done
   fi
 done
-
-
-#vaidate asciidoc
-mkdir -p out
-asciidoctor -R rules -D out '**/*.adoc'
-pipenv run python checklinks.py
 
 exit $exit_code
