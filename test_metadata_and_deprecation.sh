@@ -2,9 +2,6 @@
 set -euo pipefail
 exit_code=0
 
-#setup python
-pipenv install
-
 for dir in rules/*
 do
   dir=${dir%*/}
