@@ -9,14 +9,24 @@ error=0
 
 def live_url(filename,url):
   code=None
+  req = urllib.request.Request(
+    url, 
+    data=None, 
+    headers={
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'
+    }
+  )
   try:
-    code = urlopen(url).code  
+    code = urlopen(req).code  
     if (code / 100 >= 4):
       print(f"Ko: {filename} {code} Nothing there: {url}")
       return False
     else:
       print(f"Ok: {url}")
-      return True
+      return True  
+  except HTTPError as h:
+    print(f"Ko: {filename} {h.code} {h.reason} {url}")
+    return False
   except URLError as e:
     print(f"Ko: {filename} {e.reason} {url}")
     return False
