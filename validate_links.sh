@@ -2,9 +2,12 @@
 set -euo pipefail
 
 #setup python
-pipenv install
+cd rspec-tools
+pipenv install -e i
+pipenv shell
+cd ..
 
 #validate links in asciidoc
 mkdir -p out
 asciidoctor -R rules -D out '**/*.adoc' 
-pipenv run python checklinks.py
+rspec-tools check-links --d out

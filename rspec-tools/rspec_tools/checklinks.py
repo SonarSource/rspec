@@ -5,8 +5,6 @@ from bs4 import BeautifulSoup
 from urllib.request import urlopen,Request
 from urllib.error import URLError,HTTPError
 
-error=0
-
 def live_url(filename,url):
   code=None
   req = Request(
@@ -31,18 +29,21 @@ def live_url(filename,url):
     print(f"Ko: {filename} {e.reason} {url}")
     return False
 
-def findurl_in_html(filename, pr: bool=False):
-  with io.open(filename, 'r', encoding="utf8") as file:
+def findurl_in_html(filename):
+  error=0
+  with open(filename, 'r', encoding="utf8") as file:
     soup = BeautifulSoup(file,features="html.parser")
     for link in soup.findAll('a'):
-      if not live_url(filename,link.get('href')) and pr:
-        exit(1)
+      if not live_url(filename,link.get('href')):
+        error=1
+  exit(error)
 
-
-for directory, dirnames, filenames in os.walk("."):
-  for filename in filenames:
-    if filename.endswith('.html'):
-      findurl_in_html(os.path.join(directory,filename))
+def check_html_links(dir):
+  print(f"Checking {dir}")
+  for directory, dirnames, filenames in os.walk(dir):
+    for filename in filenames:
+      if filename.endswith('.html'):
+        findurl_in_html(os.path.join(directory,filename))
 
   
 
