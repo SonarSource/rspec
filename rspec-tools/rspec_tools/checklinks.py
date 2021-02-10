@@ -30,6 +30,9 @@ def live_url(filename,url):
   except URLError as e:
     print(f"Ko: {filename} {e.reason} {url}")
     return False
+  except ConnectionError as c:
+    print(f"Ko: {filename} {url} connection error {c}")
+    return False
 
 def findurl_in_html(filename):    
   ok=True
