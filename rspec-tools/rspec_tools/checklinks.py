@@ -39,7 +39,7 @@ def live_url(filenames,url):
   except timeout as t:
     print(f"ERROR: timeout ", t)
     return url
-  except Error as e:
+  except Exception as e:
     print(f"ERROR: ", e)
     return url
 
