@@ -49,6 +49,7 @@ def check_html_links(dir):
     filename=str(filepath.absolute())
     if not findurl_in_html(filename):
       error_code=1
+  print(f"All html files checked")
   exit(error_code)
 
   
