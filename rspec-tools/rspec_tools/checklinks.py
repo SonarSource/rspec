@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from urllib.request import urlopen,Request
 from urllib.error import URLError,HTTPError
+from socket import timeout
 import pathlib
 
 def show_files(filenames):
