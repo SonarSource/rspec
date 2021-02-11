@@ -72,10 +72,10 @@ def check_html_links(dir):
     for key in errors:
       print(f"{key} in:") 
       show_files(urls[key])
-    print(f"{len(errors)} links are dead, see the list and related files before")
+    print(f"{len(errors)}/{len(urls[key])} links are dead, see the list and related files before")
     exit(1)
   else:
-    print("All links are good")
+    print(f"All {len(urls[key])} links are good")
 
   
 
