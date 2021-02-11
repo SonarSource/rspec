@@ -35,8 +35,8 @@ def live_url(filenames,url):
   except ConnectionError as c:
     print(f"ERROR: connection error {c}")
     return url
-  except socket.error as socketerror:
-    print(f"ERROR: ", socketerror)
+  except timeout as t:
+    print(f"ERROR: ", t)
     return url
 
 def findurl_in_html(filename,urls):    
