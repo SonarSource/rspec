@@ -20,7 +20,6 @@ def test_404():
   assert result.exit_code == 1
   assert "1/1 links are dead, see the list and related files before" in result.output
 
-
 def test_url():
   runner = CliRunner()
   result = runner.invoke(cli, ['check-links', '--d=tests/links/URL'])
@@ -28,3 +27,8 @@ def test_url():
   assert result.exit_code == 1
   assert "1/1 links are dead, see the list and related files before" in result.output
 
+def test_ok():
+  runner = CliRunner()
+  result = runner.invoke(cli, ['check-links', '--d=tests/links/OK'])
+  print(result.output)
+  assert result.exit_code == 0
