@@ -23,22 +23,18 @@ def live_url(filenames,url):
     code = urlopen(req,timeout=5).code  
     if (code / 100 >= 4):
       print(f"ERROR: {code} Nothing there")
-      show_files(filenames)
-      return False
+      return url
     else:
-      return True  
+      return True
   except HTTPError as h:
     print(f"ERROR: {h.code} {h.reason}")
-    show_files(filenames)
-    return False
+    return url
   except URLError as e:
     print(f"ERROR: {e.reason}")
-    show_files(filenames)
-    return False
+    return url
   except ConnectionError as c:
     print(f"ERROR: connection error {c}")
-    show_files(filenames)
-    return False
+    return url
 
 def findurl_in_html(filename,urls):    
   with open(filename, 'r', encoding="utf8") as file:
@@ -51,8 +47,8 @@ def findurl_in_html(filename,urls):
         urls[key]=[filename]
 
 def check_html_links(dir):  
-  ok=True
   urls={}
+  errors=[]
   print("Finding links in html files")
   for filepath in pathlib.Path(dir).glob('**/*.html'):
     filename=str(filepath.absolute())
@@ -61,9 +57,14 @@ def check_html_links(dir):
   print("Testing links")
   for key in urls:
     print(f"{key} in {len(urls[key])} files")
-    ok=ok and live_url(urls[key],key)
-  if not ok:
+    result=live_url(urls[key],key)
+    if result != True:
+      errors.append(result)
+  if errors:
     print("There were errors")
+    for key in errors:
+      print(f"{key} in:") 
+      show_files(urls[key])
     exit(1)
   else:
     print("All links are good")
