@@ -32,3 +32,4 @@ def test_ok():
   result = runner.invoke(cli, ['check-links', '--d=tests/links/OK'])
   print(result.output)
   assert result.exit_code == 0
+  assert "All 1 links are good" in result.output
