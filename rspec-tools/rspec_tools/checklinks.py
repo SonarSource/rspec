@@ -64,7 +64,7 @@ def check_html_links(dir):
     ok=ok and live_url(urls[key],key)
   if not ok:
     print("There were errors")
-    exit(error_code)
+    exit(1)
   else:
     print("All links are good")
 
