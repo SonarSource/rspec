@@ -11,7 +11,7 @@ def show_files(filenames):
   for filename in filenames:
     print(filename)
 
-def live_url(filenames,url):
+def live_url(url):
   code=None
   req = Request(
     url, 
@@ -64,7 +64,7 @@ def check_html_links(dir):
   print("Testing links")
   for key in urls:
     print(f"{key} in {len(urls[key])} files")
-    result=live_url(urls[key],key)
+    result=live_url(key)
     if result != True:
       errors.append(result)
   if errors:
