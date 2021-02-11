@@ -56,7 +56,7 @@ def check_html_links(dir):
   print("Finding links in html files")
   for filepath in pathlib.Path(dir).glob('**/*.html'):
     filename=str(filepath.absolute())
-    findurl_in_html(filename,urls):
+    findurl_in_html(filename,urls)
   print("All html files crawled")
   print("Testing links")
   for key in urls:
