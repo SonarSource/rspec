@@ -41,35 +41,32 @@ def live_url(filenames,url):
     return False
 
 def findurl_in_html(filename,urls):    
-  ok=True
   with open(filename, 'r', encoding="utf8") as file:
     soup = BeautifulSoup(file,features="html.parser")
     for link in soup.findAll('a'):
-      #ok=ok and live_url(filename,link.get('href'))
       key=link.get('href')
       if key in urls:
         urls[key].append(filename)
       else:
         urls[key]=[filename]
 
-  return ok
-  
-
 def check_html_links(dir):  
-  error_code=0
   ok=True
   urls={}
+  print("Finding links in html files")
   for filepath in pathlib.Path(dir).glob('**/*.html'):
     filename=str(filepath.absolute())
-    if not findurl_in_html(filename,urls):
-      error_code=1
-  print(f"All html files checked")
+    findurl_in_html(filename,urls):
+  print("All html files crawled")
+  print("Testing links")
   for key in urls:
-    print(f"{key}:{len(urls[key])}")
+    print(f"{key} in {len(urls[key])} files")
     ok=ok and live_url(urls[key],key)
   if not ok:
     print("There were errors")
-  exit(error_code)
+    exit(error_code)
+  else:
+    print("All links are good")
 
   
 

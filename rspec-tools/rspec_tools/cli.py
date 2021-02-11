@@ -19,7 +19,6 @@ def validate(rule):
 @click.option('--d', required=True)
 def check_links(d):
   '''Check links in html.'''
-  print("checking links")
   check_html_links(d)
     
 
