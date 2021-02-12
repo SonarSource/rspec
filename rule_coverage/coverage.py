@@ -64,7 +64,12 @@ def checkout(repo,version,batch_mode):
     for tag in git_repo.tags:
       if not '-' in tag.name:
         print(f"{repo} {tag.name}")
-        g.checkout(tag.name)
+        try:
+          g.checkout(tag.name)
+        except Exception:
+          print("checkout failed, resetting and cleaning")
+          g.reset('--hard',tag)
+          g.clean('-xfd')
         dump_rules(repo,tag.name)
     os.chdir('..')
   else:
