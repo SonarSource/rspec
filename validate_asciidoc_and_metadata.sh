@@ -1,7 +1,3 @@
-#!/bin/bash
-set -euo pipefail
-exit_code=0
-
 for dir in rules/*
 do
   dir=${dir%*/}
@@ -9,7 +5,6 @@ do
   #validate metadata
   FILE="$dir/metadata.json"
   if test -f $FILE; then
-    echo "$FILE exists."
     validate-json $FILE ./validation/schema.json
   else
     echo "ERROR: no metadata file $FILE"
