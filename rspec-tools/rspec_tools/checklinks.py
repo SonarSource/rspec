@@ -24,24 +24,24 @@ def live_url(url):
     code = urlopen(req,timeout=5).code  
     if (code / 100 >= 4):
       print(f"ERROR: {code} Nothing there")
-      return url
+      return False
     else:
       return True
   except HTTPError as h:
     print(f"ERROR: {h.code} {h.reason}")
-    return url
+    return False
   except URLError as e:
     print(f"ERROR: {e.reason}")
-    return url
+    return False
   except ConnectionError as c:
     print(f"ERROR: connection error {c}")
-    return url
+    return False
   except timeout as t:
     print(f"ERROR: timeout ", t)
-    return url
+    return False
   except Exception as e:
     print(f"ERROR: ", e)
-    return url
+    return False
 
 def findurl_in_html(filename,urls):    
   with open(filename, 'r', encoding="utf8") as file:
@@ -62,11 +62,10 @@ def check_html_links(dir):
     findurl_in_html(filename,urls)
   print("All html files crawled")
   print("Testing links")
-  for key in urls:
-    print(f"{key} in {len(urls[key])} files")
-    result=live_url(key)
-    if result != True:
-      errors.append(result)
+  for url in urls:
+    print(f"{url} in {len(urls[url])} files")
+    if not live_url(url):
+      errors.append(url)
   if errors:
     print("There were errors")
     for key in errors:
