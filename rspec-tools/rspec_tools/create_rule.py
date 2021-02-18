@@ -106,6 +106,11 @@ class RuleCreator:
       draft=True, maintainer_can_modify=True
     )
     click.echo(f'Created rule Pull Request {pull_request.html_url}')
+
+    github_user = github.get_user()
+    pull_request.add_to_assignees(github_user.login)
+    click.echo(f'Pull request assigned to {github_user.login}')
+
     return pull_request
 
   @contextmanager
