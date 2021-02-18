@@ -107,9 +107,10 @@ class RuleCreator:
     )
     click.echo(f'Created rule Pull Request {pull_request.html_url}')
 
-    github_user = github.get_user()
-    pull_request.add_to_assignees(github_user.login)
-    click.echo(f'Pull request assigned to {github_user.login}')
+    # Note: It is not possible to get the authenticated user using get_user() from a github action.
+    login = user if user else github.get_user().login
+    pull_request.add_to_assignees(login)
+    click.echo(f'Pull request assigned to {login}')
 
     return pull_request
 
