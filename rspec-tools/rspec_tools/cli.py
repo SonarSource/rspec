@@ -36,7 +36,7 @@ def create_rule(languages: str, user: Optional[str]):
   config = {}
   if user:
     config['user.name'] = user
-    config['user.email'] = f'<{user}@users.noreply.github.com>'
+    config['user.email'] = f'{user}@users.noreply.github.com'
   lang_list = [lang.strip() for lang in languages.split(',')]
   if len(languages.strip()) == 0 or len(lang_list) == 0:
     raise InvalidArgumenError('Invalid argument for "languages". At least one language should be provided.')
