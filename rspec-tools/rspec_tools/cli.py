@@ -45,9 +45,7 @@ def create_rule(languages: str, user: Optional[str]):
   with tempfile.TemporaryDirectory() as tmpdirname:
     rule_creator = RuleCreator(url, tmpdirname, config)
     rule_number = rule_creator.reserve_rule_number()
-    click.echo(f'Reserved Rule ID S{rule_number}')
     pull_request = rule_creator.create_new_rule_pull_request(token, rule_number, lang_list, user=user)
-    click.echo(f'Created Rule Pull Request branch: {pull_request.head}  url: {pull_request.html_url}')
 
 
 

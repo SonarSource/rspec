@@ -59,6 +59,8 @@ class RuleCreator:
 
     origin = self.repository.remote(name='origin')
     origin.push()
+
+    click.echo(f'Reserved Rule ID S{counter}')
     return counter
 
   def create_new_rule_branch(self, rule_number: int, languages: Iterable[str]) -> str:
@@ -91,7 +93,7 @@ class RuleCreator:
   
   def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], *, user: Optional[str]) -> PullRequest:
     branch_name = self.create_new_rule_branch(rule_number, languages)
-    click.echo(f'Created branch {branch_name}')
+    click.echo(f'Created rule Branch {branch_name}')
 
     repository_url = extract_repository_name(self.origin_url)
     if user:
@@ -99,10 +101,12 @@ class RuleCreator:
     else:
       github = Github(token)
     github_repo = github.get_repo(repository_url)
-    return github_repo.create_pull(
+    pull_request = github_repo.create_pull(
       title=f'Create rule S{rule_number}', body='', head=branch_name, base=self.MASTER_BRANCH,
       draft=True, maintainer_can_modify=True
     )
+    click.echo(f'Created rule Pull Request {pull_request.html_url}')
+    return pull_request
 
   @contextmanager
   def _current_git_branch(self, base_branch: str, new_branch: Optional[str] = None):
