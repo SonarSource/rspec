@@ -85,14 +85,7 @@ class RuleCreator:
       self.repository.git.add('--all')
       self.repository.index.commit(f'Create rule S{rule_number}')
 
-    origin = self.repository.remote(name='origin')
-    push_info: list[PushInfo] = origin.push(f'refs/heads/{branch_name}:refs/heads/{branch_name}')
-    errors = [
-      {'summary': info.summary, 'remote': info.remote_ref_string, 'local': info.local_ref}
-      for info in push_info if info.ERROR
-      ]
-    if errors:
-      raise GitError(f'Error(s) while pushing the new rule branch. \n{str(errors)}')
+    self.repository.git.push('origin', branch_name)
 
     return branch_name
   
