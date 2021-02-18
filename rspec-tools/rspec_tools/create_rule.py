@@ -9,7 +9,7 @@ from rspec_tools.utils import copy_directory_content
 
 def build_github_repository_url(token):
   'Builds the rspec repository url'
-  return f'https://{token}@github.com/SonarSource/rspec.git'
+  return f'https://{token}:@github.com/SonarSource/rspec.git'
 
 def extract_repository_name(url):
   url_end = url.split('/')[-2:]
