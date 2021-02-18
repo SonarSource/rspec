@@ -87,7 +87,10 @@ class RuleCreator:
 
     origin = self.repository.remote(name='origin')
     push_info: list[PushInfo] = origin.push(f'refs/heads/{branch_name}:refs/heads/{branch_name}')
-    errors = [info.summary for info in push_info if info.ERROR]
+    errors = [
+      {'summary': info.summary, 'remote': info.remote_ref_string, 'local': info.local_ref}
+      for info in push_info if info.ERROR
+      ]
     if errors:
       raise GitError(f'Error(s) while pushing the new rule branch. \n{str(errors)}')
 
