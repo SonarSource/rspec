@@ -32,7 +32,7 @@ def check_links(d):
 def create_rule(languages: str, user: Optional[str]):
   '''Create a new rule.'''
   token = os.environ.get('GITHUB_TOKEN')
-  url = build_github_repository_url(token)
+  url = build_github_repository_url(token, user)
   config = {}
   if user:
     config['user.name'] = user

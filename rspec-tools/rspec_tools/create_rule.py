@@ -7,9 +7,12 @@ from contextlib import contextmanager
 
 from rspec_tools.utils import copy_directory_content
 
-def build_github_repository_url(token: str):
+def build_github_repository_url(token: str, user: Optional[str]):
   'Builds the rspec repository url'
-  return f'https://{token}@github.com/SonarSource/rspec.git'
+  if user:
+    return f'https://{user}:{token}@github.com/SonarSource/rspec.git'
+  else:
+    return f'https://{token}@github.com/SonarSource/rspec.git'
 
 def extract_repository_name(url):
   url_end = url.split('/')[-2:]
