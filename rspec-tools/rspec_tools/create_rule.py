@@ -1,4 +1,7 @@
+from rspec_tools.errors import GitError
+import click
 from git import Repo
+from git.remote import PushInfo
 from github import Github
 from github.PullRequest import PullRequest
 from pathlib import Path
@@ -83,13 +86,22 @@ class RuleCreator:
       self.repository.index.commit(f'Create rule S{rule_number}')
 
     origin = self.repository.remote(name='origin')
-    origin.push(f'refs/heads/{branch_name}:refs/heads/{branch_name}')
+    push_info: list[PushInfo] = origin.push(f'refs/heads/{branch_name}:refs/heads/{branch_name}')
+    errors = [info for info in push_info if info.ERROR]
+    if errors:
+      raise GitError(f'Error(s) while pushing the new rule branch. \n{str(errors)}')
+
     return branch_name
   
-  def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str]) -> PullRequest:
+  def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], *, user: Optional[str]) -> PullRequest:
     branch_name = self.create_new_rule_branch(rule_number, languages)
+    click.echo(f'Created branch {branch_name}')
+
     repository_url = extract_repository_name(self.origin_url)
-    github = Github(token)
+    if user:
+      github = Github(user, token)
+    else:
+      github = Github(token)
     github_repo = github.get_repo(repository_url)
     return github_repo.create_pull(
       title=f'Create rule S{rule_number}', body='', head=branch_name, base=self.MASTER_BRANCH,
