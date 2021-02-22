@@ -1,15 +1,16 @@
+# Validate metadata
+cd rspec-tools
+pipenv install -e .
+pipenv run rspec-tools validate-rules
+if [[ $? -ne 0 ]]; then
+  exit 1
+fi
+cd ..
+
 for dir in rules/*
 do
   dir=${dir%*/}
   echo ${dir##*/}
-  #validate metadata
-  FILE="$dir/metadata.json"
-  if test -f $FILE; then
-    validate-json $FILE ./validation/schema.json
-  else
-    echo "ERROR: no metadata file $FILE"
-    exit_code=1
-  fi
 
   subdircount=$(find $dir -maxdepth 1 -type d | wc -l)
 
