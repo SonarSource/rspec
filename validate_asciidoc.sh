@@ -2,14 +2,6 @@ for dir in rules/*
 do
   dir=${dir%*/}
   echo ${dir##*/}
-  #validate metadata
-  FILE="$dir/metadata.json"
-  if test -f $FILE; then
-    validate-json $FILE ./validation/schema.json
-  else
-    echo "ERROR: no metadata file $FILE"
-    exit_code=1
-  fi
 
   subdircount=$(find $dir -maxdepth 1 -type d | wc -l)
 

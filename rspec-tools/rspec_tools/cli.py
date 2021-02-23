@@ -4,8 +4,10 @@ from typing import Optional
 
 import click
 from rspec_tools.checklinks import check_html_links
-from rspec_tools.errors import InvalidArgumenError, RuleNotFoundError
+from rspec_tools.errors import InvalidArgumenError, RuleNotFoundError, RuleValidationError
 from rspec_tools.create_rule import RuleCreator, build_github_repository_url
+from rspec_tools.rules import RulesRepository
+from rspec_tools.validation.metadata import validate_metadata
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
@@ -47,6 +49,28 @@ def create_rule(languages: str, user: Optional[str]):
     rule_number = rule_creator.reserve_rule_number()
     pull_request = rule_creator.create_new_rule_pull_request(token, rule_number, lang_list, user=user)
 
+
+@cli.command()
+@click.argument('rules', nargs=-1)
+def validate_rules_metadata(rules):
+  '''Validate rules metadata.'''
+  rule_repository = RulesRepository()
+  error_counter = 0
+  for rule in rule_repository.rules:
+
+    if rules and rule.key not in rules:
+      continue
+
+    for lang_spec_rule in rule.specializations:
+      try:
+        validate_metadata(lang_spec_rule)
+      except RuleValidationError as e:
+        click.echo(e.message, err=True)
+        error_counter += 1
+  if error_counter > 0:
+    message = f"Validation failed due to {error_counter} errors"
+    click.echo(message, err=True)
+    raise click.Abort(message)
 
 
 __all__=['cli']

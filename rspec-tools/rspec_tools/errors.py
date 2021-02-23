@@ -13,3 +13,8 @@ class GitError(ClickException):
     '''Exception raised when some error happened with git commands.'''
     def __init__(self, message):
         super().__init__(message)
+
+class RuleValidationError(ClickException):
+    '''Exception raised when a rule did not pass validation.'''
+    def __init__(self, message):
+        super().__init__(message)
