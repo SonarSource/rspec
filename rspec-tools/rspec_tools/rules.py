@@ -6,12 +6,12 @@ from typing import Final, Generator, Iterable, Optional
 
 METADATA_FILE_NAME: Final[str] = 'metadata.json'
 
-class RuleLanguage:
+class LanguageSpecificRule:
   language_path: Final[Path]
-  rule: 'Rule'
+  rule: 'GenericRule'
   __metadata: Optional[dict] = None
 
-  def __init__(self, language_path: Path, rule: 'Rule'):
+  def __init__(self, language_path: Path, rule: 'GenericRule'):
     self.language_path = language_path
     self.rule = rule
 
@@ -33,7 +33,7 @@ class RuleLanguage:
     return self.__metadata
 
 
-class Rule:
+class GenericRule:
   rule_path: Final[Path]
   __generic_metadata: Optional[dict] = None
 
@@ -45,11 +45,11 @@ class Rule:
     return self.rule_path.name
 
   @property
-  def languages(self) -> Generator[RuleLanguage, None, None]:
-    return (RuleLanguage(child, self) for child in self.rule_path.iterdir() if child.is_dir())
+  def specializations(self) -> Generator[LanguageSpecificRule, None, None]:
+    return (LanguageSpecificRule(child, self) for child in self.rule_path.iterdir() if child.is_dir())
   
-  def get_language(self, language: str) -> RuleLanguage:
-    return RuleLanguage(self.rule_path.joinpath(language), self)
+  def get_language(self, language: str) -> LanguageSpecificRule:
+    return LanguageSpecificRule(self.rule_path.joinpath(language), self)
 
   @property
   def generic_metadata(self):
@@ -70,8 +70,8 @@ class RulesRepository:
     self.rules_path = rules_path
 
   @property
-  def rules(self) -> Generator[Rule, None, None]:
-    return (Rule(child) for child in self.rules_path.glob('S*') if child.is_dir())
+  def rules(self) -> Generator[GenericRule, None, None]:
+    return (GenericRule(child) for child in self.rules_path.glob('S*') if child.is_dir())
     
   def get_rule(self, ruleid: str):
-    return Rule(self.rules_path.joinpath(ruleid))
+    return GenericRule(self.rules_path.joinpath(ruleid))

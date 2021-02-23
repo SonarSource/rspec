@@ -52,8 +52,8 @@ def create_rule(languages: str, user: Optional[str]):
 
 @cli.command()
 @click.argument('rules', nargs=-1)
-def validate_rules(rules):
-  '''Create a new rule.'''
+def validate_rules_metadata(rules):
+  '''Validate rules metadata.'''
   rule_repository = RulesRepository()
   error_counter = 0
   for rule in rule_repository.rules:
@@ -61,9 +61,9 @@ def validate_rules(rules):
     if rules and rule.key not in rules:
       continue
 
-    for rule_language in rule.languages:
+    for lang_spec_rule in rule.specializations:
       try:
-        validate_metadata(rule_language)
+        validate_metadata(lang_spec_rule)
       except RuleValidationError as e:
         click.echo(e.message, err=True)
         error_counter += 1

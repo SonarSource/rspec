@@ -14,7 +14,7 @@ def test_list_rules(mockrules: Path):
 def test_list_languages(mockrules: Path):
   '''Check that languages are all listed.'''
   rule = RulesRepository(rules_path=mockrules).get_rule('S120')
-  languages = {lang.language for lang in rule.languages}
+  languages = {lang.language for lang in rule.specializations}
   assert languages == {'flex', 'java', 'plsql'}
 
 
