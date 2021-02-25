@@ -11,7 +11,10 @@ def show_files(filenames):
   for filename in filenames:
     print(filename)
 
-def live_url(url):
+def live_url(url: str):
+  if url.startswith('#'):
+    return True
+
   code=None
   req = Request(
     url, 
