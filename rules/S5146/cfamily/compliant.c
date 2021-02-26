@@ -1,0 +1,1 @@
+int c = 1; // Compliant
