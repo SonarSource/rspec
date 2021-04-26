@@ -1,0 +1,36 @@
+For the integration with the C or just older APIs, it may be useful to convert a continuous iterator to a raw pointer to the element. With {cpp}20 a ``++std::to_address++`` was introduced to perform this operation on both continuous iterators and smart pointers, which supersedes non-portable and potentially buggy workarounds, that were required before:
+
+* The first option was to take the address of the element pointed by the iterator: ``++&*it++``. However, this operation has undefined behavior if the iterator is not pointing to any element. This may happen for the iterator returned by a call to ``++end()++`` on the container. This may also be the case when we need the address to construct a new object (via placement new) at the location pointed to by the iterator. ``++std::to_address(it)++`` works in such cases.
+* The second option was to exploit the nature of ``++operator->++`` overloading and call it explicitly on the iterator: ``++it.operator->()++``. This option avoids the pitfalls of the previous one, at the cost of not being portable. It would fail on the implementations that use raw-pointers as iterators for continuous ranges like ``++std::vector++`` or ``++std::span++``. Moreover, it is confusing, as this functional notation syntax for operators is rarely used.
+
+This rule raises an issue when dereferencing a pointer-like object is immediately followed by taking the address of the result (``++&*x++`` or ``++std::addressof(*x)++``) or when ``++operator->++`` is called through an explicit functional notation (``++x.operator->()++``).
+
+
+== Noncompliant Code Example
+
+----
+void check(int* b, int* e);
+
+void func1(std::vector<int>& v) {
+    check(v.begin().operator->(), v.end().operator->());
+}
+
+void func2(span<int> s) {
+     check(&*s.begin(), &*s.end());
+}
+
+----
+
+
+== Compliant Solution
+
+----
+void func1(std::vector<int>& v) {
+    check(std::to_address(v.begin()), std::to_address(v.end()));
+}
+
+void func2(span<int> s) {
+     check(std::to_address(s.begin()), std::to_address(s.end()));
+}
+----
+

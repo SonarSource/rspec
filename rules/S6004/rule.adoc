@@ -1,4 +1,4 @@
-``{cpp}17`` introduced the ability to create and initialize a variable within the condition of ``++if++`` and ``++switch++`` statements. Using this new feature simplifies common code patterns and helps in giving variables the right scope.
+{cpp}17 introduced a construct to create and initialize a variable within the condition of ``++if++`` and ``++switch++`` statements and {cpp}20 added this construct to range-based for loops. Using this new feature simplifies common code patterns and helps in giving variables the right scope.
 
 
 Previously, variables were either declared before the statement, hence leaked into the ambient scope, or an explicit scope was used to keep the scope tight, especially when using RAII objects. This was inconvenient as it would lead to error-prone patterns. 
@@ -32,7 +32,7 @@ void better_init()
 }
 ----
 
-This rule raises an issue when a variable is declared just before a selection statement (``++if++`` or ``++switch++``), used in the condition, and never used after the statement.
+This rule raises an issue when a variable is declared just before a selection statement (``++if++``, ``++switch++``, or, starting {cpp}20, "range-based for"), used in the condition, and never used after the statement.
 
 
 == Noncompliant Code Example
@@ -65,6 +65,27 @@ void switchStatment() {
       std::cout << "No";
   }
 }
+
+std::vector<std::vector<int>> getTable();
+void printHeadersBad() {
+  auto rows = getTable(); // Noncompliant: rows is accessible outside of the loop
+  for (int x : rows[0]) {
+    std::cout <<x <<' ';
+  }
+  // ...
+}
+----
+
+Using a temporary to avoid leaking of the variable into the ambient scope creates a bigger problem: an undefined behavior. Even though the lifetime of a temporary returned by the range expression is extended, the life of a temporary within the range expression terminates before the loop begins to execute.
+
+----
+std::vector<std::vector<int>> getTable();
+void printHeadersWorse() {
+  for (int x : getTable()[0]) { // Noncompliant: undefined behavior: return value of getTable() no longer exists in the loop body
+    std::cout <<x <<' ';
+  }
+  // ...
+}
 ----
 
 
@@ -95,6 +116,14 @@ void switchStatment() {
     case State::MaybeNot:
       std::cout << "No";
   }
+}
+
+std::vector<std::vector<int>> getTable();
+void printHeadersGood() {
+  for (auto rows = getTable(); int x : table[0]) { // Compliant: rows is accessible only inside the loop
+    std::cout <<x <<' ';
+  }
+  // ...
 }
 ----
 
