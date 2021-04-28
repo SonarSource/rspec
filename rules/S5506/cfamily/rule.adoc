@@ -1,1 +1,72 @@
-include::../rule.adoc[]
+_Mutexes_ are synchronization primitives that allow to manage concurrency using a mechanism of ``++lock++``/``++unlock++``.
+
+While explicitly locking or unlocking a _mutex_ is possible, it is error prone. And this is particularly true in complex code paths (or with exceptions) where it is easy to have a mismatch between ``++lock++``s and ``++unlock++``s.
+
+As a result, _mutexes_ should not be locked or unlocked manually.
+
+
+Adopting the {cpp} RAII idiom solves this problem by creating an object that will lock the _mutex_ on creation and unlock it on destruction. Furthermore, using this idiom can also greatly improve the readability of the code.
+
+
+Several classes are available as RAII wrappers:
+
+* ``++std::scoped_lock++`` is the default, most efficient wrapper for simple cases (only available since {cpp}17)
+* ``++std::lock_guard++`` is similar to ``++std::scoped_lock++``, but with less features. It should only be used if you don't have access to ``++std::scoped_lock++``.
+* ``++std::unique_lock++`` allows more manual unlocking/locking again, and should only be used when these features are needed, for instance with condition variables.
+
+== Noncompliant Code Example
+
+----
+#include <mutex>
+
+class DataItem;
+
+class DataStore {
+public:
+  bool store(const DataItem &dataItem);
+  bool has(const DataItem &dataItem);
+};
+
+DataStore sharedDataStore;
+std::mutex sharedDataStoreMutex;
+
+bool storeIfRelevantInSharedContext(const DataItem &dataItem) {
+  sharedDataStoreMutex.lock(); // Noncompliant
+  if (sharedDataStore.has(dataItem)) {
+    sharedDataStoreMutex.unlock(); // Noncompliant
+    return false;
+  }
+  bool result = sharedDataStore.store(dataItem);
+  sharedDataStoreMutex.unlock(); // Noncompliant
+  return result;
+}
+----
+
+== Compliant Solution
+
+----
+#include <mutex>
+
+class DataItem;
+
+class DataStore {
+public:
+  bool store(const DataItem &dataItem);
+  bool has(const DataItem &dataItem);
+};
+
+DataStore sharedDataStore;
+std::mutex sharedDataStoreMutex;
+
+bool storeIfRelevantInSharedContext(const DataItem &dataItem) {
+  std::scoped_lock<std::mutex> lock(sharedDataStoreMutex);
+  if (sharedDataStore.has(dataItem)) {
+    return false;    
+  }
+  return sharedDataStore.store(dataItem);
+}
+----
+
+== See
+
+* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#cp20-use-raii-never-plain-lockunlock[{cpp} Core Guidelines CP.20] - Use RAII, never plain lock()/unlock()

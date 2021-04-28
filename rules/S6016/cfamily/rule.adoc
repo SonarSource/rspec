@@ -1,1 +1,55 @@
-include::../rule.adoc[]
+When you are using lambdas in a member function, you can capture ``++this++`` implicitly through ``++[=]++`` or ``++[&]++`` or explicitly through ``++[this]++``. This will capture the current object pointer by reference or by value, but the underlying object will always be captured by reference (see S5019).
+
+
+This will become a problem:
+
+* When the lifetime of the lambda exceeds the one of the current object.
+* When you want to capture the current state of the object.
+* When you want to pass a copy of the object to avoid any concurrency issue.
+
+``{cpp}14`` provides a workaround to solve this problem. Where you can take the underlying object by copy using the following pattern:
+
+----
+auto lam = [copyOfThis = *this] { std::cout << copyOfThis.field; };
+----
+This is verbose and error-prone, as you might implicitly not use the copied object:
+
+----
+auto lam = [& , copyOfThis = *this] { 
+std::cout << field; // implicitly calling “this” captured by reference
+};
+----
+``{cpp}17`` solves this problem by introducing an explicit consistent way to capture ``++this++`` by copy:
+
+----
+auto lam = [&, *this] { 
+std::cout << field // implicitly calling “this” captured by copy
+};
+----
+This rule will flag the ``{cpp}14`` way of capturing the current object by copy and suggest to replace it with the ``{cpp}17`` way.
+
+== Noncompliant Code Example
+
+----
+struct A {
+  int field = 0;
+  void memfn() const {
+    auto lam = [copyOfThis = *this] { // Noncompliant
+      std::cout << copyOfThis.field;
+    };
+  }
+};
+----
+
+== Compliant Solution
+
+----
+struct A {
+  int field = 0;
+  void memfn() const {
+    auto lam = [*this] { // Compliant
+      std::cout << field;
+    };
+  }
+};
+----

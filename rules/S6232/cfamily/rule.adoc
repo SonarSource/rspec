@@ -1,1 +1,44 @@
-include::../rule.adoc[]
+{cpp}20 introduced the ``++std::bit_cast++`` function. It standardizes the diverse and sub-optimal approaches of reinterpreting a value as a different type of the same length preserving its binary representation.
+
+
+One of the superseded solutions, know as "union type-punning", is to use a ``++union++`` with two members with types corresponding to the source and the target types of the cast. The operation is performed by saving the value in the member with source type and then reading the value of the target type. Despite being allowed in C, this operation has undefined behavior according to {cpp} standard and should be replaced by either ``++std::bit_cast++`` (or ``++std::memcpy++``).
+
+
+This rule raises an issue on any use of a ``++union++`` that should be replaced with ``++std::bit_cast++``.
+
+== Noncompliant Code Example
+
+----
+float fastInvSqrt(float number) 
+  constexpr float threehalfs = 1.5F;	
+  const float x2 = number * 0.5F;
+
+  union { 
+     float f;
+     uint32_t i;
+  } conv;
+  conv.f = number
+  conv.i = 0x5f3759df - (conv.i >> 1);  // Noncompliant: undefined behavior
+  conv.f *= threehalfs - (x2 * conv.f * conv.f); // Noncompliant: undefined behavior
+  return conv.f;
+}
+----
+
+== Compliant Solution
+
+----
+float fastInvSqrt(float number) {
+  constexpr float threehalfs = 1.5F;
+  const float x2 = number * 0.5F;
+
+  auto i = std::bit_cast<std::uint32_t>(number);
+  i  = 0x5f3759df - (i >> 1);
+  auto result = std::bit_cast<float>(i);
+  result  *= threehalfs - (x2 * result * result);
+  return result;
+}
+----
+
+== See
+
+* S6181 - replacing ``++std::memcpy++`` with ``++std::bit_cast++``.

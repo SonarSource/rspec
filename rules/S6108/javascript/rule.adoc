@@ -1,1 +1,105 @@
-include::../rule.adoc[]
+Recursively merging objects or dynamically assigning object properties from strings may be prone to Prototype Pollution vulnerabilities in JavaScript. Prototype Pollution vulnerabilities allow to inject new properties into the built-in ``++Object.prototype++`` object. Since most objects inherit from this prototype, it can result in unexpected behavior, e.g., crashes or more severe vulnerabilities.
+
+
+Recursively merging objects or dynamically assigning object properties from strings has led in the past to the following vulnerabilities:
+
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-10744[CVE-2019-10744]
+* http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-11358[CVE-2019-11358]
+
+== Ask Yourself Whether
+
+* Object properties are set dynamically from potential user-input.
+
+There is a risk if you answered yes to any of these questions.
+
+== Recommended Secure Coding Practices
+
+Do not set object properties from user-input. If it cannot be avoided or if you cannot be sure if user-input will be used add an ignore-list to prevent modifications of the following properties:
+
+* ++__proto__++
+* constructor
+* prototype
+
+== Sensitive Code Example
+
+For merge functions:
+
+----
+function for_in_merge(dst, src) {
+    for (let key in src) {
+        if (dst[key]) {
+            for_in_merge(dst[key], src[key]);
+        } else {
+            dst[key] = src[key]; // Sensitive
+        }
+    }
+}
+----
+
+For set-path functions:
+
+----
+function for_set(target, path, value) {
+    let keys = path.split('.');
+    for (let i = 0; i < keys.length; ++i) {
+        let key = keys[i];
+        if (i < keys.length - 1) {
+            if (!target[key]) {
+                target[key] = {};
+            }
+            target = target[key];
+        } else {
+            target[key] = value; // Sensitive
+        }
+    }
+}
+----
+
+== Compliant Solution
+
+For merge functions:
+
+----
+function for_in_merge(dst, src) {
+    for (let key in src) {
+        // Recommended Secure Coding Practices: prevent sensible keys
+        if (key === "constructor" || key === "prototype" || key === "__proto__") {
+            continue;
+        }
+
+        if (dst[key]) {
+            for_in_merge(dst[key], src[key]);
+        } else {
+            dst[key] = src[key]; // Compliant
+        }
+    }
+}
+----
+
+For set-path functions:
+
+----
+function for_set(target, path, value) {
+    let keys = path.split('.');
+    for (let i = 0; i < keys.length; ++i) {
+        let key = keys[i];
+        // Recommended Secure Coding Practices: prevent sensible keys
+        if (key === "constructor" || key === "prototype" || key === "__proto__") {
+            break;
+        }
+        if (i < keys.length - 1) {
+            if (!target[key]) {
+                target[key] = {};
+            }
+            target = target[key];
+        } else {
+            target[key] = value; // Compliant
+        }
+    }
+}
+----
+
+== See
+
+* https://github.com/HoLyVieR/prototype-pollution-nsec18/blob/master/paper/JavaScript_prototype_pollution_attack_in_NodeJS.pdf[Prototype pollution attack in NodeJS application - Olivier Arteau]
+* https://cwe.mitre.org/data/definitions/1321.html[MITRE, CWE-1321] - Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution')

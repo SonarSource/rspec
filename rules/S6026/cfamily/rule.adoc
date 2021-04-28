@@ -1,1 +1,74 @@
-include::../rule.adoc[]
+Starting ``{cpp}17``, you can use ``++auto++`` and ``++decltype(auto)++`` to declare non-type template parameters. This new feature provides a way to write generic code for non-type parameters of different types. Also, it allows, by using variadic templates, to make a template take a list of non-type template parameters of different types: ``++template<auto... VS> class A++``.
+
+
+If the type is used in the template definition, you can replace it with ``++auto++``, or ``++decltype++`` if you want to underline that the type is the same as of the template parameter. Note, that you can use ``++template <class T> T packed_t(T...);++`` to get the type of arguments in the ``++auto...++`` pack (see the "Compliant Solution" section below).
+
+
+This rule detects the common pattern where a type template parameter is introduced only to be used as a type for the next non-type template parameter(s).
+
+== Noncompliant Code Example
+
+----
+template <typename T, T value>
+struct A { // Noncompliant
+  inline static auto field = value;
+  typedef T type;
+  static T anotherField;
+};
+
+template <typename T, T... values>
+struct MultiA { // Noncompliant
+  inline static std::vector vec = { values... };
+};
+
+template <typename T, T defaultVal>
+T foo(T arg) {
+  return arg > 0 ? arg : defaultVal;
+}
+
+void f() {
+  A<int, 1> a1;
+  A<bool, false> a2;
+  MultiA<int, 1, 2, 3, 4> multiA1;
+  MultiA<char, 'a', 'b'> multiA2;
+  foo<int, 1>(-1);
+}
+----
+
+== Compliant Solution
+
+----
+template <auto value>
+struct A { // Compliant
+  inline static auto field = value;
+  typedef decltype(value) type;
+  static type anotherField;
+};
+
+template <auto ... values>
+struct MultiA { // Compliant
+  inline static std::vector vec = { values... };
+};
+
+template <auto defaultVal>
+auto foo(decltype(defaultVal) arg) {
+  return arg > 0 ? arg : defaultVal;
+}
+
+void f() {
+  A<1> a1;
+  A<false> a2;
+  MultiA<1, 2, 3, 4> multiA1;
+  MultiA<'a', 'b'> multiA2;
+  foo<1>(-1);
+}
+
+// Get the type out of auto... declaration
+template <class T>
+T packed_t(T...);
+
+template <auto... Is>
+std::vector<std::string> name_copy(std::map<decltype(packed_t(Is...)), std::string> names) {
+  return {names[Is]...};
+}
+----

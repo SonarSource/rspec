@@ -1,1 +1,80 @@
-include::../rule.adoc[]
+{cpp}20 introduces rewriting rules that enable defining only a few operator overloads in a class to be able to compare class instances in many ways:
+
+* the "spaceship" ``++operator<=>++`` can replace all the other comparison operators in most cases: The code ``++a @ b++`` (where ``++@++`` is one of the following operators: ``++<++``, ``++<=++``, ``++>++``, or ``++>=++``) can be implicitly rewritten to use either ``++a<=>b++`` or ``++b<=>a++``, and its three-way comparison semantics instead.
+* If ``++operator==++`` is defined, ``++a!=b++`` can be implicitly rewritten ``++!(a==b)++``
+* If an ``++operator<=>++`` is defined as ``++=default++``, a matching ``++operator==++`` is automatically generated if it does not already exist.
+
+If you define your own version of any particular comparison operator, e.g., ``++operator<++`` in addition to the ``++operator<=>++``, it will supersede the compiler-generated version and might result in a surprising behavior with ``++operator<++`` semantics inconsistent with the semantics of other operators defined through ``++operator<=>++``.
+
+
+In most cases, you will only have to define the following set of comparison operators in your class (possibly several of those sets, to allow for mixed-type comparison):
+
+* No comparison operator, if the class should not be compared, or
+* only ``++operator==++`` for classes that can only be compared for equality (and inequality), or
+* only ``++operator<=>++``, defined as ``++=default++`` for fully comparable classes that only need to perform comparison member by member, or
+* both ``++operator<=>++`` and ``++operator==++`` when the comparison is more complex.
+
+This rule will raise an issue when a class is defined:
+
+* With an ``++operator<=>++`` and any of the four operators ``++<++``, ``++<=++``, ``++>++``, ``++>=++`` defined with the same argument type.
+* With both ``++operator==++`` and ``++operator!=++`` defined for the same types.
+* With a defaulted ``++operator<=>++`` and a defaulted ``++operator==++`` with the same argument types defined.
+* With two ``++operator<=>++`` or two ``++operator==++`` that are declared with the same argument types in reverse order.
+
+== Noncompliant Code Example
+
+Example with redundant operations in the same class:
+
+----
+class A {
+  int field;
+  public:
+    auto operator<=>(const A&) const = default;
+    bool operator<(const A& other) const { // Noncompliant: this definition is redundant when operator<=> is present
+      return field < other.field;
+    }
+    bool operator==(const A&) const = default; // Noncompliant: unnecessary, this line is added implicitly
+};
+----
+Example with equivalent operations in different order:
+
+----
+class MyStr {
+  friend std::strong_ordering operator<=>(MyStr const &s1, std::string const &s2);
+  friend std::strong_ordering operator<=>(std::string const &s1, MyStr const &s2); // Noncompliant, redundant with the previous line
+};
+----
+
+== Compliant Solution
+
+The class has been reduced to a minimal set:
+
+----
+class A {
+  int field;
+  public:
+    auto operator<=>(const A&) const = default; // Compliant: operator== is implicitly generated, and expressions with < can be written
+};
+
+// The following code is valid:
+void f(A const &a1, A const &a2) {
+  bool b1 = a1 == a2; // Uses implicitly generated operator==
+  bool b2 = a1 != a2; // Uses implicitly generated operator==, rewritten as: !(a1 == a2)
+  bool b3 = a1 < a2; // Rewritten as: (a1 <=> a2) < 0 
+  bool b4 = a1 >= a2; // Uses implicitly generated operator==
+  bool b1 = a1 == a2; // Uses implicitly generated operator==
+}
+----
+Only one order needs to be written
+
+----
+class MyStr {
+  friend std::strong_ordering operator<=>(MyStr const &s1, std::string const &s2); // Compliant
+};
+
+// The following code is valid
+void f(MyStr const &s1, std::string const &s2) {
+  bool b1 = s1 < s2; // Rewritten as: (s1<=>s2) < 0
+  bool b2 = s2 >= s1; // Rewritten as 0 >= (s1<=>s2);
+}
+----

@@ -1,1 +1,80 @@
-include::../rule.adoc[]
+In order to protect shared resources, Salesforce enforces a maximum number of SOQL queries which can be executed inside a single https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_transaction.htm[transaction]. This is part of https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Governor limits]. If an SOQL query is nested inside a loop's body (For/While/Do-While) it might be executed more times than the Governor limit allows, making the code fail.
+
+
+Thus it is a best practice to not have SOQL queries nested in the body of loops and instead retrieve all relevant data in a single query.
+
+
+This rule raises an issue when it detects SOQL queries inside loops. This includes static SOQL queries (i.e. ``++[SELECT ...]++``) and calls to ``++Database.countQuery++``, ``++Database.getQueryLocator++`` and ``++Database.query++`` methods.
+
+== Noncompliant Code Example
+
+----
+// Query in a for loop
+public class MyClass {
+    public static void myFunction() {  
+        for (Integer i = 0; i < 1000; i++) {
+            string firstName = 'Bob' + i;
+            Contact[] contacts = [ Select LastName From Contact Where FirstName = :firstName];  // Noncompliant
+        }
+    }
+}
+
+// Query in a while loop
+public class MyClass {
+    public static void myFunction() {
+        Integer i = 0;
+        while ( i < 1000) {
+            string firstName = 'Bob' + i;
+            Contact[] contacts = [ Select LastName From Contact Where FirstName = :firstName];  // Noncompliant
+            i = i+1;
+        }
+    }
+}
+
+// Query in a do-while loop
+public class MyClass {
+    public static void myFunction() {  
+        Integer i = 0;
+        do {
+            string firstName = 'Bob' + i;
+            Contact[] contacts = [ Select LastName From Contact Where FirstName = :firstName];  // Noncompliant
+            i++;
+        } while (i < 1000);
+    }
+}
+----
+
+== Compliant Solution
+
+----
+public class MySOQLLoop {
+    public static void myFunction() {
+        List<string> names = new List<string>();
+        for (Integer i = 0; i < 10; i++) {
+            names.add('Bob' + i);
+        }
+        for (Contact contact: [Select LastName From Contact Where FirstName in :names]) {
+            // ...
+        }
+    }
+}
+----
+
+== Exceptions
+
+No issue will be raised on SOQL querying https://help.salesforce.com/articleView?id=custommetadatatypes_overview.htm&type=5[custom metadata types] (i.e: type names ending with "__mdt")as https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Governor limits do not apply to them].
+
+
+----
+public class MyClass {
+    public static void myFunction() {  
+        for (Integer i = 0; i < 1000; i++) {
+            Contact[] contacts = [ Select myfield From MyCustomMetadataType__mdt];  // Ok
+        }
+    }
+}
+----
+
+== See
+
+* https://developer.salesforce.com/page/Best_Practice%3A_Avoid_SOQL_Queries_Inside_FOR_Loops[Best Practice: Avoid SOQL Queries Inside FOR Loops]

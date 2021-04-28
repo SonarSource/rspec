@@ -1,1 +1,52 @@
-include::../rule.adoc[]
+_Mutexes_ are synchronization primitives that allow to manage concurrency. It is a common situation to have to lock multiple _mutexes_ simultaneously to get access to several resources at the same time.
+
+
+If this is not done properly, it can lead to deadlocks or crashes. If one thread acquires A then tries to acquire B, while another thread acquires B then tries to acquire A, both threads will wait for each other forever.
+
+
+In such a case, a commonly accepted good practice is to define an order on the _mutexes_ and to lock them in that order and unlock them in the reverse order. However, such an order is not always clearly defined or easy to ensure across a whole program.
+
+
+{cpp} provides facilities to lock multiple _mutexes_ in one go, with a dedicated deadlock prevention algorithm. They should be used instead. Before {cpp}17, you should use ``++std::lock++``, and since {cpp}17 you can use a variadic constructor of ``++std::scoped_lock++``. See the examples for more details.
+
+== Noncompliant Code Example
+
+----
+void g();
+
+std::mutex m1;
+std::mutex m2;
+
+void f() {
+  // The example would be the same with std::lock_guard if C++17 std::scoped_lock is not available
+  std::scoped_lock<std::mutex> lck1(m1); // Compliant: first mutex acquired
+  std::scoped_lock<std::mutex> lck2(m2); // Noncompliant: acquiring several mutexes
+  g();
+}
+----
+
+== Compliant Solution
+
+----
+void g();
+
+std::mutex m1;
+std::mutex m2;
+
+void f() { // Compliant: C++11 solution
+  std::lock(m1, m2);
+  std::lock_guard<std::mutex> lck1(m1, std::adopt_lock);
+  std::lock_guard<std::mutex> lck2(m2, std::adopt_lock);
+  g();
+}
+
+void f() { // Compliant: C++17 solution
+  std::scoped_lock<std::mutex, std::mutex> lck1(m1, m2);
+  g();
+}
+----
+
+== See
+
+* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#cp21-use-stdlock-or-stdscoped_lock-to-acquire-multiple-mutexes[{cpp} Core Guidelines CP.21] - Use std::lock() or std::scoped_lock to acquire multiple mutexes
+* https://en.cppreference.com/w/cpp/thread/scoped_lock[cppreference.com - std::scoped_lock]
