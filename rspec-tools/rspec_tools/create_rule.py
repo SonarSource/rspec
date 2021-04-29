@@ -70,27 +70,48 @@ class RuleCreator:
       repo_dir = Path(self.repository.working_dir)
       rule_dir = repo_dir.joinpath('rules', f'S{rule_number}')
       rule_dir.mkdir()
-      common_template = self.TEMPLATE_PATH.joinpath('common')
-      lang_specific_template = self.TEMPLATE_PATH.joinpath('language_specific')
-      copy_directory_content(common_template, rule_dir)
+      lang_count = sum(1 for l in languages)
+      if lang_count > 1:
+        self._fill_multi_lang_template_files(rule_dir, rule_number, languages)
+      else:
+        self._fill_single_lang_template_files(rule_dir, rule_number, next(iter(languages)))
 
-      for lang in languages:
-        lang_dir = rule_dir.joinpath(lang)
-        lang_dir.mkdir()
-        copy_directory_content(lang_specific_template, lang_dir)
-      
-      for rule_item in rule_dir.glob('**/*'):
-        if rule_item.is_file():
-          template_content = rule_item.read_text()
-          final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
-          rule_item.write_text(final_content)
       self.repository.git.add('--all')
       self.repository.index.commit(f'Create rule S{rule_number}')
-
     self.repository.git.push('origin', branch_name)
-
     return branch_name
-  
+
+  def _fill_multi_lang_template_files(self, rule_dir: Path, rule_number: int, languages: Iterable[str]):
+    common_template = self.TEMPLATE_PATH.joinpath('multi_language', 'common')
+    lang_specific_template = self.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
+    copy_directory_content(common_template, rule_dir)
+
+    for lang in languages:
+      lang_dir = rule_dir.joinpath(lang)
+      lang_dir.mkdir()
+      copy_directory_content(lang_specific_template, lang_dir)
+
+    for rule_item in rule_dir.glob('**/*'):
+      if rule_item.is_file():
+        template_content = rule_item.read_text()
+        final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
+        rule_item.write_text(final_content)
+
+  def _fill_single_lang_template_files(self, rule_dir: Path, rule_number: int, language: str):
+    common_template = self.TEMPLATE_PATH.joinpath('single_language', 'common')
+    lang_specific_template = self.TEMPLATE_PATH.joinpath('single_language', 'language_specific')
+    copy_directory_content(common_template, rule_dir)
+
+    lang_dir = rule_dir.joinpath(language)
+    lang_dir.mkdir()
+    copy_directory_content(lang_specific_template, lang_dir)
+
+    for rule_item in rule_dir.glob('**/*'):
+      if rule_item.is_file():
+        template_content = rule_item.read_text()
+        final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
+        rule_item.write_text(final_content)
+
   def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], *, user: Optional[str]) -> PullRequest:
     branch_name = self.create_new_rule_branch(rule_number, languages)
     click.echo(f'Created rule Branch {branch_name}')
