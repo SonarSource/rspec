@@ -1,11 +1,13 @@
 import os,io
 import re
+import urllib.request
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from urllib.request import urlopen,Request
 from urllib.error import URLError,HTTPError
 from socket import timeout
 import pathlib
+from http.cookiejar import CookieJar
 
 def show_files(filenames):
   for filename in filenames:
@@ -24,7 +26,15 @@ def live_url(url: str):
     }    
   )
   try:
-    code = urlopen(req,timeout=5).code  
+    req=urllib.request.Request(url, None, {'User-Agent': 'Mozilla/5.0 (X11; Linux i686; G518Rco3Yp0uLV40Lcc9hAzC1BOROTJADjicLjOmlr4=) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36',
+                                           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                           'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+                                           'Accept-Encoding': 'gzip, deflate, sdch',
+                                           'Accept-Language': 'en-US,en;q=0.8',
+                                           'Connection': 'keep-alive'})
+    cj = CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    code = opener.open(req, timeout=5).code
     if (code / 100 >= 4):
       print(f"ERROR: {code} Nothing there")
       return False
