@@ -1,6 +1,7 @@
 import os,io
 import re
 import urllib.request
+import json
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from urllib.request import urlopen,Request
@@ -66,13 +67,36 @@ def findurl_in_html(filename,urls):
       else:
         urls[key]=[filename]
 
+def is_active(metadata_fname, generic_metadata_fname):
+  try:
+    with open(metadata_fname) as metadata_file:
+      metadata = json.load(metadata_file)
+      if 'status' in metadata:
+        return metadata['status'] == 'ready'
+    with open(generic_metadata_fname) as generic_metadata_file:
+      generic_metdata = json.load(generic_metadata_file)
+      if 'status' in generic_metdata:
+        return generic_metdata['status'] == 'ready'
+  except EnvironmentError:
+    return True
+  return True
+
 def check_html_links(dir):  
   urls={}
   errors=[]
   print("Finding links in html files")
-  for filepath in pathlib.Path(dir).glob('**/*.html'):
-    filename=str(filepath.absolute())
-    findurl_in_html(filename,urls)
+  tot_files = 0
+  for rulepath in pathlib.Path(dir).iterdir():
+    if rulepath.is_dir():
+      generic_metadata=rulepath.joinpath('metadata.json')
+      for langpath in rulepath.iterdir():
+        if langpath.is_dir():
+          metadata=langpath.joinpath('metadata.json')
+          filepath=langpath.joinpath('rule.html')
+          filename=str(filepath.absolute())
+          if filepath.exists() and is_active(metadata, generic_metadata):
+            tot_files += 1
+            findurl_in_html(filename,urls)
   print("All html files crawled")
   print("Testing links")
   for url in urls:
