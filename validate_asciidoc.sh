@@ -17,7 +17,7 @@ do
     fi
   else
     #validate asciidoc
-	supportedLanguages="abap apex cfamily cobol csharp css flex go html java javascript kotlin php pli plsql python rpg ruby rust scala solidity swift tsql vb6 vbnet xml"
+	supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
 	for language in $dir/*/
     do
       language=${language%*/}
