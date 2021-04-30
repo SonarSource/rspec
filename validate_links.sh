@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+./generate_html.sh
+
 #validate links in asciidoc
 cd rspec-tools
 pipenv install -e .
