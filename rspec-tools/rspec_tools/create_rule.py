@@ -81,6 +81,13 @@ class RuleCreator:
     self.repository.git.push('origin', branch_name)
     return branch_name
 
+  def _fill_in_the_blanks_in_the_template(self, rule_dir: Path, rule_number:):
+    for rule_item in rule_dir.glob('**/*'):
+      if rule_item.is_file():
+        template_content = rule_item.read_text()
+        final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
+        rule_item.write_text(final_content)
+
   def _fill_multi_lang_template_files(self, rule_dir: Path, rule_number: int, languages: Iterable[str]):
     common_template = self.TEMPLATE_PATH.joinpath('multi_language', 'common')
     lang_specific_template = self.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
@@ -91,11 +98,7 @@ class RuleCreator:
       lang_dir.mkdir()
       copy_directory_content(lang_specific_template, lang_dir)
 
-    for rule_item in rule_dir.glob('**/*'):
-      if rule_item.is_file():
-        template_content = rule_item.read_text()
-        final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
-        rule_item.write_text(final_content)
+    self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
 
   def _fill_single_lang_template_files(self, rule_dir: Path, rule_number: int, language: str):
     common_template = self.TEMPLATE_PATH.joinpath('single_language', 'common')
@@ -105,12 +108,7 @@ class RuleCreator:
     lang_dir = rule_dir.joinpath(language)
     lang_dir.mkdir()
     copy_directory_content(lang_specific_template, lang_dir)
-
-    for rule_item in rule_dir.glob('**/*'):
-      if rule_item.is_file():
-        template_content = rule_item.read_text()
-        final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
-        rule_item.write_text(final_content)
+    self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
 
   def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], *, user: Optional[str]) -> PullRequest:
     branch_name = self.create_new_rule_branch(rule_number, languages)
