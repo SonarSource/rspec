@@ -17,10 +17,15 @@ do
     fi
   else
     #validate asciidoc
-    for language in $dir/*/
+	supportedLanguages="abap apex cfamily cobol csharp css flex go html java javascript kotlin php pli plsql python rpg ruby rust scala solidity swift tsql vb6 vbnet xml"
+	for language in $dir/*/
     do
       language=${language%*/}
       echo ${language##*/}
+	  if [[ ! "${supportedLanguages[@]}" =~ "${language##*/}" ]]; then
+	    echo "ERROR: ${language##*/} is not a supported language"
+		exit_code=1
+      fi
       RULE="$language/rule.adoc"
       if test -f $RULE; then
         echo "$RULE exists."
