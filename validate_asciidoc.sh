@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+./generate_html.sh
+
+#validate sections in asciidoc
+cd rspec-tools
+pipenv install -e .
+pipenv run rspec-tools check-sections --d ../out
+cd ..
+
 for dir in rules/*
 do
   dir=${dir%*/}

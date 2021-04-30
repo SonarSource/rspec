@@ -2,14 +2,17 @@
 import json
 from pathlib import Path
 from typing import Final, Generator, Iterable, Optional
+from bs4 import BeautifulSoup
 
 
 METADATA_FILE_NAME: Final[str] = 'metadata.json'
+DESCRIPTION_FILE_NAME: Final[str] = 'rule.html'
 
 class LanguageSpecificRule:
   language_path: Final[Path]
   rule: 'GenericRule'
   __metadata: Optional[dict] = None
+  __description: Optional[object] = None
 
   def __init__(self, language_path: Path, rule: 'GenericRule'):
     self.language_path = language_path
@@ -32,6 +35,14 @@ class LanguageSpecificRule:
     self.__metadata = self.rule.generic_metadata | lang_metadata
     return self.__metadata
 
+  @property
+  def description(self):
+    if self.__description is not None:
+      return self.__description
+    description_path = self.language_path.joinpath(DESCRIPTION_FILE_NAME)
+    soup = BeautifulSoup(description_path.read_bytes(),features="html.parser")
+    self.__description = soup
+    return self.__description
 
 class GenericRule:
   rule_path: Final[Path]
