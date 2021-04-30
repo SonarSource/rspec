@@ -81,7 +81,7 @@ class RuleCreator:
     self.repository.git.push('origin', branch_name)
     return branch_name
 
-  def _fill_in_the_blanks_in_the_template(self, rule_dir: Path, rule_number:):
+  def _fill_in_the_blanks_in_the_template(self, rule_dir: Path, rule_number: int):
     for rule_item in rule_dir.glob('**/*'):
       if rule_item.is_file():
         template_content = rule_item.read_text()
@@ -108,6 +108,7 @@ class RuleCreator:
     lang_dir = rule_dir.joinpath(language)
     lang_dir.mkdir()
     copy_directory_content(lang_specific_template, lang_dir)
+
     self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
 
   def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], *, user: Optional[str]) -> PullRequest:
