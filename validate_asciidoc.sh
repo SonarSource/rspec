@@ -1,3 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+
 for dir in rules/*
 do
   dir=${dir%*/}
