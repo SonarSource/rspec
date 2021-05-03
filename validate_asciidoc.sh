@@ -17,10 +17,15 @@ do
     fi
   else
     #validate asciidoc
-    for language in $dir/*/
+	supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
+	for language in $dir/*/
     do
       language=${language%*/}
       echo ${language##*/}
+	  if [[ ! "${supportedLanguages[@]}" =~ "${language##*/}" ]]; then
+	    echo "ERROR: ${language##*/} is not a supported language"
+		exit_code=1
+      fi
       RULE="$language/rule.adoc"
       if test -f $RULE; then
         echo "$RULE exists."
