@@ -77,8 +77,8 @@ def read_counter_file(repo):
   return counter_path.read_text()
 
 
-def test_create_new_rule_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo):
-  '''Test create_new_rule_branch.'''
+def test_create_new_multi_lang_rule_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test create_new_rule_branch for a multi-language rule.'''
   rule_number = rule_creator.reserve_rule_number()
 
   languages = ['java', 'javascript']
@@ -89,7 +89,7 @@ def test_create_new_rule_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo
   rule_dir = Path(mock_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
   assert rule_dir.exists()
 
-  common_root = rule_creator.TEMPLATE_PATH.joinpath('common')
+  common_root = rule_creator.TEMPLATE_PATH.joinpath('multi_language', 'common')
   for common_item in common_root.glob('**/*'):
     if common_item.is_file():
       expected_content = common_item.read_text().replace('${RSPEC_ID}', str(rule_number))
@@ -97,7 +97,36 @@ def test_create_new_rule_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo
       actual_content = rule_dir.joinpath(relative_path).read_text()
       assert actual_content == expected_content
 
-  lang_root = rule_creator.TEMPLATE_PATH.joinpath('language_specific')
+  lang_root = rule_creator.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
+  for lang in languages:
+    for lang_item in lang_root.glob('**/*'):
+      if lang_item.is_file():
+        expected_content = lang_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+        relative_path = lang_item.relative_to(lang_root)
+        actual_content = rule_dir.joinpath(lang, relative_path).read_text()
+        assert actual_content == expected_content
+
+def test_create_new_single_lang_rule_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test create_new_rule_branch for a single-language rule.'''
+  rule_number = rule_creator.reserve_rule_number()
+
+  languages = ['cfamily']
+  branch = rule_creator.create_new_rule_branch(rule_number, languages)
+
+  # Check that the branch was pushed successfully to the origin
+  mock_rspec_repo.git.checkout(branch)
+  rule_dir = Path(mock_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
+  assert rule_dir.exists()
+
+  common_root = rule_creator.TEMPLATE_PATH.joinpath('single_language', 'common')
+  for common_item in common_root.glob('**/*'):
+    if common_item.is_file():
+      expected_content = common_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+      relative_path = common_item.relative_to(common_root)
+      actual_content = rule_dir.joinpath(relative_path).read_text()
+      assert actual_content == expected_content
+
+  lang_root = rule_creator.TEMPLATE_PATH.joinpath('single_language', 'language_specific')
   for lang in languages:
     for lang_item in lang_root.glob('**/*'):
       if lang_item.is_file():
