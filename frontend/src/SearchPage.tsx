@@ -7,6 +7,7 @@ import Container from '@material-ui/core/Container';
 import Grid from '@material-ui/core/Grid';
 import Pagination from '@material-ui/lab/Pagination';
 import Box from '@material-ui/core/Box';
+import Button from '@material-ui/core/Button';
 
 import useStyles from './SearchPage.style';
 import { useSearch } from './utils/useSearch';
@@ -146,8 +147,13 @@ export const SearchPage = () => {
     <Container maxWidth="md">
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <Box className={classes.resultsCount}>
-            <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
+          <Box className={classes.topRow}>
+            <Box className={classes.resultsCount}>
+              <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
+            </Box>
+            <Typography variant="subtitle1">
+              <a href={"https://github.com/SonarSource/rspec/pulls?q=is%3Aopen+is%3Apr+%22Create+rule%22+" + query}>Search in unimplemented</a>
+            </Typography>
           </Box>
             {resultsDisplay}
           <Pagination count={totalPages} page={pageNumber} siblingCount={2}

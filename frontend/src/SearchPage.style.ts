@@ -16,6 +16,11 @@ export default makeStyles((theme) => ({
   searchResults: {
     marginTop: theme.spacing(3),
   },
+  topRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
   resultsCount: {
     marginBottom: theme.spacing(2),
   }
