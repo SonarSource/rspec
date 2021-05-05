@@ -7,7 +7,6 @@ import Container from '@material-ui/core/Container';
 import Grid from '@material-ui/core/Grid';
 import Pagination from '@material-ui/lab/Pagination';
 import Box from '@material-ui/core/Box';
-import Button from '@material-ui/core/Button';
 
 import useStyles from './SearchPage.style';
 import { useSearch } from './utils/useSearch';
