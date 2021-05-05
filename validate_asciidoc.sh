@@ -9,6 +9,8 @@ exit_code=0
 cd rspec-tools
 pipenv install -e .
 if pipenv run rspec-tools check-sections --d ../out; then
+    echo "Sections are fine"
+else
     echo "ERROR: incorrect section names"
     exit_code=1
 fi
