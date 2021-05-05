@@ -1,12 +1,17 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 
 ./generate_html.sh
+
+exit_code=0
 
 #validate sections in asciidoc
 cd rspec-tools
 pipenv install -e .
-pipenv run rspec-tools check-sections --d ../out
+if pipenv run rspec-tools check-sections --d ../out; then
+    echo "ERROR: incorrect section names"
+    exit_code=1
+fi
 cd ..
 
 for dir in rules/*
