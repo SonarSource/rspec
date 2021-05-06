@@ -10,8 +10,14 @@ def show_files(filenames):
   for filename in filenames:
     print(filename)
 
+# These links consistently fail in CI, but work-on-my-machine
+EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
+
 def live_url(url: str, timeout=5):
   if url.startswith('#'):
+    return True
+  if url in EXCEPTIONS:
     return True
   try:
     req = requests.Request('GET', url, headers = {'sec-ch-ua': '" Not A;Brand";v="99", "Chromium";v="90"',
