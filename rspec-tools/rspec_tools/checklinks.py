@@ -103,7 +103,7 @@ def check_html_links(dir):
       errors.append(url)
   if errors:
     confirmed_errors=[]
-    print("Retrying failed probes")
+    print(f"Retrying {len(errors)} failed probes")
     for key in errors:
       print(f"{key} in {len(urls[key])} files (previously failed)")
       if not live_url(key, timeout=15):
@@ -113,7 +113,7 @@ def check_html_links(dir):
       for key in confirmed_errors:
         print(f"{key} in:")
         show_files(urls[key])
-        print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see the list and related files before")
-        exit(1)
+      print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see the list and related files before")
+      exit(1)
   print(f"All {len(urls)} links are good")
 
