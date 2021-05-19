@@ -146,19 +146,19 @@ export function RulePage(props: any) {
     </div>;
   }
   const ruleNumber = ruleid.substring(1)
-  
-  const upperCaseLanguage = language.toUpperCase();  
+
+  const upperCaseLanguage = language.toUpperCase();
   const jiraProject = languageToJiraProject.get(upperCaseLanguage);
   const githubProject = languageToGithubProject.get(upperCaseLanguage);
 
   let ticketsLink;
-  if (jiraProject !== undefined) {    
+  if (jiraProject !== undefined) {
     ticketsLink = (
         <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${title}")`}>
           Jira Tickets
         </Link>
       );
-  } else {    
+  } else {
     ticketsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/issues?q=is%3Aissue+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
         Github Tickets
@@ -171,12 +171,12 @@ export function RulePage(props: any) {
       Specification Pull Requests
     </Link>
   );
-  
+
   const implementationPRsLink = (
     <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
       Implementation Pull Requests
     </Link>
-  );  
+  );
 
   return (
     <div>
@@ -197,7 +197,7 @@ export function RulePage(props: any) {
       </Tabs>
       </Container>
     </div>
-  
+
     <Container maxWidth="md">
       <Typography variant="h3" classes={{root: classes.title}}>{title}</Typography>
       <Box className={classes.coverage}>
@@ -217,9 +217,9 @@ export function RulePage(props: any) {
         </ul>
         <ul>
           {ticketsLink}
-        </ul>        
+        </ul>
       </Box>
-      
+
       <Box>
         <Typography variant="h4">Description</Typography>
         <Typography className={classes.description}>
@@ -228,6 +228,6 @@ export function RulePage(props: any) {
       </Box>
     </Container>
     </div>
-    
+
   );
 }
