@@ -45,7 +45,7 @@ const useStyles = makeStyles((theme) => ({
     flexGrow: 0
   },
   unimplemented: {
-    backgroundColor: 'red',
+    color: 'red'
   }
 }));
 
@@ -154,7 +154,7 @@ export function RulePage(props: any) {
   }
   let prLink = <></>;
   if (prUrl) {
-      prLink = <div><span className={classes.unimplemented}>Not implemented</span><span>[<a href={prUrl}>PR</a>]</span></div>
+      prLink = <div><span className={classes.unimplemented}>Not implemented (see <a href={prUrl}>PR</a>)</span></div>
   }
   const ruleNumber = ruleid.substring(1)
 
@@ -176,7 +176,7 @@ export function RulePage(props: any) {
       </Link>
     );
   }
-  
+
   const pullRequestsLink = (
     <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
       Github Pull Requests
@@ -187,7 +187,8 @@ export function RulePage(props: any) {
     <div>
     <div className={classes.ruleBar}>
       <Container>
-      <Typography variant="h2" classes={{root: classes.ruleid}}>{prLink}{ruleid}</Typography>
+      <Typography variant="h2" classes={{root: classes.ruleid}}>{ruleid}</Typography>
+      <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
       <Tabs
           value={language}
           onChange={handleLanguageChange}
@@ -202,7 +203,7 @@ export function RulePage(props: any) {
       </Tabs>
       </Container>
     </div>
-  
+
     <Container maxWidth="md">
       <Typography variant="h3" classes={{root: classes.title}}>{title}</Typography>
       <Box className={classes.coverage}>
@@ -221,7 +222,7 @@ export function RulePage(props: any) {
           {pullRequestsLink}
         </ul>
       </Box>
-      
+
       <Box>
         <Typography variant="h4">Description</Typography>
         <Typography className={classes.description}>
@@ -230,6 +231,6 @@ export function RulePage(props: any) {
       </Box>
     </Container>
     </div>
-    
+
   );
 }
