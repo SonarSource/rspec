@@ -147,30 +147,36 @@ export function RulePage(props: any) {
   }
   const ruleNumber = ruleid.substring(1)
   
-  const upperCaseLanguage = language.toUpperCase();
+  const upperCaseLanguage = language.toUpperCase();  
   const jiraProject = languageToJiraProject.get(upperCaseLanguage);
   const githubProject = languageToGithubProject.get(upperCaseLanguage);
 
   let ticketsLink;
-  if (upperCaseLanguage in languageToJiraProject) {
+  if (jiraProject !== undefined) {    
     ticketsLink = (
         <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${title}")`}>
           Jira Tickets
         </Link>
       );
-  } else {
+  } else {    
     ticketsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/issues?q=is%3Aissue+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
         Github Tickets
       </Link>
     );
   }
-  
-  const pullRequestsLink = (
-    <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
-      Github Pull Requests
+
+  const specificationPRsLink = (
+    <Link href={`https://github.com/SonarSource/rspec/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
+      Specification Pull Requests
     </Link>
   );
+  
+  const implementationPRsLink = (
+    <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
+      Implementation Pull Requests
+    </Link>
+  );  
 
   return (
     <div>
@@ -204,11 +210,14 @@ export function RulePage(props: any) {
       <Box className={classes.coverage}>
         <Typography variant="h4" >Related Tickets and Pull Requests</Typography>
         <ul>
-          {ticketsLink}
+          {specificationPRsLink}
         </ul>
         <ul>
-          {pullRequestsLink}
+          {implementationPRsLink}
         </ul>
+        <ul>
+          {ticketsLink}
+        </ul>        
       </Box>
       
       <Box>
