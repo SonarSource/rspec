@@ -155,13 +155,13 @@ export function RulePage(props: any) {
   if (jiraProject !== undefined) {
     ticketsLink = (
         <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${title}")`}>
-          Jira Tickets
+          Implementation tickets on Jira
         </Link>
       );
   } else {
     ticketsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/issues?q=is%3Aissue+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
-        Github Tickets
+        Implementation issues on GitHub
       </Link>
     );
   }
