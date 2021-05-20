@@ -40,6 +40,7 @@ export function buildIndexStore(rulesPath: string) {
     const tags = new Set<string>();
     const qualityProfiles = new Set<string>();
     const descriptions = new Set<string>();
+    let prUrl = undefined;
 
     allLanguages.forEach((lang) => {
       // extract every word of every description of this rule
@@ -55,6 +56,9 @@ export function buildIndexStore(rulesPath: string) {
       const metadataStr = fs.readFileSync(metadataPath).toString();
       const metadata = JSON.parse(metadataStr);
 
+      if (metadata.prUrl) {
+        prUrl = metadata.prUrl;
+      }
       titles.add(metadata.title);
       types.add(metadata.type);
       severities.add(metadata.defaultSeverity as Severity);
@@ -92,8 +96,9 @@ export function buildIndexStore(rulesPath: string) {
       tags: Array.from(tags).sort(),
       qualityProfiles: Array.from(qualityProfiles).sort(),
       descriptions: Array.from(descriptions).sort(),
+      prUrl
     }
-    
+
     return [ruleDir, indexedRecord];
   });
 

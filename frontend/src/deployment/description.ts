@@ -25,6 +25,19 @@ const winstonLogger = asciidoc.LoggerManager.newLogger('WinstonLogger', {
 });
 asciidoc.LoggerManager.setLogger(winstonLogger);
 
+/**
+ * Generate rule descriptions (for all relevant languages) and write it in the destination directory.
+ * @param srcDir directory containing the original rule metadata and description.
+ * @param dstDir directory where the generated rules metadata and description will be written.
+ */
+export function generate_one_rule_description(srcDir: string, dstDir: string) {
+  const all_languages = listSupportedLanguage(srcDir);
+  for (const language of all_languages) {
+    const html = generate_rule_description(srcDir, language);
+    const dstFile = path.join(dstDir, language + "-description.html");
+    fs.writeFileSync(dstFile, html, {encoding: 'utf8'});
+  }
+}
 
 /**
  * Generate rules descriptions and write them in the destination directory.
@@ -34,12 +47,7 @@ asciidoc.LoggerManager.setLogger(winstonLogger);
  */
 export function generate_rules_description(srcPath: string, dstPath: string, rules?: string[]) {
   for (const { srcDir, dstDir } of getRulesDirectories(srcPath, dstPath, rules)) {
-    const all_languages = listSupportedLanguage(srcDir);
-    for (const language of all_languages) {
-      const html = generate_rule_description(srcDir, language);
-      const dstFile = path.join(dstDir, language + "-description.html");
-      fs.writeFileSync(dstFile, html, {encoding: 'utf8'});
-    }
+    generate_one_rule_description(srcDir, dstDir);
   }
 }
 

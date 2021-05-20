@@ -2,12 +2,15 @@
 
 import yargs from 'yargs/yargs';
 
-import { clean_rules } from './clean';
-import { generate_rules_metadata } from './metadata';
-import { generate_rules_description } from './description';
-import { createIndexFiles } from './searchIndex';
+import path from 'path';
 
-import { RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY } from './paths';
+import { clean_rules } from './clean';
+import { generate_one_rule_metadata, generate_rules_metadata } from './metadata';
+import { generate_one_rule_description, generate_rules_description, } from './description';
+import { createIndexFiles } from './searchIndex';
+import { process_incomplete_rspecs, PullRequest } from './pullRequestIndexing';
+
+import { PR_DIRECTORY, RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY } from './paths';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-expressions
 yargs(process.argv.slice(2))
@@ -35,7 +38,13 @@ yargs(process.argv.slice(2))
 (argv: any) => {
   generate_rules_metadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
   generate_rules_description(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
-  createIndexFiles(RULE_DST_DIRECTORY);
+  process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
+    const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
+    generate_one_rule_metadata(srcDir, dstDir, pr.url);
+    generate_one_rule_description(srcDir, dstDir);
+  }).then(function() {
+    createIndexFiles(RULE_DST_DIRECTORY);
+  });
 })
 
 .argv;

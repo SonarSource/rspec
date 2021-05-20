@@ -43,6 +43,9 @@ const useStyles = makeStyles((theme) => ({
   },
   tabScroller: {
     flexGrow: 0
+  },
+  unimplemented: {
+    color: 'red'
   }
 }));
 
@@ -122,10 +125,14 @@ export function RulePage(props: any) {
   let title = "Loading..."
   let metadataJSONString;
   let languagesTabs = null;
+  let prUrl: string | undefined = undefined;
   if (metadataJSON && !metadataIsLoading && !metadataError) {
-    title = metadataJSON.title
-    metadataJSON.all_languages.sort()
-    languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>)
+    title = metadataJSON.title;
+    if ('prUrl' in metadataJSON) {
+      prUrl = metadataJSON.prUrl;
+    }
+    metadataJSON.all_languages.sort();
+    languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>);
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     coverage = ruleCoverage(language, metadataJSON.allKeys, (key: any, version: any) => {
@@ -144,6 +151,10 @@ export function RulePage(props: any) {
       <hr />
       <pre>{metadataJSONString}</pre>
     </div>;
+  }
+  let prLink = <></>;
+  if (prUrl) {
+      prLink = <div><span className={classes.unimplemented}>Not implemented (see <a href={prUrl}>PR</a>)</span></div>
   }
   const ruleNumber = ruleid.substring(1)
 
@@ -183,6 +194,7 @@ export function RulePage(props: any) {
     <div className={classes.ruleBar}>
       <Container>
       <Typography variant="h2" classes={{root: classes.ruleid}}>{ruleid}</Typography>
+      <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
       <Tabs
           value={language}
           onChange={handleLanguageChange}

@@ -4,6 +4,39 @@ import path from 'path';
 import { getRulesDirectories, listSupportedLanguage } from './utils';
 
 /**
+ * Generate rule metadata (for all relevant languages) and write it in the destination directory.
+ * @param srcDir directory containing the original rule metadata and description.
+ * @param dstDir directory where the generated metadata and description will be written.
+ */
+export function generate_one_rule_metadata(srcDir: string, dstDir: string, prUrl?: string) {
+  fs.mkdirSync(dstDir, { recursive: true });
+  const allLanguages = listSupportedLanguage(srcDir);
+  const allMetadata = allLanguages.map((language) => {
+    const metadata = generate_rule_metadata(srcDir, language, allLanguages);
+    return {language, metadata};
+  });
+
+  // Merge all sqKeys in an array so that we can use it later to check rule coverage.
+  const allKeys = allMetadata
+    .reduce((set, {metadata}) => {
+      set.add(metadata.sqKey);
+      return set;
+    }, new Set<string>());
+  const allKeysArray = Array.from(allKeys);
+  allMetadata.forEach(({metadata}) => {
+    metadata.allKeys = allKeysArray;
+    if (prUrl) {
+      metadata.prUrl = prUrl;
+    }
+  });
+
+  for (const { language, metadata } of allMetadata) {
+    const dstJsonFile = path.join(dstDir, language + "-metadata.json");
+    fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' })
+  }
+}
+
+/**
  * Generate rules metadata and write them in the destination directory.
  * @param srcPath directory containing the original rules metadata and description.
  * @param dstPath directory where the generated rules metadata and description will be written.
@@ -11,26 +44,7 @@ import { getRulesDirectories, listSupportedLanguage } from './utils';
  */
 export function generate_rules_metadata(srcPath: string, dstPath: string, rules?: string[]) {
   for (const { srcDir, dstDir } of getRulesDirectories(srcPath, dstPath, rules)) {
-    fs.mkdirSync(dstDir, { recursive: true });
-    const allLanguages = listSupportedLanguage(srcDir);
-    const allMetadata = allLanguages.map((language) => {
-      const metadata = generate_rule_metadata(srcDir, language, allLanguages);
-      return {language, metadata};
-    });
-
-    // Merge all sqKeys in an array so that we can use it later to check rule coverage.
-    const allKeys = allMetadata
-      .reduce((set, {metadata}) => {
-        set.add(metadata.sqKey);
-        return set;
-      }, new Set<string>());
-    const allKeysArray = Array.from(allKeys);
-    allMetadata.forEach(({metadata}) => metadata.allKeys = allKeysArray);
-
-    for (const { language, metadata } of allMetadata) {
-      const dstJsonFile = path.join(dstDir, language + "-metadata.json");
-      fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' })
-    }
+    generate_one_rule_metadata(srcDir, dstDir);
   }
 }
 

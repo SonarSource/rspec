@@ -16,12 +16,19 @@ const useStyles = makeStyles((theme) => ({
 
   },
   ruleid: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between'
   },
   // languages: {
   // },
   language: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
+  },
+  unimplementedMarker: {
+    marginRight: theme.spacing(1),
+    marginTop: theme.spacing(2)
   }
 }));
 
@@ -43,17 +50,22 @@ export function SearchHit(props: SearchHitProps) {
       {title}
     </Typography>
   ));
+  let unimplementedMarker = <></>;
+  if (props.data.prUrl) {
+    unimplementedMarker = <Chip classes={{root: classes.unimplementedMarker}} label="Not implemented" color="secondary" />
+  }
   return (
     <Link component={RouterLink} to={`/${props.data.id}/${props.data.languages[0]}`}>
     <Card variant="outlined" classes={{root: classes.searchHit}}>
       <CardContent>
-          <Typography classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>
-            Rule {props.data.id}
-          </Typography>
-          {titles}
-          <Typography variant="body2" component="p" classes={{root: classes.language}}>
-            {languages}
-          </Typography>
+        <Typography classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>
+          <div> Rule {props.data.id} </div>
+          {unimplementedMarker}
+        </Typography>
+        {titles}
+        <Typography variant="body2" component="p" classes={{root: classes.language}}>
+          {languages}
+        </Typography>
       </CardContent>
     </Card>
     </Link>
