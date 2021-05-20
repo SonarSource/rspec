@@ -19,6 +19,19 @@ You will also see any lint errors in the console.
 Launches the test runner in the interactive watch mode.\
 See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
+### `npm run predeploy`
+
+Custom command to build the search index.
+
+**Note:** For this command to work on Windows, you would need to replace in `package.json`
+```json
+"prepare-rules": "ts-node -O '{\"module\":\"commonjs\"}' ./src/deployment/index.ts"
+```
+with
+```json
+"prepare-rules": "ts-node -O {\"\"\"module\"\"\":\"\"\"commonjs\"\"\"} ./src/deployment/index.ts"
+```
+
 ### `npm run build`
 
 Builds the app for production to the `build` folder.\
@@ -44,3 +57,5 @@ You don’t have to ever use `eject`. The curated feature set is suitable for sm
 You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
 To learn React, check out the [React documentation](https://reactjs.org/).
+
+**Note:** To easily use the `npm` commands on Windows, you can use VSCode with a `npm` support extension. 
