@@ -1,0 +1,90 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+No secure policy is attached to this bucket:
+
+----
+resource "aws_s3_bucket" "mynoncompliantbucket" { # Sensitive 
+  bucket = "mynoncompliantbucketname"
+}
+----
+
+A policy that forces, only for some users, HTTPs is used:
+
+----
+resource "aws_s3_bucket" "mynoncompliantbucket" { # Sensitive 
+  bucket = "mynoncompliantbucketname"
+}
+
+resource "aws_s3_bucket_policy" "mynoncompliantbucketpolicy" {
+  bucket = "mynoncompliantbucketname"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "mynoncompliantbucketpolicy"
+    Statement = [
+      {
+        Sid       = "HTTPSOnly"
+        Effect    = "Deny"
+        Principal = [
+          "arn:aws:iam::123456789123:root"
+        ] # secondary location: only one principal is forced to use https
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.mynoncompliantbucketpolicy.arn,
+          "${aws_s3_bucket.mynoncompliantbucketpolicy.arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      },
+    ]
+  })
+}
+----
+
+== Compliant Solution
+
+A secure policy that denies all HTTP requests is used:
+
+----
+resource "aws_s3_bucket" "mycompliantbucket" {
+  bucket = "mycompliantbucketname"
+}
+
+resource "aws_s3_bucket_policy" "mycompliantpolicy" {
+  bucket = "mycompliantbucketname"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "mycompliantpolicy"
+    Statement = [
+      {
+        Sid       = "HTTPSOnly"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.mycompliantbucket.arn,
+          "${aws_s3_bucket.mycompliantbucket.arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      },
+    ]
+  })
+}
+
+----
+
+include::../see.adoc[]
