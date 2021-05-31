@@ -2,6 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { Octokit } from '@octokit/rest';
 import Git from 'nodegit';
+import { logger as rootLogger } from './deploymentLogger';
+
+const logger = rootLogger.child({ source: path.basename(__filename) })
 
 export interface PullRequest {
   rspec_id: string,
@@ -44,6 +47,11 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
   for (const pull of pulls) {
     const ref = await repo.getBranch('refs/remotes/origin/pr/' + pull.pull_id);
     await repo.checkoutRef(ref);
-    process(path.join(tmpRepoDir, 'rules', pull.rspec_id), pull);
+    const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
+    if (fs.existsSync(ruleDir)) {
+      process(ruleDir, pull);
+    } else {
+      logger.error(`No rule dir rules/${pull.rspec_id} is found for the PR#${pull.pull_id}: ${pull.url}`);
+    }
   }
 }
