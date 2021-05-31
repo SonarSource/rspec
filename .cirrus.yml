@@ -1,4 +1,7 @@
 gcp_credentials: ENCRYPTED[!17c59813193e86cc337bce848b358412b90f50bc5fe1b8b39d363cdf14a41ebe76cfba0482e7f81d076994b9f6dbfb4c!]
+env:
+  #github
+  GITHUB_TOKEN: ENCRYPTED[!f272985ea5b49b3cf9c414b98de6a8e9096be47bfcee52f33311ba3131a2af637c1b956f49585b7757dd84b7c030233a!]
  
 env:
   CIRRUS_CLONE_DEPTH: 1
@@ -13,7 +16,7 @@ container_definition: &CONTAINER_DEFINITION
   namespace: default
   use_in_memory_disk: true
 
-tests_task:
+update_rule_coverage_task:
   gke_container:
     <<: *CONTAINER_DEFINITION   
     dockerfile: Dockerfile
@@ -21,30 +24,21 @@ tests_task:
     memory: 1G
   env:
     PYTHONPATH: .
-  tests_script:
-    - cd rspec-tools
+  set_up_script:
+    - source cirrus-env BUILD-PRIVATE
+    - git config --global user.email "sonartech@sonarsource.com"
+    - git config --global user.name "sonartech"
+  install_script:
+    - cd rule_coverage
     - pipenv install -e .
-    - pipenv run pip install pytest
-    - pipenv run pytest 
-
-validate_asciidoc_task:
-  gke_container:
-    <<: *CONTAINER_DEFINITION   
-    dockerfile: Dockerfile
-    cpu: 1
-    memory: 1G
-  metadata_tests_script:
-    - ./validate_metadata.sh
-  asciidoc_tests_script:
-    - ./validate_asciidoc.sh
-
-validate_links_task:
-  timeout_in: 120m
-  gke_container:
-    <<: *CONTAINER_DEFINITION   
-    dockerfile: Dockerfile
-    cpu: 1
-    memory: 2G
-  tests_script:
-    - ./validate_links.sh
+    - cd ..
+  update_coverage_script:
+    - cd rule_coverage
+    - pipenv run python coverage.py batchall
+    - mv covered_rules.json ../frontend/public/covered_rules.json
+    - cd ..
+  push_script:
+    - git add frontend/public/covered_rules.json
+    - git diff-index --quiet HEAD || git commit -m "Nightly coverage update"
+    - git push
 
