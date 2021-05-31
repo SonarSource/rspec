@@ -12,6 +12,8 @@ import { process_incomplete_rspecs, PullRequest } from './pullRequestIndexing';
 
 import { PR_DIRECTORY, RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY } from './paths';
 
+process.on('unhandledRejection', up => { throw up })
+
 // eslint-disable-next-line @typescript-eslint/no-unused-expressions
 yargs(process.argv.slice(2))
 
