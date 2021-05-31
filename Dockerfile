@@ -1,6 +1,8 @@
-FROM python:3.9-slim-buster
+FROM gcr.io/language-team/base:latest
+
+USER root
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends jq php-json-schema asciidoctor pipenv git
-   
-CMD ["bash"]
+    apt-get install -y --no-install-recommends python3 git
+
+USER sonarsource
