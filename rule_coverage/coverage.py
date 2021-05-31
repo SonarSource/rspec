@@ -56,7 +56,7 @@ def checkout(repo,version,batch_mode):
   if not token:
     git_url=f"git@github.com:SonarSource/{repo}"
   else:
-    git_url=f"https://{token}@github.com:SonarSource/{repo}"
+    git_url=f"https://{token}@github.com/SonarSource/{repo}"
   git_repo=None
   g=Git(repo)
   if not os.path.exists(repo):
