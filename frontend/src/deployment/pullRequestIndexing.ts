@@ -44,6 +44,9 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
   for (const pull of pulls) {
     const ref = await repo.getBranch('refs/remotes/origin/pr/' + pull.pull_id);
     await repo.checkoutRef(ref);
-    process(path.join(tmpRepoDir, 'rules', pull.rspec_id), pull);
+    const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
+    if (fs.existsSync(ruleDir)) {
+      process(ruleDir, pull);
+    }
   }
 }
