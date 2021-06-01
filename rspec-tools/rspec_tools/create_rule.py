@@ -121,8 +121,11 @@ class RuleCreator:
     else:
       github = Github(token)
     github_repo = github.get_repo(repository_url)
+    first_lang = next(iter(languages))
     pull_request = github_repo.create_pull(
-      title=f'Create rule S{rule_number}', body='', head=branch_name, base=self.MASTER_BRANCH,
+      title=f'Create rule S{rule_number}',
+      body=f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).',
+      head=branch_name, base=self.MASTER_BRANCH,
       draft=True, maintainer_can_modify=True
     )
     click.echo(f'Created rule Pull Request {pull_request.html_url}')
