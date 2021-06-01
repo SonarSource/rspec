@@ -70,6 +70,8 @@ const languageToJiraProject = new Map(Object.entries({
   "TSQL": "SONARTSQL",
   "VB6": "SONARVBSIX",
   "XML": "SONARXML",
+  "CLOUDFORMATION": "SONARIAC",
+  "TERRAFORM": "SONARIAC",
 }));
 
 const languageToGithubProject = new Map(Object.entries({
@@ -91,13 +93,15 @@ const languageToGithubProject = new Map(Object.entries({
   "PLI": "sonar-pli",
   "CFAMILY": "sonar-cpp",
   "CSS": "sonar-css",
+  "FLEX": "sonar-flex",
   "PHP": "sonar-php",
-  "PL/SQL": "sonar-plsql",
-  "Python": "sonar-python",
+  "PLSQL": "sonar-plsql",
+  "PYTHON": "sonar-python",
   "RPG": "sonar-rpg",
-  "Swift": "sonar-swift",
-  "T-SQL": "sonar-tsql",
+  "TSQL": "sonar-tsql",
   "XML": "sonar-xml",
+  "CLOUDFORMATION": "sonar-iac",
+  "TERRAFORM": "sonar-iac",
 }));
 
 
