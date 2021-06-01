@@ -65,7 +65,7 @@ class RuleCreator:
 
   def create_new_rule_branch(self, rule_number: int, languages: Iterable[str]) -> str:
     '''Create all the files required for a new rule.'''
-    branch_name = f'add-RSPEC-S{rule_number}'
+    branch_name = f'rule/add-RSPEC-S{rule_number}'
     with self._current_git_branch(self.MASTER_BRANCH, branch_name):
       repo_dir = Path(self.repository.working_dir)
       rule_dir = repo_dir.joinpath('rules', f'S{rule_number}')
