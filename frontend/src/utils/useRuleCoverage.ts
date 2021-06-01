@@ -30,7 +30,10 @@ export function useRuleCoverage() {
     'tsql': ['TSQL'],
     'vb6': ['VB'],
     'WEB': ['WEB'],
-    'xml': ['XML']
+    'xml': ['XML'],
+    'html': ['HTML'],
+    'cloudformation': ['CLOUDFORMATION'],
+    'terraform': ['TERRAFORM']
   }));
   function ruleCoverage(language: string, ruleKeys: string[], mapper: any) {
     if (coveredRulesError) {
@@ -47,11 +50,12 @@ export function useRuleCoverage() {
     // const keys = coveredRules.keys;
     const languageKeys = languageToSonarpedia.get(language);
     if (!languageKeys) {
-      throw new Error(`Unknown key ${language}`)
+      return 'Nonsupported language';
     }
     languageKeys.forEach(sonarpediaKey => {
       ruleKeys.forEach(ruleKey => {
-        if (ruleKey in coveredRules[sonarpediaKey]) {
+          if (sonarpediaKey in coveredRules &&
+              ruleKey in coveredRules[sonarpediaKey]) {
           result.push(mapper(sonarpediaKey, coveredRules[sonarpediaKey][ruleKey]))
         }
       });
