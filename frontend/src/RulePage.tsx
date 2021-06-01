@@ -33,7 +33,6 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(3),
   },
   description: {
-    backgroundColor: 'red',
     textAlign: 'justify',
     // marginBottom: theme.spacing(3),
   },
