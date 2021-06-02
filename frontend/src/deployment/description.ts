@@ -66,6 +66,7 @@ function generate_rule_description(srcDir: string, language: string) {
     }
     const baseDir = path.resolve(path.dirname(ruleSrcFile));
     const opts = {
+        attributes: {'rspecator-view': ''},
         safe: 'unsafe',
         base_dir: baseDir,
         backend: 'xhtml5',
