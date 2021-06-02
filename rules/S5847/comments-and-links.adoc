@@ -1,0 +1,82 @@
+=== On 2020-09-23T20:35:50.867Z Ann Campbell Wrote:
+\[~eric.therond], [~hendrik.buchwald] this description would benefit from the addition of what you _should_ do instead...
+
+=== On 2020-09-24T10:54:21.750Z Hendrik Buchwald Wrote:
+\[~ann.campbell.2] in most cases it will probably not be possible to prevent the TOCTOU. [~eric.therond] maybe we could add that the developer should make sure that the file/directory that is affected is not writable by lower privileged users?
+
+=== On 2020-09-24T14:10:08.412Z Eric Therond Wrote:
+To be consistent with compliant solutions proposed in the C-Family sub task I would just add something like that: "_To prevent TOCTOUs to occur, remove the race condition window between the check and use operations by performing them atomically or by using file descriptors_".
+
+
+\[~hendrik.buchwald] About permissions, I am not completely sure but when developers introduce TOCTOU it is likely to verify permissions of the user with the "check operation":
+
+----
+if(!access("foo.txt", F_OK)) { // check operation: does the user have the right to access to this file? (operation done with real UID/GID)
+   FILE *f = fopen("foo.txt, "w"); // use operation:  (operation done with effective UID/GID)
+}
+----
+let say foo.txt is not accessible by the user running the process because foo.txt is owned by root with 700 permissions and the process is owned by root with suid set, so the process will enter in the true block only if the root user is running the process, but in this case the access() call/check operation is useless and can be removed completely. One other solution https://docs.roguewave.com/en/klocwork/current/sv.toctou.file_access[often] mentioned is to do the use operation with the real UID/GID with setuid().
+
+=== On 2020-09-24T14:21:43.104Z Hendrik Buchwald Wrote:
+\[~eric.therond] good idea with the file descriptors, I did not think about that. I am not sure how to use the atomic file operations though.
+
+
+With permissions I mean something else. For example, if you have a TOCTOU in the directory ``++/tmp++`` it is likely more dangerous than in the directory ``++/root++`` because in order for an attacker to exploit it they would require root privileges anyway. So what I mean with that is that TOCTOU in regards to security is only relevant if an attacker has the permissions to write where the TOCTOU occurs.
+
+=== On 2020-09-24T14:29:58.526Z Eric Therond Wrote:
+Yeap completely, in fact in https://jira.sonarsource.com/browse/CPP-2542[the ticket] originally it was specified to not raise an issue when the directory is owned by root, likely these ones:
+
+----
+/bin
+/boot
+/dev
+/etc
+/lib
+/misc
+/mnt
+/opt
+/root
+/proc
+/sbin
+/usr/bin
+/usr/etc
+/usr/include
+/usr/lib
+/usr/dict
+/usr/kerberos
+/usr/libexec
+/usr/sbin
+/usr/src
+/usr/X11R6
+/var/cache
+/var/db
+/var/empty
+/var/ftp
+/var/lock
+/var/log
+/var/lib
+/var/run
+----
+
+but it was put aside because even if the TOCTOU is not exploitable, a better code is still possible (like said before with file descriptor or "atomic operations" (x mode with open() for instance).
+
+
+
+=== On 2020-09-24T18:37:54.639Z Ann Campbell Wrote:
+Looks like file descriptors aren't a panacea
+
+* http://insanecoding.blogspot.com/2007/03/file-descriptors-and-why-we-cant-use.html
+____However file descriptors have a general flaw, that being that THE FILE MUST BE OPENABLE. Say for example you have a file with the permissions of 000, you can run stat() or chmod() on it, but you can't alter the permissions with fchmod()! Now this might not seem so bad, but say you wanted to make the file writable then write something to it? Or worse, you want one single code base to do some operations in order not to commit the sin of code repetition, but you're faced with either using the safer file descriptor based function which doesn't always work, or the more dangerous file name based function which will work even if you can't open the file.
+
+
+The problem gets even worse when one considers the new *at() functions Solaris and Linux added. In my case above, say my directory had permissions of 111 (--x--x--x), I can chdir() to it, or access file via the full path. But I can't call open() on "/etc/program-a/" as open() for directories only works if the directory has read permissions. If my program allowed one to pass a path to it to tell it where the config files were located, I would need to have two separate code paths, one the fast secure method using openat() and friends, and another calling open() and friends on the full path or chdir() to there and then open() on the file names directly.
+
+____
+
+* https://www.usenix.org/legacy/event/fast08/tech/full_papers/tsafrir/tsafrir_html/index.html#sect:solution
+____The second suggestion by Tsyrklevich and Yee was “to use fstat after the open instead of invoking access”. As the input of fstat is a file descriptor, the latter is permanently mapped to the underlying inode and hence can never be abused by an attacker; the user is then expected to inspect the ownership information returned by fstat and check if the invoker was indeed allowed to open the file. But this will not work, as file access permissions can not be deduced in such a way; rather, they are the conjunction of all the (inode) permissions associated with each component in the respective path. For example, if a file's name is x/y such that x is solely accessible by its owner, then other users are forbidden from reading y even if fstat indicates it is readable by all (which may very well be the case when root invokes the fstat).
+
+____
+
+Still, we at least have a suggestion...
+
