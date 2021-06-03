@@ -115,10 +115,10 @@ export function RulePage(props: any) {
   }
 
   const classes = useStyles();
+  let branch = 'master'
 
   let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-description.html";
   let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-metadata.json";
-  let editOnGithubUrl = 'https://github.com/SonarSource/rspec/tree/master/rules/' + ruleid + '/' + language;
 
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
@@ -135,6 +135,7 @@ export function RulePage(props: any) {
     if ('prUrl' in metadataJSON) {
       prUrl = metadataJSON.prUrl;
     }
+    branch = metadataJSON.branch;
     metadataJSON.all_languages.sort();
     languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>);
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
@@ -145,6 +146,9 @@ export function RulePage(props: any) {
       )
     });
   }
+
+  let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
+                        branch + '/rules/' + ruleid + '/' + language;
 
   let description = <div>Loading...</div>;
   if (descHTML !== null && !descIsLoading && !descError) {
