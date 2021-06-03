@@ -43,6 +43,9 @@ const useStyles = makeStyles((theme) => ({
   },
   tabScroller: {
     flexGrow: 0
+  },
+  unimplemented: {
+    color: 'red'
   }
 }));
 
@@ -67,6 +70,8 @@ const languageToJiraProject = new Map(Object.entries({
   "TSQL": "SONARTSQL",
   "VB6": "SONARVBSIX",
   "XML": "SONARXML",
+  "CLOUDFORMATION": "SONARIAC",
+  "TERRAFORM": "SONARIAC",
 }));
 
 const languageToGithubProject = new Map(Object.entries({
@@ -88,13 +93,15 @@ const languageToGithubProject = new Map(Object.entries({
   "PLI": "sonar-pli",
   "CFAMILY": "sonar-cpp",
   "CSS": "sonar-css",
+  "FLEX": "sonar-flex",
   "PHP": "sonar-php",
-  "PL/SQL": "sonar-plsql",
-  "Python": "sonar-python",
+  "PLSQL": "sonar-plsql",
+  "PYTHON": "sonar-python",
   "RPG": "sonar-rpg",
-  "Swift": "sonar-swift",
-  "T-SQL": "sonar-tsql",
+  "TSQL": "sonar-tsql",
   "XML": "sonar-xml",
+  "CLOUDFORMATION": "sonar-iac",
+  "TERRAFORM": "sonar-iac",
 }));
 
 
@@ -122,10 +129,14 @@ export function RulePage(props: any) {
   let title = "Loading..."
   let metadataJSONString;
   let languagesTabs = null;
+  let prUrl: string | undefined = undefined;
   if (metadataJSON && !metadataIsLoading && !metadataError) {
-    title = metadataJSON.title
-    metadataJSON.all_languages.sort()
-    languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>)
+    title = metadataJSON.title;
+    if ('prUrl' in metadataJSON) {
+      prUrl = metadataJSON.prUrl;
+    }
+    metadataJSON.all_languages.sort();
+    languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>);
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     coverage = ruleCoverage(language, metadataJSON.allKeys, (key: any, version: any) => {
@@ -145,30 +156,40 @@ export function RulePage(props: any) {
       <pre>{metadataJSONString}</pre>
     </div>;
   }
+  let prLink = <></>;
+  if (prUrl) {
+      prLink = <div><span className={classes.unimplemented}>Not implemented (see <a href={prUrl}>PR</a>)</span></div>
+  }
   const ruleNumber = ruleid.substring(1)
-  
+
   const upperCaseLanguage = language.toUpperCase();
   const jiraProject = languageToJiraProject.get(upperCaseLanguage);
   const githubProject = languageToGithubProject.get(upperCaseLanguage);
 
   let ticketsLink;
-  if (upperCaseLanguage in languageToJiraProject) {
+  if (jiraProject !== undefined) {
     ticketsLink = (
         <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${title}")`}>
-          Jira Tickets
+          Implementation tickets on Jira
         </Link>
       );
   } else {
     ticketsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/issues?q=is%3Aissue+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
-        Github Tickets
+        Implementation issues on GitHub
       </Link>
     );
   }
-  
-  const pullRequestsLink = (
+
+  const specificationPRsLink = (
+    <Link href={`https://github.com/SonarSource/rspec/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
+      Specification Pull Requests
+    </Link>
+  );
+
+  const implementationPRsLink = (
     <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
-      Github Pull Requests
+      Implementation Pull Requests
     </Link>
   );
 
@@ -177,6 +198,7 @@ export function RulePage(props: any) {
     <div className={classes.ruleBar}>
       <Container>
       <Typography variant="h2" classes={{root: classes.ruleid}}>{ruleid}</Typography>
+      <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
       <Tabs
           value={language}
           onChange={handleLanguageChange}
@@ -191,7 +213,7 @@ export function RulePage(props: any) {
       </Tabs>
       </Container>
     </div>
-  
+
     <Container maxWidth="md">
       <Typography variant="h3" classes={{root: classes.title}}>{title}</Typography>
       <Box className={classes.coverage}>
@@ -204,13 +226,16 @@ export function RulePage(props: any) {
       <Box className={classes.coverage}>
         <Typography variant="h4" >Related Tickets and Pull Requests</Typography>
         <ul>
-          {ticketsLink}
+          {specificationPRsLink}
         </ul>
         <ul>
-          {pullRequestsLink}
+          {implementationPRsLink}
+        </ul>
+        <ul>
+          {ticketsLink}
         </ul>
       </Box>
-      
+
       <Box>
         <Typography variant="h4">Description</Typography>
         <Typography className={classes.description}>
@@ -219,6 +244,6 @@ export function RulePage(props: any) {
       </Box>
     </Container>
     </div>
-    
+
   );
 }

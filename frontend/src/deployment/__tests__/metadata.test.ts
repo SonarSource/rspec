@@ -1,6 +1,7 @@
 import fs from 'fs';
+import path from 'path';
 
-import { generate_rules_metadata } from '../metadata';
+import { generate_one_rule_metadata, generate_rules_metadata } from '../metadata';
 import { withTestDir, createFiles } from '../testutils';
 
 describe('metadata generation', () => {
@@ -56,6 +57,33 @@ describe('metadata generation', () => {
     
         const s200Exists = fs.existsSync(`${dstPath}/S200/java-metadata.json`);
         expect(s200Exists).toBeFalsy();
+      });
+    });
+  });
+
+  test('forwards the pr url when provided', () => {
+    return withTestDir((srcPath) => {
+      createFiles(srcPath, {
+        'S100/java/metadata.json': JSON.stringify({
+          title: 'Rule S100'
+        }),
+        'S200/java/metadata.json': JSON.stringify({
+          title: 'Rule S200'
+        }),
+      });
+      return withTestDir(async (dstPath) => {
+        generate_one_rule_metadata(path.join(srcPath, 'S100'), path.join(dstPath, 'S100'));
+
+        const s100StrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
+        const s100Metadata = JSON.parse(s100StrMetadata.toString());
+        expect(Object.keys(s100Metadata)).not.toContain('prUrl');
+
+        generate_one_rule_metadata(path.join(srcPath, 'S200'), path.join(dstPath, 'S200'), 'https://some.pr/url');
+
+        const s200StrMetadata = fs.readFileSync(`${dstPath}/S200/java-metadata.json`);
+        const s200Metadata = JSON.parse(s200StrMetadata.toString());
+        expect(Object.keys(s200Metadata)).toContain('prUrl');
+        expect(s200Metadata.prUrl).toEqual('https://some.pr/url');
       });
     });
   });

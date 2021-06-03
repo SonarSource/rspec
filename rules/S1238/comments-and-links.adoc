@@ -1,0 +1,16 @@
+=== on 15 Feb 2019, 20:04:32 Loïc Joly wrote:
+Some history on the implementation of this rule for {cpp} that may be interesting for my future self (or maybe to write a blog article):
+
+* First implementation, strictly follow {cpp} core guidelines (threshold for size > 2*sizeof(void*), larger types are forced by const&, smaller types are forced to value), and in addition force passing by const& types without trivially copyable types (goal: Avoid slicing and avoid passing a string by value)
+* Too many issues. We decided to use a higher threshold and never ask to pass by value something that is passed by const &, even if small:
+** The user of a type does not always have to know that it is small
+** The expected performance gain is much smaller than the one in the other direction
+** It's not possible to ignore an issue for a whole type, we have to ignore it function per function, which does not seem reasonable
+** We can create another rule, in the other direction, with lower priority and out or SonarWay for people who want to hunt for the extra speed gain
+* Too many issues, we decide to focus on function definitions (declarations may come from 3rd party libraries)
+* Too many issues, we decided to remove the requirement for no user-defined copy contructor to allow pass by value
+** Sometimes, the price of the user-defined copy constructor is not that high (QString that relies on COW or std::shared_ptr comes to mind), even if avoiding extra copies is still interesting.
+** In some cases, it's even faster to pass by copy, even for large types => if we modify the copy inside the function, without altering the original (computing the median of a vector, passing a shared_ptr by copy, then move from it to store it in a contained)
+** Detecting those cases means detecting that something is modified, which is probably impossible to do perfectly, and more importantly which is difficult to do with a good enough approximation (but we should do this approximation, it's useful for this rule and several others, we just did not have time for that)
+** We believe that even in the current state, the rule will provide some value and not too many false positives on classical projects
+

@@ -52,7 +52,11 @@ def dump_rules(repo,version):
       json.dump(rules, outfile, indent=2)
   
 def checkout(repo,version,batch_mode):
-  git_url=f"git@github.com:SonarSource/{repo}"
+  token=os.getenv('GITHUB_TOKEN')
+  if not token:
+    git_url=f"git@github.com:SonarSource/{repo}"
+  else:
+    git_url=f"https://{token}@github.com/SonarSource/{repo}"
   git_repo=None
   g=Git(repo)
   if not os.path.exists(repo):

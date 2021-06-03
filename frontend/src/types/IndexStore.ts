@@ -9,7 +9,8 @@ export interface IndexedRule {
     titles: string[],
     tags: string[],
     // FIXME: quality profiles seem to always be empty
-    qualityProfiles: string[]
+    qualityProfiles: string[],
+    prUrl?: string
 }
 
 export type IndexStore = Record<string, IndexedRule>
