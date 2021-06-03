@@ -16,7 +16,11 @@ link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
-              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall',
+
+              'https://www.fluentcpp.com/2017/09/08/make-polymorphic-copy-modern-cpp/',
+              'https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/']
+]
 
 def show_files(filenames):
   for filename in filenames:
@@ -55,6 +59,7 @@ def url_was_reached_recently(url: str):
   if url not in link_probes_history:
     return False
   last_time_up = link_probes_history[url]
+  print(f"{url} was reached most recently on {last_time_up}")
   spread = random.randrange(PROBING_SPREAD)
   probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
   diff = (datetime.datetime.now() - last_time_up)
@@ -105,7 +110,7 @@ def live_url(url: str, timeout=5):
     print(f"ERROR: ", e)
     return False
 
-def findurl_in_html(filename,urls):    
+def findurl_in_html(filename,urls):
   with open(filename, 'r', encoding="utf8") as file:
     soup = BeautifulSoup(file,features="html.parser")
     for link in soup.findAll('a'):
@@ -152,7 +157,7 @@ def check_html_links(dir):
     print(f"{url} in {len(urls[url])} files")
     if url in EXCEPTIONS:
       global link_probes_history
-      link_probes_history.pop(url)
+      link_probes_history.pop(url, None)
       print("skip as an exception")
     elif url_was_reached_recently(url):
       print("skip probing because it was reached recently")
