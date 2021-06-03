@@ -16,7 +16,9 @@ link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
-              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall',
+              'https://www.fluentcpp.com/2017/09/08/make-polymorphic-copy-modern-cpp/',
+              'https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/']
 
 def show_files(filenames):
   for filename in filenames:
