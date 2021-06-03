@@ -134,6 +134,7 @@ def is_active(metadata_fname, generic_metadata_fname):
 def check_html_links(dir):  
   urls={}
   errors=[]
+  load_url_probing_history()
   print("Finding links in html files")
   tot_files = 0
   for rulepath in pathlib.Path(dir).iterdir():
@@ -174,4 +175,5 @@ def check_html_links(dir):
       print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see the list and related files before")
       exit(1)
   print(f"All {len(urls)} links are good")
+  save_url_probing_history()
 
