@@ -17,7 +17,6 @@ link_probes_history = {}
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
               'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
-]
 
 def show_files(filenames):
   for filename in filenames:
