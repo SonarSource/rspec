@@ -11,6 +11,12 @@ TOLERABLE_LINK_DOWNTIME = timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = 'link_probes.history'
 link_probes_history = {}
 
+# These links consistently fail in CI, but work-on-my-machine
+EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall',
+              'https://www.fluentcpp.com/2017/09/08/make-polymorphic-copy-modern-cpp/',
+              'https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/']
+
 def show_files(filenames):
   for filename in filenames:
     print(filename)
@@ -29,10 +35,6 @@ def save_url_probing_history():
     global link_probes_history
     with open(LINK_PROBES_HISTORY_FILE, 'w') as link_probes_history_stream:
         link_probes_history_stream.write(str(link_probes_history))
-
-# These links consistently fail in CI, but work-on-my-machine
-EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
-              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
 
 def rejuvenate_url(url: str):
   global link_probes_history
