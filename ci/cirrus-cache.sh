@@ -19,7 +19,7 @@ download)
   echo "Download cache with key ${CACHE_KEY}"
 
   echo "  -> try ${CACHE_URL}"
-  curl -sfSL -o ${TMP_PATH} ${CACHE_URL} {
+  curl -sfSL -o ${TMP_PATH} ${CACHE_URL} || {
     echo "Cache download failed";
     exit 0;
   }
