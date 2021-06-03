@@ -34,6 +34,7 @@ def load_url_probing_history():
       link_probes_history = eval(link_probes_history_stream.read())
       print(link_probes_history)
   except Exception:
+    print(Exception)
     # If the history file is not present, ignore, will create one in the end.
     pass
 
