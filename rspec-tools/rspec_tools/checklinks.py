@@ -3,14 +3,14 @@ import re
 import requests
 import json
 import random
+import datetime
 from bs4 import BeautifulSoup
 from socket import timeout
-from datetime import datetime, timedelta
 import pathlib
 
-TOLERABLE_LINK_DOWNTIME = timedelta(days=7)
+TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = './link_probes.history'
-PROBING_COOLDOWN = timedelta(days=1)
+PROBING_COOLDOWN = datetime.timedelta(days=1)
 PROBING_SPREAD = 100 # minutes
 link_probes_history = {}
 
@@ -32,7 +32,6 @@ def load_url_probing_history():
     with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
       print('Using the historical url probe results from ' + LINK_PROBES_HISTORY_FILE)
       blob = link_probes_history_stream.read()
-      print(blob)
       link_probes_history = eval(blob)
       print(link_probes_history)
   except Exception as e:
@@ -47,7 +46,7 @@ def save_url_probing_history():
 
 def rejuvenate_url(url: str):
   global link_probes_history
-  link_probes_history[url] = datetime.now()
+  link_probes_history[url] = datetime.datetime.now()
 
 def url_is_long_dead(url: str):
   global link_probes_history
@@ -55,7 +54,7 @@ def url_is_long_dead(url: str):
     return True
   last_time_up = link_probes_history[url]
   print(f"{url} was reached most recently on {last_time_up}")
-  return TOLERABLE_LINK_DOWNTIME < (datetime.now() - last_time_up)
+  return TOLERABLE_LINK_DOWNTIME < (datetime.datetime.now() - last_time_up)
 
 def url_was_reached_recently(url: str):
   global link_probes_history
@@ -63,10 +62,10 @@ def url_was_reached_recently(url: str):
     return False
   last_time_up = link_probes_history[url]
   spread = random.randrange(PROBING_SPREAD)
-  probing_cooldown = PROBING_COOLDOWN + timedelta(minutes=spread)
-  diff = (datetime.now() - last_time_up)
+  probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
+  diff = (datetime.datetime.now() - last_time_up)
   print(f"comparing {probing_cooldown} with the difference: {diff}")
-  return (datetime.now() - last_time_up) < probing_cooldown
+  return (datetime.datetime.now() - last_time_up) < probing_cooldown
 
 def live_url(url: str, timeout=5):
   if url.startswith('#'):
