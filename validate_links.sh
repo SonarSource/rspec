@@ -13,7 +13,6 @@ ls -al $CACHE_PATH
 #validate links in asciidoc
 cd rspec-tools
 pipenv install -e .
-ls -al .
 pipenv run rspec-tools check-links --d ../out
 cd ..
 

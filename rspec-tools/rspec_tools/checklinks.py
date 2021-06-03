@@ -16,9 +16,7 @@ link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
-              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall',
-              'https://www.fluentcpp.com/2017/09/08/make-polymorphic-copy-modern-cpp/',
-              'https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/']
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall'']
 
 def show_files(filenames):
   for filename in filenames:
@@ -26,17 +24,13 @@ def show_files(filenames):
 
 def load_url_probing_history():
   global link_probes_history
-  print('Trying to load probing history from ' + LINK_PROBES_HISTORY_FILE)
-  print(os.listdir('.'))
   try:
     with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
-      print('Using the historical url probe results from ' + LINK_PROBES_HISTORY_FILE)
-      blob = link_probes_history_stream.read()
-      link_probes_history = eval(blob)
-      print(link_probes_history)
+      print('Using the historical url-probe results from ' + LINK_PROBES_HISTORY_FILE)
+      link_probes_history = eval(link_probes_history_stream.read())
   except Exception as e:
-    print(e)
     # If the history file is not present, ignore, will create one in the end.
+    print(f"Failed to load historical url-probe results: {e}")
     pass
 
 def save_url_probing_history():
@@ -64,7 +58,6 @@ def url_was_reached_recently(url: str):
   spread = random.randrange(PROBING_SPREAD)
   probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
   diff = (datetime.datetime.now() - last_time_up)
-  print(f"comparing {probing_cooldown} with the difference: {diff}")
   return (datetime.datetime.now() - last_time_up) < probing_cooldown
 
 def live_url(url: str, timeout=5):
