@@ -2,6 +2,7 @@ import os,io
 import re
 import requests
 import json
+import random
 from bs4 import BeautifulSoup
 from socket import timeout
 from datetime import datetime, timedelta
@@ -9,6 +10,8 @@ import pathlib
 
 TOLERABLE_LINK_DOWNTIME = timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = 'link_probes.history'
+PROBING_COOLDOWN = timedelta(days=1)
+PROBING_SPREAD = 100 # minutes
 link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
@@ -47,6 +50,15 @@ def url_is_long_dead(url: str):
   last_time_up = link_probes_history[url]
   print(f"{url} was reached most recently on {last_time_up}")
   return TOLERABLE_LINK_DOWNTIME < (datetime.now() - last_time_up)
+
+def url_was_reached_recently(url: str):
+  global link_probes_history
+  if url not in link_probes_history:
+    return False
+  last_time_up = link_probes_history[url]
+  spread = random.randrange(PROBING_SPREAD)
+  probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
+  return (datetime.now() - last_time_up) < probing_cooldown
 
 def live_url(url: str, timeout=5):
   if url.startswith('#'):
@@ -139,7 +151,9 @@ def check_html_links(dir):
   print("Testing links")
   for url in urls:
     print(f"{url} in {len(urls[url])} files")
-    if live_url(url, timeout=5):
+    if url_was_reached_recently(url):
+      printf("skip probing because it was reached recently")
+    elif live_url(url, timeout=5):
       rejuvenate_url(url)
     elif url_is_long_dead(url):
       errors.append(url)
@@ -150,6 +164,8 @@ def check_html_links(dir):
       print(f"{key} in {len(urls[key])} files (previously failed)")
       if not live_url(key, timeout=15):
         confirmed_errors.append(key)
+      else:
+        rejuvenate_url(key)
     if confirmed_errors:
       print("There were errors")
       for key in confirmed_errors:
