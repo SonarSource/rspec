@@ -4,10 +4,10 @@ import requests
 import json
 from bs4 import BeautifulSoup
 from socket import timeout
-from datetime import datetime
+from datetime import datetime, timedelta
 import pathlib
 
-TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
+TOLERABLE_LINK_DOWNTIME = timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = 'link_probes.history'
 link_probes_history = {}
 
