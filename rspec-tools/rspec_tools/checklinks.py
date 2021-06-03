@@ -55,10 +55,8 @@ def url_was_reached_recently(url: str):
   if url not in link_probes_history:
     return False
   last_time_up = link_probes_history[url]
-  print(f"{url} was reached most recently on {last_time_up}")
   spread = random.randrange(PROBING_SPREAD)
   probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
-  diff = (datetime.datetime.now() - last_time_up)
   return (datetime.datetime.now() - last_time_up) < probing_cooldown
 
 def live_url(url: str, timeout=5):
