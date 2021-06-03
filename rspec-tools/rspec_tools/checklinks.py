@@ -16,10 +16,7 @@ link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
-              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall',
-
-              'https://www.fluentcpp.com/2017/09/08/make-polymorphic-copy-modern-cpp/',
-              'https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/']
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
 ]
 
 def show_files(filenames):
@@ -156,8 +153,6 @@ def check_html_links(dir):
   for url in urls:
     print(f"{url} in {len(urls[url])} files")
     if url in EXCEPTIONS:
-      global link_probes_history
-      link_probes_history.pop(url, None)
       print("skip as an exception")
     elif url_was_reached_recently(url):
       print("skip probing because it was reached recently")
