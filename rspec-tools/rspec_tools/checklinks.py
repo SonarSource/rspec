@@ -2,22 +2,65 @@ import os,io
 import re
 import requests
 import json
+import random
+import datetime
 from bs4 import BeautifulSoup
 from socket import timeout
 import pathlib
 
-def show_files(filenames):
-  for filename in filenames:
-    print(filename)
+TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
+LINK_PROBES_HISTORY_FILE = './link_probes.history'
+PROBING_COOLDOWN = datetime.timedelta(days=1)
+PROBING_SPREAD = 100 # minutes
+link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
               'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
 
+def show_files(filenames):
+  for filename in filenames:
+    print(filename)
+
+def load_url_probing_history():
+  global link_probes_history
+  try:
+    with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
+      print('Using the historical url-probe results from ' + LINK_PROBES_HISTORY_FILE)
+      link_probes_history = eval(link_probes_history_stream.read())
+  except Exception as e:
+    # If the history file is not present, ignore, will create one in the end.
+    print(f"Failed to load historical url-probe results: {e}")
+    pass
+
+def save_url_probing_history():
+  global link_probes_history
+  with open(LINK_PROBES_HISTORY_FILE, 'w') as link_probes_history_stream:
+    link_probes_history_stream.write(str(link_probes_history))
+
+def rejuvenate_url(url: str):
+  global link_probes_history
+  link_probes_history[url] = datetime.datetime.now()
+
+def url_is_long_dead(url: str):
+  global link_probes_history
+  if url not in link_probes_history:
+    return True
+  last_time_up = link_probes_history[url]
+  print(f"{url} was reached most recently on {last_time_up}")
+  return TOLERABLE_LINK_DOWNTIME < (datetime.datetime.now() - last_time_up)
+
+def url_was_reached_recently(url: str):
+  global link_probes_history
+  if url not in link_probes_history:
+    return False
+  last_time_up = link_probes_history[url]
+  spread = random.randrange(PROBING_SPREAD)
+  probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
+  return (datetime.datetime.now() - last_time_up) < probing_cooldown
+
 def live_url(url: str, timeout=5):
   if url.startswith('#'):
-    return True
-  if url in EXCEPTIONS:
     return True
   try:
     req = requests.Request('GET', url, headers = {'sec-ch-ua': '" Not A;Brand";v="99", "Chromium";v="90"',
@@ -61,7 +104,7 @@ def live_url(url: str, timeout=5):
     print(f"ERROR: ", e)
     return False
 
-def findurl_in_html(filename,urls):    
+def findurl_in_html(filename,urls):
   with open(filename, 'r', encoding="utf8") as file:
     soup = BeautifulSoup(file,features="html.parser")
     for link in soup.findAll('a'):
@@ -88,6 +131,7 @@ def is_active(metadata_fname, generic_metadata_fname):
 def check_html_links(dir):  
   urls={}
   errors=[]
+  load_url_probing_history()
   print("Finding links in html files")
   tot_files = 0
   for rulepath in pathlib.Path(dir).iterdir():
@@ -105,7 +149,13 @@ def check_html_links(dir):
   print("Testing links")
   for url in urls:
     print(f"{url} in {len(urls[url])} files")
-    if not live_url(url, timeout=5):
+    if url in EXCEPTIONS:
+      print("skip as an exception")
+    elif url_was_reached_recently(url):
+      print("skip probing because it was reached recently")
+    elif live_url(url, timeout=5):
+      rejuvenate_url(url)
+    elif url_is_long_dead(url):
       errors.append(url)
   if errors:
     confirmed_errors=[]
@@ -114,6 +164,8 @@ def check_html_links(dir):
       print(f"{key} in {len(urls[key])} files (previously failed)")
       if not live_url(key, timeout=15):
         confirmed_errors.append(key)
+      else:
+        rejuvenate_url(key)
     if confirmed_errors:
       print("There were errors")
       for key in confirmed_errors:
@@ -122,4 +174,5 @@ def check_html_links(dir):
       print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see the list and related files before")
       exit(1)
   print(f"All {len(urls)} links are good")
+  save_url_probing_history()
 
