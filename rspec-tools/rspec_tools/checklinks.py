@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pathlib
 
 TOLERABLE_LINK_DOWNTIME = timedelta(days=7)
-LINK_PROBES_HISTORY_FILE = 'link_probes.history'
+LINK_PROBES_HISTORY_FILE = './link_probes.history'
 PROBING_COOLDOWN = timedelta(days=1)
 PROBING_SPREAD = 100 # minutes
 link_probes_history = {}
@@ -25,20 +25,22 @@ def show_files(filenames):
     print(filename)
 
 def load_url_probing_history():
-    global link_probes_history
-    try:
-        with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
-            print('Using the historical url probe results from ' + LINK_PROBES_HISTORY_FILE)
-            link_probes_history = eval(link_probes_history_stream.read())
-            print(link_probes_history)
-    except Exception:
-        # If the history file is not present, ignore, will create one in the end.
-        pass
+  global link_probes_history
+  print('Trying to load probing history from ' + LINK_PROBES_HISTORY_FILE)
+  print(os.listdir('.'))
+  try:
+    with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
+      print('Using the historical url probe results from ' + LINK_PROBES_HISTORY_FILE)
+      link_probes_history = eval(link_probes_history_stream.read())
+      print(link_probes_history)
+  except Exception:
+    # If the history file is not present, ignore, will create one in the end.
+    pass
 
 def save_url_probing_history():
-    global link_probes_history
-    with open(LINK_PROBES_HISTORY_FILE, 'w') as link_probes_history_stream:
-        link_probes_history_stream.write(str(link_probes_history))
+  global link_probes_history
+  with open(LINK_PROBES_HISTORY_FILE, 'w') as link_probes_history_stream:
+    link_probes_history_stream.write(str(link_probes_history))
 
 def rejuvenate_url(url: str):
   global link_probes_history
