@@ -42,7 +42,7 @@ yargs(process.argv.slice(2))
   generate_rules_description(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
   process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
     const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
-    generate_one_rule_metadata(srcDir, dstDir, pr.url);
+    generate_one_rule_metadata(srcDir, dstDir, pr.branch, pr.url);
     generate_one_rule_description(srcDir, dstDir);
   }).then(function() {
     createIndexFiles(RULE_DST_DIRECTORY);

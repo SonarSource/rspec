@@ -9,6 +9,7 @@ const logger = rootLogger.child({ source: path.basename(__filename) })
 export interface PullRequest {
   rspec_id: string,
   url: string,
+  branch: string,
   pull_id: number
 }
 
@@ -31,6 +32,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
     if (found) {
       pulls.push({rspec_id: found[1],
                   url: pull.html_url,
+                  branch: pull.head.ref,
                   pull_id: pull.number});
     }
   }
