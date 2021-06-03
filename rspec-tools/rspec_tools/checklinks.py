@@ -30,6 +30,7 @@ def load_url_probing_history():
         with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
             print('Using the historical url probe results from ' + LINK_PROBES_HISTORY_FILE)
             link_probes_history = eval(link_probes_history_stream.read())
+            print(link_probes_history)
     except Exception:
         # If the history file is not present, ignore, will create one in the end.
         pass
