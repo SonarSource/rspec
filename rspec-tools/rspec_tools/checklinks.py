@@ -4,15 +4,47 @@ import requests
 import json
 from bs4 import BeautifulSoup
 from socket import timeout
+from datetime import datetime
 import pathlib
+
+TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
+LINK_PROBES_HISTORY_FILE = 'link_probes.history'
+link_probes_history = {}
 
 def show_files(filenames):
   for filename in filenames:
     print(filename)
 
+def load_url_probing_history():
+    global link_probes_history
+    try:
+        with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
+            print('Using the historical url probe results from ' + LINK_PROBES_HISTORY_FILE)
+            link_probes_history = eval(link_probes_history_stream.read())
+    except Exception:
+        # If the history file is not present, ignore, will create one in the end.
+        pass
+
+def save_url_probing_history():
+    global link_probes_history
+    with open(LINK_PROBES_HISTORY_FILE, 'w') as link_probes_history_stream:
+        link_probes_history_stream.write(str(link_probes_history))
+
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
               'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
+
+def rejuvenate_url(url: str):
+  global link_probes_history
+  link_probes_history[url] = datetime.now()
+
+def url_is_long_dead(url: str):
+  global link_probes_history
+  if url not in link_probes_history:
+    return True
+  last_time_up = link_probes_history[url]
+  print(f"{url} was reached most recently on {last_time_up}")
+  return TOLERABLE_LINK_DOWNTIME < (datetime.now() - last_time_up)
 
 def live_url(url: str, timeout=5):
   if url.startswith('#'):
@@ -105,7 +137,9 @@ def check_html_links(dir):
   print("Testing links")
   for url in urls:
     print(f"{url} in {len(urls[url])} files")
-    if not live_url(url, timeout=5):
+    if live_url(url, timeout=5):
+      rejuvenate_url(url)
+    elif url_is_long_dead(url):
       errors.append(url)
   if errors:
     confirmed_errors=[]
