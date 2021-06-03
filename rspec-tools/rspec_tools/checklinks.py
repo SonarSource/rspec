@@ -31,7 +31,9 @@ def load_url_probing_history():
   try:
     with open(LINK_PROBES_HISTORY_FILE, 'r') as link_probes_history_stream:
       print('Using the historical url probe results from ' + LINK_PROBES_HISTORY_FILE)
-      link_probes_history = eval(link_probes_history_stream.read())
+      blob = link_probes_history_stream.read()
+      print(blob)
+      link_probes_history = eval(blob)
       print(link_probes_history)
   except Exception as e:
     print(e)
