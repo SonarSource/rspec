@@ -63,8 +63,6 @@ def url_was_reached_recently(url: str):
 def live_url(url: str, timeout=5):
   if url.startswith('#'):
     return True
-  if url in EXCEPTIONS:
-    return True
   try:
     req = requests.Request('GET', url, headers = {'sec-ch-ua': '" Not A;Brand";v="99", "Chromium";v="90"',
                                                   'sec-ch-ua-mobile': '?0',
@@ -152,7 +150,11 @@ def check_html_links(dir):
   print("Testing links")
   for url in urls:
     print(f"{url} in {len(urls[url])} files")
-    if url_was_reached_recently(url):
+    if url in EXCEPTIONS:
+      global link_probes_history
+      link_probes_history.pop(url)
+      print("skip as an exception")
+    elif url_was_reached_recently(url):
       print("skip probing because it was reached recently")
     elif live_url(url, timeout=5):
       rejuvenate_url(url)
