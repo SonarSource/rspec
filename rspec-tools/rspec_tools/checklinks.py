@@ -57,7 +57,7 @@ def url_was_reached_recently(url: str):
     return False
   last_time_up = link_probes_history[url]
   spread = random.randrange(PROBING_SPREAD)
-  probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
+  probing_cooldown = PROBING_COOLDOWN + timedelta(minutes=spread)
   diff = (datetime.now() - last_time_up)
   print(f"comparing {probing_cooldown} with the difference: {diff}")
   return (datetime.now() - last_time_up) < probing_cooldown
