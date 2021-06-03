@@ -58,6 +58,8 @@ def url_was_reached_recently(url: str):
   last_time_up = link_probes_history[url]
   spread = random.randrange(PROBING_SPREAD)
   probing_cooldown = PROBING_COOLDOWN + datetime.timedelta(minutes=spread)
+  diff = (datetime.now() - last_time_up)
+  print(f"comparing {probing_cooldown} with the difference: {diff}")
   return (datetime.now() - last_time_up) < probing_cooldown
 
 def live_url(url: str, timeout=5):
@@ -153,7 +155,7 @@ def check_html_links(dir):
   for url in urls:
     print(f"{url} in {len(urls[url])} files")
     if url_was_reached_recently(url):
-      printf("skip probing because it was reached recently")
+      print("skip probing because it was reached recently")
     elif live_url(url, timeout=5):
       rejuvenate_url(url)
     elif url_is_long_dead(url):
