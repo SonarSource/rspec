@@ -10,29 +10,30 @@ import Box from '@material-ui/core/Box';
 
 import useStyles from './SearchPage.style';
 import { useSearch } from './utils/useSearch';
+import { useFetch } from './utils/useFetch';
 import {
   SearchParamSetter,
   useLocationSearch,
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
+import { IndexAggregates } from './types/IndexStore'
 
 export const SearchPage = () => {
   const classes = useStyles();
-  
+
   const pageSize = 20;
   const [query, setQuery] = useLocationSearchState('query', '');
 
   const [ruleType, setRuleType] = useLocationSearchState('types', 'ALL');
   const allRuleTypes: Record<string,string> = {
     'BUG': 'Bug',
-    'CODE_SMELL': 'Code Smell', 
+    'CODE_SMELL': 'Code Smell',
     'SECURITY_HOTSPOT': 'Security Hotspot',
     'VULNERABILITY': 'Vulnerability'
   };
 
   const [ruleTags, setRuleTags] = useLocationSearchState<string[]>('tags', [], value => value ? value.split(',') : []);
-  const allRuleTags = ["confusing", 'pitfall', 'clumsy', 'junit', 'tests']; // TODO: generate this list
 
   const [pageNumber, setPageNumber] = useLocationSearchState('page', 1, parseInt);
   const {setLocationSearch} = useLocationSearch();
@@ -43,6 +44,14 @@ export const SearchPage = () => {
     ruleTags,
     pageSize, pageNumber);
   const totalPages = numberOfHits ? Math.ceil(numberOfHits/pageSize) : 0;
+
+  let allRuleTags = ["confusing", 'pitfall', 'clumsy', 'junit', 'tests'];
+  const aggregatesDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-aggregates.json`;
+  const [aggregatesData, aggregatesDataError, aggregatesDataIsLoading] = useFetch<IndexAggregates>(aggregatesDataUrl);
+
+  if (aggregatesData && !aggregatesDataIsLoading && !aggregatesDataError) {
+    allRuleTags = Object.keys(aggregatesData.tags);
+  }
 
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
   if (loading) {

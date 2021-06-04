@@ -5,7 +5,7 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { IndexedRule, IndexStore, Severity } from '../types/IndexStore';
+import { IndexedRule, IndexStore, Severity, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
 
 const logger = rootLogger.child({ source: path.basename(__filename) })
@@ -24,11 +24,13 @@ export interface IndexedRuleWithDescription extends IndexedRule {
  * @param rulesPath Path to the directory containing aggregated metadata and rules
  *                  descriptions in HTML format.
  */
-export function buildIndexStore(rulesPath: string) {
+export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWithDescription>, IndexAggregates] {
   let ruleDirs = fs.readdirSync(rulesPath).filter((fileName) => {
     const fullpath = path.join(rulesPath, fileName);
     return fs.lstatSync(fullpath).isDirectory();
-  })
+  });
+  let allTags: { [id: string]: number } = {};
+  let allLangs: { [id: string]: number } = {};
   const indexedRecords = ruleDirs.map<[string, IndexedRuleWithDescription] | null>((ruleDir) => {
     const allLanguages = fs.readdirSync(path.join(rulesPath, ruleDir))
                             .filter((fileName) => fileName.endsWith('-metadata.json'))
@@ -72,6 +74,18 @@ export function buildIndexStore(rulesPath: string) {
           qualityProfiles.add(qualityProfile);
         }
       }
+      if (lang in allLangs) {
+        allLangs[lang] += 1;
+      } else {
+        allLangs[lang] = 1;
+      }
+      tags.forEach((tag) => {
+        if (tag in allTags) {
+          allTags[tag] += 1;
+        } else {
+          allTags[tag] = 1;
+        }
+      });
     });
 
     if (allLanguages.length < 1) {
@@ -104,7 +118,7 @@ export function buildIndexStore(rulesPath: string) {
 
   const filteredRecords = indexedRecords.filter((value) => value !== null) as [string, IndexedRuleWithDescription][];
 
-  return Object.fromEntries(filteredRecords);
+  return [Object.fromEntries(filteredRecords), {langs: allLangs, tags: allTags}];
 }
 
 /**
@@ -157,7 +171,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
  *                  descriptions in HTML format.
  */
 export function createIndexFiles(rulesPath: string) {
-  const indexStore = buildIndexStore(rulesPath);
+  const [indexStore, indexAggregates] = buildIndexStore(rulesPath);
   const searchIndex = buildSearchIndex(indexStore);
   const searchIndexJson = JSON.stringify(searchIndex);
   const searchIndexPath = path.join(rulesPath, "rule-index.json");
@@ -170,4 +184,7 @@ export function createIndexFiles(rulesPath: string) {
   const indexStorePath = path.join(rulesPath, "rule-index-store.json")
   fs.writeFileSync(indexStorePath, indexStoreJson, {encoding: 'utf8', flag: 'w'});
 
+  const aggregatesJson = JSON.stringify(indexAggregates);
+  const aggregatesPath = path.join(rulesPath, "rule-index-aggregates.json");
+  fs.writeFileSync(aggregatesPath, aggregatesJson, {encoding: 'utf8', flag: 'w'});
 }

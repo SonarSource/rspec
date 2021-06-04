@@ -7,7 +7,7 @@ import { buildSearchIndex, buildIndexStore, DESCRIPTION_SPLIT_REGEX } from '../s
 describe('index store generation', () => {
   test('merges rules metadata', () => {
     const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
-    const indexStore = buildIndexStore(rulesPath);
+    const [indexStore, _] = buildIndexStore(rulesPath);
     const ruleS3457 = indexStore['S3457'];
 
     expect(ruleS3457).toMatchObject({
@@ -22,7 +22,7 @@ describe('index store generation', () => {
 
   test('stores description words', () => {
     const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
-    const indexStore = buildIndexStore(rulesPath);
+    const [indexStore, _] = buildIndexStore(rulesPath);
     const ruleS3457 = indexStore['S3457'];
 
     const expectedWords = [
@@ -31,6 +31,24 @@ describe('index store generation', () => {
     ];
 
     expect(ruleS3457.descriptions).toEqual(expect.arrayContaining(expectedWords));
+  });
+
+  test('collect all tags', () => {
+    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const [_, aggregates] = buildIndexStore(rulesPath);
+    expect(aggregates.tags).toEqual({"based-on-misra": 1,
+                                     "cert": 4,
+                                     "clumsy": 4,
+                                     "confusing": 4,
+                                     "lock-in": 1});
+  });
+  test('collect all languages', () => {
+    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const [_, aggregates] = buildIndexStore(rulesPath);
+    expect(aggregates.langs).toEqual({"cfamily": 2,
+                                      "csharp": 1,
+                                      "java": 1,
+                                      "python": 1});
   });
 });
 
@@ -79,7 +97,7 @@ describe('search index enables search by title and description words', () => {
 
   function createIndex() {
     const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
-    const indexStore = buildIndexStore(rulesPath);
+    const [indexStore, _] = buildIndexStore(rulesPath);
 
     // Hack to avoid warnings when 'selectivePipeline' is already registered
     if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {

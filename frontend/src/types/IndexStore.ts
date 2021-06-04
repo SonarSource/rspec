@@ -5,12 +5,17 @@ export interface IndexedRule {
     languages: string[];
     // FIXME: type, defaultSeverity should never be null but the index generation has a bug
     type: 'BUG'|'CODE_SMELL'|'VULNERABILITY'|'SECURITY_HOTSPOT';
-    severities: Severity[],
-    titles: string[],
-    tags: string[],
+    severities: Severity[];
+    titles: string[];
+    tags: string[];
     // FIXME: quality profiles seem to always be empty
-    qualityProfiles: string[],
-    prUrl?: string
+    qualityProfiles: string[];
+    prUrl?: string;
 }
 
 export type IndexStore = Record<string, IndexedRule>
+
+export interface IndexAggregates {
+    langs: { [id: string]: number };
+    tags: { [id: string]: number };
+}
