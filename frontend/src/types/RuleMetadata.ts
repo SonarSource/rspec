@@ -1,5 +1,7 @@
 export default interface RuleMetadata {
   title: string,
   all_languages: string[],
-  allKeys: string[]
+  allKeys: string[],
+  branch: string,
+  prUrl?: string
 }

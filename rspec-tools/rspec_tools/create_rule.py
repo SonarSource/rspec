@@ -65,7 +65,7 @@ class RuleCreator:
 
   def create_new_rule_branch(self, rule_number: int, languages: Iterable[str]) -> str:
     '''Create all the files required for a new rule.'''
-    branch_name = f'add-RSPEC-S{rule_number}'
+    branch_name = f'rule/add-RSPEC-S{rule_number}'
     with self._current_git_branch(self.MASTER_BRANCH, branch_name):
       repo_dir = Path(self.repository.working_dir)
       rule_dir = repo_dir.joinpath('rules', f'S{rule_number}')
@@ -121,8 +121,11 @@ class RuleCreator:
     else:
       github = Github(token)
     github_repo = github.get_repo(repository_url)
+    first_lang = next(iter(languages))
     pull_request = github_repo.create_pull(
-      title=f'Create rule S{rule_number}', body='', head=branch_name, base=self.MASTER_BRANCH,
+      title=f'Create rule S{rule_number}',
+      body=f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).',
+      head=branch_name, base=self.MASTER_BRANCH,
       draft=True, maintainer_can_modify=True
     )
     click.echo(f'Created rule Pull Request {pull_request.html_url}')
