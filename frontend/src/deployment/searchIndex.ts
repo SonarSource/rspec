@@ -103,7 +103,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
 
     const indexedRecord: IndexedRuleWithDescription = {
       id: ruleDir,
-      languages: allLanguages,
+      languages: allLanguages.sort(),
       type: types.values().next().value,
       severities: Array.from(severities).sort(),
       titles: Array.from(titles).sort(),
@@ -149,6 +149,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
       this.ref('id');
       this.field('titles');
       this.field('type');
+      this.field('languages');
       this.field('defaultSeverity');
       this.field('tags');
       this.field('qualityProfiles');

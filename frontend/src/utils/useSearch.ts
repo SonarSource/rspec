@@ -5,7 +5,8 @@ import * as lunr from 'lunr'
 import { useFetch } from './useFetch';
 import { IndexedRule, IndexStore } from '../types/IndexStore';
 
-export function useSearch(query: string, ruleType: string|null, ruleTags: string[], pageSize: number, pageNumber: number) {
+export function useSearch(query: string, ruleType: string|null, ruleLang: string|null, ruleTags: string[],
+                          pageSize: number, pageNumber: number) {
   let indexDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index.json`;
   let storeDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-store.json`;
 
@@ -44,6 +45,14 @@ export function useSearch(query: string, ruleType: string|null, ruleTags: string
             });
           }
 
+          if (ruleLang) {
+            q.term(ruleLang.toLowerCase(), {
+              fields: ['languages'],
+              presence: lunr.Query.presence.REQUIRED,
+              usePipeline: false
+            });
+          }
+
           // Add rule tags filter
           ruleTags.forEach(ruleTag => {
             q.term(ruleTag, {
@@ -56,8 +65,8 @@ export function useSearch(query: string, ruleType: string|null, ruleTags: string
           // Search for each query token in titles and descriptions
           lunr.tokenizer(query).forEach(token => {
             q.term(token, {fields: ['titles', 'descriptions'], presence: lunr.Query.presence.REQUIRED})
-          })
-          
+          });
+
         });
       } catch (exception) {
         if (exception instanceof lunr.QueryParseError) {
@@ -73,7 +82,7 @@ export function useSearch(query: string, ruleType: string|null, ruleTags: string
         setResultsAreLoading(false);
       }
     }
-  }, [query, ruleType, ruleTags, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
+  }, [query, ruleType, ruleLang, ruleTags, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
 
   return {results, numberOfHits, error, loading};
 }
