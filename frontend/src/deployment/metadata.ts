@@ -7,8 +7,11 @@ import { getRulesDirectories, listSupportedLanguage } from './utils';
  * Generate rule metadata (for all relevant languages) and write it in the destination directory.
  * @param srcDir directory containing the original rule metadata and description.
  * @param dstDir directory where the generated metadata and description will be written.
+ * @param branch the branch containing the given version of the rule. Typically 'master' but can be different for not merged rules.
+ * @param prUrl optional link to the PR adding the rule. absent for merged rules.
  */
-export function generate_one_rule_metadata(srcDir: string, dstDir: string, prUrl?: string) {
+export function generate_one_rule_metadata(srcDir: string, dstDir: string,
+                                           branch: string, prUrl?: string) {
   fs.mkdirSync(dstDir, { recursive: true });
   const allLanguages = listSupportedLanguage(srcDir);
   const allMetadata = allLanguages.map((language) => {
@@ -28,6 +31,7 @@ export function generate_one_rule_metadata(srcDir: string, dstDir: string, prUrl
     if (prUrl) {
       metadata.prUrl = prUrl;
     }
+    metadata.branch = branch;
   });
 
   for (const { language, metadata } of allMetadata) {
@@ -44,7 +48,7 @@ export function generate_one_rule_metadata(srcDir: string, dstDir: string, prUrl
  */
 export function generate_rules_metadata(srcPath: string, dstPath: string, rules?: string[]) {
   for (const { srcDir, dstDir } of getRulesDirectories(srcPath, dstPath, rules)) {
-    generate_one_rule_metadata(srcDir, dstDir);
+    generate_one_rule_metadata(srcDir, dstDir, 'master');
   }
 }
 
