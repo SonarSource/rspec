@@ -33,26 +33,49 @@ describe('index store generation', () => {
     expect(ruleS3457.descriptions).toEqual(expect.arrayContaining(expectedWords));
   });
 
-  test('collect all tags', () => {
+  test('collects all tags', () => {
     const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
     const [_, aggregates] = buildIndexStore(rulesPath);
     expect(aggregates.tags).toEqual({"based-on-misra": 1,
-                                     "cert": 4,
+                                     "cert": 5,
                                      "clumsy": 4,
                                      "confusing": 4,
-                                     "lock-in": 1});
+                                     "lock-in": 1,
+                                     "misra-c++2008": 1,
+                                     "pitfall": 1});
   });
-  test('collect all languages', () => {
+
+  test('collects all languages', () => {
     const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
     const [_, aggregates] = buildIndexStore(rulesPath);
-    expect(aggregates.langs).toEqual({"cfamily": 2,
+    expect(aggregates.langs).toEqual({"cfamily": 3,
                                       "csharp": 1,
                                       "java": 1,
                                       "python": 1});
   });
+
+  test('collects all rule keys', () => {
+    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const [indexStore, _] = buildIndexStore(rulesPath);
+    expect(indexStore['S3457'].all_keys).toEqual(['RSPEC-3457', 'S3457']);
+    expect(indexStore['S1000'].all_keys).toEqual(['RSPEC-1000', 'S1000', 'UnnamedNamespaceInHeader']);
+    expect(indexStore['S987'].all_keys).toEqual(['PPIncludeSignal', 'RSPEC-987', 'S987']);
+  });
 });
 
 describe('search index enables search by title and description words', () => {
+  test('searches in rule keys', () => {
+    const searchIndex = createIndex();
+    const searchesS3457 = search(searchIndex, 'S3457', 'all_keys');
+    expect(searchesS3457).toEqual(['S3457']);
+
+    const searchesS987 = search(searchIndex, 'ppincludesignal', 'all_keys');
+    expect(searchesS987).toEqual(['S987']);
+
+    const searchesS1000 = search(searchIndex, 'UnnamedNamespaceInHeader', 'all_keys');
+    expect(searchesS1000).toEqual(['S1000']);
+  });
+
   test('searches in rule description', () => {
     const searchIndex = createIndex();
     const searchesS3457 = search(searchIndex, 'Because printf-style format', 'descriptions');
@@ -65,7 +88,7 @@ describe('search index enables search by title and description words', () => {
     expect(searchesUnknown).toHaveLength(0);
 
     const searchesBothRules = search(searchIndex, 'Noncompliant Code Example', 'descriptions');
-    expect(searchesBothRules.sort()).toEqual(['S3457', 'S987'].sort());
+    expect(searchesBothRules.sort()).toEqual(['S1000', 'S3457', 'S987'].sort());
   });
 
   test('searches in rule title', () => {
@@ -86,7 +109,7 @@ describe('search index enables search by title and description words', () => {
   test('searches in rule tags', () => {
     const searchIndex = createIndex();
     const searchesS3457 = search(searchIndex, 'cert', 'tags');
-    expect(searchesS3457).toEqual(['S3457']);
+    expect(searchesS3457).toEqual(['S1000', 'S3457']);
 
     const searchesS987 = search(searchIndex, 'based-on-misra', 'tags');
     expect(searchesS987).toEqual(['S987']);
@@ -105,10 +128,10 @@ describe('search index enables search by title and description words', () => {
     }
     return buildSearchIndex(indexStore);
   }
-  
+
   function search(index: lunr.Index, query: string, field: string): string[] {
     const hits = index.query(q => {
-      if (field === 'titles' || field === 'descriptions') {
+      if (field === 'all_keys' || field === 'titles' || field === 'descriptions') {
         lunr.tokenizer(query).forEach(token => {
           q.term(token, {fields: [field], presence: lunr.Query.presence.REQUIRED})
         })
