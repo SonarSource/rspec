@@ -18,4 +18,5 @@ export type IndexStore = Record<string, IndexedRule>
 export interface IndexAggregates {
     langs: { [id: string]: number };
     tags: { [id: string]: number };
+    qualityProfiles: { [id: string]: number };
 }

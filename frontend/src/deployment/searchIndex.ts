@@ -31,6 +31,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
   });
   let allTags: { [id: string]: number } = {};
   let allLangs: { [id: string]: number } = {};
+  let allQualityProfiles: { [id: string]: number } = {};
   const indexedRecords = ruleDirs.map<[string, IndexedRuleWithDescription] | null>((ruleDir) => {
     const allLanguages = fs.readdirSync(path.join(rulesPath, ruleDir))
                             .filter((fileName) => fileName.endsWith('-metadata.json'))
@@ -90,6 +91,13 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
         }
       });
     });
+    qualityProfiles.forEach((qualityProfile) => {
+      if (qualityProfile in allQualityProfiles) {
+        allQualityProfiles[qualityProfile] += 1;
+      } else {
+        allQualityProfiles[qualityProfile] = 1;
+      }
+    });
 
     if (allLanguages.length < 1) {
       logger.error(`No languages found for rule ${ruleDir}, at least 1 is required`);
@@ -122,7 +130,8 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
 
   const filteredRecords = indexedRecords.filter((value) => value !== null) as [string, IndexedRuleWithDescription][];
 
-  return [Object.fromEntries(filteredRecords), {langs: allLangs, tags: allTags}];
+  return [Object.fromEntries(filteredRecords),
+          {langs: allLangs, tags: allTags, qualityProfiles: allQualityProfiles}];
 }
 
 /**

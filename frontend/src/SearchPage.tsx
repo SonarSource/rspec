@@ -34,6 +34,7 @@ export const SearchPage = () => {
   };
 
   const [ruleTags, setRuleTags] = useLocationSearchState<string[]>('tags', [], value => value ? value.split(',') : []);
+  const [qualityProfiles, setQualityProfiles] = useLocationSearchState<string[]>('qualityProfiles', [], value => value ? value.split(',') : []);
   const [ruleLang, setLanguage] = useLocationSearchState('lang', 'ANY');
 
   const [pageNumber, setPageNumber] = useLocationSearchState('page', 1, parseInt);
@@ -44,17 +45,20 @@ export const SearchPage = () => {
     ruleType === 'ANY' ? null : ruleType,
     ruleLang === 'ANY' ? null : ruleLang,
     ruleTags,
+    qualityProfiles,
     pageSize, pageNumber);
   const totalPages = numberOfHits ? Math.ceil(numberOfHits/pageSize) : 0;
 
   let allRuleTags = ['confusing', 'pitfall', 'clumsy', 'junit', 'tests'];
   let allLangs:string[] = [];
+  let allQualityProfiles = ['Sonar way', 'Sonar way recommended'];
   const aggregatesDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-aggregates.json`;
   const [aggregatesData, aggregatesDataError, aggregatesDataIsLoading] = useFetch<IndexAggregates>(aggregatesDataUrl);
 
   if (aggregatesData && !aggregatesDataIsLoading && !aggregatesDataError) {
     allRuleTags = Object.keys(aggregatesData.tags);
     allLangs = Object.keys(aggregatesData.langs);
+    allQualityProfiles = Object.keys(aggregatesData.qualityProfiles);
   }
 
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
@@ -69,12 +73,18 @@ export const SearchPage = () => {
     )
   }
 
-  const paramSetters: Record<string, SearchParamSetter<any>> = {types: setRuleType, tags: setRuleTags, lang:setLanguage, query: setQuery};
+  const paramSetters: Record<string, SearchParamSetter<any>> = {
+    types: setRuleType,
+    tags: setRuleTags,
+    qualityProfiles: setQualityProfiles,
+    lang:setLanguage,
+    query: setQuery
+  };
   function handleUpdate(field: string) {
     return function(event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) {
       if (pageNumber > 1) {
         const uriSearch: Record<string, any> = {
-          query: query, types: ruleType, tags: ruleTags, lang: ruleLang, page: 1
+          query: query, types: ruleType, tags: ruleTags, qualityProfiles: qualityProfiles, lang: ruleLang, page: 1
         };
         uriSearch[field] = event.target.value;
         setLocationSearch(uriSearch);
@@ -145,9 +155,9 @@ export const SearchPage = () => {
           value={ruleTags}
           onChange={handleUpdate('tags')}
         >
-          {allRuleTags.map((ruleType) => (
-            <MenuItem key={ruleType} value={ruleType}>
-              {ruleType}
+          {allRuleTags.map((ruleTag) => (
+            <MenuItem key={ruleTag} value={ruleTag}>
+              {ruleTag}
             </MenuItem>
           ))}
         </TextField>
@@ -168,6 +178,29 @@ export const SearchPage = () => {
           {allLangs.map((lang) => (
             <MenuItem key={lang} value={lang}>
               {lang}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid item xs={12}>
+      <TextField
+          select
+          fullWidth
+          SelectProps={{
+            multiple: true,
+            renderValue: (selected: any) => {
+              return selected.join(', ');
+            }
+          }}
+          margin="normal"
+          variant="outlined"
+          label="Default Quality Profiles"
+          value={qualityProfiles}
+          onChange={handleUpdate('qualityProfiles')}
+        >
+          {allQualityProfiles.map((qualityProfile) => (
+            <MenuItem key={qualityProfile} value={qualityProfile}>
+              {qualityProfile}
             </MenuItem>
           ))}
         </TextField>

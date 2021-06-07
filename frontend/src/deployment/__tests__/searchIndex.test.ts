@@ -61,7 +61,27 @@ describe('index store generation', () => {
     expect(indexStore['S1000'].all_keys).toEqual(['RSPEC-1000', 'S1000', 'UnnamedNamespaceInHeader']);
     expect(indexStore['S987'].all_keys).toEqual(['PPIncludeSignal', 'RSPEC-987', 'S987']);
   });
+
+  test('collects all quality profiles', () => {
+    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const [_, aggregates] = buildIndexStore(rulesPath);
+    expect(aggregates.qualityProfiles).toEqual({
+      "MISRA C++ 2008 recommended": 2,
+      "Sonar way": 2});
+  });
 });
+
+function createIndex() {
+  const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+  const [indexStore, _] = buildIndexStore(rulesPath);
+
+  // Hack to avoid warnings when 'selectivePipeline' is already registered
+  if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
+    delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline']
+  }
+  return buildSearchIndex(indexStore);
+}
+
 
 describe('search index enables search by title and description words', () => {
   test('searches in rule keys', () => {
@@ -106,6 +126,18 @@ describe('search index enables search by title and description words', () => {
     expect(searchesBothRules.sort()).toEqual(['S3457', 'S987'].sort());
   });
 
+  function search(index: lunr.Index, query: string, field: string): string[] {
+    const hits = index.query(q => {
+      lunr.tokenizer(query).forEach(token => {
+        q.term(token, {fields: [field], presence: lunr.Query.presence.REQUIRED})
+      })
+    });
+    return hits.map(({ ref }) => ref)
+  }
+});
+
+describe('search index enables search by tags and quality profiles', () => {
+
   test('searches in rule tags', () => {
     const searchIndex = createIndex();
     const searchesS3457 = search(searchIndex, 'cert', 'tags');
@@ -118,30 +150,22 @@ describe('search index enables search by title and description words', () => {
     expect(searchesUnknown).toHaveLength(0);
   });
 
-  function createIndex() {
-    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
-    const [indexStore, _] = buildIndexStore(rulesPath);
+  test('searches in rule quality profiles', () => {
+    const searchIndex = createIndex();
+    const searchesS3457 = search(searchIndex, 'sonar way', 'qualityProfiles');
+    expect(searchesS3457).toEqual(['S1000', 'S3457']);
 
-    // Hack to avoid warnings when 'selectivePipeline' is already registered
-    if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
-      delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline']
-    }
-    return buildSearchIndex(indexStore);
-  }
+    const searchesS3457 = search(searchIndex, 'non-existent', 'qualityProfiles');
+    expect(searchesS3457).toEqual([]);
+  });
 
   function search(index: lunr.Index, query: string, field: string): string[] {
     const hits = index.query(q => {
-      if (field === 'all_keys' || field === 'titles' || field === 'descriptions') {
-        lunr.tokenizer(query).forEach(token => {
-          q.term(token, {fields: [field], presence: lunr.Query.presence.REQUIRED})
-        })
-      } else if (field === 'tags') {
-        q.term(query, {
-          fields: ['tags'],
-          presence: lunr.Query.presence.REQUIRED,
-          usePipeline: false
-        });
-      }
+      q.term(query, {
+        fields: [field],
+        presence: lunr.Query.presence.REQUIRED,
+        usePipeline: false
+      });
     });
     return hits.map(({ ref }) => ref)
   }
