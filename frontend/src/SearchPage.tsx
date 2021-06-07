@@ -125,7 +125,7 @@ export const SearchPage = () => {
           fullWidth
           margin="normal"
           variant="outlined"
-          label="Rule types"
+          label="Rule type"
           value={ruleType}
           onChange={handleUpdate('types')}
         >
