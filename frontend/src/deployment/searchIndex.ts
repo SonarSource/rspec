@@ -73,7 +73,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
         }
       }
       if (metadata.defaultQualityProfiles) {
-        for (const qualityProfile of metadata.defaultQualityProfiles.values()) {
+        for (const qualityProfile of metadata.defaultQualityProfiles) {
           qualityProfiles.add(qualityProfile);
         }
       }

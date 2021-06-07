@@ -9,7 +9,6 @@ export interface IndexedRule {
     all_keys: string[];
     titles: string[];
     tags: string[];
-    // FIXME: quality profiles seem to always be empty
     qualityProfiles: string[];
     prUrl?: string;
 }
