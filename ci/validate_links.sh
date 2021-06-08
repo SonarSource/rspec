@@ -8,7 +8,7 @@ ls -al $CACHE_PATH
 
 [ -f "$CACHE_PATH/link_probes.history" ] && cp "$CACHE_PATH/link_probes.history" ./rspec-tools/
 
-./generate_html.sh
+./ci/generate_html.sh
 
 #validate links in asciidoc
 cd rspec-tools
