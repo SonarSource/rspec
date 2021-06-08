@@ -49,7 +49,7 @@ export const SearchPage = () => {
     pageSize, pageNumber);
   const totalPages = numberOfHits ? Math.ceil(numberOfHits/pageSize) : 0;
 
-  let allRuleTags = ['confusing', 'pitfall', 'clumsy', 'junit', 'tests'];
+  let allRuleTags:string[] = [];
   let allLangs:string[] = [];
   let allQualityProfiles = ['Sonar way', 'Sonar way recommended'];
   const aggregatesDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-aggregates.json`;
