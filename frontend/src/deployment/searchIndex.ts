@@ -5,7 +5,7 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { IndexedRule, IndexStore, Severity } from '../types/IndexStore';
+import { IndexedRule, IndexStore, Severity, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
 
 const logger = rootLogger.child({ source: path.basename(__filename) })
@@ -24,11 +24,14 @@ export interface IndexedRuleWithDescription extends IndexedRule {
  * @param rulesPath Path to the directory containing aggregated metadata and rules
  *                  descriptions in HTML format.
  */
-export function buildIndexStore(rulesPath: string) {
+export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWithDescription>, IndexAggregates] {
   let ruleDirs = fs.readdirSync(rulesPath).filter((fileName) => {
     const fullpath = path.join(rulesPath, fileName);
     return fs.lstatSync(fullpath).isDirectory();
-  })
+  });
+  let allTags: { [id: string]: number } = {};
+  let allLangs: { [id: string]: number } = {};
+  let allQualityProfiles: { [id: string]: number } = {};
   const indexedRecords = ruleDirs.map<[string, IndexedRuleWithDescription] | null>((ruleDir) => {
     const allLanguages = fs.readdirSync(path.join(rulesPath, ruleDir))
                             .filter((fileName) => fileName.endsWith('-metadata.json'))
@@ -36,6 +39,7 @@ export function buildIndexStore(rulesPath: string) {
 
     let types = new Set<string>();
     let severities = new Set<Severity>();
+    const all_keys = new Set<string>([ruleDir]);
     const titles = new Set<string>();
     const tags = new Set<string>();
     const qualityProfiles = new Set<string>();
@@ -59,6 +63,8 @@ export function buildIndexStore(rulesPath: string) {
       if (metadata.prUrl) {
         prUrl = metadata.prUrl;
       }
+      all_keys.add(metadata.sqKey);
+      all_keys.add(metadata.ruleSpecification);
       titles.add(metadata.title);
       types.add(metadata.type);
       severities.add(metadata.defaultSeverity as Severity);
@@ -68,9 +74,28 @@ export function buildIndexStore(rulesPath: string) {
         }
       }
       if (metadata.defaultQualityProfiles) {
-        for (const qualityProfile of metadata.defaultQualityProfiles.values()) {
+        for (const qualityProfile of metadata.defaultQualityProfiles) {
           qualityProfiles.add(qualityProfile);
         }
+      }
+      if (lang in allLangs) {
+        allLangs[lang] += 1;
+      } else {
+        allLangs[lang] = 1;
+      }
+      tags.forEach((tag) => {
+        if (tag in allTags) {
+          allTags[tag] += 1;
+        } else {
+          allTags[tag] = 1;
+        }
+      });
+    });
+    qualityProfiles.forEach((qualityProfile) => {
+      if (qualityProfile in allQualityProfiles) {
+        allQualityProfiles[qualityProfile] += 1;
+      } else {
+        allQualityProfiles[qualityProfile] = 1;
       }
     });
 
@@ -89,9 +114,10 @@ export function buildIndexStore(rulesPath: string) {
 
     const indexedRecord: IndexedRuleWithDescription = {
       id: ruleDir,
-      languages: allLanguages,
+      languages: allLanguages.sort(),
       type: types.values().next().value,
       severities: Array.from(severities).sort(),
+      all_keys: Array.from(all_keys).sort(),
       titles: Array.from(titles).sort(),
       tags: Array.from(tags).sort(),
       qualityProfiles: Array.from(qualityProfiles).sort(),
@@ -104,7 +130,8 @@ export function buildIndexStore(rulesPath: string) {
 
   const filteredRecords = indexedRecords.filter((value) => value !== null) as [string, IndexedRuleWithDescription][];
 
-  return Object.fromEntries(filteredRecords);
+  return [Object.fromEntries(filteredRecords),
+          {langs: allLangs, tags: allTags, qualityProfiles: allQualityProfiles}];
 }
 
 /**
@@ -117,12 +144,12 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
     // it is not declared in the Token class. Thus we cast as any here.
     const fields = (token as any).metadata["fields"];
     // process only titles and descriptions
-    if (fields.includes('titles') || fields.includes('descriptions') ) {
+    if (fields.includes('all_keys') || fields.includes('titles') || fields.includes('descriptions') ) {
       // We don't use the stopword filter to allow words such as "do", "while", "for"
       const trimmed = lunr.trimmer(token);
       return lunr.stemmer(trimmed);
     }
-    return token;        
+    return token;
   }
 
   lunr.Pipeline.registerFunction(selectivePipeline, 'selectivePipeline');
@@ -135,10 +162,12 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
       this.ref('id');
       this.field('titles');
       this.field('type');
+      this.field('languages');
       this.field('defaultSeverity');
       this.field('tags');
       this.field('qualityProfiles');
       this.field('descriptions');
+      this.field('all_keys');
 
       for (const searchRecord of Object.values(ruleIndexStore)) {
           const transformedRecord: any = { ...searchRecord };
@@ -157,7 +186,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
  *                  descriptions in HTML format.
  */
 export function createIndexFiles(rulesPath: string) {
-  const indexStore = buildIndexStore(rulesPath);
+  const [indexStore, indexAggregates] = buildIndexStore(rulesPath);
   const searchIndex = buildSearchIndex(indexStore);
   const searchIndexJson = JSON.stringify(searchIndex);
   const searchIndexPath = path.join(rulesPath, "rule-index.json");
@@ -170,4 +199,7 @@ export function createIndexFiles(rulesPath: string) {
   const indexStorePath = path.join(rulesPath, "rule-index-store.json")
   fs.writeFileSync(indexStorePath, indexStoreJson, {encoding: 'utf8', flag: 'w'});
 
+  const aggregatesJson = JSON.stringify(indexAggregates);
+  const aggregatesPath = path.join(rulesPath, "rule-index-aggregates.json");
+  fs.writeFileSync(aggregatesPath, aggregatesJson, {encoding: 'utf8', flag: 'w'});
 }

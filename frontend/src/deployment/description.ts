@@ -31,6 +31,7 @@ asciidoc.LoggerManager.setLogger(winstonLogger);
  * @param dstDir directory where the generated rules metadata and description will be written.
  */
 export function generate_one_rule_description(srcDir: string, dstDir: string) {
+  fs.mkdirSync(dstDir, { recursive: true });
   const all_languages = listSupportedLanguage(srcDir);
   for (const language of all_languages) {
     const html = generate_rule_description(srcDir, language);
