@@ -56,9 +56,9 @@ export const SearchPage = () => {
   const [aggregatesData, aggregatesDataError, aggregatesDataIsLoading] = useFetch<IndexAggregates>(aggregatesDataUrl);
 
   if (aggregatesData && !aggregatesDataIsLoading && !aggregatesDataError) {
-    allRuleTags = Object.keys(aggregatesData.tags);
-    allLangs = Object.keys(aggregatesData.langs);
-    allQualityProfiles = Object.keys(aggregatesData.qualityProfiles);
+    allRuleTags = Object.keys(aggregatesData.tags).sort();
+    allLangs = Object.keys(aggregatesData.langs).sort();
+    allQualityProfiles = Object.keys(aggregatesData.qualityProfiles).sort();
   }
 
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
