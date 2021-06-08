@@ -27,11 +27,11 @@ do
   if [[ "$subdircount" -eq 1 ]]
   then
     # no specializations, that's fine if the rule is deprecated
-    if grep -q '"status": "deprecated"' "$dir/metadata.json"; then
-        echo "INFO: deprecated generic rule $dir with no language specializations"
+    if grep -q '"status": "deprecated"\|"status": "closed"' "$dir/metadata.json"; then
+      echo "INFO: deprecated generic rule $dir with no language specializations"
     else
-        echo "ERROR: non-deprecated generic rule $dir with no language specializations"
-        exit_code=1
+      echo "ERROR: non-deprecated generic rule $dir with no language specializations"
+      exit_code=1
     fi
   else
     #validate asciidoc
