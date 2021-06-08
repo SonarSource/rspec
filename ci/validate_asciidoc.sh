@@ -1,7 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 
-./generate_html.sh
+./ci/generate_html.sh
 
 exit_code=0
 
