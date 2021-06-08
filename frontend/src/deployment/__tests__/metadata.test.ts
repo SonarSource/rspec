@@ -72,17 +72,21 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_one_rule_metadata(path.join(srcPath, 'S100'), path.join(dstPath, 'S100'));
+        generate_one_rule_metadata(path.join(srcPath, 'S100'), path.join(dstPath, 'S100'), 'master');
 
         const s100StrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const s100Metadata = JSON.parse(s100StrMetadata.toString());
+        expect(Object.keys(s100Metadata)).toContain('branch');
+        expect(s100Metadata.branch).toEqual('master');
         expect(Object.keys(s100Metadata)).not.toContain('prUrl');
 
-        generate_one_rule_metadata(path.join(srcPath, 'S200'), path.join(dstPath, 'S200'), 'https://some.pr/url');
+        generate_one_rule_metadata(path.join(srcPath, 'S200'), path.join(dstPath, 'S200'), 'add-my-rule', 'https://some.pr/url');
+
 
         const s200StrMetadata = fs.readFileSync(`${dstPath}/S200/java-metadata.json`);
         const s200Metadata = JSON.parse(s200StrMetadata.toString());
         expect(Object.keys(s200Metadata)).toContain('prUrl');
+        expect(s200Metadata.branch).toEqual('add-my-rule');
         expect(s200Metadata.prUrl).toEqual('https://some.pr/url');
       });
     });

@@ -152,11 +152,11 @@ describe('search index enables search by tags and quality profiles', () => {
 
   test('searches in rule quality profiles', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = search(searchIndex, 'sonar way', 'qualityProfiles');
-    expect(searchesS3457).toEqual(['S1000', 'S3457']);
+    const searchesSonarWay = search(searchIndex, 'sonar way', 'qualityProfiles');
+    expect(searchesSonarWay).toEqual(['S1000', 'S3457']);
 
-    const searchesS3457 = search(searchIndex, 'non-existent', 'qualityProfiles');
-    expect(searchesS3457).toEqual([]);
+    const filtersAll = search(searchIndex, 'non-existent', 'qualityProfiles');
+    expect(filtersAll).toEqual([]);
   });
 
   function search(index: lunr.Index, query: string, field: string): string[] {
