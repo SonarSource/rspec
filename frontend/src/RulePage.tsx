@@ -108,6 +108,7 @@ const languageToGithubProject = new Map(Object.entries({
 export function RulePage(props: any) {
   const ruleid = props.match.params.ruleid;
   const language = props.match.params.language;
+  document.title = ruleid;
 
   const history = useHistory();
   function handleLanguageChange(event: any, lang: string) {

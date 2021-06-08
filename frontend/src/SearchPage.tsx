@@ -20,6 +20,7 @@ import { SearchHit } from './SearchHit';
 import { IndexAggregates } from './types/IndexStore'
 
 export const SearchPage = () => {
+  document.title = "Search"
   const classes = useStyles();
 
   const pageSize = 20;
