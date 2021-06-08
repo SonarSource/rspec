@@ -10,39 +10,56 @@ import Box from '@material-ui/core/Box';
 
 import useStyles from './SearchPage.style';
 import { useSearch } from './utils/useSearch';
+import { useFetch } from './utils/useFetch';
 import {
   SearchParamSetter,
   useLocationSearch,
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
+import { IndexAggregates } from './types/IndexStore'
 
 export const SearchPage = () => {
   const classes = useStyles();
-  
+
   const pageSize = 20;
   const [query, setQuery] = useLocationSearchState('query', '');
 
-  const [ruleType, setRuleType] = useLocationSearchState('types', 'ALL');
+  const [ruleType, setRuleType] = useLocationSearchState('types', 'ANY');
   const allRuleTypes: Record<string,string> = {
     'BUG': 'Bug',
-    'CODE_SMELL': 'Code Smell', 
+    'CODE_SMELL': 'Code Smell',
     'SECURITY_HOTSPOT': 'Security Hotspot',
     'VULNERABILITY': 'Vulnerability'
   };
 
   const [ruleTags, setRuleTags] = useLocationSearchState<string[]>('tags', [], value => value ? value.split(',') : []);
-  const allRuleTags = ["confusing", 'pitfall', 'clumsy', 'junit', 'tests']; // TODO: generate this list
+  const [qualityProfiles, setQualityProfiles] = useLocationSearchState<string[]>('qualityProfiles', [], value => value ? value.split(',') : []);
+  const [ruleLang, setLanguage] = useLocationSearchState('lang', 'ANY');
 
   const [pageNumber, setPageNumber] = useLocationSearchState('page', 1, parseInt);
   const {setLocationSearch} = useLocationSearch();
 
 
   const {results, numberOfHits, error, loading} = useSearch(query,
-    ruleType === "ALL" ? null : ruleType,
+    ruleType === 'ANY' ? null : ruleType,
+    ruleLang === 'ANY' ? null : ruleLang,
     ruleTags,
+    qualityProfiles,
     pageSize, pageNumber);
   const totalPages = numberOfHits ? Math.ceil(numberOfHits/pageSize) : 0;
+
+  let allRuleTags:string[] = [];
+  let allLangs:string[] = [];
+  let allQualityProfiles = ['Sonar way', 'Sonar way recommended'];
+  const aggregatesDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-aggregates.json`;
+  const [aggregatesData, aggregatesDataError, aggregatesDataIsLoading] = useFetch<IndexAggregates>(aggregatesDataUrl);
+
+  if (aggregatesData && !aggregatesDataIsLoading && !aggregatesDataError) {
+    allRuleTags = Object.keys(aggregatesData.tags).sort();
+    allLangs = Object.keys(aggregatesData.langs).sort();
+    allQualityProfiles = Object.keys(aggregatesData.qualityProfiles).sort();
+  }
 
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
   if (loading) {
@@ -56,12 +73,18 @@ export const SearchPage = () => {
     )
   }
 
-  const paramSetters: Record<string, SearchParamSetter<any>> = {types: setRuleType, tags: setRuleTags, query: setQuery};
+  const paramSetters: Record<string, SearchParamSetter<any>> = {
+    types: setRuleType,
+    tags: setRuleTags,
+    qualityProfiles: setQualityProfiles,
+    lang:setLanguage,
+    query: setQuery
+  };
   function handleUpdate(field: string) {
     return function(event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) {
       if (pageNumber > 1) {
         const uriSearch: Record<string, any> = {
-          query: query, types: ruleType, tags: ruleTags, page: 1
+          query: query, types: ruleType, tags: ruleTags, qualityProfiles: qualityProfiles, lang: ruleLang, page: 1
         };
         uriSearch[field] = event.target.value;
         setLocationSearch(uriSearch);
@@ -91,7 +114,7 @@ export const SearchPage = () => {
             }}
             variant="outlined"
             value={query}
-            onChange={handleUpdate("query")}
+            onChange={handleUpdate('query')}
             error={!!error}
             helperText={error}
         />
@@ -102,12 +125,12 @@ export const SearchPage = () => {
           fullWidth
           margin="normal"
           variant="outlined"
-          label="Rule types"
+          label="Rule type"
           value={ruleType}
-          onChange={handleUpdate("types")}
+          onChange={handleUpdate('types')}
         >
-          <MenuItem key="All" value="ALL">
-            All
+          <MenuItem key="Any" value="ANY">
+            Any
           </MenuItem>
           {Object.keys(allRuleTypes).map((ruleType) => (
             <MenuItem key={ruleType} value={ruleType}>
@@ -116,7 +139,7 @@ export const SearchPage = () => {
           ))}
         </TextField>
       </Grid>
-      <Grid item xs={9}>
+      <Grid item xs={5}>
       <TextField
           select
           fullWidth
@@ -130,11 +153,54 @@ export const SearchPage = () => {
           variant="outlined"
           label="Rule Tags"
           value={ruleTags}
-          onChange={handleUpdate("tags")}
+          onChange={handleUpdate('tags')}
         >
-          {allRuleTags.map((ruleType) => (
-            <MenuItem key={ruleType} value={ruleType}>
-              {ruleType}
+          {allRuleTags.map((ruleTag) => (
+            <MenuItem key={ruleTag} value={ruleTag}>
+              {ruleTag}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid item xs={4}>
+      <TextField
+          select
+          fullWidth
+          margin="normal"
+          variant="outlined"
+          label="Language"
+          value={ruleLang}
+          onChange={handleUpdate('lang')}
+        >
+          <MenuItem key="Any" value="ANY">
+            Any
+          </MenuItem>
+          {allLangs.map((lang) => (
+            <MenuItem key={lang} value={lang}>
+              {lang}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid item xs={12}>
+      <TextField
+          select
+          fullWidth
+          SelectProps={{
+            multiple: true,
+            renderValue: (selected: any) => {
+              return selected.join(', ');
+            }
+          }}
+          margin="normal"
+          variant="outlined"
+          label="Default Quality Profiles"
+          value={qualityProfiles}
+          onChange={handleUpdate('qualityProfiles')}
+        >
+          {allQualityProfiles.map((qualityProfile) => (
+            <MenuItem key={qualityProfile} value={qualityProfile}>
+              {qualityProfile}
             </MenuItem>
           ))}
         </TextField>
