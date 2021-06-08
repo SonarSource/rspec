@@ -18,6 +18,7 @@ import {
 import { SearchHit } from './SearchHit';
 
 export const SearchPage = () => {
+  document.title = "Search"
   const classes = useStyles();
   
   const pageSize = 20;
