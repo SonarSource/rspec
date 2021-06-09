@@ -20,16 +20,28 @@ yargs(process.argv.slice(2))
 .command('clean', 'clean the rules', () => {}, clean_rules)
 
 .command('gen-metadata', 'generate metadata',
-(yargs) => {
-  yargs.array<string>('rules')
-},
-(argv: any) => generate_rules_metadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules))
+         (yargs) => {
+             yargs.array<string>('rules')
+         },
+         (argv: any) => {
+             generate_rules_metadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
+             process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
+                 const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
+                 generate_one_rule_metadata(srcDir, dstDir, pr.branch, pr.url);
+             })
+         })
 
 .command('gen-description', 'generate description',
-(yargs) => {
-  yargs.array<string>('rules')
-},
-(argv: any) => generate_rules_description(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules))
+         (yargs) => {
+             yargs.array<string>('rules')
+         },
+         (argv: any) => {
+             generate_rules_description(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
+             process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
+                 const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
+                 generate_one_rule_description(srcDir, dstDir);
+             })
+         })
 
 .command('gen-index', 'generate search index',
 () => {},
