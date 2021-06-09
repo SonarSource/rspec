@@ -1,13 +1,27 @@
 #!/bin/bash
 set -uo pipefail
 
+# Install script dependencies
+cd rspec-tools
+pipenv install
+cd ..
+
+# Compute the set of affected rules
+git fetch origin $CIRRUS_DEFAULT_BRANCH
+branch_base_sha=$(git merge-base FETCH_HEAD HEAD)
+echo "Comparing against the merge-base: $branch_base_sha"
+changeset=$(git diff --name-only $branch_base_sha..HEAD)
+affected_rules=$(printf '%s\n' "$changeset" | grep '/S[0-9]\+/' | sed 's:\(.*/S[0-9]\+\)/.*:\1:' | sort | uniq)
+affected_tooling=$(printf '%s\n' "$changeset" | grep -v '/S[0-9]\+/')
+if [ ! -z "$affected_tooling" ]; then
+    echo "Some rpec tools are changed, validating all rules"
+    affected_rules=rules/*
+fi
+
 ./ci/generate_html.sh
 
-exit_code=0
-
-#validate sections in asciidoc
 cd rspec-tools
-pipenv install -e .
+# validate sections in asciidoc
 if pipenv run rspec-tools check-sections --d ../out; then
     echo "Sections are fine"
 else
@@ -16,8 +30,15 @@ else
 fi
 cd ..
 
-for dir in rules/*
+
+exit_code=0
+
+for dir in $affected_rules
 do
+  if [ ! -d "$dir" ]; then
+    echo "Apparently $dir is deleted, skipping"
+    continue
+  fi
   dir=${dir%*/}
   echo ${dir##*/}
 
@@ -65,4 +86,10 @@ do
   fi
 done
 
+echo "Finished."
+if (( $exit_code == 0 )); then
+    echo "Success"
+else
+    echo "There were errors"
+fi
 exit $exit_code
