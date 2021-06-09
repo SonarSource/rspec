@@ -5,11 +5,12 @@ from pathlib import Path
 
 import click
 from rspec_tools.checklinks import check_html_links
-from rspec_tools.errors import InvalidArgumenError, RuleNotFoundError, RuleValidationError
+from rspec_tools.errors import RuleNotFoundError, RuleValidationError
 from rspec_tools.create_rule import RuleCreator, build_github_repository_url
 from rspec_tools.rules import RulesRepository
 from rspec_tools.validation.metadata import validate_metadata
 from rspec_tools.validation.description import validate_section_names
+from rspec_tools.utils import parse_and_validate_language_list, get_labels_for_languages
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
@@ -41,15 +42,13 @@ def create_rule(languages: str, user: Optional[str]):
   if user:
     config['user.name'] = user
     config['user.email'] = f'{user}@users.noreply.github.com'
-  lang_list = [lang.strip() for lang in languages.split(',')]
-  if len(languages.strip()) == 0 or len(lang_list) == 0:
-    raise InvalidArgumenError('Invalid argument for "languages". At least one language should be provided.')
-  # TODO: accept only valid languages
+  lang_list = parse_and_validate_language_list(languages)
+  label_list = get_labels_for_languages(lang_list)
 
   with tempfile.TemporaryDirectory() as tmpdirname:
     rule_creator = RuleCreator(url, tmpdirname, config)
     rule_number = rule_creator.reserve_rule_number()
-    pull_request = rule_creator.create_new_rule_pull_request(token, rule_number, lang_list, user=user)
+    pull_request = rule_creator.create_new_rule_pull_request(token, rule_number, lang_list, label_list, user=user)
 
 
 @cli.command()

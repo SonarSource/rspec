@@ -111,7 +111,7 @@ class RuleCreator:
 
     self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
 
-  def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], *, user: Optional[str]) -> PullRequest:
+  def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], labels: Iterable[str], *, user: Optional[str]) -> PullRequest:
     branch_name = self.create_new_rule_branch(rule_number, languages)
     click.echo(f'Created rule Branch {branch_name}')
 
@@ -133,6 +133,7 @@ class RuleCreator:
     # Note: It is not possible to get the authenticated user using get_user() from a github action.
     login = user if user else github.get_user().login
     pull_request.add_to_assignees(login)
+    pull_request.add_to_labels(labels)
     click.echo(f'Pull request assigned to {login}')
 
     return pull_request
