@@ -1,7 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 
-# Inatall script dependencies
+# Install script dependencies
 cd rspec-tools
 pipenv install
 cd ..
