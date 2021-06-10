@@ -1,5 +1,6 @@
 from rspec_tools.errors import GitError
 import click
+import tempfile
 from git import Repo
 from git.remote import PushInfo
 from github import Github
@@ -7,6 +8,7 @@ from github.PullRequest import PullRequest
 from pathlib import Path
 from typing import Final, Iterable, Optional, Callable
 from contextlib import contextmanager
+from rspec_tools.utils import parse_and_validate_language_list, get_labels_for_languages
 
 from rspec_tools.utils import copy_directory_content
 
@@ -28,6 +30,20 @@ def authGithub(token: str) -> Callable[[Optional[str]], Github]:
     else:
       return Github(token)
   return ret
+
+def create_new_rule(languages: str, token: str, user: Optional[str]):
+  url = build_github_repository_url(token, user)
+  config = {}
+  if user:
+    config['user.name'] = user
+    config['user.email'] = f'{user}@users.noreply.github.com'
+  lang_list = parse_and_validate_language_list(languages)
+  label_list = get_labels_for_languages(lang_list)
+
+  with tempfile.TemporaryDirectory() as tmpdirname:
+    rule_creator = RuleCreator(url, tmpdirname, config)
+    rule_number = rule_creator.reserve_rule_number()
+    pull_request = rule_creator.create_new_rule_pull_request(authGithub(token), rule_number, lang_list, label_list, user=user)
 
 class RuleCreator:
   ''' Create a new Rule in a repository following the official Github 'rspec' repository structure.'''
