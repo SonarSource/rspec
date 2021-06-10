@@ -21,7 +21,7 @@ function App() {
       <Box>
         <Router basename="/rspec">
           <Switch>
-            <Route path="/:ruleid/:language" component={RulePage} />
+            <Route path="/:ruleid/:language?" component={RulePage} />
             <Route>
               <SearchPage/>
             </Route>
