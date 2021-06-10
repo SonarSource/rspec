@@ -34,9 +34,15 @@ export function generate_one_rule_metadata(srcDir: string, dstDir: string,
     metadata.branch = branch;
   });
 
+  let default_metadata_wanted = true;
   for (const { language, metadata } of allMetadata) {
     const dstJsonFile = path.join(dstDir, language + "-metadata.json");
     fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' })
+    if (default_metadata_wanted) {
+      const dstFile = path.join(dstDir, "default-metadata.json");
+      fs.writeFileSync(dstFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' });
+      default_metadata_wanted = false;
+    }
   }
 }
 
