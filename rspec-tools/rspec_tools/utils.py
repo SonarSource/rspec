@@ -50,13 +50,15 @@ def load_valid_languages():
     return supported_langs.split(',')
 
 def get_mapped_languages():
+  '''Get all the languages we have a label for.
+  Necessary to make sure all valid languages are mapped (see test_utils.py).'''
   return LANG_TO_LABEL.keys();
 
 def parse_and_validate_language_list(languages):
   lang_list = [lang.strip() for lang in languages.split(',')]
-  valid_langs = load_valid_languages()
   if len(languages.strip()) == 0 or len(lang_list) == 0:
     raise InvalidArgumentError('Invalid argument for "languages". At least one language should be provided.')
+  valid_langs = load_valid_languages()
   for lang in lang_list:
     if lang not in valid_langs:
       raise InvalidArgumentError(f"Unsupported language: \"{lang}\". See {SUPPORTED_LANGUAGES_FILENAME} for the list of supported languages.")
