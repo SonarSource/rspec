@@ -1,8 +1,11 @@
 from git import Repo, Head
+from rspec_tools.errors import InvalidArgumentError
 from pathlib import Path
+from typing import Optional
+from unittest.mock import Mock, patch
 import pytest
 
-from rspec_tools.create_rule import RuleCreator
+from rspec_tools.create_rule import RuleCreator, create_new_rule
 
 @pytest.fixture
 def git_config():
@@ -134,3 +137,41 @@ def test_create_new_single_lang_rule_branch(rule_creator: RuleCreator, mock_rspe
         relative_path = lang_item.relative_to(lang_root)
         actual_content = rule_dir.joinpath(lang, relative_path).read_text()
         assert actual_content == expected_content
+
+def test_create_new_rule_pr(rule_creator: RuleCreator):
+  '''Test create_new_rule_branch adds the right user and labels.'''
+  rule_number = rule_creator.reserve_rule_number()
+  languages = ['cfamily']
+
+  ghMock = Mock()
+  ghRepoMock = Mock()
+  pullMock = Mock()
+  ghRepoMock.create_pull = Mock(return_value=pullMock)
+  ghMock.get_repo = Mock(return_value=ghRepoMock)
+  def mockGithub(user: Optional[str]):
+    return ghMock
+
+  rule_creator.create_new_rule_pull_request(mockGithub, rule_number, languages, ['mylab', 'other-lab'], user='testuser')
+
+  ghRepoMock.create_pull.assert_called_once();
+  assert ghRepoMock.create_pull.call_args.kwargs['title'].startswith('Create rule S')
+  pullMock.add_to_assignees.assert_called_with('testuser');
+  pullMock.add_to_labels.assert_called_with('mylab', 'other-lab');
+
+@patch('rspec_tools.create_rule.RuleCreator')
+def test_create_new_rule(mockRuleCreator):
+  mockRuleCreator.return_value = Mock()
+  mockRuleCreator.return_value.create_new_rule_pull_request = Mock()
+  prMock = mockRuleCreator.return_value.create_new_rule_pull_request
+  create_new_rule('cfamily,php', 'my token', 'testuser')
+  prMock.assert_called_once()
+  assert set(prMock.call_args.args[2]) == set(['cfamily', 'php'])
+  assert set(prMock.call_args.args[3]) == set(['cfamily', 'php'])
+
+@patch('rspec_tools.create_rule.RuleCreator')
+def test_create_new_rule_unsupported_language(mockRuleCreator):
+  mockRuleCreator.return_value = Mock()
+  mockRuleCreator.return_value.create_new_rule_pull_request = Mock()
+  prMock = mockRuleCreator.return_value.create_new_rule_pull_request
+  with pytest.raises(InvalidArgumentError):
+    create_new_rule('russian,php', 'my token', 'testuser')
