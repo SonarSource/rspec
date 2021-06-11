@@ -13,10 +13,10 @@ container_definition: &CONTAINER_DEFINITION
   namespace: default
   use_in_memory_disk: true
 
-tests_task:
+tooling_tests_task:
   gke_container:
-    <<: *CONTAINER_DEFINITION   
-    dockerfile: Dockerfile
+    <<: *CONTAINER_DEFINITION
+    dockerfile: ci/Dockerfile
     cpu: 1
     memory: 1G
   env:
@@ -27,22 +27,52 @@ tests_task:
     - pipenv run pip install pytest
     - pipenv run pytest 
 
-validate_asciidoc_task:
+frontend_tests_task:
   gke_container:
-    <<: *CONTAINER_DEFINITION   
-    dockerfile: Dockerfile
+    <<: *CONTAINER_DEFINITION
+    dockerfile: ci/frontend-tests-dockerfile
+    cpu: 1
+    memory: 2G
+  node_modules_cache:
+    folder: frontend/node_modules
+    reupload_on_changes: false # since there is a fingerprint script
+    fingerprint_script:
+      - echo $CIRRUS_OS
+      - node --version
+      - cat frontend/package-lock.json
+    populate_script:
+      - cd frontend
+      - npm install
+  tests_script:
+    - cd frontend
+    - npm run build
+    - npm test
+
+validate_metadata_task:
+  gke_container:
+    <<: *CONTAINER_DEFINITION
+    dockerfile: ci/Dockerfile
     cpu: 1
     memory: 1G
   metadata_tests_script:
-    - ./validate_metadata.sh
+    - ./ci/validate_metadata.sh
+
+validate_asciidoc_task:
+  gke_container:
+    <<: *CONTAINER_DEFINITION
+    dockerfile: ci/Dockerfile
+    cpu: 1
+    memory: 1G
+  env:
+    CIRRUS_CLONE_DEPTH: 0
   asciidoc_tests_script:
-    - ./validate_asciidoc.sh
+    - ./ci/validate_asciidoc.sh
 
 validate_links_task:
   timeout_in: 120m
   gke_container:
-    <<: *CONTAINER_DEFINITION   
-    dockerfile: Dockerfile
+    <<: *CONTAINER_DEFINITION
+    dockerfile: ci/Dockerfile
     cpu: 1
     memory: 2G
   env:
@@ -50,6 +80,6 @@ validate_links_task:
     LINK_CACHE_PATH: /root/link-probing-history.cache
   tests_script:
     - bash ci/cirrus-cache.sh download ${LINK_CACHE_NAME} ${LINK_CACHE_PATH}
-    - ./validate_links.sh ${LINK_CACHE_PATH}
+    - ./ci/validate_links.sh ${LINK_CACHE_PATH}
     - bash ci/cirrus-cache.sh upload ${LINK_CACHE_NAME} ${LINK_CACHE_PATH}
 

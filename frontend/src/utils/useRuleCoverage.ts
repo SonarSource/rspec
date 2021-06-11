@@ -35,7 +35,17 @@ export function useRuleCoverage() {
     'cloudformation': ['CLOUDFORMATION'],
     'terraform': ['TERRAFORM']
   }));
-  function ruleCoverage(language: string, ruleKeys: string[], mapper: any) {
+  const allLanguageKeys = collectAllLanguageKeys();
+
+  function collectAllLanguageKeys() {
+    let ret = new Set<string>();
+    languageToSonarpedia.forEach((sonarpediaKeys, lang) => {
+      sonarpediaKeys.forEach(key => ret.add(key));
+    });
+    return Array.from(ret);
+  }
+
+  function ruleCoverageForSonarpediaKeys(sonarpediaKeys: string[], ruleKeys: string[], mapper: any) {
     if (coveredRulesError) {
       return 'Failed Loading';
     }
@@ -45,17 +55,11 @@ export function useRuleCoverage() {
     if (!coveredRules) {
       throw new Error('coveredRules is empty');
     }
-    // return "FIXME"
     const result: any[] = [];
-    // const keys = coveredRules.keys;
-    const languageKeys = languageToSonarpedia.get(language);
-    if (!languageKeys) {
-      return 'Nonsupported language';
-    }
-    languageKeys.forEach(sonarpediaKey => {
+    sonarpediaKeys.forEach(sonarpediaKey => {
       ruleKeys.forEach(ruleKey => {
-          if (sonarpediaKey in coveredRules &&
-              ruleKey in coveredRules[sonarpediaKey]) {
+        if (sonarpediaKey in coveredRules &&
+          ruleKey in coveredRules[sonarpediaKey]) {
           result.push(mapper(sonarpediaKey, coveredRules[sonarpediaKey][ruleKey]))
         }
       });
@@ -67,5 +71,17 @@ export function useRuleCoverage() {
     }
   }
 
-  return ruleCoverage;
+  function ruleCoverage(language: string, ruleKeys: string[], mapper: any) {
+    const languageKeys = languageToSonarpedia.get(language);
+    if (!languageKeys) {
+      return 'Nonsupported language';
+    }
+    return ruleCoverageForSonarpediaKeys(languageKeys, ruleKeys, mapper);
+  }
+
+  function allLangsRuleCoverage(ruleKeys: string[], mapper: any) {
+    return ruleCoverageForSonarpediaKeys(allLanguageKeys, ruleKeys, mapper);
+  }
+
+  return {ruleCoverage, allLangsRuleCoverage};
 }

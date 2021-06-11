@@ -13,7 +13,8 @@ It also contains rules which have been dropped and rules which will one day be i
 * https://github.com/SonarSource/rspec/tree/master/rules[rules] directory: contains every specified rule.
 ** `rules/Sxxxx`: contains every specification for rule `Sxxxx`.
 *** `rules/Sxxxx/*.adoc`: Asciidoc files which can be reused by multiple language-specific descriptions.
-*** `rules/Sxxxx/metadata.json`: rule metadata shared between language-specific RSPECs. Each language can override fields in its own `metadata.json` file.
+*** `rules/Sxxxx/metadata.json`: rule metadata shared between language-specific RSPECs. Each language can override fields in its own `metadata.json` file. +
+It is thanks to this file that you can add `tags`, `securityStandards` etc... to your rule.
 *** `rules/Sxxxx/[LANGUAGE]`: contains the language-specific RSPEC. For every rule, there must be at least one `[LANGUAGE]` subdirectory. +
 `[LANGUAGE]` can be any of the following:
 include::supported_languages.adoc[]
@@ -35,7 +36,21 @@ WARNING: Unlike the Search Page, the GitHub search across the PRs for unimplemen
 
 Before, the Languages Team used Jira to host both implemented and unimplemented rules. This is why the `rules` directory contains both too.
 
-However, one of the reasons we are migrating to a git repository is that we want to have a clean process and history for rule creation and modification. Thus every newly created rule or modification of rule should follow this workflow:
+However, one of the reasons we are migrating to a git repository is that we want to have a clean process and history for rule creation and modification.
+
+In particular, the main branch aims at representing what will be integrated in the next version of the analyzers, i.e. what will be part of the next releases.
+
+Thus every newly created rule or modification of rule should follow these steps:
+
+. Create a pull request adding or modifying a rule
+. Ask for a review
+. Create an implementation ticket
+. Implement the new rule or the change in the existing rule
+. Merge the RSPEC PR as soon as the implementation is ready
+. Fetch the updated metadata with `rule-api`
+. Merge the implementation PR
+
+A <<multi-language-rule-creation>> is somewhat more involved.
 
 === 1. Create a pull request
 
@@ -125,6 +140,10 @@ In the `metadata.json` of the rule you want to deprecate:
 
 NOTE: use a GitHub hot-key `t` in the source view to navigate to an existing rule specification.
 
+==== To delete a rule
+If the rule has never been implemented and is still defined in an open pull request, just close the pull request. +
+Otherwise, create a pull request to change the status of the rule to "closed".
+
 === 2. Ask for a review
 
 Every PR that is creating or modifying a rule should be reviewed.
@@ -151,9 +170,15 @@ Implementation ticket: SonarSource/sonar-dotnet/issues/1234 (for a sonar-dotnet 
 
 === 4. Implement the rule
 
-Implement the rule or the modification as usual. +
-Merge the RSPEC pull request before updating the metadata of the analyzer otherwise `rule-api` will not work. +
-And finally, merge the rule implementation in your analyzer repository.
+Implement the rule or the modification as usual.
+
+Only once the implementation is complete, but before it is merged on the analyzer side, merge the RSPEC PR.
+The RSPEC PR has to be merged before the implementation PR to enable `rule-api` to fetch the correct metadata in the analyzer.
+The RSPEC PR has to be merged as close as possible to the merge of the implementation PR to shorten the time span of the inconsistency in the rule status
+("active" in the RSPEC metadata, and not implemented on the analyzer side).
+
+Finally, merge the rule implementation in your analyzer repository.
+
 
 ==== Generate/Update rule metadata for the analyzer
 
@@ -173,9 +198,49 @@ you have to run `update` immediately after,
 because rule-api relies on the files in the directory to determine the covered set of rules
 when generating the deprecation notes for superseded rules.
 
+=== Multi-Language Rule Creation
+Multi-language rule creation is more involved than the default process because it involves multiple roles that typically do not coincide.
+It is infeasible to synchronize the implementation of the rule for all the languages it covers.
+
+The special metadata field `"extra"."coveredLanguages"` enables asynchrous implementation in multiple analyzers.
+
+`"extra"."coveredLanguages"` contains the languages the rule is implemented for.
+
+The workflow below makes sure that all rules on the main branch are implemented for all languages they are specified for or for all languages listed in `"coveredLanguages"`.
+
+. An RSPECator creates a PR and specifies the multi-language rule.
+ * The RSPECator asks for a review for the PR.
+ * The RSPECator does not merge the PR, even after the review is done.
+ * The rule metadata.json contains an empty `"extra": {"coveredLanguages": []}` field.
+. The RSPECator opens implementation tickets for all the targeted languages.
+. An Ada analyzer developer Alice implements the rule first. Alice prepares the PR with the implementation.
+. As soon as the implementation of the rule is ready for Ada analyzer, Alice merges both PRs:
+.. Alice adds `"Ada"` to `"coveredLanguages"` in the RSPEC PR (`"extra": {"coveredLanguages": ["Ada"]}`).
+.. Alice merges the RSPEC PR.
+.. Alice fetches the rule metadata with `rule-api` into Ada analyzer.
+.. Alice merges the rule implementation in Ada analyzer.
+. A Cobol analyzer developer Bob implements the rule some time later. Bob prepares the PR with the implementation.
+. Bob opens a new RSPEC PR "Modify rule S1234: Add Cobol support" to add `"Cobol"` to `"coveredLangauges"` (`"extra": {"coveredLanguages": ["Ada", "Cobol"]}`).
+. As soon as the Cobol implementation is ready, Bob merges both PRs:
+.. Bob merges his RSPEC PR.
+.. Bob fetches the rule metadata with `rule-api` into Cobol analyzer.
+.. Bob merges the rule implementation in Cobol analyzer.
+
+== Comment a rule
+
+Comments and links that were created on Jira have been gathered in a `comments-and-links.adoc` file for each concerned rule. +
+You can add a comment anywhere in a rule by adding the following lines in the `*.adoc` file:
+[source]
+----
+\ifdef::env-github,rspecator-view[]
+John Doe (9 Jun 2021, 15:49): my comment on the rule
+\endif::env-github,rspecator-view[]
+----
+This way, your comment will only be visible in GitHub preview and on the Search Page (and will not be visible for the user).
+
 == Untriaged Pull Requests
 
-Untriaged PRs are the ones without any label. You can easily see all of them with the filter [`Label > Unlabeled`](https://github.com/SonarSource/rspec/pulls?q=is%3Aopen+is%3Apr+no%3Alabel). +
+Untriaged PRs are the ones without any label. You can easily see all of them with the filter https://github.com/SonarSource/rspec/pulls?q=is%3Aopen+is%3Apr+no%3Alabel[`Label > Unlabeled`]. +
 All triaged PRs should have at least one label that corresponds to the bubble(s) the PR is related to. This allows bubbles to easily filter out the PRs they are interested in.
 
 == Tooling
