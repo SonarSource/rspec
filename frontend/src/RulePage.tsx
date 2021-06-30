@@ -66,6 +66,7 @@ const languageToJiraProject = new Map(Object.entries({
   "KOTLIN": "SONARKT",
   "SCALA": "SONARSLANG",
   "GO": "SONARSLANG",
+  "SECRETS": "SECRETS",
   "SWIFT": "SONARSWIFT",
   "TSQL": "SONARTSQL",
   "VB6": "SONARVBSIX",
