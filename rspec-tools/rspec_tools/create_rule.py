@@ -1,12 +1,14 @@
 from rspec_tools.errors import GitError
 import click
+import tempfile
 from git import Repo
 from git.remote import PushInfo
 from github import Github
 from github.PullRequest import PullRequest
 from pathlib import Path
-from typing import Final, Iterable, Optional
+from typing import Final, Iterable, Optional, Callable
 from contextlib import contextmanager
+from rspec_tools.utils import parse_and_validate_language_list, get_labels_for_languages
 
 from rspec_tools.utils import copy_directory_content
 
@@ -20,6 +22,28 @@ def build_github_repository_url(token: str, user: Optional[str]):
 def extract_repository_name(url):
   url_end = url.split('/')[-2:]
   return '/'.join(url_end).removesuffix('.git')
+
+def authGithub(token: str) -> Callable[[Optional[str]], Github]:
+  def ret(user: Optional[str]):
+    if user:
+      return Github(user, token)
+    else:
+      return Github(token)
+  return ret
+
+def create_new_rule(languages: str, token: str, user: Optional[str]):
+  url = build_github_repository_url(token, user)
+  config = {}
+  if user:
+    config['user.name'] = user
+    config['user.email'] = f'{user}@users.noreply.github.com'
+  lang_list = parse_and_validate_language_list(languages)
+  label_list = get_labels_for_languages(lang_list)
+
+  with tempfile.TemporaryDirectory() as tmpdirname:
+    rule_creator = RuleCreator(url, tmpdirname, config)
+    rule_number = rule_creator.reserve_rule_number()
+    pull_request = rule_creator.create_new_rule_pull_request(authGithub(token), rule_number, lang_list, label_list, user=user)
 
 class RuleCreator:
   ''' Create a new Rule in a repository following the official Github 'rspec' repository structure.'''
@@ -111,15 +135,12 @@ class RuleCreator:
 
     self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
 
-  def create_new_rule_pull_request(self, token: str, rule_number: int, languages: Iterable[str], *, user: Optional[str]) -> PullRequest:
+  def create_new_rule_pull_request(self, githubApi: Callable[[Optional[str]], Github], rule_number: int, languages: Iterable[str], labels: Iterable[str], *, user: Optional[str]) -> PullRequest:
     branch_name = self.create_new_rule_branch(rule_number, languages)
     click.echo(f'Created rule Branch {branch_name}')
 
     repository_url = extract_repository_name(self.origin_url)
-    if user:
-      github = Github(user, token)
-    else:
-      github = Github(token)
+    github = githubApi(user)
     github_repo = github.get_repo(repository_url)
     first_lang = next(iter(languages))
     pull_request = github_repo.create_pull(
@@ -133,6 +154,7 @@ class RuleCreator:
     # Note: It is not possible to get the authenticated user using get_user() from a github action.
     login = user if user else github.get_user().login
     pull_request.add_to_assignees(login)
+    pull_request.add_to_labels(*labels)
     click.echo(f'Pull request assigned to {login}')
 
     return pull_request

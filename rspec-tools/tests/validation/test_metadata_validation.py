@@ -36,9 +36,10 @@ def test_invalid_remediation_fails_validation(rule_language: LanguageSpecificRul
       validate_metadata(rule_language)
 
 
-def test_adding_properties_pass_validation(rule_language: LanguageSpecificRule):
+def test_adding_properties_fails_validation(rule_language: LanguageSpecificRule):
   metadata = deepcopy(rule_language.metadata)
   metadata['unknown'] = 42
-  with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
-    mock.return_value = metadata
-    validate_metadata(rule_language)
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata'):
+    with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
+      mock.return_value = metadata
+      validate_metadata(rule_language)
