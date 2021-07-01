@@ -26,6 +26,7 @@ export function useRuleCoverage() {
     'plsql': ['PLSQL'],
     'python': ['PY'],
     'rpg': ['RPG'],
+    'secrets': ['SECRETS'],
     'swift': ['SWIFT'],
     'tsql': ['TSQL'],
     'vb6': ['VB'],

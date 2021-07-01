@@ -66,6 +66,7 @@ const languageToJiraProject = new Map(Object.entries({
   "KOTLIN": "SONARKT",
   "SCALA": "SONARSLANG",
   "GO": "SONARSLANG",
+  "SECRETS": "SECRETS",
   "SWIFT": "SONARSWIFT",
   "TSQL": "SONARTSQL",
   "VB6": "SONARVBSIX",
@@ -102,6 +103,7 @@ const languageToGithubProject = new Map(Object.entries({
   "XML": "sonar-xml",
   "CLOUDFORMATION": "sonar-iac",
   "TERRAFORM": "sonar-iac",
+  "SECRETS": "sonar-secrets",
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
