@@ -1,20 +1,59 @@
-FIXME: add a description
+Generally speaking, main threads should be available to allow user-facing parts of an application to remain responsive. Long-running blocking operations can significantly reduce threads' availability and are best executed on a designated thread pool.
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+As a consequence, suspending functions should not block main threads and instead move any long-running blocking tasks off the main thread. This can be done conveniently by using `withContext` with an appropriate dispatcher. Such an appropriate dispatcher could be `Dispatchers.IO`, which can create and shutdown threads on demand.
+
+For some blocking tasks and APIs there may already be suspending alternatives available. When available, these alternatives should be used instead of their blocking counterparts.
 
 == Noncompliant Code Example
-
+Running long-running blocking IO operations on the default thread pool:
 ----
-FIXME
+class workerClass {
+    suspend fun worker(): String {
+        val client = HttpClient.newHttpClient()
+        val request = HttpRequest.newBuilder(URI("https://example.com")).build()
+        return coroutineScope {
+            client.send(request, HttpResponse.BodyHandlers.ofString()).body() // Noncompliant
+        }
+    }
+}
+----
+
+Using inappropriate blocking APIs:
+----
+suspend fun example() {
+    ...
+    Thread.sleep(1000) // Noncompliant
+    ...
+}
 ----
 
 == Compliant Solution
-
+Running long-running blocking IO operations in an appropriate thread pool using `Dispatcher.IO`:
 ----
-FIXME
+class workerClass(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) {
+    suspend fun worker(): String {
+        val client = HttpClient.newHttpClient()
+        val request = HttpRequest.newBuilder(URI("https://example.com")).build()
+        return withContext(ioDispatcher) {
+            client.send(request, HttpResponse.BodyHandlers.ofString()).body() // Compliant
+        }
+    }
+}
+----
+
+Using appropriate non-blocking APIs:
+----
+suspend fun example() {
+    ...
+    delay(1000) // Compliant
+    ...
+}
 ----
 
 == See
 
-FIXME: A list of links
+* https://developer.android.com/kotlin/coroutines/coroutines-best-practices#main-safe[Suspend functions should be safe to call from the main thread] (Android coroutines best practices)
+* https://kotlin.github.io/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-dispatchers/-i-o.html[IO CoroutineDispatcher]
+* https://kotlin.github.io/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-dispatchers/-default.html
