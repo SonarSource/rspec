@@ -1,21 +1,17 @@
-Coroutines should be launched with an appropriate dispatcher, depending on a coroutine's task. Dispatchers determine which threads a coroutine ends up running on. As different threads and thread groups are designed for varying purposes, using inappropriate dispatchers can cause performance issues.
+The Kotlin coroutines API provides `async` and `launch` as a way to launch asynchronous work. The difference being that `async` provides an `await()` function, which blocks until the asynchronous task is complete and returns the result of the execution. `launch` is not designed to return a result, i.e. follows the idea of "fire and forget".
 
-An example of when an explicit change in dispatcher is appropriate includes the execution of long-running blocking I/O functions within a suspending function, which is otherwise executed on the main thread. It would be undesirable to execute the I/O portion of the work on the main thread as well, as it could lead to a blocked main thread for significant amounts of time. Instead, the `IO` dispatcher could be used, which is able to start and shutdown threads dynamically.
+Accordingly, whenever `async` is used, the result of the execution is expected to be used at some point. If `async` is used in a "fire and forget" manner, `launch` is the more appropriate interface to use.
 
-Coroutine builders such as `launch` and `async` accept an optional `CoroutineContext`, which can be used to specify which dispatcher to use. `withContext` also allows developers to specify a dispatcher to use.
-
-This rule raises an issue when the usage of an inappropriate dispatcher for a particular coroutine was detected.
+This rule raises an issue when `async` is used without the result of the operation being retrieved.
 
 == Noncompliant Code Example
 
 ----
-class ExampleClass(
-    private val client: HttpClient,
-    private val request: HttpRequest
-) {
-    suspend fun doSomething() = coroutineScope {
-        launch {
-            client.send(request, HttpResponse.BodyHandlers.discarding())
+suspend fun doSomething() {
+    coroutineScope {
+        async {
+            // Do some work
+            "result"
         }
     }
 }
@@ -23,20 +19,31 @@ class ExampleClass(
 
 == Compliant Solution
 
+Using `launch`:
 ----
-class ExampleClass(
-    private val client: HttpClient,
-    private val request: HttpRequest,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-) {
-    suspend fun doSomething() = coroutineScope {
-        launch(ioDispatcher) {
-            client.send(request, HttpResponse.BodyHandlers.discarding())
+suspend fun doSomething() {
+    coroutineScope {
+        launch {
+            // Do some work
         }
+    }
+}
+----
+
+Using `await` to retrieve the result of the asynchronous operation:
+----
+suspend fun doSomething(): String {
+    return coroutineScope {
+        val asyncTask = async {
+            // Do some work
+            "result"
+        }
+        // Return the result, possibly with some other processing before
+        asyncTask.await()
     }
 }
 ----
 
 == See
 
-* https://kotlinlang.org/docs/coroutine-context-and-dispatchers.html[Coroutine context and dispatchers]
+* https://kotlinlang.org/docs/composing-suspending-functions.html#concurrent-using-async[Concurrent using async]
