@@ -1,0 +1,151 @@
+<div class="paragraph">
+<p>A <code>polymorphic class</code> defines or inherits at least one virtual function. In some circumstances, copy-construction or assignment of such a class can inadvertently lead to casting from the derived class to the base class, which is a cause of slicing.</p>
+</div>
+<div class="paragraph">
+<p>In most cases, you will prevent copying in a whole class hierarchy by preventing it in the base class only:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>You can define an <code>=delete</code> copy constructor and assignment operator in the base class.</p>
+</li>
+<li>
+<p>You can define an <code>=delete</code> move assignment operator, which will disable all other copy/move operations (this is less explicit, but since you only have to explicitly disable one function, some authors recommend this approach)</p>
+</li>
+<li>
+<p>Copy can be implicitly disabled by some existing members of the base class</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule reports an issue if a polymorphic class is publicly copyable.</p>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>class B { // Noncompliant: B is copyable
+public:
+  virtual ~B() = default;
+  virtual char m() { return 'B'; }
+  // ... nothing about copy operations, so uses default ...
+};
+
+class D : public B { // Noncompliant: D is copyable
+public:
+  char m() override { return 'D'; }
+  // ...
+};
+
+char f(B&amp; b) {
+  auto b2 = b;
+  return b.m();
+}
+
+void test() {
+  D d;
+  char c = f(d); // c=='B', not what was expected
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To avoid such bugs, first disable copy.</p>
+</div>
+<div class="paragraph">
+<p>Then, if you want to still be able to duplicate an object using the right polymorphic type, you can implement a virtual <code>clone()</code> function, which contrary to the copy-constructor can be overridden.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>class B {
+public:
+  B() = default;
+  virtual ~B() = default;
+  B(const B&amp;) = delete;
+  B&amp; operator=(const B&amp;) = delete;
+  virtual char m() { return 'B'; }
+  virtual unique_ptr&lt;B&gt; clone() const {
+    auto retptr = make_unique&lt;B&gt;();
+    // some cloning code
+    return retptr;
+  };
+  // ...
+};
+
+class D : public B {
+public:
+  char m() override { return 'D'; }
+  D() = default;
+  unique_ptr&lt;B&gt; clone() const override {
+    auto retptr = make_unique&lt;D&gt;();
+    // some cloning code
+    return retptr;
+    }
+    // ...
+};
+
+// char f_compile_error(B&amp; b) {
+//   auto b2 = b; // ok, compiler will detect inadvertent copying, and protest
+//   return b2.m();
+// }
+
+char f(B&amp; b) {
+  auto b2 = b.clone();
+  char c = b2-&gt;m();
+  return c;
+}
+
+void test() {
+  D d;
+  char c = f(d);  // c=='D'
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_exceptions">Exceptions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Exceptions classes must be copyable. Hence, this rule does not apply to exceptions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#c67-a-polymorphic-class-should-suppress-copying">C&#43;&#43; Core Guidelines C.67</a> - A polymorphic class should suppress copying</p>
+</li>
+</ul>
+</div>
+<hr/>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_21_oct_2019_194206_loïc_joly_wrote">on 21 Oct 2019, 19:42:06 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~geoffray.adde]: How do you intend to detect an exception class?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_23_oct_2019_094044_geoffray_adde_wrote">on 23 Oct 2019, 09:40:44 Geoffray Adde wrote:</h3>
+<div class="paragraph">
+<p>\[~loic.joly] it can be naive but I guess classes inheriting from std::exception and classes that are thrown (full project analysis). Any other suggestion?</p>
+</div>
+</div>
+</div>
+</div>

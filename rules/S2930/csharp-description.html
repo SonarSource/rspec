@@ -1,0 +1,264 @@
+<div class="paragraph">
+<p>When writing managed code, you don&#8217;t need to worry about allocating or freeing memory: The garbage collector takes care of it. For efficiency reasons, some objects such as <code>Bitmap</code> use unmanaged memory, enabling for example the use of pointer arithmetic. Such objects have potentially huge unmanaged memory footprints, but will have tiny managed ones. Unfortunately, the garbage collector only sees the tiny managed footprint, and fails to reclaim the unmanaged memory (by calling <code>Bitmap</code>'s finalizer method) in a timely fashion.</p>
+</div>
+<div class="paragraph">
+<p>Moreover, memory is not the only system resource which needs to be managed in a timely fashion: The operating system can only handle having so many file descriptors (e.g. <code>FileStream</code>) or sockets (e.g. <code>WebClient</code>) open at any given time. Therefore, it is important to <code>Dispose</code> of them as soon as they are no longer needed, rather than relying on the garbage collector to call these objects' finalizers at some nondeterministic point in the future.</p>
+</div>
+<div class="paragraph">
+<p>This rule tracks <code>private</code> fields and local variables of the following <code>IDisposable</code> types, which are never disposed, closed, aliased, returned, or passed to other methods.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>System.IO</code> namespace</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>System.IO.FileStream</code></p>
+</li>
+<li>
+<p><code>System.IO.StreamReader</code></p>
+</li>
+<li>
+<p><code>System.IO.StreamWriter</code></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><code>System.Net</code> namespace</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>System.Net.WebClient</code></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><code>System.Net.Sockets</code> namespace</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>System.Net.Sockets.Socket</code></p>
+</li>
+<li>
+<p><code>System.Net.Sockets.TcpClient</code></p>
+</li>
+<li>
+<p><code>System.Net.Sockets.UdpClient</code></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><code>System.Drawing</code> namespace</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>System.Drawing.Image</code></p>
+</li>
+<li>
+<p><code>System.Drawing.Bitmap</code></p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>which are either instantiated directly using the <code>new</code> operator, or using one of the following factory methods:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>System.IO.File.Create()</code></p>
+</li>
+<li>
+<p><code>System.IO.File.Open()</code></p>
+</li>
+<li>
+<p><code>System.Drawing.Image.FromFile()</code></p>
+</li>
+<li>
+<p><code>System.Drawing.Image.FromStream()</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>on both private fields and local variables.</p>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>public class ResourceHolder
+{
+  private FileStream fs; // Noncompliant; Dispose or Close are never called
+
+  public void OpenResource(string path)
+  {
+    this.fs = new FileStream(path, FileMode.Open);
+  }
+
+  public void WriteToFile(string path, string text)
+  {
+    var fs = new FileStream(path, FileMode.Open); // Noncompliant
+    var bytes = Encoding.UTF8.GetBytes(text);
+    fs.Write(bytes, 0, bytes.Length);
+  }
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>public class ResourceHolder : IDisposable
+{
+  private FileStream fs;
+
+  public void OpenResource(string path)
+  {
+    this.fs = new FileStream(path, FileMode.Open);
+  }
+
+  public void Dispose()
+  {
+    this.fs.Dispose();
+  }
+
+  public void WriteToFile(string path, string text)
+  {
+    using (var fs = new FileStream(path, FileMode.Open))
+    {
+      var bytes = Encoding.UTF8.GetBytes(text);
+      fs.Write(bytes, 0, bytes.Length);
+    }
+  }
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_exceptions">Exceptions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>IDisposable</code> variables returned from a method or passed to other methods are ignored, as are local <code>IDisposable</code>s that are initialized with other <code>IDisposable</code>s.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>public Stream WriteToFile(string path, string text)
+{
+  var fs = new FileStream(path, FileMode.Open); // Compliant, because it is returned
+  var bytes = Encoding.UTF8.GetBytes(text);
+  fs.Write(bytes, 0, bytes.Length);
+  return fs;
+}
+
+public void ReadFromStream(Stream s)
+{
+  var sr = new StreamReader(s); // Compliant as it would close the underlying stream.
+  // ...
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="http://cwe.mitre.org/data/definitions/459.html">MITRE, CWE-459</a> - Incomplete Cleanup</p>
+</li>
+</ul>
+</div>
+<hr/>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s2095">relates to: S2095</h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2952">is related to: S2952</h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_13_may_2015_192206_ann_campbell_wrote">on 13 May 2015, 19:22:06 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~tamas.vajk] if this rule comes from R#, please provide the R# rule key.</p>
+</div>
+<div class="paragraph">
+<p>Also, there is the question of classes that <code>Dispose</code> of their <code>IDisposable</code> members, but not from their own <code>Dispose</code> methods. I.e. they call <code>Dispose</code> from some other, randomly-named method. Does this case merit coverage under this rule? A separate rule?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_13_may_2015_192215_ann_campbell_wrote">on 13 May 2015, 19:22:15 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>consulted: http://stackoverflow.com/questions/10956140/does-a-class-need-to-implement-idisposable-when-all-members-are-explicitly-dispo</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_18_may_2015_082057_tamas_vajk_wrote">on 18 May 2015, 08:20:57 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I think the separate rule for "implementing IDisposable" (http://jira.sonarsource.com/browse/RSPEC-2931) is a good idea. Let&#8217;s keep it this way, we&#8217;ll see if it generates loads of duplicate issues or not.</p>
+</div>
+<div class="paragraph">
+<p>This rule is not in Resharper.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_094819_tamas_vajk_wrote">on 22 May 2015, 09:48:19 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>LGTM</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_jun_2015_135145_ann_campbell_wrote">on 8 Jun 2015, 13:51:45 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>updated per SONARCSANA-129. See what you think [~tamas.vajk]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_12_jun_2015_122801_tamas_vajk_wrote">on 12 Jun 2015, 12:28:01 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] it looks good. I added the exceptions part, could you run through it?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_12_jun_2015_180236_ann_campbell_wrote">on 12 Jun 2015, 18:02:36 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>This begins to feel like a game of tennis. :-)</p>
+</div>
+<div class="paragraph">
+<p>I edited "block" to "method". Double-check me, please.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_jun_2015_062858_tamas_vajk_wrote">on 15 Jun 2015, 06:28:58 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] It looks good.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_5_feb_2021_173539_čaba_šagi_wrote">on 5 Feb 2021, 17:35:39 Čaba Šagi wrote:</h3>
+<div class="paragraph">
+<p>Beside the types covered in the description, all types implementing IDisposable should be covered as well. See <a href="https://docs.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2000">CA2000</a></p>
+</div>
+</div>
+</div>
+</div>

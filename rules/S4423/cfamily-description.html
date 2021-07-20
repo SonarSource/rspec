@@ -1,0 +1,261 @@
+<div class="paragraph">
+<p>This rule raises an issue when an insecure TLS protocol version is used (ie: a protocol different from "TLSv1.2", "TLSv1.3", "DTLSv1.2" or "DTLSv1.3").</p>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://github.com/curl/curl">libcurl</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;curl/curl.h&gt;
+
+CURL *curl;
+curl_global_init(CURL_GLOBAL_DEFAULT);
+
+// CURL_SSLVERSION_DEFAULT is the default option for CURLOPT_SSLVERSION
+// It means legacy version TLSv1 and TLSv1.1 are enabled
+curl = curl_easy_init(); // Noncompliant
+curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
+
+// Perform the request
+curl_easy_perform(curl);</pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;curl/curl.h&gt;
+
+CURL *curl;
+curl_global_init(CURL_GLOBAL_DEFAULT);
+
+curl = curl_easy_init();
+curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
+
+curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1); // Noncompliant;  legacy version TLSv1 and TLSv1.1 are enabled
+
+//Perform the request
+curl_easy_perform(curl);</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/openssl/openssl">OpenSSL</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;openssl/ssl.h&gt;
+
+const SSL_METHOD *method = TLS_method(); // Noncompliant;  legacy version TLSv1 and TLSv1.1 are enabled
+SSL_CTX *ctx = SSL_CTX_new(method);
+
+SSL *ssl = SSL_new(ctx);
+
+// ...
+
+SSL_connect(ssl);</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/randombit/botan">botan</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;botan/tls_client.h&gt;
+#include &lt;botan/tls_callbacks.h&gt;
+#include &lt;botan/tls_session_manager.h&gt;
+#include &lt;botan/tls_policy.h&gt;
+#include &lt;botan/auto_rng.h&gt;
+#include &lt;botan/certstor.h&gt;
+#include &lt;botan/certstor_system.h&gt;
+
+class Callbacks : public Botan::TLS::Callbacks
+{
+// ...
+};
+
+class Client_Credentials : public Botan::Credentials_Manager
+{
+// ...
+};
+
+Callbacks callbacks;
+Botan::AutoSeeded_RNG rng;
+Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+Client_Credentials creds;
+Botan::TLS::Policy policy; // Noncompliant: Default Policy has TLSv1.0 and DLTv1.0 as minimal versions
+
+// open the tls connection
+Botan::TLS::Client client(callbacks, session_mgr, creds, policy, rng,
+                          Botan::TLS::Server_Information("example.com", 443),
+                          Botan::TLS::Protocol_Version::TLS_V12);</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://github.com/curl/curl">libcurl</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;curl/curl.h&gt;
+
+CURL *curl;
+curl_global_init(CURL_GLOBAL_DEFAULT);
+
+curl = curl_easy_init();
+curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
+
+curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2); // Compliant; enables TLSv1.2 / TLSv1.3 version only
+
+// Perform the request
+curl_easy_perform(curl);</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/openssl/openssl">OpenSSL</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;openssl/ssl.h&gt;
+
+const SSL_METHOD *method = TLS_method();
+
+SSL_CTX *ctx = SSL_CTX_new(method);
+SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION); // Compliant; enables TLSv1.2 / TLSv1.3 version only
+
+SSL *ssl = SSL_new(ctx);
+
+// ...
+
+SSL_connect(ssl);</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/randombit/botan">botan</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;botan/tls_client.h&gt;
+#include &lt;botan/tls_callbacks.h&gt;
+#include &lt;botan/tls_session_manager.h&gt;
+#include &lt;botan/tls_policy.h&gt;
+#include &lt;botan/auto_rng.h&gt;
+#include &lt;botan/certstor.h&gt;
+#include &lt;botan/certstor_system.h&gt;
+
+class Callbacks : public Botan::TLS::Callbacks
+{
+// ...
+};
+
+class Client_Credentials : public Botan::Credentials_Manager
+{
+// ...
+};
+
+Callbacks callbacks;
+Botan::AutoSeeded_RNG rng;
+Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+Client_Credentials creds;
+Botan::TLS::Strict_Policy policy; // Compliant: Strict_Policy has TLSv1.2 and TLSv1.2 as minimal versions
+
+// open the tls connection
+Botan::TLS::Client client(callbacks, session_mgr, creds, policy, rng,
+                          Botan::TLS::Server_Information("example.com", 443),
+                          Botan::TLS::Protocol_Version::TLS_V12);</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.owasp.org/index.php/Top_10-2017_A3-Sensitive_Data_Exposure">OWASP Top 10 2017 Category A3</a> - Sensitive Data Exposure</p>
+</li>
+<li>
+<p><a href="https://www.owasp.org/index.php/Top_10-2017_A6-Security_Misconfiguration">OWASP Top 10 2017 Category A6</a> - Security Misconfiguration</p>
+</li>
+<li>
+<p><a href="https://mobile-security.gitbook.io/masvs/security-requirements/0x10-v5-network_communication_requirements">Mobile AppSec Verification Standard</a> - Network Communication Requirements</p>
+</li>
+<li>
+<p><a href="https://owasp.org/www-project-mobile-top-10/2016-risks/m3-insecure-communication">OWASP Mobile Top 10 2016 Category M3</a> - Insecure Communication</p>
+</li>
+<li>
+<p><a href="https://cwe.mitre.org/data/definitions/326.html">MITRE, CWE-327</a> - Inadequate Encryption Strength</p>
+</li>
+<li>
+<p><a href="https://cwe.mitre.org/data/definitions/327.html">MITRE, CWE-326</a> - Use of a Broken or Risky Cryptographic Algorithm</p>
+</li>
+<li>
+<p><a href="https://www.sans.org/top25-software-errors/#cat3">SANS Top 25</a> - Porous Defenses</p>
+</li>
+<li>
+<p><a href="https://github.com/ssllabs/research/wiki/SSL-and-TLS-Deployment-Best-Practices#22-use-secure-protocols">SSL and TLS Deployment Best Practices - Use secure protocols</a></p>
+</li>
+</ul>
+</div>
+<hr/>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s5326">deprecates: S5326</h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_5_mar_2018_120437_alexandre_gigleux_wrote">on 5 Mar 2018, 12:04:37 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>There is no SEI CERT ID for this one in https://wiki.sei.cmu.edu/confluence/display/java/SEI+CERT+Oracle+Coding+Standard+for+Java</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_5_mar_2018_130612_alexandre_gigleux_wrote">on 5 Mar 2018, 13:06:12 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>See https://docs.oracle.com/javase/8/docs/technotes/guides/security/StandardNames.html#SSLContext for the list of protocols supported by <code>SSLContext.getInstance()</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_mar_2018_154654_pierre_yves_nicolas_wrote">on 27 Mar 2018, 15:46:54 Pierre-Yves Nicolas wrote:</h3>
+<div class="paragraph">
+<p>\[~alexandre.gigleux] There&#8217;s a different <a href="https://docs.oracle.com/javase/9/docs/specs/security/standard-names.html#sslcontext-algorithms">list for java 9</a> which contains 3 "new" protocols: DTLS, DTLSv1.0 and DTLSv1.2. Should they also be considered as weak?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_mar_2018_164202_alexandre_gigleux_wrote">on 27 Mar 2018, 16:42:02 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>\[~pierre-yves.nicolas]</p>
+</div>
+<div class="paragraph">
+<p>According to https://tools.ietf.org/html/rfc7525#page-6 (3.1.2. DTLS Protocol Versions), here is the mapping between DTLS and TLS:</p>
+</div>
+<div class="paragraph">
+<p>Version 1.0 of DTLS correlates to version 1.1 of TLS</p>
+</div>
+<div class="paragraph">
+<p>Version 1.2 of DTLS correlates to version 1.2 of TLS</p>
+</div>
+<div class="paragraph">
+<p>As a consequence, we should consider DTLS and DTLSv1.0 in the "weak" list.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_30_may_2018_170033_alexandre_gigleux_wrote">on 30 May 2018, 17:00:33 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>We should generalize this rule to: "Weak SSL protocols should not be used"</p>
+</div>
+</div>
+</div>
+</div>

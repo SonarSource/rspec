@@ -1,0 +1,137 @@
+<div class="paragraph">
+<p>User provided data such as URL parameters should always be considered as untrusted and tainted. Constructing LDAP names or search filters directly from tainted data enables attackers to inject specially crafted values that changes the initial meaning of the name or filter itself. Successful LDAP injections attacks can read, modify or delete sensitive information from the directory service.</p>
+</div>
+<div class="paragraph">
+<p>Within LDAP names, the special characters <code>' '</code>, <code>'#'</code>, <code>'"'</code>, <code>'+'</code>, <code>','</code>, <code>';'</code>, <code>'&lt;'</code>, <code>'&gt;'</code>, <code>'\'</code> and <code>null</code> must be escaped according to RFC 4514, for example by replacing them with the backslash character <code>'\'</code> followed by the two hex digits corresponding to the ASCII code of the character to be escaped. Similarly, LDAP search filters must escape a different set of special characters (including but not limited to <code>'*'</code>, <code>'('</code>, <code>')'</code>, <code>'\'</code> and <code>null</code>) according to RFC 4515.</p>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>from flask import request
+import ldap
+
+@app.route("/user")
+def user():
+    dn =  request.args['dn']
+    username =  request.args['username']
+
+    search_filter = "(&amp;(objectClass=*)(uid="+username+"))"
+    ldap_connection = ldap.initialize("ldap://127.0.0.1:389")
+    user = ldap_connection.search_s(dn, ldap.SCOPE_SUBTREE, search_filter) # Noncompliant
+    return user[0]</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>from flask import request
+import ldap
+import ldap.filter
+import ldap.dn
+
+@app.route("/user")
+def user():
+    dn = "dc=%s" % ldap.dn.escape_dn_chars(request.args['dc']) # Escape distinguished names special characters
+    username = ldap.filter.escape_filter_chars(request.args['username']) # Escape search filters special characters
+
+    search_filter = "(&amp;(objectClass=*)(uid="+username+"))"
+    ldap_connection = ldap.initialize("ldap://127.0.0.1:389")
+    user = ldap_connection.search_s(dn, ldap.SCOPE_SUBTREE, search_filter) # Compliant
+    return user[0]</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.owasp.org/index.php/Top_10-2017_A1-Injection">OWASP Top 10 2017 Category A1</a> - Injection</p>
+</li>
+<li>
+<p><a href="https://www.ietf.org/rfc/rfc4514.txt">RFC 4514</a> - LDAP: String Representation of Distinguished Names</p>
+</li>
+<li>
+<p><a href="https://www.ietf.org/rfc/rfc4515.txt">RFC 4515</a> - LDAP: String Representation of Search Filters</p>
+</li>
+<li>
+<p><a href="https://cwe.mitre.org/data/definitions/90">MITRE CWE-90</a> - Improper Neutralization of Special Elements used in an LDAP Query ('LDAP Injection')</p>
+</li>
+<li>
+<p><a href="https://wiki.sei.cmu.edu/confluence/x/bjZGBQ">CERT, IDS54-J.</a> - Prevent LDAP injection</p>
+</li>
+</ul>
+</div>
+<hr/>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_2_oct_2014_134214_nicolas_peru_wrote">on 2 Oct 2014, 13:42:14 Nicolas Peru wrote:</h3>
+<div class="paragraph">
+<p>The relating find-sec-bug rule is :  http://h3xstream.github.io/find-sec-bugs/bugs.htm#LDAP_INJECTION</p>
+</div>
+<div class="paragraph">
+<p>it checks for classes with use of methods :</p>
+</div>
+<div class="paragraph">
+<p>"com/unboundid/ldap/sdk/LDAPConnection.search(String, SearchScope, String, String[])" or "javax/naming/directory/InitialDirContext.search(String, String, SearchControls)"</p>
+</div>
+<div class="paragraph">
+<p>And verify that methods <code>search</code> use constant string or string literal (between other "safe values") for parameters when they are called.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_4_dec_2014_164808_freddy_mallet_wrote">on 4 Dec 2014, 16:48:08 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>I need to validate if the use of <a href="http://docs.oracle.com/javase/8/docs/api/javax/naming/directory/DirContext.html#search-javax.naming.Name-java.lang.String-java.lang.Object:A-javax.naming.directory.SearchControls-">filter expression</a> allows to prevent LDAP injection</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_16_jan_2015_093617_sébastien_gioria_wrote">on 16 Jan 2015, 09:36:17 Sébastien Gioria wrote:</h3>
+<div class="paragraph">
+<p>\[~freddy.mallet]: at my lastest knowledge, it&#8217;s not prevent it. Only solution in LDAP is sanitize datas.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_9_may_2018_104303_dinesh_bolkensteyn_wrote">on 9 May 2018, 10:43:03 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>For the record (and 3 years later), using placeholders in the filter expression will correctly handle escaping, else this method would be pretty useless - cc [~freddy.mallet] [~sebastien.gioria]</p>
+</div>
+<div class="paragraph">
+<p>So it is wrong to state that the JNDI LDAP API does not provide a functionally similar to SQL prepared statements.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>String user = "admin";
+String pass = "secret";
+
+// Setting this will not bypass authentificated
+// Instead it will literally look for such a user ID
+// However, if the filter expression is constructed from string concatenation (not the case here), authentifcation would be bypassed
+//user="*)(uid=*))(|(uid=*";
+
+NamingEnumeration&lt;SearchResult&gt; results = ctx.search("ou=system", "(&amp;(uid={0})(userPassword={1}))", new String[]{user, pass}, new SearchControls());
+if (results.hasMore()) {
+  System.out.println("auth'ed!");
+} else {
+  System.out.println("no such user");
+}</pre>
+</div>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,235 @@
+<div class="paragraph">
+<p>XML standard allows the use of entities, declared in the DOCTYPE of the document, which can be <a href="https://www.w3.org/TR/xml/#sec-internal-ent">internal</a> or <a href="https://www.w3.org/TR/xml/#sec-external-ent">external</a>.</p>
+</div>
+<div class="paragraph">
+<p>When parsing the XML file, the content of the external entities is retrieved from an external storage such as the file system or network, which may lead, if no restrictions are put in place, to arbitrary file disclosures or <a href="https://www.owasp.org/index.php/Server_Side_Request_Forgery">server-side request forgery (SSRF)</a> vulnerabilities.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;!DOCTYPE person [
+  &lt;!ENTITY file SYSTEM "file:///etc/passwd"&gt;
+  &lt;!ENTITY ssrf SYSTEM "https://internal.network/sensitive_information"&gt;
+]&gt;
+
+&lt;person&gt;
+  &lt;name&gt;&amp;file;&lt;/name&gt;
+  &lt;city&gt;&amp;ssrf;&lt;/city&gt;
+  &lt;age&gt;18&lt;/age&gt;
+&lt;/person&gt;</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It&#8217;s recommended to limit resolution of external entities by using one of these solutions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If DOCTYPE is not necessary, completely disable all DOCTYPE declarations.</p>
+</li>
+<li>
+<p>If external entities are not necessary, completely disable their declarations.</p>
+</li>
+<li>
+<p>If external entities are necessary then:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Use XML processor features, if available, to authorize only required protocols (eg: https).</p>
+</li>
+<li>
+<p>And use an entity resolver (and optionally an XML Catalog) to resolve only trusted entities.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>System.Xml.XmlDocument</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// .NET Framework &lt; 4.5.2
+XmlDocument parser = new XmlDocument(); // Noncompliant: XmlDocument is not safe by default
+parser.LoadXml("xxe.xml");
+
+or
+
+// .NET Framework 4.5.2+
+XmlDocument parser = new XmlDocument();
+parser.XmlResolver = new XmlUrlResolver(); // Noncompliant: XmlDocument.XmlResolver configured with XmlUrlResolver that makes it unsafe
+parser.LoadXml("xxe.xml");</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>System.Xml.XmlTextReader</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// .NET Framework &lt; 4.5.2
+XmlTextReader reader = new XmlTextReader("xxe.xml"); // Noncompliant: XmlTextReady is not safe by default
+while (reader.Read())
+{ ... }
+
+or
+
+// .NET Framework 4.5.2+
+XmlTextReader reader = new XmlTextReader("xxe.xml");
+reader.XmlResolver = new XmlUrlResolver(); // Noncompliant: XmlTextRead.XmlResolver configured with XmlUrlResolver that makes it unsafe
+while (reader.Read())
+{ ... }</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>System.Xml.XmlReader</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// .NET Framework 4.5.2+
+XmlReaderSettings settings = new XmlReaderSettings();
+settings.DtdProcessing = DtdProcessing.Parse;
+settings.XmlResolver = new XmlUrlResolver();
+XmlReader reader = XmlReader.Create("xxe.xml", settings); // Noncompliant: XmlReader is safe by default and becomes unsafe if DtdProcessing = Parse and XmlResolver is not null
+while (reader.Read())
+{ ... }</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>System.Xml.XPath.XPathDocument</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// prior to .NET 4.5.2
+XPathDocument doc = new XPathDocument("example.xml"); // Noncompliant
+XPathNavigator nav = doc.CreateNavigator();
+string xml = nav.InnerXml.ToString();</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>System.Xml.XmlDocument</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>XmlDocument parser = new XmlDocument();
+parser.XmlResolver = null; // Compliant: XmlResolver has been set to null
+parser.LoadXml("xxe.xml");
+
+or
+
+XmlDocument parser = new XmlDocument(); // Compliant: XmlDocument is safe by default in  .NET Framework 4.5.2+ because XmlResolver is set by default to null
+parser.LoadXml("xxe.xml");</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>System.Xml.XmlTextReader</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// .NET 4.5.2+
+XmlTextReader reader = new XmlTextReader("xxe.xml"); // Compliant: XmlTextReader is safe by default in  .NET Framework 4.5.2+ because XmlResolver is set by default to null
+while (reader.Read())
+{ ... }
+
+// .NET 4.0 to .NET 4.5.1
+XmlTextReader reader = new XmlTextReader("xxe.xml");
+reader.DtdProcessing = DtdProcessing.Prohibit; // Compliant: XmlTextReader is safe by default in  .NET Framework 4.5.2+ because XmlResolver is set by default to null
+
+// &lt; .NET 4.0
+XmlTextReader reader = new XmlTextReader(stream);
+reader.ProhibitDtd = true; // Compliant: default is false</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>System.Xml.XmlReader</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>XmlReader reader = XmlReader.Create("xxe.xml"); // Compliant: XmlReader is safe by default
+while (reader.Read())
+{ ... }</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>System.Xml.XPath.XPathDocument</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// prior to .NET 4.5.2
+XmlReader reader = XmlReader.Create("example.xml");
+XPathDocument doc = new XPathDocument(reader); // Compliant: XPathDocument is safe when being given a safe XmlReader
+XPathNavigator nav = doc.CreateNavigator();
+string xml = nav.InnerXml.ToString();</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.owasp.org/index.php/Top_10-2017_A4-XML_External_Entities_(XXE)">OWASP Top 10 2017 Category A4</a> - XML External Entities (XXE)</p>
+</li>
+<li>
+<p><a href="https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#net">OWASP XXE Prevention Cheat Sheet</a></p>
+</li>
+<li>
+<p><a href="http://cwe.mitre.org/data/definitions/611.html">MITRE, CWE-611</a> - Information Exposure Through XML External Entity Reference</p>
+</li>
+<li>
+<p><a href="http://cwe.mitre.org/data/definitions/827.html">MITRE, CWE-827</a> - Improper Control of Document Type Definition</p>
+</li>
+</ul>
+</div>
+<hr/>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_14_feb_2020_170223_andrei_epure_wrote">on 14 Feb 2020, 17:02:23 Andrei Epure wrote:</h3>
+<div class="paragraph">
+<p>note: I removed the APIs which are not relevant or will not be shipped in the 8.4 milestone</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_12_mar_2020_194312_andrei_epure_wrote">on 12 Mar 2020, 19:43:12 Andrei Epure wrote:</h3>
+<div class="paragraph">
+<p>\[~alexandre.gigleux] - I added examples with <code>XPathDocument</code> in the title even if the OWASP cheatsheet mentions <code>XPathNavigator</code> because we actually detect problems with the <code>XPathDocument</code> and raise issues on it (at configuration level).</p>
+</div>
+<div class="paragraph">
+<p>Otherwise, it can lead users to confusion.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4435">deprecates: S4435</h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_23_mar_2015_195642_ann_campbell_wrote">on 23 Mar 2015, 19:56:42 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p><a href="https://www.owasp.org/index.php/XML_External_Entity_%28XXE%29_Processing" class="bare">https://www.owasp.org/index.php/XML_External_Entity_%28XXE%29_Processing</a></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_20_jul_2015_073417_ann_campbell_wrote">on 20 Jul 2015, 07:34:17 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Tagged java-top by Ann [~nicolas.peru]</p>
+</div>
+</div>
+</div>
+</div>

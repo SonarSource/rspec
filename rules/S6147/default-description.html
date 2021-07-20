@@ -1,0 +1,127 @@
+<div class="paragraph">
+<p>In order to save memory, unions allow you to use the same memory to store objects from a list of possible types as long as one object is stored at a time. Unions are not inherently safe, as they expect you to externally keep track of the type of value they currently hold.</p>
+</div>
+<div class="paragraph">
+<p>Wrong tracking has the potential to corrupt memory or to trigger undefined behaviors.</p>
+</div>
+<div class="paragraph">
+<p>A straightforward way to avoid it is storing the information about the currently active alternative along with the union. Here follow suggested patterns to do that:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>typedef int   altType1;
+typedef float altType2;
+
+// Pattern 1
+union alternativesCommonStartingFieldPattern {
+  struct {
+    bool isAlt1;
+    altType1 a1;
+  } one;
+
+  struct {
+    bool isAlt1;
+    altType2 a2;
+  } two;
+};
+
+double getValueAsDouble(alternativesCommonStartingFieldPattern *pattern1) {
+  return pattern1-&gt;one.isAlt1?pattern1-&gt;one.a1:pattern1-&gt;two.a2;
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This pattern uses the fact that when two alternatives of a standard layout union are standard-layout-structs that share a common initial sequence, it is allowed to read this common initial sequence on one alternative even if the other alternative is the one currently active. This is commonly used to limit the number of bits required to store the discriminant.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// Pattern 2
+struct wrappedUnionPattern {
+  enum {ALTTYPE1, ALTTYPE2} type;
+
+  union {
+    altType1 a1;
+    altType2 a2;
+  };
+};
+
+double getValueAsDouble(wrappedUnionPattern *pattern2) {
+  return (pattern2-&gt;type==wrappedUnionPattern::ALTTYPE1)?pattern2-&gt;a1:pattern2-&gt;a2;
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This pattern is more straightforward, and wraps the union inside a structure that will also store the discriminant. Note that in this case, the union itself can be anonymous.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// Pattern 3 (C++17)
+using stdVariantPattern = std::variant&lt;altType1, altType2&gt;;
+
+double getValueAsDouble(stdVariantPattern *pattern3) {
+  return std::visit([](auto&amp;&amp; alternative) -&gt; double { return alternative;}, *pattern3);
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This pattern relies on C&#43;&#43;17’s <code>std::variant</code> to store the alternative.</p>
+</div>
+<div class="paragraph">
+<p>In general, <code>std::variant</code> is:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Safer as the type of the current value is always known and checked before usage.</p>
+</li>
+<li>
+<p>More practical as it can have members of any type, including non trivial types (see S6025). It also supports redundant types, which is useful when alternatives have the same type with different semantic meanings.</p>
+</li>
+<li>
+<p>Easier to use as it provides many member/helper functions.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>One noticeable difference with unions is that the alternatives in a <code>std::variant</code> do not have a name. You can access them by type or by index, using <code>std::get</code> (throws if the wrong alternative is accessed) or <code>std::get_if</code> (returns a null pointer if the wrong alternative is used). But very often, instead of accessing a specific alternative, visitors are used to distinguish cases of the variant.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when unions are used outside of the 3 suggested patterns.</p>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>void rawUnion() {
+  union IntOrDouble { // Noncompliant: union is not wrapped
+    int i;
+    double d;
+  };
+  IntOrDouble intOrDouble;
+  intOrDouble.d = 10.5;
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>struct IntOrChar {
+  enum { INT, CHAR } tag;
+  union { // Compliant
+    int i;
+    char c;
+  };
+};
+
+void simpleVariant() {
+  std::variant&lt;int, double&gt; intOrDouble = 10.5; // Compliant
+}{code}</pre>
+</div>
+</div>
+</div>
+</div>

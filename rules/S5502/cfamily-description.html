@@ -1,0 +1,114 @@
+<div class="paragraph">
+<p>In a statement, the order of evaluation of sub-expressions (e.g. the arguments of a function call) is not totally specified. This means the compiler can even interleave the evaluation of these sub-expressions, especially for optimization purposes.</p>
+</div>
+<div class="paragraph">
+<p>If you have several resource allocations in one statement, and the first succeeds while the second fails and throws an exception, the first allocated resource can leak. The classical mitigation for this issue is to use a RAII manager to wrap the raw resource, but since the execution order is not specified, you may not have the time to do this.</p>
+</div>
+<div class="paragraph">
+<p>It is possible to write code that contains several allocations and will still behaves correctly (it has even been made easier in C&#43;&#43;17, where the evaluation order has been made more strict), however it requires expert-level knowledge of the language. It is simpler, and more future-proof, to simply avoid using several allocations in a single statement.</p>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;memory&gt;
+
+using namespace std;
+
+class S {
+public:
+  explicit S(int a, int b);
+};
+
+void g(shared_ptr&lt;S&gt; p1, shared_ptr&lt;S&gt; p2);
+
+void f() {
+  g(shared_ptr&lt;S&gt;(new S(1, 2)), shared_ptr&lt;S&gt;(new S(3, 4))); // Noncompliant: 2 resources are allocated in the same expression statement
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this example, it would be valid for a pre-C&#43;&#43;17 compiler to run the code in this order:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>new S(1, 2) =&gt; p1</code></p>
+</li>
+<li>
+<p><code>new S(3, 4) =&gt; p2</code></p>
+</li>
+<li>
+<p><code>shared_ptr&lt;S&gt;(p1) =&gt; s1</code></p>
+</li>
+<li>
+<p><code>shared_ptr&lt;S&gt;(p2) =&gt; s2</code></p>
+</li>
+<li>
+<p><code>g(s1, s2)</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In that case, if the second allocation fails, the memory allocated for the first one will be leaked, since the <code>shared_ptr</code> has not yet been able to claim ownership of the object.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>#include &lt;memory&gt;
+
+using namespace std;
+
+class S {
+public:
+  explicit S(int a, int b);
+};
+
+void g(shared_ptr&lt;S&gt; p1, shared_ptr&lt;S&gt; p2);
+
+void f() {
+  g(make_shared&lt;S&gt;(1, 2), make_shared&lt;S&gt;(3, 4)); // Compliant: no resource in the same expression statement
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#r13-perform-at-most-one-explicit-resource-allocation-in-a-single-expression-statement">C&#43;&#43; Core Guidelines R.13</a> - Perform at most one explicit resource allocation in a single expression statement</p>
+</li>
+<li>
+<p><a href="https://en.cppreference.com/w/cpp/language/eval_order">cppreference</a> - Order of evaluation</p>
+</li>
+</ul>
+</div>
+<hr/>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s984">relates to: S984</h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_24_oct_2019_121501_loïc_joly_wrote">on 24 Oct 2019, 12:15:01 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~geoffray.adde]: Can you please review my changes?</p>
+</div>
+</div>
+</div>
+</div>

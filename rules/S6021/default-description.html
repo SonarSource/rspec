@@ -1,0 +1,94 @@
+<div class="paragraph">
+<p>Heterogeneous containers were introduced in C&#43;&#43;14 to increase performances when working with <code>std::map</code>, <code>std::set</code>, <code>std::multimap</code> and <code>std::multiset</code>. Before their introduction, when working with a key in such a container, it was required to use an object of the exact key type. This could lead to costly object creations when we would like to work with objects of compatible but different types:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>std::map&lt;std::string, int&gt; m;
+m.find("abc"); // Will convert the char const * to a std::string, maybe performing costly memory allocation</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With heterogeneous containers, the previous code will not create a <code>string</code>, but directly compare keys in the map with the searched <code>char const *</code>. This is a behavior you can opt-in with providing a <em>transparent</em> comparison method for the map.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>std::map&lt;std::string, int, std::less&lt;&gt;&gt; m; // std::less&lt;&gt; is transparent, std::less&lt;anything&gt; is not
+m.find("abc"); // Will directly compare the char const* with the keys, no object conversion</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A transparent comparator is one that declares a nested type named <code>is_transparent</code>. It is supposed to be able to compare heterogeneous object types, for instance in this case compare a <code>char const *</code> with a <code>string</code>, without performing any conversion.</p>
+</div>
+<div class="paragraph">
+<p>What happens if it cannot? Well, if the types are convertible with each other (which is usually the case when you want to work with a heterogeneous container), a conversion will happen, and a homogeneous comparison will be performed instead.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>class MyString {
+public:
+  operator std::string() const {return myData;} // Converts to a string
+  // Other functions to make the class behaves correctly
+private:
+  std::string myData;
+};
+
+bool operator&lt;(const std::string&amp;, const std::string&amp;);
+
+void f() {
+  std::map&lt;std::string, int, std::less&lt;&gt;&gt; m;
+  MyString str{"abc"};
+  m.find(str);
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this case, <code>str</code> will not be converted to a <code>std::string</code> when calling the function <code>find</code> (this function is now a member function template). However, each time during the search when a comparison will be needed between <code>MyString</code> and <code>std::string</code>, a conversion will now happen to convert <code>str</code> to always the same <code>string</code>. A unique conversion is replaced by <code>O(ln N)</code> conversions.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when a transparent lookup function of a heterogeneous container is used with a type that cannot be directly compared with the container key type. Only standard associative containers with expensive to create key and straightforward comparison functions are considered.</p>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>void f() {
+  std::map&lt;std::string, int, std::less&lt;&gt;&gt; m;
+  MyString str{"abc"}; // See previous definition of MyString
+  m.find(str); // Noncompliant, O(ln N) conversions
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Option 1: Make the container non-heterogeneous</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>void f() {
+  std::map&lt;std::string, int&gt; m;
+  MyString str{"abc"}; // See previous definition of MyString
+  m.find(str); // Compliant, one conversion at the start
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Option 2: Provide heterogeneous comparisons</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>bool operator&lt;(MyString const &amp;s1, std::string const &amp;s2) {/*...*/}
+bool operator&lt;(std::string const &amp;s1, MyString const &amp;s2) {/*...*/}
+void f() {
+  std::map&lt;std::string, int, std::less&lt;&gt;&gt; m;
+  MyString str{"abc"}; // See previous definition of MyString
+  m.find(str); // Compliant, no conversion at all
+}</pre>
+</div>
+</div>
+</div>
+</div>
