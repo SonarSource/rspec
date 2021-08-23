@@ -1,20 +1,50 @@
-FIXME: add a description
+`std::move` is not really used to move anything, but to tell the compiler that a value can be considered as expandable. It is technically a cast to a RValue, and allows overload resolution to select a function that will perform destructive operations of that value (therefore actually moving from it).
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+----
+void f(A const &a); // Just reading from a
+void f(A&& a); // I can perform destructive operations on a, like resource stealing
+
+void g() {
+    A a;
+    f(a); // First overload is selected
+    f(std::move(a)); // Second overload is selected
+}
+----
+
+As a consequence, calling `std::move` on an object and then not directly using the returned value as a function argument is not the typical pattern, and may be indicative of a bug.
 
 == Noncompliant Code Example
 
 ----
-FIXME
+void sink(A &&a) {
+  std::move(a); // Noncompliant, and not doing anything
+}
+
+void f(A &&a) {
+  // May or may not move the member name, depending on its type, the intent is not clear anyways,
+  // for instance, is `a` supposed to be in a moved-from state after the call?
+  g(std::move(a).name); // Noncompliant
+}
 ----
 
 == Compliant Solution
 
 ----
-FIXME
+void f(A &&a) {
+  g(std::move(a.name)); // Compliant, `a.name` is in moved from state, `a` itself is not
 ----
 
-== See
+== Exception
+Even if a built-in operator is not a function call, for consistency with overloaded operators where calling `std::move` can be useful, this rule will not report an issue when the result of `std::move` is the operand of a built-in operator.
 
-FIXME: A list of links
+----
+struct Data {A a; int b; };
+
+Data add(Data &&d1, Data &&d2) {
+  return Data{
+    std::move(d1.a) + std::move(d2.a), // Compliant, operator+ might have an overload for A&&
+    std::move(d1.b) + std::move(d2.b)  // Compliant by exception
+  };
+}
+----
+
