@@ -71,6 +71,7 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
               usePipeline: false
             });
           });
+
           // Search for each query token in titles and descriptions
           lunr.tokenizer(amendQuery(query)).forEach(token => {
             q.term(token, {fields: ['all_keys', 'titles', 'descriptions'], presence: lunr.Query.presence.REQUIRED})
