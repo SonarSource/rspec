@@ -95,7 +95,7 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
   return {results, numberOfHits, error, loading};
 }
 
-// allows to search by a rule key in the following formats: SXXX, RSPEC-XXX and XXX
+// allows to search by a rule key in the following formats: SXXX, RSPEC-XXX
 function amendQuery(query: string) {
-  return query.replace('RSPEC-', 'S').replace(/(?<!S)(?<=\s|^)(\d{3,})/i, 'S$1');
+  return query.replace('RSPEC-', 'S');
 }
