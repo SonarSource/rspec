@@ -54,7 +54,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
       try {
         process(ruleDir, pull);
       } catch (e) {
-        logger.error(`Failed to process PR (${pull.url})`);
+        logger.error(`Failed to process PR (${pull.url}), it will be skipped`);
         logger.error(e);
       }
     } else {
