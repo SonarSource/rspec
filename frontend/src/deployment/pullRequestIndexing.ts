@@ -51,7 +51,12 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
     await repo.checkoutRef(ref);
     const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
     if (fs.existsSync(ruleDir)) {
-      process(ruleDir, pull);
+      try {
+        process(ruleDir, pull);
+      } catch (e) {
+        logger.error(`Failed to process PR (${pull.url})`);
+        logger.error(e);
+      }
     } else {
       logger.error(`No rule dir rules/${pull.rspec_id} is found for the PR#${pull.pull_id}: ${pull.url}`);
     }
