@@ -145,6 +145,13 @@ export function RulePage(props: any) {
   // language can be absent
   const language = props.match.params.language;
   document.title = ruleid;
+  document.getElementsByName("metaTitle").forEach(element => {
+    element.setAttribute("content", ruleid);
+  });
+
+  document.getElementsByName("metaUrl").forEach(element => {
+    element.setAttribute("content", window.location.href);
+  });
 
   const history = useHistory();
   function handleLanguageChange(event: any, lang: string) {
