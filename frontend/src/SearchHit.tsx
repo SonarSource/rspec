@@ -26,9 +26,15 @@ const useStyles = makeStyles((theme) => ({
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
   },
+  languageChip: {
+    marginRight: theme.spacing(1),
+    marginTop: theme.spacing(2),
+    backgroundColor: '#4c9bd6'
+  },
   unimplementedMarker: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(2)
+    marginTop: theme.spacing(2),
+    backgroundColor: '#c72b28'
   }
 }));
 
@@ -40,7 +46,7 @@ export function SearchHit(props: SearchHitProps) {
   const classes = useStyles();
   const languages = props.data.languages.map(lang => (
     <Chip
-      classes={{root: classes.language}}
+      classes={{root: classes.languageChip}}
       label={lang}
       color="primary"
     />
