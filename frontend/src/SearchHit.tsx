@@ -39,7 +39,7 @@ type SearchHitProps = {
 export function SearchHit(props: SearchHitProps) {
   const classes = useStyles();
   const actualLanguages = props.data.languages.filter(language => language !== 'default');
-  const languages = specifiedLanguages.map(lang => (
+  const languages = actualLanguages.map(lang => (
     <Chip
       classes={{root: classes.language}}
       label={lang}
