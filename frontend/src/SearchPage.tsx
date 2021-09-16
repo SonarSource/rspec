@@ -21,6 +21,18 @@ import { IndexAggregates } from './types/IndexStore'
 
 export const SearchPage = () => {
   document.title = "Search"
+  document.getElementsByName("metaTitle").forEach(element => {
+    element.setAttribute("content", "RSPEC");
+  });
+
+  document.getElementsByName("metaDescription").forEach(element => {
+    element.setAttribute("content", "Rules Repository Search Page");
+  });
+
+  document.getElementsByName("metaUrl").forEach(element => {
+    element.setAttribute("content", window.location.href);
+  });
+
   const classes = useStyles();
 
   const pageSize = 20;
