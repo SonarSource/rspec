@@ -25,6 +25,10 @@ export const SearchPage = () => {
     element.setAttribute("content", "RSPEC");
   });
 
+  document.getElementsByName("metaDescription").forEach(element => {
+    element.setAttribute("content", "Rules Repository Search Page");
+  });
+
   document.getElementsByName("metaUrl").forEach(element => {
     element.setAttribute("content", window.location.href);
   });
