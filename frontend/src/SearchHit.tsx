@@ -34,7 +34,7 @@ const useStyles = makeStyles((theme) => ({
   unimplementedMarker: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
-    backgroundColor: '#c72b28'
+    backgroundColor: '#fd6a00'
   }
 }));
 
