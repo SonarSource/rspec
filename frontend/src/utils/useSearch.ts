@@ -73,7 +73,7 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
           });
 
           // Search for each query token in titles and descriptions
-          lunr.tokenizer(query).forEach(token => {
+          lunr.tokenizer(amendQuery(query)).forEach(token => {
             q.term(token, {fields: ['all_keys', 'titles', 'descriptions'], presence: lunr.Query.presence.REQUIRED})
           });
         });
@@ -94,4 +94,9 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
   }, [query, ruleType, ruleLang, ruleTags, qualityProfiles, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
 
   return {results, numberOfHits, error, loading};
+}
+
+// allows to search by a rule key in the following formats: SXXX, RSPEC-XXX
+function amendQuery(query: string) {
+  return query.replace('RSPEC-', 'S');
 }
