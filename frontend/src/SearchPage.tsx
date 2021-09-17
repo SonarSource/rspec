@@ -25,7 +25,15 @@ export const SearchPage = () => {
     element.setAttribute("content", "RSPEC");
   });
 
+  document.getElementsByName("twitter:title").forEach(element => {
+    element.setAttribute("content", "RSPEC");
+  });
+
   document.getElementsByName("metaDescription").forEach(element => {
+    element.setAttribute("content", "Rules Repository Search Page");
+  });
+
+  document.getElementsByName("twitter:description").forEach(element => {
     element.setAttribute("content", "Rules Repository Search Page");
   });
 
