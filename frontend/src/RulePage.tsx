@@ -150,6 +150,10 @@ export function RulePage(props: any) {
     element.setAttribute("content", ruleid);
   });
 
+  document.getElementsByName("twitter:title").forEach(element => {
+    element.setAttribute("content", ruleid);
+  });
+
   document.getElementsByName("metaUrl").forEach(element => {
     element.setAttribute("content", window.location.href);
   });
@@ -199,6 +203,10 @@ export function RulePage(props: any) {
   }
 
   document.getElementsByName("metaDescription").forEach(element => {
+    element.setAttribute("content", metaDescription);
+  });
+
+  document.getElementsByName("twitter:description").forEach(element => {
     element.setAttribute("content", metaDescription);
   });
 
