@@ -68,11 +68,30 @@ export const SearchPage = () => {
     resultsDisplay = "Searching";
   }
   else if (results.length > 0) {
-    resultsDisplay = results.map(result =>
-      <Box className={classes.searchHitBox}>
-        <SearchHit key={result.id} data={result}/>
-      </Box>
-    )
+    resultsDisplay =  new Array(results.length);
+    let exactMatch: null|JSX.Element = null;
+    let upperCaseQuery = query.toLocaleUpperCase();
+
+    results.forEach(element => {
+      if(element.all_keys.some(key => key === upperCaseQuery)) {
+        exactMatch = 
+        <Box className={classes.searchHitBox}>
+          <SearchHit key={element.id} data={element}/>
+        </Box>
+      }
+      else {
+        (resultsDisplay as JSX.Element[]).push(
+        <Box className={classes.searchHitBox}>
+          <SearchHit key={element.id} data={element}/>
+        </Box>
+        )
+      }
+      })
+
+    if(exactMatch != null)
+    {
+      resultsDisplay.unshift(exactMatch);
+    }
   }
 
   const paramSetters: Record<string, SearchParamSetter<any>> = {
