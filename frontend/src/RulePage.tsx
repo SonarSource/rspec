@@ -144,7 +144,19 @@ export function RulePage(props: any) {
   const ruleid = props.match.params.ruleid;
   // language can be absent
   const language = props.match.params.language;
+  let metaDescription = "Rules Repository Search Page";
   document.title = ruleid;
+  document.getElementsByName("metaTitle").forEach(element => {
+    element.setAttribute("content", ruleid);
+  });
+
+  document.getElementsByName("twitter:title").forEach(element => {
+    element.setAttribute("content", ruleid);
+  });
+
+  document.getElementsByName("metaUrl").forEach(element => {
+    element.setAttribute("content", window.location.href);
+  });
 
   const history = useHistory();
   function handleLanguageChange(event: any, lang: string) {
@@ -169,6 +181,7 @@ export function RulePage(props: any) {
   let prUrl: string | undefined = undefined;
   if (metadataJSON && !metadataIsLoading && !metadataError) {
     title = metadataJSON.title;
+    metaDescription = title;
     if ('prUrl' in metadataJSON) {
       prUrl = metadataJSON.prUrl;
     }
@@ -188,6 +201,14 @@ export function RulePage(props: any) {
       coverage = allLangsRuleCoverage(metadataJSON.allKeys, coverageMapper);
     }
   }
+
+  document.getElementsByName("metaDescription").forEach(element => {
+    element.setAttribute("content", metaDescription);
+  });
+
+  document.getElementsByName("twitter:description").forEach(element => {
+    element.setAttribute("content", metaDescription);
+  });
 
   let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
                         branch + '/rules/' + ruleid + (language ? '/' + language : '');
