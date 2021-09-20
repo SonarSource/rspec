@@ -6,36 +6,76 @@ The ``++chrono++`` library, introduced in {cpp}20, provides support for calendar
 
 This rule raises an issue on any use of C/POSIX functions that can be replaced with one of the ``++std::chrono++`` components:
 
-* querying for current time (``++time++``, ``++get_timespec++``, ``++clock_gettime++``)
+* querying for current time (``++time++``, ``++timespec_get++``, ``++clock_gettime++``)
 * date to time-point conversion (``++mktime++``, ``++gmtime++``, ``++localtime++``)
 * time serialization (``++ctime++``, ``++asctime++``, ``++strftime++``)
 * time parsing (``++strptime++``)
 
+== Noncompliant Solution
+
+----
+int currentMonth() {
+  std::time_t tp;
+  std::time(&tp);
+  std::tm* date = std::gmtime(&tp);
+  return date->tm_mon + 1;
+}
+
+std::chrono::system_clock::time_point makeSomeDay() {
+  // Creates time_point corresponding to 2020-09-04
+  std::tm date{};
+  date.tm_year = 120;
+  date.tm_mon = 8;
+  date.tm_mday = 4;
+  std::time_t t = std::mktime(&date); // Noncompliant
+  return std::chrono::system_clock::from_time_t(t);
+}
+
+std::optional<int> yearOfTimePoint(std::chrono::system_clock::time_point tp) {
+  std::time_t t = std::chrono::system_clock::to_time_t(tp);
+  std::tm* date = std::gmtime(&t); // Noncompliant
+  if (!date)
+    return std::nullopt;
+  return date->tm_year + 1900;
+}
+
+std::string toIsoString(std::chrono::system_clock::time_point tp) {
+  std::time_t t = std::chrono::system_clock::to_time_t(tp);
+  std::tm* date = std::gmtime(&t);  // Noncompliant
+  if (!date)
+    throw InvalidDate();
+
+  std::string buffer(100, ' ');
+  std::size_t written = std::strftime(buffer.data(), buffer.size(), "%F", date);
+  buffer.resize(written);
+  return buffer;
+}
+----
 
 == Compliant Solution
 
 ----
 std::chrono::month currentMonth() {
-   using namespace std::chrono;
-   auto dp = floor<days>(system_clock::now());
-   return year_month_day(dp).month();
+  using namespace std::chrono;
+  auto dp = floor<days>(system_clock::now());
+  return year_month_day(dp).month();
 }
 
 std::chrono::system_clock::time_point makeSomeDay() {
-   using namespace std::chrono;
-   retrun sys_days(2001y/April/10);
+  using namespace std::chrono;
+  return sys_days(2020y/Septembre/4);
 }
 
-std::optional<int> yearOfTimePoint(std::chrono::system_clock::time_point tp) {
-   using namespace std::chrono;
-   year_month_day date(floor<days>(tp));
-   if (!date.ok())
-     return std::nullopt;
-   return date.year();
+std::optional<std::chrono::year> yearOfTimePoint(std::chrono::system_clock::time_point tp) {
+  using namespace std::chrono;
+  year_month_day date(floor<days>(tp));
+  if (!date.ok())
+    return std::nullopt;
+  return date.year();
 }
 
 std::string toIsoString(std::chrono::system_clock::time_point tp) {
-   return std::format("{:%F}", tp);
+  return std::format("{:%F}", tp);
 }
 ----
 
