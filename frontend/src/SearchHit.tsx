@@ -27,7 +27,10 @@ const useStyles = makeStyles((theme) => ({
   languageChip: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
-    backgroundColor: '#4c9bd6'
+    backgroundColor: '#4c9bd6',
+    '&:hover, &:focus': {
+      backgroundColor: '#25699D'
+    },
   },
   unimplementedMarker: {
     marginRight: theme.spacing(1),
