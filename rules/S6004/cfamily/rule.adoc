@@ -1,4 +1,4 @@
-{cpp}17 introduced a construct to create and initialize a variable within the condition of ``++if++`` and ``++switch++`` statements and {cpp}20 added this construct to range-based for loops. Using this new feature simplifies common code patterns and helps in giving variables the right scope.
+{cpp}17 introduced a construct to create and initialize a variable within the condition of `if` and `switch` statements and {cpp}20 added this construct to range-based `for` loops. Using this new feature simplifies common code patterns and helps in giving variables the right scope.
 
 
 Previously, variables were either declared before the statement, hence leaked into the ambient scope, or an explicit scope was used to keep the scope tight, especially when using RAII objects. This was inconvenient as it would lead to error-prone patterns. 
@@ -7,32 +7,33 @@ Previously, variables were either declared before the statement, hence leaked in
 For example, this verbose error-prone initialization:
 
 ----
-void error_prone_init() 
-{
+void error_prone_init() {
   { // explicit scope
     std::unique_lock<std::mutex> lock(mtx, std::try_to_lock);
-    if (lock.owns_lock())
-    {
+    if (lock.owns_lock()) {
        //...
      }
   } //mutex unlock
   // ... code
 }
 ----
-can now be replaced by safer and more readable equivalent code:
+can now be replaced by the following code, which is safer and more readable:
 
 ----
-void better_init() 
-{
-  if (std::unique_lock<std::mutex> lock(mtx, std::try_to_lock); lock.owns_lock())
-  {
+void better_init() {
+  if (std::unique_lock<std::mutex> lock(mtx, std::try_to_lock); lock.owns_lock()) {
      //...
   } //mutex unlock
   // ... code
 }
 ----
 
-This rule raises an issue when a variable is declared just before a selection statement (``++if++``, ``++switch++``, or, starting {cpp}20, "range-based for"), used in the condition, and never used after the statement.
+This rule raises an issue when:
+
+- a variable is declared just before a statement that allows variable declaration (`if`, `switch`, or, starting {cpp}20, range-based `for` loop),
+- this variable is used in the statement header,
+- there are other statements after this statement where this variable might be used,
+- yet, it is never used after the statement.
 
 
 == Noncompliant Code Example
@@ -49,8 +50,11 @@ void ifStatment() {
   } else {
     handle(it->second);
   }
+  process(m);
 }
+----
 
+----
 enum class State { True, False, Maybe, MaybeNot };
 std::pair<std::string, State> getStatePair();
 
@@ -60,19 +64,24 @@ void switchStatment() {
     case State::True:
     case State::Maybe:
       std::cout << state.first;
+      break;
     case State::False:
     case State::MaybeNot:
       std::cout << "No";
+      break;
   }
+  std::cout << "\n";
 }
+----
 
+----
 std::vector<std::vector<int>> getTable();
 void printHeadersBad() {
-  auto rows = getTable(); // Noncompliant: rows is accessible outside of the loop
+  auto rows = getTable(); // Noncompliant in C++20: rows is accessible outside of the loop
   for (int x : rows[0]) {
-    std::cout <<x <<' ';
+    std::cout << x <<' ';
   }
-  // ...
+  std::cout << "\n";
 }
 ----
 
@@ -81,10 +90,10 @@ Using a temporary to avoid leaking of the variable into the ambient scope create
 ----
 std::vector<std::vector<int>> getTable();
 void printHeadersWorse() {
-  for (int x : getTable()[0]) { // Noncompliant: undefined behavior: return value of getTable() no longer exists in the loop body
-    std::cout <<x <<' ';
+  for (int x : getTable()[0]) { // Undefined behavior: return value of getTable() no longer exists in the loop body
+    std::cout << x <<' ';
   }
-  // ...
+  std::cout << "\n";
 }
 ----
 
@@ -102,6 +111,7 @@ void ifStatment() {
   } else {
     handle(it->second);
   }
+  process(m);
 }
 
 enum class State { True, False, Maybe, MaybeNot };
@@ -112,18 +122,22 @@ void switchStatment() {
     case State::True:
     case State::Maybe:
       std::cout << state.first;
+      break;
     case State::False:
     case State::MaybeNot:
       std::cout << "No";
+      break;
   }
+  std::cout << "\n";
 }
 
 std::vector<std::vector<int>> getTable();
 void printHeadersGood() {
-  for (auto rows = getTable(); int x : table[0]) { // Compliant: rows is accessible only inside the loop
-    std::cout <<x <<' ';
+  // Compliant: rows is accessible only inside the loop (this code requires at least C++20)
+  for (auto rows = getTable(); int x : table[0]) { 
+    std::cout << x <<' ';
   }
-  // ...
+  std::cout << "\n";
 }
 ----
 
