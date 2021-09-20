@@ -20,6 +20,8 @@ fi
 
 ./ci/generate_html.sh
 
+exit_code=0
+
 cd rspec-tools
 # validate sections in asciidoc
 if pipenv run rspec-tools check-sections --d ../out; then
@@ -30,8 +32,6 @@ else
 fi
 cd ..
 
-
-exit_code=0
 
 for dir in $affected_rules
 do
