@@ -17,7 +17,7 @@ import {
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
-import { IndexAggregates, IndexedRule } from './types/IndexStore'
+import { IndexAggregates } from './types/IndexStore'
 
 export const SearchPage = () => {
   document.title = "Search"
