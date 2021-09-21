@@ -20,8 +20,6 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: 'row',
     justifyContent: 'space-between'
   },
-  // languages: {
-  // },
   language: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
@@ -29,7 +27,10 @@ const useStyles = makeStyles((theme) => ({
   languageChip: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
-    backgroundColor: '#4c9bd6'
+    backgroundColor: '#4c9bd6',
+    '&:hover, &:focus': {
+      backgroundColor: '#25699D'
+    },
   },
   unimplementedMarker: {
     marginRight: theme.spacing(1),
@@ -46,11 +47,14 @@ export function SearchHit(props: SearchHitProps) {
   const classes = useStyles();
   const actualLanguages = props.data.languages.filter(language => language !== 'default');
   const languages = actualLanguages.map(lang => (
+    <Link component={RouterLink} to={`/${props.data.id}/${lang}`} style={{ textDecoration: 'none' }}>
     <Chip
       classes={{root: classes.languageChip}}
       label={lang}
       color="primary"
+      clickable
     />
+    </Link>
   ));
   const titles = props.data.titles.map(title => (
     <Typography variant="body1" component="p" gutterBottom>
@@ -62,11 +66,12 @@ export function SearchHit(props: SearchHitProps) {
     unimplementedMarker = <Chip classes={{root: classes.unimplementedMarker}} label="Not implemented" color="secondary" />
   }
   return (
-    <Link component={RouterLink} to={`/${props.data.id}/${props.data.languages[0]}`}>
     <Card variant="outlined" classes={{root: classes.searchHit}}>
       <CardContent>
         <Typography classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>
-          <div> Rule {props.data.id} </div>
+          <Link component={RouterLink} to={`/${props.data.id}`}>
+            <div> Rule {props.data.id} </div>
+          </Link>
           {unimplementedMarker}
         </Typography>
         {titles}
@@ -75,6 +80,5 @@ export function SearchHit(props: SearchHitProps) {
         </Typography>
       </CardContent>
     </Card>
-    </Link>
   )
 }
