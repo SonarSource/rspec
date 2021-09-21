@@ -189,7 +189,7 @@ export function RulePage(props: any) {
     }
   }
 
-  if (coverage != "Not Covered") {
+  if (coverage !== "Not Covered") {
     prUrl = undefined;
     branch = 'master'; 
   }
