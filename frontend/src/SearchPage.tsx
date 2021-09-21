@@ -17,7 +17,7 @@ import {
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
-import { IndexAggregates } from './types/IndexStore'
+import { IndexAggregates, IndexedRule } from './types/IndexStore'
 
 export const SearchPage = () => {
   document.title = "Search"
@@ -66,32 +66,22 @@ export const SearchPage = () => {
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
   if (loading) {
     resultsDisplay = "Searching";
-  }
-  else if (results.length > 0) {
-    resultsDisplay =  new Array(results.length);
-    let exactMatch: null|JSX.Element = null;
-    let upperCaseQuery = query.toLocaleUpperCase();
+  } else if (results.length > 0) {
+    const upperCaseQuery = query.toLocaleUpperCase();
+    let resultsBoxes: JSX.Element[] = [];
 
-    results.forEach(element => {
-      if(element.all_keys.some(key => key === upperCaseQuery)) {
-        exactMatch = 
-        <Box className={classes.searchHitBox}>
-          <SearchHit key={element.id} data={element}/>
-        </Box>
+    // making the exact match to appear first in the search results
+    results.forEach(indexedRule => {
+      const box = <Box className={classes.searchHitBox}>
+        <SearchHit key={indexedRule.id} data={indexedRule}/>
+      </Box>;
+      if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
+        resultsBoxes = [box, ...resultsBoxes];
+      } else {
+        resultsBoxes.push(box);
       }
-      else {
-        (resultsDisplay as JSX.Element[]).push(
-        <Box className={classes.searchHitBox}>
-          <SearchHit key={element.id} data={element}/>
-        </Box>
-        )
-      }
-      })
-
-    if(exactMatch != null)
-    {
-      resultsDisplay.unshift(exactMatch);
-    }
+    });
+    resultsDisplay = resultsBoxes;
   }
 
   const paramSetters: Record<string, SearchParamSetter<any>> = {
