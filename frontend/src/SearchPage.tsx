@@ -66,13 +66,22 @@ export const SearchPage = () => {
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
   if (loading) {
     resultsDisplay = "Searching";
-  }
-  else if (results.length > 0) {
-    resultsDisplay = results.map(result =>
-      <Box className={classes.searchHitBox}>
-        <SearchHit key={result.id} data={result}/>
-      </Box>
-    )
+  } else if (results.length > 0) {
+    const upperCaseQuery = query.toLocaleUpperCase();
+    let resultsBoxes: JSX.Element[] = [];
+
+    // making the exact match to appear first in the search results
+    results.forEach(indexedRule => {
+      const box = <Box className={classes.searchHitBox}>
+        <SearchHit key={indexedRule.id} data={indexedRule}/>
+      </Box>;
+      if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
+        resultsBoxes = [box, ...resultsBoxes];
+      } else {
+        resultsBoxes.push(box);
+      }
+    });
+    resultsDisplay = resultsBoxes;
   }
 
   const paramSetters: Record<string, SearchParamSetter<any>> = {
