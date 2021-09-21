@@ -189,6 +189,11 @@ export function RulePage(props: any) {
     }
   }
 
+  if (coverage != "Not Covered") {
+    prUrl = undefined;
+    branch = 'master'; 
+  }
+
   let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
                         branch + '/rules/' + ruleid + (language ? '/' + language : '');
 
