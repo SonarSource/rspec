@@ -31,7 +31,12 @@ class LanguageSpecificRule:
     if self.__metadata is not None:
       return self.__metadata
     metadata_path = self.language_path.joinpath(METADATA_FILE_NAME)
-    lang_metadata = json.loads(metadata_path.read_bytes())
+    try:
+      lang_metadata = json.loads(metadata_path.read_bytes())
+    except:
+      print('Failed to parse ', metadata_path)
+      raise
+
     self.__metadata = self.rule.generic_metadata | lang_metadata
     return self.__metadata
 
