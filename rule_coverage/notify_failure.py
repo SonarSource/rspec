@@ -15,7 +15,5 @@ def notify_slack(msg):
       print(f"Could not notify slack: {e.response['error']}")
 
 print('ERROR: failed to update rule coverage')
-print(os.environ.get('GITHUB_RUN_ID'))
-print('https://github.com/SonarSource/rspec/actions/runs/' + os.environ.get('GITHUB_RUN_ID'))
-# notify_slack('ERROR: failed to update rule coverage.\n' +
-#              'See https://github.com/SonarSource/rspec/actions/workflows/update_coverage.yml')
+notify_slack('ERROR: failed to update rule coverage.\n' +
+             'See https://github.com/SonarSource/rspec/actions/runs/' + os.environ.get('GITHUB_RUN_ID'))
