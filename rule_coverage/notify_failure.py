@@ -14,6 +14,6 @@ def notify_slack(msg):
     except SlackApiError as e:
       print(f"Could not notify slack: {e.response['error']}")
 
-print('ERROR: failed to upate rule coverage')
+print('ERROR: failed to update rule coverage')
 notify_slack('ERROR: failed to update rule coverage.\n' +
              'See https://github.com/SonarSource/rspec/actions/workflows/update_coverage.yml')
