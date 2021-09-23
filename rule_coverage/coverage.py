@@ -7,11 +7,10 @@ from git import Git
 from pathlib import Path
 
 repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets']
-#repos=['sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml']
 
 def load_json(file):
   with open(file) as json_file:
-    return json.load(json_file) 
+    return json.load(json_file)
 
 def get_rules_json(path,languages,version):
   print(f"Getting rules from {os.getcwd()} {path}")
@@ -30,7 +29,7 @@ def dump_rule(name,rule,languages,version):
   else:
     for language in languages:
       store_rule(name,rule,language,version)
-  
+
 def store_rule(name,rule,language,version):
   if language not in rules:
     print(f"create entry for {language}")
@@ -39,7 +38,7 @@ def store_rule(name,rule,language,version):
       name=name[:name.find('_')]
   if name not in rules[language]:
     rules[language][name]=version
-  
+
 def dump_rules(repo,version):
   for sp_file in Path('.').rglob('sonarpedia.json'):
     print(sp_file)
@@ -50,7 +49,7 @@ def dump_rules(repo,version):
     get_rules_json(path,languages,version)
     with open(f"../{rules_filename}", 'w') as outfile:
       json.dump(rules, outfile, indent=2)
-  
+
 def checkout(repo,version,batch_mode):
   token=os.getenv('GITHUB_TOKEN')
   if not token:
@@ -64,7 +63,7 @@ def checkout(repo,version,batch_mode):
   else:
     git_repo=Repo(repo)
   if batch_mode:
-    os.chdir(repo)  
+    os.chdir(repo)
     for tag in git_repo.tags:
       if not '-' in tag.name:
         print(f"{repo} {tag.name}")
@@ -80,10 +79,10 @@ def checkout(repo,version,batch_mode):
     g=Git(repo)
     g.checkout(version)
     os.chdir(repo)
-  
+
 def main():
   parser = argparse.ArgumentParser(description='rules coverage')
-  parser.add_argument('command', nargs='+', help='see code for help')  
+  parser.add_argument('command', nargs='+', help='see code for help')
   args = parser.parse_args()
 
   global rules
@@ -93,9 +92,7 @@ def main():
     rules=load_json(rules_filename)
   else:
     rules={}
-  
-  
-    
+
   if args.command[0] == "batchall":
     print(f"batch mode for {repos}")
     for repo in repos:
@@ -104,7 +101,7 @@ def main():
     repo=args.command[1]
     print(f"batch mode for {repo}")
     checkout(repo,None,True)
-  else: 
+  else:
     repo=args.command[0]
     version=args.command[1]
     print(f"checking {repo} version {version}")
