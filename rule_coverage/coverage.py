@@ -12,41 +12,46 @@ def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
 
-def get_rules_json(path,languages,version):
-  print(f"Getting rules from {os.getcwd()} {path}")
+# repoAndVersion uniquely identifies the analyzer and version implemeting
+# the rule for the given languages.
+# Rule implementations for some langauges are spread across multiple repositories
+# for example sonar-java and sonar-security for Java.
+# We use repoAndVersion to avoid confusion between version of different analyzers.
+def get_rules_json(path, languages, repoAndVersion):
+  print(f"Getting rules from {os.getcwd()} {path} for {repoAndVersion}")
   for filename in os.listdir(path):
     if filename.endswith(".json") and not filename.startswith("Sonar_way"):
         rule=load_json(os.path.join(path, filename))
-        dump_rule(filename[:-5],rule,languages,version)
+        dump_rule(filename[:-5], rule, languages, repoAndVersion)
     else:
         continue
 
 
-def dump_rule(name,rule,languages,version):
+def dump_rule(name, rule, languages, repoAndVersion):
   if "compatibleLanguages" in rule:
     for language in rule['compatibleLanguages']:
-      store_rule(name,rule,language,version)
+      store_rule(name, rule, language, repoAndVersion)
   else:
     for language in languages:
-      store_rule(name,rule,language,version)
+      store_rule(name, rule, language, repoAndVersion)
 
-def store_rule(name,rule,language,version):
+def store_rule(name, rule, language, repoAndVersion):
   if language not in rules:
     print(f"create entry for {language}")
     rules[language] = {}
   if '_' in name:
       name=name[:name.find('_')]
   if name not in rules[language]:
-    rules[language][name]=version
+    rules[language][name] = repoAndVersion
 
-def dump_rules(repo,version):
+def dump_rules(repo, version):
   for sp_file in Path('.').rglob('sonarpedia.json'):
     print(sp_file)
     sonarpedia_path=sp_file.parents[0]
     sonarpedia = load_json(sp_file)
-    path=str(sonarpedia_path)+'/'+sonarpedia['rules-metadata-path'].replace('\\','/')
+    path=str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
     languages=sonarpedia['languages']
-    get_rules_json(path,languages, repo + ' ' + version)
+    get_rules_json(path, languages, repo + ' ' + version)
     with open(f"../{rules_filename}", 'w') as outfile:
       json.dump(rules, outfile, indent=2, sort_keys=True)
 
@@ -65,26 +70,21 @@ def checkout_repo(repo):
 
 def scan_all_versions(repo):
   git_repo = checkout_repo(repo)
-  os.chdir(repo)
-  g=Git(repo)
   for tag in git_repo.tags:
     if not '-' in tag.name:
       print(f"{repo} {tag.name}")
-      try:
-        g.checkout(tag.name)
-        dump_rules(repo,tag.name)
-      except Exception:
-        print(f"{repo} {tag.name} checkout failed, resetting and cleaning")
-        g.reset('--hard',tag.name)
-        g.clean('-xfd')
-  os.chdir('..')
+      scan_version(repo, tag.name)
 
 def scan_version(repo,version):
-  git_repo = checkout_repo(repo)
   g=Git(repo)
-  g.checkout(version)
   os.chdir(repo)
-  dump_rules(repo,version)
+  try:
+    g.checkout(version)
+    dump_rules(repo, version)
+  except Exception:
+    print(f"{repo} {version} checkout failed, resetting and cleaning")
+    g.reset('--hard', version)
+    g.clean('-xfd')
   os.chdir('..')
 
 def main():
@@ -112,6 +112,7 @@ def main():
     repo=args.command[0]
     version=args.command[1]
     print(f"checking {repo} version {version}")
+    checkout_repo(repo)
     scan_version(repo,version)
 
 if __name__ == '__main__':
