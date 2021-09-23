@@ -72,11 +72,11 @@ def scan_all_versions(repo):
       print(f"{repo} {tag.name}")
       try:
         g.checkout(tag.name)
+        dump_rules(repo,tag.name)
       except Exception:
-        print("checkout failed, resetting and cleaning")
-        g.reset('--hard',tag)
+        print(f"{repo} {tag.name} checkout failed, resetting and cleaning")
+        g.reset('--hard',tag.name)
         g.clean('-xfd')
-      dump_rules(repo,tag.name)
   os.chdir('..')
 
 def scan_version(repo,version):
