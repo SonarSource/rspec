@@ -8,6 +8,9 @@ from pathlib import Path
 
 repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets']
 
+# SECURITY_REPO='sonar-security'
+# SECURITY_LANGS={'java'}
+
 def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
@@ -48,9 +51,9 @@ def dump_rules(repo,version):
     languages=sonarpedia['languages']
     get_rules_json(path,languages,version)
     with open(f"../{rules_filename}", 'w') as outfile:
-      json.dump(rules, outfile, indent=2)
+      json.dump(rules, outfile, indent=2, sort_keys=True)
 
-def checkout(repo,version,batch_mode):
+def checkout_repo(repo):
   token=os.getenv('GITHUB_TOKEN')
   if not token:
     git_url=f"git@github.com:SonarSource/{repo}"
@@ -59,26 +62,33 @@ def checkout(repo,version,batch_mode):
   git_repo=None
   g=Git(repo)
   if not os.path.exists(repo):
-    git_repo=Repo.clone_from(git_url, repo)
+    return Repo.clone_from(git_url, repo)
   else:
-    git_repo=Repo(repo)
-  if batch_mode:
-    os.chdir(repo)
-    for tag in git_repo.tags:
-      if not '-' in tag.name:
-        print(f"{repo} {tag.name}")
-        try:
-          g.checkout(tag.name)
-        except Exception:
-          print("checkout failed, resetting and cleaning")
-          g.reset('--hard',tag)
-          g.clean('-xfd')
-        dump_rules(repo,tag.name)
-    os.chdir('..')
-  else:
-    g=Git(repo)
-    g.checkout(version)
-    os.chdir(repo)
+    return Repo(repo)
+
+def scan_all_versions(repo):
+  git_repo = checkout_repo(repo)
+  os.chdir(repo)
+  g=Git(repo)
+  for tag in git_repo.tags:
+    if not '-' in tag.name:
+      print(f"{repo} {tag.name}")
+      try:
+        g.checkout(tag.name)
+      except Exception:
+        print("checkout failed, resetting and cleaning")
+        g.reset('--hard',tag)
+        g.clean('-xfd')
+      dump_rules(repo,tag.name)
+  os.chdir('..')
+
+def scan_version(repo,version):
+  git_repo = checkout_repo(repo)
+  g=Git(repo)
+  g.checkout(version)
+  os.chdir(repo)
+  dump_rules(repo,version)
+  os.chdir('..')
 
 def main():
   parser = argparse.ArgumentParser(description='rules coverage')
@@ -96,17 +106,16 @@ def main():
   if args.command[0] == "batchall":
     print(f"batch mode for {repos}")
     for repo in repos:
-      checkout(repo,None,True)
+      scan_all_versions(repo)
   elif args.command[0] == "batch":
     repo=args.command[1]
     print(f"batch mode for {repo}")
-    checkout(repo,None,True)
+    scan_all_versions(repo)
   else:
     repo=args.command[0]
     version=args.command[1]
     print(f"checking {repo} version {version}")
-    checkout(repo,version,False)
-    dump_rules(repo,version)
+    scan_version(repo,version)
 
 if __name__ == '__main__':
   main()
