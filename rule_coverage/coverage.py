@@ -12,7 +12,7 @@ def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
 
-# repoAndVersion uniquely identifies the analyzer and version implemeting
+# repoAndVersion uniquely identifies the analyzer and version implementing
 # the rule for the given languages.
 # Rule implementations for some langauges are spread across multiple repositories
 # for example sonar-java and sonar-security for Java.
