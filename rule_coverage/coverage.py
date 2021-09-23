@@ -6,10 +6,7 @@ from git import Repo
 from git import Git
 from pathlib import Path
 
-repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets']
-
-# SECURITY_REPO='sonar-security'
-# SECURITY_LANGS={'java'}
+repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security']
 
 def load_json(file):
   with open(file) as json_file:
@@ -49,7 +46,7 @@ def dump_rules(repo,version):
     sonarpedia = load_json(sp_file)
     path=str(sonarpedia_path)+'/'+sonarpedia['rules-metadata-path'].replace('\\','/')
     languages=sonarpedia['languages']
-    get_rules_json(path,languages,version)
+    get_rules_json(path,languages, repo + ' ' + version)
     with open(f"../{rules_filename}", 'w') as outfile:
       json.dump(rules, outfile, indent=2, sort_keys=True)
 
