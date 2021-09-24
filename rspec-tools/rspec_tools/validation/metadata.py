@@ -16,7 +16,7 @@ def get_json_schema():
   return json.loads(DEFAULT_SCHEMA_PATH.read_bytes())
 
 def validate_metadata(rule_language: LanguageSpecificRule):
-  #validate_schema(rule_language)
+  validate_schema(rule_language)
   validate_status(rule_language)
 
 def validate_schema(rule_language: LanguageSpecificRule):
