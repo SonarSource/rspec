@@ -76,10 +76,11 @@ def scan_all_versions(repo):
       scan_version(repo, tag.name)
 
 def scan_version(repo,version):
-  g=Git(repo)
+  r=Repo(repo)
   os.chdir(repo)
   try:
-    g.checkout(version)
+    r.head.reference = r.commit(version)
+    r.head.reset(index=True, working_tree=True)
     dump_rules(repo, version)
   except Exception:
     print(f"{repo} {version} checkout failed, resetting and cleaning")
