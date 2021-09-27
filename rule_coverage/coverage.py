@@ -84,8 +84,6 @@ def scan_version(repo,version):
     dump_rules(repo, version)
   except Exception:
     print(f"{repo} {version} checkout failed, resetting and cleaning")
-    g.reset('--hard', version)
-    g.clean('-xfd')
   os.chdir('..')
 
 def main():
