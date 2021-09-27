@@ -69,7 +69,9 @@ do
         echo "== Description" > $TMP_ADOC
         cat $RULE >> $TMP_ADOC
         if asciidoctor --failure-level=WARNING -o /dev/null $TMP_ADOC; then
-            if ! [[ asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null $TMP_ADOC; ]] then
+            if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null $TMP_ADOC; then
+              true
+            else
               echo "ERROR: $RULE has incorrect asciidoc in rspecator-view mode"
               exit_code=1
             fi
