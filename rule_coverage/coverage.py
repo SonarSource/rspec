@@ -8,6 +8,11 @@ from pathlib import Path
 
 repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security']
 
+canonical_names={
+  'JS': 'JAVASCRIPT',
+  'TS': 'TYPESCRIPT'
+}
+
 def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
@@ -26,6 +31,10 @@ def get_rules_json(path, languages, repoAndVersion):
     else:
         continue
 
+def canonicalize(language):
+  if language in canonical_names:
+    return canonical_names[language]
+  return language
 
 def dump_rule(name, rule, languages, repoAndVersion):
   if "compatibleLanguages" in rule:
@@ -33,16 +42,28 @@ def dump_rule(name, rule, languages, repoAndVersion):
       store_rule(name, rule, language, repoAndVersion)
   else:
     for language in languages:
-      store_rule(name, rule, language, repoAndVersion)
+      store_rule(name, rule, canonicalize(language), repoAndVersion)
 
 def store_rule(name, rule, language, repoAndVersion):
+  global rules
   if language not in rules:
     print(f"create entry for {language}")
     rules[language] = {}
   if '_' in name:
       name=name[:name.find('_')]
   if name not in rules[language]:
-    rules[language][name] = repoAndVersion
+    rules[language][name] = {'since': repoAndVersion, 'until': repoAndVersion}
+  elif type(rules[language][name]) == dict:
+    rules[language][name]['until'] = repoAndVersion
+  else:
+    rules[language][name] = {'since': rules[language][name], 'until': repoAndVersion}
+
+def simplify_spec_for_rules_that_are_still_supported():
+  global rules
+  for language, lang_rules in rules.items():
+    for rule, version in lang_rules.items():
+      if type(version) == dict and version['until'].endswith(' master'):
+        lang_rules[rule] = version['since']
 
 def dump_rules(repo, version):
   for sp_file in Path('.').rglob('sonarpedia.json'):
@@ -51,6 +72,7 @@ def dump_rules(repo, version):
     sonarpedia = load_json(sp_file)
     path=str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
     languages=sonarpedia['languages']
+    simplify_spec_for_rules_that_are_still_supported()
     get_rules_json(path, languages, repo + ' ' + version)
     with open(f"../{rules_filename}", 'w') as outfile:
       json.dump(rules, outfile, indent=2, sort_keys=True)

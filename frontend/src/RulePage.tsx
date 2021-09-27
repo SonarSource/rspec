@@ -178,10 +178,17 @@ export function RulePage(props: any) {
     languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>);
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
-    const coverageMapper = (key: any, version: any) => {
-      return (
-        <li>{key}: {version}</li>
-      )
+    const coverageMapper = (key: any, range: any) => {
+      if (typeof range === "string") {
+        return (
+          <li >{key}: {range}</li>
+        );
+      } else {
+        return (
+          <li><span style={{textDecorationLine: 'line-through'}}>{key}: {range['since']}</span>
+              <span>(until {range['until']}) </span></li>
+        );
+      }
     };
     if (language) {
       coverage = ruleCoverage(language, metadataJSON.allKeys, coverageMapper);
