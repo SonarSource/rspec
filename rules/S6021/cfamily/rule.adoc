@@ -1,4 +1,4 @@
-Heterogeneous containers were introduced in {cpp}14 to increase performances when working with ``++std::map++``, ``++std::set++``, ``++std::multimap++``, ``++std::multiset++``, and since {cpp}20, their ``++unordered_++` counterparts.
+Heterogeneous containers were introduced in {cpp}14 to increase performance when working with ``++std::map++``, ``++std::set++``, ``++std::multimap++``, ``++std::multiset++``, and since {cpp}20, their ``++unordered_++`` counterparts.
 Before their introduction, when working with a key in such a container, it was required to use an object of the exact key type. This could lead to costly object creations when we would like to work with objects of compatible but different types:
 
 ----
@@ -20,10 +20,12 @@ What happens if it cannot? Well, if the types are convertible with each other (w
 class MyString {
 public:
   operator std::string() const {return myData;} // Converts to a string
-  // Other functions to make the class behaves correctly
+  // Other functions to make the class behave correctly
 private:
   std::string myData;
 };
+bool operator==(const std::string&, const std::string&);
+bool operator<(const std::string&, const std::string&);
 
 void f() {
   std::map<std::string, int, std::less<>> m;
@@ -42,9 +44,9 @@ void g() {
   m.find(str);
 }
 ----
-Again in this case ``++str++`` will not be converted to a ``++std::string++`` when calling the function ``++find++``, and for each element of the bucket that corresponds to the hash of ``++str++`` will be compared using homogeneous ``++operator==++``,
-and for each such comparison, a conversion will now happen. The number of elements varies depending on the hash distribution from ``++O(1)++` (in average case), to  ``++O(N)++`` in the worst case.
-As consequence, the performance of slow runs (where multiple hash collisions happen due the input data), is made even worse.
+In this case ``++str++`` will not be converted to a ``++std::string++`` when calling the function ``++find++``, and each element of the bucket that corresponds to the hash of ``++str++`` will be compared using homogeneous ``++operator==++``,
+and for each such comparison, a conversion will now happen. The number of compared elements varies depending on the hash distribution from ``++O(1)++` (on average) to ``++O(N)++`` (in the worst case).
+As consequence, the performance of slow runs (when multiple hash collisions happen due to the data distribution) is made even worse.
 
 
 This rule raises an issue when a transparent lookup function of a heterogeneous container is used with a type that cannot be directly compared with the container key type. 
@@ -89,9 +91,9 @@ void g() {
 Option 2: Provide heterogeneous comparisons
 
 ----
-bool operator==(MyString const &s1, std::string const &s2) {/*...*/} // automatically reversed from C++20
-bool operator<(MyString const &s1, std::string const &s2) {/*...*/}
-bool operator<(std::string const &s1, MyString const &s2) {/*...*/}
+bool operator==(const MyString &s1, const std::string &s2) {/*...*/} // invoked for reversed order of arguments since {cpp}20
+bool operator<(const MyString &s1, const std::string &s2) {/*...*/}
+bool operator<(const std::string &s1, const MyString &s2) {/*...*/}
 void f() {
   std::map<std::string, int, std::less<>> m;
   MyString str{"abc"}; // See previous definition of MyString
@@ -101,7 +103,7 @@ void f() {
 void g() {
   std::unordered_map<std::string, int, StringHash, std::equal_to<>> m;
   MyString str{"abc"}; // See previous definition of MyString
-  m.find(str); // Compliant, no conversion for equality and up to one for hash computation
+  m.find(str); // Compliant, no conversion for equality and possibly one for hash computation
 }
 ----
 
