@@ -70,19 +70,21 @@ def checkout_repo(repo):
 
 def scan_all_versions(repo):
   git_repo = checkout_repo(repo)
-  for tag in git_repo.tags:
-    if not '-' in tag.name:
-      print(f"{repo} {tag.name}")
-      scan_version(repo, tag.name)
+  versions = [tag.name for tag in git_repo.tags]
+  for version in versions:
+    if not '-' in version:
+      print(f"{repo} {version}")
+      scan_version(repo, version)
+  scan_version(repo, 'master')
 
-def scan_version(repo,version):
+def scan_version(repo, version):
   g=Git(repo)
   os.chdir(repo)
   try:
     g.checkout(version)
     dump_rules(repo, version)
-  except Exception:
-    print(f"{repo} {version} checkout failed, resetting and cleaning")
+  except Exception as e:
+    print(f"{repo} {version} checkout failed, resetting and cleaning: {e}")
     g.reset('--hard', version)
     g.clean('-xfd')
   os.chdir('..')
@@ -113,7 +115,7 @@ def main():
     version=args.command[1]
     print(f"checking {repo} version {version}")
     checkout_repo(repo)
-    scan_version(repo,version)
+    scan_version(repo, version)
 
 if __name__ == '__main__':
   main()
