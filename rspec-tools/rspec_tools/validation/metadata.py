@@ -30,7 +30,7 @@ def validate_schema(rule_language: LanguageSpecificRule):
 def validate_status(rule_language: LanguageSpecificRule):
   status = rule_language.metadata.get('status')
   if has_replacement_rules(rule_language) and status in ["beta", "ready"]:
-    raise RuleValidationError(f'ERROR Rule {rule_language.id} has invalid metadata:' 
+    raise RuleValidationError(f'Rule {rule_language.id} has invalid metadata:'
       f' status can\'t be "{status}" for a rule with the replacement rule(s)')
 
 def has_replacement_rules(rule_language: LanguageSpecificRule):
