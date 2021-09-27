@@ -115,7 +115,7 @@ def main():
     version=args.command[1]
     print(f"checking {repo} version {version}")
     checkout_repo(repo)
-    scan_version(repo, version, version)
+    scan_version(repo, version)
 
 if __name__ == '__main__':
   main()
