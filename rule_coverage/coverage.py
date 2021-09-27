@@ -70,7 +70,9 @@ def checkout_repo(repo):
 
 def scan_all_versions(repo):
   git_repo = checkout_repo(repo)
-  versions = [tag.name for tag in git_repo.tags]
+  tags = git_repo.tags
+  tags.sort(key = lambda t: t.commit.committed_date)
+  versions = [tag.name for tag in tags]
   for version in versions:
     if not '-' in version:
       print(f"{repo} {version}")
