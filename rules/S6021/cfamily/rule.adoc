@@ -1,4 +1,5 @@
-Heterogeneous containers were introduced in {cpp}14 to increase performances when working with ``++std::map++``, ``++std::set++``, ``++std::multimap++`` and ``++std::multiset++``. Before their introduction, when working with a key in such a container, it was required to use an object of the exact key type. This could lead to costly object creations when we would like to work with objects of compatible but different types:
+Heterogeneous containers were introduced in {cpp}14 to increase performances when working with ``++std::map++``, ``++std::set++``, ``++std::multimap++``, ``++std::multiset++``, and since {cpp}20, their ``++unordered_++` counterparts.
+Before their introduction, when working with a key in such a container, it was required to use an object of the exact key type. This could lead to costly object creations when we would like to work with objects of compatible but different types:
 
 ----
 std::map<std::string, int> m;
@@ -24,8 +25,6 @@ private:
   std::string myData;
 };
 
-bool operator<(const std::string&, const std::string&);
-
 void f() {
   std::map<std::string, int, std::less<>> m;
   MyString str{"abc"};
@@ -35,7 +34,21 @@ void f() {
 In this case, ``++str++`` will not be converted to a ``++std::string++`` when calling the function ``++find++`` (this function is now a member function template). However, each time during the search when a comparison will be needed between ``++MyString++`` and ``++std::string++``, a conversion will now happen to convert ``++str++`` to always the same ``++string++``. A unique conversion is replaced by ``++O(ln N)++`` conversions.
 
 
-This rule raises an issue when a transparent lookup function of a heterogeneous container is used with a type that cannot be directly compared with the container key type. Only standard associative containers with expensive to create key and straightforward comparison functions are considered.
+This problem appears also for the case of an unordered container for which heterogeneous lookup is enabled (available since {cpp}20), for which equality is used to compare elements in the same bucket (having same or close hashes):
+----
+void g() {
+  std::unordered_map<std::string, int, StringHash, std::equal_to<>> m;
+  MyString str{"abc"};
+  m.find(str);
+}
+----
+Again in this case ``++str++`` will not be converted to a ``++std::string++`` when calling the function ``++find++``, and for each element of the bucket that corresponds to the hash of ``++str++`` will be compared using homogeneous ``++operator==++``,
+and for each such comparison, a conversion will now happen. The number of elements varies depending on the hash distribution from ``++O(1)++` (in average case), to  ``++O(N)++`` in the worst case.
+As consequence, the performance of slow runs (where multiple hash collisions happen due the input data), is made even worse.
+
+
+This rule raises an issue when a transparent lookup function of a heterogeneous container is used with a type that cannot be directly compared with the container key type. 
+Only standard associative containers with expensive to create key and straightforward comparison functions are considered.
 
 
 == Noncompliant Code Example
@@ -45,6 +58,12 @@ void f() {
   std::map<std::string, int, std::less<>> m;
   MyString str{"abc"}; // See previous definition of MyString
   m.find(str); // Noncompliant, O(ln N) conversions
+}
+
+void g() {
+  std::unordered_map<std::string, int, StringHash, std::equal_to<>> m;
+  MyString str{"abc"}; // See previous definition of MyString
+  m.find(str); // Noncompliant, up to O(N) conversions
 }
 ----
 
@@ -59,16 +78,30 @@ void f() {
   MyString str{"abc"}; // See previous definition of MyString
   m.find(str); // Compliant, one conversion at the start
 }
+
+void g() {
+  std::unordered_map<std::string, int> m;
+  MyString str{"abc"}; // See previous definition of MyString
+  m.find(str); // Compliant, one conversion at the start
+}
+
 ----
 Option 2: Provide heterogeneous comparisons
 
 ----
+bool operator==(MyString const &s1, std::string const &s2) {/*...*/} // automatically reversed from C++20
 bool operator<(MyString const &s1, std::string const &s2) {/*...*/}
 bool operator<(std::string const &s1, MyString const &s2) {/*...*/}
 void f() {
   std::map<std::string, int, std::less<>> m;
   MyString str{"abc"}; // See previous definition of MyString
   m.find(str); // Compliant, no conversion at all
+}
+
+void g() {
+  std::unordered_map<std::string, int, StringHash, std::equal_to<>> m;
+  MyString str{"abc"}; // See previous definition of MyString
+  m.find(str); // Compliant, no conversion for equality and up to one for hash computation
 }
 ----
 
