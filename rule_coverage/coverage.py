@@ -74,17 +74,17 @@ def scan_all_versions(repo):
   for version in versions:
     if not '-' in version:
       print(f"{repo} {version}")
-      scan_version(repo, version, version)
-  scan_version(repo, 'master', 'nightly')
+      scan_version(repo, version)
+  scan_version(repo, 'master')
 
-def scan_version(repo, version, version_name):
+def scan_version(repo, version):
   g=Git(repo)
   os.chdir(repo)
   try:
     g.checkout(version)
-    dump_rules(repo, version_name)
-  except Exception:
-    print(f"{repo} {version} checkout failed, resetting and cleaning")
+    dump_rules(repo, version)
+  except Exception as e:
+    print(f"{repo} {version} checkout failed, resetting and cleaning: {e}")
     g.reset('--hard', version)
     g.clean('-xfd')
   os.chdir('..')
