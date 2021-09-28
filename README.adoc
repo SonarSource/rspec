@@ -28,7 +28,7 @@ All specified rules (implemented or not) are listed in the https://sonarsource.g
 For each rule, you can find the languages it covers, the descriptions for each language as well as the related open tickets and pull requests. +
 There will be a red warning with a link to the rule pull request if the rule has not been implemented yet (i.e. is not present on the main branch yet).
 
-You can use the "Search in unimplemented" link on the Search Page to repeat your search in the PRs.
+You can also use GitHub search among unmerged PRs https://github.com/SonarSource/rspec/pulls[here].
 
 WARNING: Unlike the Search Page, the GitHub search across the PRs for unimplemented rules considers only the PR summary and title. It does not search the content of the proposed rule (i.e. it does not look into `rule.adoc` nor into `metadata.json`).
 
@@ -46,10 +46,9 @@ Thus every newly created rule or modification of rule should follow these steps:
 . Ask for a review
 . Create an implementation ticket
 . Implement the new rule or the change in the existing rule
-. Merge the RSPEC PR as soon as the implementation is ready (unless the implementation needs access to the RSPEC before it is ready, see RULEAPI-660).
- * Here "ready" means it is tested/validated/tuned/discussed and lacks only the rule metadata to be merged into analyzer's main branch.
-. Fetch the updated metadata with `rule-api`
+. Fetch the updated metadata with `rule-api` by pointing it to the PR branch with `-branch` parameter
 . Merge the implementation PR
+. Merge the RSPEC PR
 
 A <<multi-language-rule-creation>> is somewhat more involved.
 
@@ -81,7 +80,7 @@ Add the description of the PR to further increase its discoverability
 (GitHub PR search does not see the `rule.adoc`).
 To do that, click on the three dots (next to the smile) on the first comment (created by github-actions bot) and select "Edit".
 
-The rule must contain subdirectories corresponding to all the languages this rule will be implemented for (by the time the PR is merged).
+The rule must contain subdirectories corresponding to all the languages this rule will be implemented for.
 
 Each language subdirectory contains the `rule.adoc` that is the root document used to render the specification.
 The rule specification in `rule.adoc` can include other `*.adoc` files that are in the language subdirectory or in the parent directory by using the `include::content.adoc[]` syntax.
@@ -98,6 +97,10 @@ Create rule S100[java]: Method names should comply with a naming convention
 
 Otherwise, if the rule has not been merged yet (i.e. the rule has not been implemented by any plugin), you can use the already existing PR corresponding to this rule. +
 
+Then add a corresponding github label to the PR.
+
+In order to automatically trigger a preview of the rule specialization in the deployment, your branch name must start with `rule/`.
+
 Then,
 
 * Create a subdirectory with the name of the language you want to add. +
@@ -108,7 +111,6 @@ include::supported_languages.adoc[]
 ** `rule.adoc`: write down the whole description of the rule. If you want to include already existing parts (that are in the current or the parent directory), use the `include::` syntax.
 ** `metadata.json`: it automatically inherits from the `metadata.json` of the parent directory so you only need to write the parts that need to be overwritten. +
 Please note that in any case this file should at least contain two curly braces (`{ }`)
-
 
 ==== To modify an existing rule
 Create a branch for your modifications manually.
@@ -139,11 +141,11 @@ In the `metadata.json` of the rule you want to deprecate:
 * Change the status to `deprecated`
 * Fill in the `replacementRules` field with the rules that deprecate this one, if any
 
-NOTE: use a GitHub hot-key `t` in the source view to navigate to an existing rule specification.
-
 ==== To delete a rule
 If the rule has never been implemented and is still defined in an open pull request, just close the pull request. +
 Otherwise, create a pull request to change the status of the rule to "closed".
+
+NOTE: use a GitHub hot-key `t` in the source view to navigate to an existing rule specification.
 
 === 2. Ask for a review
 
@@ -171,61 +173,45 @@ Implementation ticket: SonarSource/sonar-dotnet/issues/1234 (for a sonar-dotnet 
 
 === 4. Implement the rule
 
-Implement the rule or the modification as usual.
-
-Only once the implementation is complete, but before it is merged on the analyzer side, merge the RSPEC PR.
-The RSPEC PR has to be merged before the implementation PR to enable `rule-api` to fetch the correct metadata in the analyzer.
-The RSPEC PR has to be merged as close as possible to the merge of the implementation PR to shorten the time span of the inconsistency in the rule status
-("active" in the RSPEC metadata, and not implemented on the analyzer side).
-
-Finally, merge the rule implementation in your analyzer repository.
+Implement the rule or the modification as usual, generate the rule metadata,
+and merge the rule implementation in your analyzer repository.
 
 
-==== Generate/Update rule metadata for the analyzer
+==== Generate rule metadata for the analyzer
 
 * Download the last version of https://github.com/SonarSource/sonar-rule-api[rule-api].
-* call `generate` if you are adding a rule, or `update` if you just want the last specification version.
+* Run `generate` and specify the RSPEC-repository branch with the modified version of the rule specification.
 
 Example:
 [source,shell]
 ----
-$ java -jar rule-api-1.24.3.jar generate -rule S4328
-# or
-$ java -jar rule-api-1.24.3.jar update
+$ java -jar rule-api-2.1.0.jar generate -branch <RSPEC branch> -rule S4328
 ----
 
-NOTE: If you generate rules in an empty directory,
-you have to run `update` immediately after,
-because rule-api relies on the files in the directory to determine the covered set of rules
-when generating the deprecation notes for superseded rules.
+=== 5. Merge the RSPEC PR
+
+Once the corresponding implementation is done you can merge the PR containing the new rule
+(or the new version of the existing rule).
 
 === Multi-Language Rule Creation
-Multi-language rule creation is more involved than the default process because it involves multiple roles that typically do not coincide.
+Multi-language rule creation has more steps than the default process because it involves multiple roles that typically do not coincide.
 It is infeasible to synchronize the implementation of the rule for all the languages it covers.
-
-The special metadata field `"extra"."coveredLanguages"` enables asynchrous implementation in multiple analyzers.
-
-`"extra"."coveredLanguages"` contains the languages the rule is implemented for.
-
-The workflow below makes sure that all rules on the main branch are implemented for all languages they are specified for or for all languages listed in `"coveredLanguages"`.
 
 . An RSPECator creates a PR and specifies the multi-language rule.
  * The RSPECator asks for a review for the PR.
  * The RSPECator does not merge the PR, even after the review is done.
- * The rule metadata.json contains an empty `"extra": {"coveredLanguages": []}` field.
 . The RSPECator opens implementation tickets for all the targeted languages.
 . An Ada analyzer developer Alice implements the rule first. Alice prepares the PR with the implementation.
 . As soon as the implementation of the rule is ready for Ada analyzer, Alice merges both PRs:
-.. Alice adds `"Ada"` to `"coveredLanguages"` in the RSPEC PR (`"extra": {"coveredLanguages": ["Ada"]}`).
-.. Alice merges the RSPEC PR.
-.. Alice fetches the rule metadata with `rule-api` into Ada analyzer.
+.. Alice fetches the rule metadata with `rule-api` into Ada analyzer. She needs to specify the PR branch in the `-branch` argument of `rule-api`.
 .. Alice merges the rule implementation in Ada analyzer.
+.. Alice merges the RSPEC PR opened by the RSPECator.
 . A Cobol analyzer developer Bob implements the rule some time later. Bob prepares the PR with the implementation.
-. Bob opens a new RSPEC PR "Modify rule S1234: Add Cobol support" to add `"Cobol"` to `"coveredLangauges"` (`"extra": {"coveredLanguages": ["Ada", "Cobol"]}`).
-. As soon as the Cobol implementation is ready, Bob merges both PRs:
-.. Bob merges his RSPEC PR.
+. As soon as the Cobol implementation is ready:
+.. If Bob needs to change the rule specification, he opens an RSPEC PR and uses the PR branch in the `-branch` argument of `rule-api`.
 .. Bob fetches the rule metadata with `rule-api` into Cobol analyzer.
 .. Bob merges the rule implementation in Cobol analyzer.
+.. If Bob had opened an RSPEC PR with changes, he merges it once the rule is implemented in the analyzer.
 
 == Comment a rule
 
