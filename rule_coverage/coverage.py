@@ -10,7 +10,8 @@ repos=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-
 
 canonical_names={
   'JS': 'JAVASCRIPT',
-  'TS': 'TYPESCRIPT'
+  'TS': 'TYPESCRIPT',
+  'WEB': 'HTML'
 }
 
 def load_json(file):
