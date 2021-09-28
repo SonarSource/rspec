@@ -63,9 +63,10 @@ const languageToJiraProject = new Map(Object.entries({
   "RPG": "SONARRPG",
   "APEX": "SONARSLANG",
   "RUBY": "SONARSLANG",
-  "KOTLIN": "SONARSLANG",
+  "KOTLIN": "SONARKT",
   "SCALA": "SONARSLANG",
   "GO": "SONARSLANG",
+  "SECRETS": "SECRETS",
   "SWIFT": "SONARSWIFT",
   "TSQL": "SONARTSQL",
   "VB6": "SONARVBSIX",
@@ -81,7 +82,7 @@ const languageToGithubProject = new Map(Object.entries({
   "JAVASCRIPT": "SonarJS",
   "TYPESCRIPT": "SonarJS",
   "SWIFT": "sonar-swift",
-  "KOTLIN": "slang-enterprise",
+  "KOTLIN": "sonar-kotlin",
   "GO": "slang-enterprise",
   "SCALA": "slang-enterprise",
   "RUBY": "slang-enterprise",
@@ -102,11 +103,47 @@ const languageToGithubProject = new Map(Object.entries({
   "XML": "sonar-xml",
   "CLOUDFORMATION": "sonar-iac",
   "TERRAFORM": "sonar-iac",
+  "SECRETS": "sonar-secrets",
 }));
 
+function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
+  if (language) {
+    const upperCaseLanguage = language.toUpperCase();
+    const jiraProject = languageToJiraProject.get(upperCaseLanguage);
+    const githubProject = languageToGithubProject.get(upperCaseLanguage);
+    const titleWihoutQuotes = title.replaceAll('"','');
+
+    const implementationPRsLink = (
+      <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
+        Implementation Pull Requests
+      </Link>
+    );
+
+    if (jiraProject !== undefined) {
+      const ticketsLink = (
+        <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${titleWihoutQuotes}")`}>
+          Implementation tickets on Jira
+        </Link>
+      );
+      return {ticketsLink, implementationPRsLink};
+    } else {
+      const ticketsLink = (
+        <Link href={`https://github.com/SonarSource/${githubProject}/issues?q=is%3Aissue+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
+          Implementation issues on GitHub
+        </Link>
+      );
+      return {ticketsLink, implementationPRsLink};
+    }
+  } else {
+    const ticketsLink = (<div>Select a language to see the implementation tickets</div>);
+    const implementationPRsLink = (<div>Select a language to see the implementation pull requests</div>);
+    return {ticketsLink, implementationPRsLink};
+  }
+}
 
 export function RulePage(props: any) {
   const ruleid = props.match.params.ruleid;
+  // language can be absent
   const language = props.match.params.language;
   document.title = ruleid;
 
@@ -118,13 +155,13 @@ export function RulePage(props: any) {
   const classes = useStyles();
   let branch = 'master'
 
-  let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-description.html";
-  let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + language + "-metadata.json";
+  let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-description.html";
+  let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-metadata.json";
 
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
-  const ruleCoverage = useRuleCoverage();
+  const {ruleCoverage, allLangsRuleCoverage} = useRuleCoverage();
   let coverage: any = "Loading...";
 
   let title = "Loading..."
@@ -141,15 +178,25 @@ export function RulePage(props: any) {
     languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>);
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
-    coverage = ruleCoverage(language, metadataJSON.allKeys, (key: any, version: any) => {
+    const coverageMapper = (key: any, version: any) => {
       return (
-      <li>{key}: {version}</li>
+        <li>{key}: {version}</li>
       )
-    });
+    };
+    if (language) {
+      coverage = ruleCoverage(language, metadataJSON.allKeys, coverageMapper);
+    } else {
+      coverage = allLangsRuleCoverage(metadataJSON.allKeys, coverageMapper);
+    }
+  }
+
+  if (coverage !== "Not Covered") {
+    prUrl = undefined;
+    branch = 'master'; 
   }
 
   let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
-                        branch + '/rules/' + ruleid + '/' + language;
+                        branch + '/rules/' + ruleid + (language ? '/' + language : '');
 
   let description = <div>Loading...</div>;
   if (descHTML !== null && !descIsLoading && !descError) {
@@ -165,26 +212,7 @@ export function RulePage(props: any) {
   if (prUrl) {
       prLink = <div><span className={classes.unimplemented}>Not implemented (see <a href={prUrl}>PR</a>)</span></div>
   }
-  const ruleNumber = ruleid.substring(1)
-
-  const upperCaseLanguage = language.toUpperCase();
-  const jiraProject = languageToJiraProject.get(upperCaseLanguage);
-  const githubProject = languageToGithubProject.get(upperCaseLanguage);
-
-  let ticketsLink;
-  if (jiraProject !== undefined) {
-    ticketsLink = (
-        <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${title}")`}>
-          Implementation tickets on Jira
-        </Link>
-      );
-  } else {
-    ticketsLink = (
-      <Link href={`https://github.com/SonarSource/${githubProject}/issues?q=is%3Aissue+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
-        Implementation issues on GitHub
-      </Link>
-    );
-  }
+  const ruleNumber = ruleid.substring(1);
 
   const specificationPRsLink = (
     <Link href={`https://github.com/SonarSource/rspec/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
@@ -192,11 +220,8 @@ export function RulePage(props: any) {
     </Link>
   );
 
-  const implementationPRsLink = (
-    <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
-      Implementation Pull Requests
-    </Link>
-  );
+  const {ticketsLink, implementationPRsLink} = ticketsAndImplementationPRsLinks(ruleNumber, title, language);
+  const tabsValue = language ? {'value' : language} : {'value': false};
 
   return (
     <div>
@@ -205,7 +230,7 @@ export function RulePage(props: any) {
       <Typography variant="h2" classes={{root: classes.ruleid}}>{ruleid}</Typography>
       <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
       <Tabs
-          value={language}
+          {...tabsValue}
           onChange={handleLanguageChange}
           indicatorColor="primary"
           textColor="primary"
