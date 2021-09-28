@@ -102,15 +102,16 @@ def scan_all_versions(repo):
   scan_version(repo, 'master')
 
 def scan_version(repo, version):
-  g=Git(repo)
+  r = checkout_repo(repo)
+  g = Git(repo)
   os.chdir(repo)
   try:
+    r.head.reference = r.commit(version)
+    r.head.reset(index=True, working_tree=True)
     g.checkout(version)
     dump_rules(repo, version)
   except Exception as e:
     print(f"{repo} {version} checkout failed, resetting and cleaning: {e}")
-    g.reset('--hard', version)
-    g.clean('-xfd')
   os.chdir('..')
 
 def main():
@@ -138,7 +139,6 @@ def main():
     repo=args.command[0]
     version=args.command[1]
     print(f"checking {repo} version {version}")
-    checkout_repo(repo)
     scan_version(repo, version)
 
 if __name__ == '__main__':
