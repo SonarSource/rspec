@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 from rspec_tools.checklinks import check_html_links
 from rspec_tools.errors import RuleNotFoundError, RuleValidationError
-from rspec_tools.create_rule import create_new_rule
+from rspec_tools.create_rule import create_new_rule, add_language_to_rule
 from rspec_tools.rules import RulesRepository
 from rspec_tools.validation.metadata import validate_metadata
 from rspec_tools.validation.description import validate_section_names
@@ -36,6 +36,15 @@ def create_rule(languages: str, user: Optional[str]):
   '''Create a new rule.'''
   token = os.environ.get('GITHUB_TOKEN')
   create_new_rule(languages, token, user)
+
+@cli.command()
+@click.option('--language', required=True)
+@click.option('--rule', required=True)
+@click.option('--user', required=False)
+def add_lang_to_rule(language: str, rule: str, user: Optional[str]):
+  '''Create a new rule.'''
+  token = os.environ.get('GITHUB_TOKEN')
+  add_language_to_rule(language, rule, token, user)
 
 
 @cli.command()

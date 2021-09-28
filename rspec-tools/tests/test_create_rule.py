@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import Optional
 from unittest.mock import Mock, patch
 import pytest
+import shutil
 
-from rspec_tools.create_rule import RuleCreator, create_new_rule
+from rspec_tools.create_rule import RuleCreator, create_new_rule, add_language_to_rule
+from rspec_tools.utils import is_empty_metadata
 
 @pytest.fixture
 def git_config():
@@ -16,20 +18,18 @@ def git_config():
   }
 
 @pytest.fixture
-def mock_rspec_repo(tmpdir):
+def mock_rspec_repo(tmpdir, mockrules: Path):
   repo_dir = tmpdir.mkdir("mock_rspec")
   repo = Repo.init(str(repo_dir))
   repo.init()
+  rules_dir = repo_dir.join('rules')
+  shutil.copytree(mockrules, rules_dir)
 
   with repo.config_writer() as config_writer:
     config_writer.set_value('user', 'name', 'originuser')
     config_writer.set_value('user', 'email', 'originuser@mock.mock')
 
-  rules_dir = repo_dir.mkdir('rules')
-  # create a file just to have a "rules" directory
-  gitignore = rules_dir.join('.gitignore')
-  gitignore.ensure()
-  repo.index.add([str(gitignore)])
+  repo.git.add('--all')
   repo.index.commit('init rules')
 
   # Create the id counter branch. Note that it is an orphan branch.
@@ -175,3 +175,93 @@ def test_create_new_rule_unsupported_language(mockRuleCreator):
   prMock = mockRuleCreator.return_value.create_new_rule_pull_request
   with pytest.raises(InvalidArgumentError):
     create_new_rule('russian,php', 'my token', 'testuser')
+
+
+def test_add_lang_singlelang_nonconventional_rule_create_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test add_language_branch for a single-language rule with metadata lifted to the generic rule level.'''
+  rule_number = 4727
+  language = 'php'
+
+  mock_rspec_repo.git.checkout('master')
+  orig_rule_dir = Path(mock_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
+  assert(not is_empty_metadata(orig_rule_dir)) # nonconventional: singlelang rule with metadata on the upper level
+  assert(is_empty_metadata(orig_rule_dir.joinpath('cobol')))
+  original_metadata = orig_rule_dir.joinpath('metadata.json').read_text()
+
+  branch = rule_creator.add_language_branch(rule_number, language)
+
+  # Check that the branch was pushed successfully to the origin
+  mock_rspec_repo.git.checkout(branch)
+  rule_dir = Path(mock_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
+  assert rule_dir.exists()
+  lang_dir = rule_dir.joinpath(f'{language}')
+  assert lang_dir.exists()
+
+  assert rule_dir.joinpath('metadata.json').read_text() == original_metadata
+  assert(is_empty_metadata(rule_dir.joinpath('cobol')))
+
+  lang_root = rule_creator.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
+  for lang_item in lang_root.glob('**/*'):
+    if lang_item.is_file():
+      expected_content = lang_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+      relative_path = lang_item.relative_to(lang_root)
+      actual_content = rule_dir.joinpath(language, relative_path).read_text()
+      assert actual_content == expected_content
+
+def test_add_lang_singlelang_conventional_rule_create_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test add_language_branch for a regular single language rule.'''
+  rule_number = 1033
+  language = 'php'
+
+  mock_rspec_repo.git.checkout('master')
+  orig_rule_dir = Path(mock_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
+  assert(is_empty_metadata(orig_rule_dir)) # conventional: singlelang rule with metadata on the lang-specific level
+  assert(not is_empty_metadata(orig_rule_dir.joinpath('cfamily')))
+  original_lmetadata = orig_rule_dir.joinpath('cfamily', 'metadata.json').read_text()
+
+  branch = rule_creator.add_language_branch(rule_number, language)
+
+  # Check that the branch was pushed successfully to the origin
+  mock_rspec_repo.git.checkout(branch)
+  rule_dir = Path(mock_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
+  assert rule_dir.exists()
+  lang_dir = rule_dir.joinpath(f'{language}')
+  assert lang_dir.exists()
+
+  assert rule_dir.joinpath('metadata.json').read_text() == original_lmetadata
+  assert(is_empty_metadata(rule_dir.joinpath('cfamily')))
+
+def test_add_lang_multilang_rule_create_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test add_language_branch for a multi-language rule.'''
+  rule_number = 120
+  language = 'php'
+
+  branch = rule_creator.add_language_branch(rule_number, language)
+
+  # Check that the branch was pushed successfully to the origin
+  mock_rspec_repo.git.checkout(branch)
+  rule_dir = Path(mock_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
+  assert rule_dir.exists()
+  lang_dir = rule_dir.joinpath(f'{language}')
+  assert lang_dir.exists()
+
+  lang_root = rule_creator.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
+  for lang_item in lang_root.glob('**/*'):
+    if lang_item.is_file():
+      expected_content = lang_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+      relative_path = lang_item.relative_to(lang_root)
+      actual_content = rule_dir.joinpath(language, relative_path).read_text()
+      assert actual_content == expected_content
+
+@patch('rspec_tools.create_rule.RuleCreator')
+def test_add_unsupported_language(mockRuleCreator):
+  '''Test language validation.'''
+  mockRuleCreator.return_value = Mock()
+  mockRuleCreator.return_value.create_new_rule_pull_request = Mock()
+  prMock = mockRuleCreator.return_value.create_new_rule_pull_request
+  with pytest.raises(InvalidArgumentError):
+    add_language_to_rule('russian', 'S1033', 'my token', 'testuser')
+
+def test_add_language_the_rule_is_defined_for(rule_creator: RuleCreator):
+  with pytest.raises(InvalidArgumentError):
+    rule_creator.add_language_branch(100, 'cfamily')
