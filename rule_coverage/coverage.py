@@ -95,16 +95,15 @@ class Coverage:
     else:
       self._rule_implemented_for_intermediate_version(ruleId, language, repo_and_version)
 
-# analyzer+version uniquely identifies the analyzer and version implementing
-# the rule for the given languages.
-# Rule implementations for some langauges are spread across multiple repositories
-# for example sonar-java and sonar-security for Java.
-# We use analyzer+version to avoid confusion between versions of different analyzers.
-def add_analyzer_version(analyzer, version, implemented_rules, coverage):
-  lastVersion = version == 'master'
-  for language in implemented_rules:
-    for ruleId in implemented_rules[language]:
-      coverage.rule_implemented(ruleId, language, analyzer, version)
+  # analyzer+version uniquely identifies the analyzer and version implementing
+  # the rule for the given languages.
+  # Rule implementations for some langauges are spread across multiple repositories
+  # for example sonar-java and sonar-security for Java.
+  # We use analyzer+version to avoid confusion between versions of different analyzers.
+  def add_analyzer_version(self, analyzer, version, implemented_rules):
+    for language in implemented_rules:
+      for ruleId in implemented_rules[language]:
+        self.rule_implemented(ruleId, language, analyzer, version)
 
 def all_implemented_rules():
   implemented_rules = {}
@@ -147,7 +146,7 @@ def scan_version(repo, version, coverage):
     r.head.reset(index=True, working_tree=True)
     g.checkout(version)
     implemented_rules = all_implemented_rules()
-    add_analyzer_version(repo, version, implemented_rules, coverage)
+    coverage.add_analyzer_version(repo, version, implemented_rules)
   except Exception as e:
     print(f"{repo} {version} checkout failed: {e}")
   os.chdir('..')
