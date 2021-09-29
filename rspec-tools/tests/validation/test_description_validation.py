@@ -6,7 +6,7 @@ from rspec_tools.errors import RuleValidationError
 from copy import deepcopy
 
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.description import validate_section_names
+from rspec_tools.validation.description import validate_section_names, validate_section_levels
 
 @pytest.fixture
 def rule_language(mockrules: Path):
@@ -27,3 +27,18 @@ def test_unexpected_section_fails_validation(rule_language: LanguageSpecificRule
     with patch.object(LanguageSpecificRule, 'description', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_description
       validate_section_names(rule_language)
+
+def test_valid_section_levels_passes_validation(rule_language: LanguageSpecificRule):
+  '''Check that description with standard sections levels is considered valid.'''
+  validate_section_levels(rule_language)
+
+def test_level_0_section_fails_validation(rule_language: LanguageSpecificRule):
+  '''Check that level-0 section header breaks validation.'''
+  invalid_description = deepcopy(rule_language.description)
+  invalid_header = invalid_description.new_tag('h1')
+  invalid_header.string = 'Invalid header level'
+  invalid_description.body.insert(1, invalid_header)
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has level-0 header'):
+    with patch.object(LanguageSpecificRule, 'description', new_callable=PropertyMock) as mock:
+      mock.return_value = invalid_description
+      validate_section_levels(rule_language)
