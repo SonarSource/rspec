@@ -108,6 +108,8 @@ class RuleCreator:
     with self._current_git_branch(self.MASTER_BRANCH, branch_name):
       repo_dir = Path(self.repository.working_dir)
       rule_dir = repo_dir.joinpath('rules', f'S{rule_number}')
+      if not rule_dir.is_dir():
+        raise InvalidArgumentError(f"Rule \"S{rule_number}\" does not exist.")
       lang_dirs = [d for d in rule_dir.glob('*/') if d.is_dir()]
       print(lang_dirs)
       if 1 == len(list(lang_dirs)) and is_empty_metadata(rule_dir):

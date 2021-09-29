@@ -262,6 +262,33 @@ def test_add_unsupported_language(mockRuleCreator):
   with pytest.raises(InvalidArgumentError):
     add_language_to_rule('russian', 'S1033', 'my token', 'testuser')
 
-def test_add_language_the_rule_is_defined_for(rule_creator: RuleCreator):
+def test_add_language_the_rule_is_already_defined_for(rule_creator: RuleCreator):
+  '''Test add_language_branch fails when trying to add a langage already added to the rule.'''
   with pytest.raises(InvalidArgumentError):
     rule_creator.add_language_branch(100, 'cfamily')
+
+def test_add_language_to_nonexistent_rule(rule_creator: RuleCreator):
+  '''Test add_language_branch correctly fails when invoked for a non-existent rule.'''
+  with pytest.raises(InvalidArgumentError):
+    rule_creator.add_language_branch(101, 'cfamily')
+
+def test_add_language_new_pr(rule_creator: RuleCreator):
+  '''Test add_language_pull_request adds the right user and labels.'''
+  rule_number = 120
+  language = 'php'
+
+  ghMock = Mock()
+  ghRepoMock = Mock()
+  pullMock = Mock()
+  ghRepoMock.create_pull = Mock(return_value=pullMock)
+  ghMock.get_repo = Mock(return_value=ghRepoMock)
+  def mockGithub(user: Optional[str]):
+    return ghMock
+
+  rule_creator.add_language_pull_request(mockGithub, rule_number, language, 'mylab', user='testuser')
+
+  ghRepoMock.create_pull.assert_called_once();
+  assert ghRepoMock.create_pull.call_args.kwargs['title'].startswith(f'Create rule S{rule_number}[{language}]')
+  ghRepoMock.create_pull.call_args.kwargs['head'].startswith('rule/')
+  pullMock.add_to_assignees.assert_called_with('testuser');
+  pullMock.add_to_labels.assert_called_with('mylab');

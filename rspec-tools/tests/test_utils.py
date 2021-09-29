@@ -1,5 +1,5 @@
 from rspec_tools.errors import InvalidArgumentError
-from rspec_tools.utils import parse_and_validate_language_list, load_valid_languages, get_mapped_languages, get_labels_for_languages, resolve_rule
+from rspec_tools.utils import parse_and_validate_language_list, load_valid_languages, get_mapped_languages, get_labels_for_languages, resolve_rule, validate_language, get_label_for_language
 import pytest
 
 def test_fails_when_no_languages_listed():
@@ -49,3 +49,11 @@ def test_resolve_rule():
     resolve_rule('SXXXX')
   with pytest.raises(InvalidArgumentError):
     resolve_rule('S90000')
+
+def test_label_for_language():
+  assert get_label_for_language('java') == 'java'
+
+def test_validate_language():
+  validate_language('java')
+  with pytest.raises(InvalidArgumentError):
+    validate_language('russian')
