@@ -11,6 +11,8 @@ from rspec_tools.validation.metadata import validate_metadata
 from rspec_tools.validation.description import validate_section_names, validate_section_levels
 from rspec_tools.coverage import update_coverage_for_all_repos, update_coverage_for_repo, update_coverage_for_repo_version
 
+from rspec_tools.notify_failure_on_slack import notify_slack
+
 @click.group()
 @click.option('--debug/--no-debug', default=False)
 def cli(debug):
@@ -108,5 +110,11 @@ def update_coverage(repository: Optional[str], version: Optional[str]):
       update_coverage_for_repo(repository)
   else:
       update_coverage_for_repo_version(repository, version)
+
+@cli.command()
+@click.option('--message', required=True)
+@click.option('--channel', required=True)
+def notify_failure_on_slack(message: str, channel: str):
+  notify_slack(message, channel)
 
 __all__=['cli']
