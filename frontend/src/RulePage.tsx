@@ -185,8 +185,7 @@ export function RulePage(props: any) {
         );
       } else {
         return (
-          <li><span style={{textDecorationLine: 'line-through'}}>{key}: {range['since']}</span>
-              <span>(until {range['until']}) </span></li>
+          <li>Not covered for {key} anymore. Was covered from {range['since']} to {range['until']}.</li>
         );
       }
     };
