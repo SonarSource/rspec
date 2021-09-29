@@ -25,26 +25,27 @@ def get_rule_id(filename):
   else:
     return ruleId
 
-def rule_languages(rule, languages):
+def compatible_languages(rule, languagesFromSonarPedia):
   '''
   Some analyzers, like SonarJS and sonar-cpp handle multiple languages
   by the same rule implementation. They add a special field "compatibleLanguages"
   to the rule metadata to specify which languges each implementation is applicable to.
+  By default, the rule is applicable to all languages declared in sonarpedia.
   '''
   if "compatibleLanguages" in rule:
     return rule["compatibleLanguages"]
   else:
-    return languages
+    return languagesFromSonarPedia
 
-def get_implemented_rules(path, languages):
+def get_implemented_rules(path, languagesFromSonarPedia):
   implemented_rules = {}
-  for lang in languages:
+  for lang in languagesFromSonarPedia:
     implemented_rules[lang] = []
   for filename in os.listdir(path):
     if filename.endswith(".json") and not filename.startswith("Sonar_way"):
         rule = load_json(os.path.join(path, filename))
         ruleId = get_rule_id(filename)
-        for language in rule_languages(rule, languages):
+        for language in compatible_languages(rule, languagesFromSonarPedia):
           if language not in implemented_rules:
             implemented_rules[language] = []
           implemented_rules[language].append(ruleId)
@@ -97,11 +98,11 @@ class Coverage:
 
   # analyzer+version uniquely identifies the analyzer and version implementing
   # the rule for the given languages.
-  # Rule implementations for some langauges are spread across multiple repositories
+  # Rule implementations for some languages are spread across multiple repositories
   # for example sonar-java and sonar-security for Java.
   # We use analyzer+version to avoid confusion between versions of different analyzers.
-  def add_analyzer_version(self, analyzer, version, implemented_rules):
-    for language in implemented_rules:
+  def add_analyzer_version(self, analyzer, version, implemented_rules_per_language):
+    for language in implemented_rules_per_language:
       for ruleId in implemented_rules[language]:
         self.rule_implemented(ruleId, language, analyzer, version)
 
