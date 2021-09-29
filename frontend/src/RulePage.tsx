@@ -111,6 +111,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
     const upperCaseLanguage = language.toUpperCase();
     const jiraProject = languageToJiraProject.get(upperCaseLanguage);
     const githubProject = languageToGithubProject.get(upperCaseLanguage);
+    const titleWihoutQuotes = title.replaceAll('"','');
 
     const implementationPRsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
@@ -120,7 +121,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
 
     if (jiraProject !== undefined) {
       const ticketsLink = (
-        <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${title}")`}>
+        <Link href={`https://jira.sonarsource.com/issues/?jql=project%20%3D%20${jiraProject}%20AND%20(text%20~%20%22S${ruleNumber}%22%20OR%20text%20~%20%22RSPEC-${ruleNumber}%22%20OR%20text%20~%20"${titleWihoutQuotes}")`}>
           Implementation tickets on Jira
         </Link>
       );
@@ -144,15 +145,7 @@ export function RulePage(props: any) {
   const ruleid = props.match.params.ruleid;
   // language can be absent
   const language = props.match.params.language;
-  let metaDescription = "Rules Repository Search Page";
   document.title = ruleid;
-  document.getElementsByName("metaTitle").forEach(element => {
-    element.setAttribute("content", ruleid);
-  });
-
-  document.getElementsByName("metaUrl").forEach(element => {
-    element.setAttribute("content", window.location.href);
-  });
 
   const history = useHistory();
   function handleLanguageChange(event: any, lang: string) {
@@ -177,7 +170,6 @@ export function RulePage(props: any) {
   let prUrl: string | undefined = undefined;
   if (metadataJSON && !metadataIsLoading && !metadataError) {
     title = metadataJSON.title;
-    metaDescription = title;
     if ('prUrl' in metadataJSON) {
       prUrl = metadataJSON.prUrl;
     }
@@ -198,9 +190,10 @@ export function RulePage(props: any) {
     }
   }
 
-  document.getElementsByName("metaDescription").forEach(element => {
-    element.setAttribute("content", metaDescription);
-  });
+  if (coverage !== "Not Covered") {
+    prUrl = undefined;
+    branch = 'master'; 
+  }
 
   let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
                         branch + '/rules/' + ruleid + (language ? '/' + language : '');

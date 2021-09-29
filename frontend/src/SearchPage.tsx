@@ -21,17 +21,6 @@ import { IndexAggregates } from './types/IndexStore'
 
 export const SearchPage = () => {
   document.title = "Search"
-  document.getElementsByName("metaTitle").forEach(element => {
-    element.setAttribute("content", "RSPEC");
-  });
-
-  document.getElementsByName("metaDescription").forEach(element => {
-    element.setAttribute("content", "Rules Repository Search Page");
-  });
-
-  document.getElementsByName("metaUrl").forEach(element => {
-    element.setAttribute("content", window.location.href);
-  });
 
   const classes = useStyles();
 
@@ -77,13 +66,22 @@ export const SearchPage = () => {
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
   if (loading) {
     resultsDisplay = "Searching";
-  }
-  else if (results.length > 0) {
-    resultsDisplay = results.map(result =>
-      <Box className={classes.searchHitBox}>
-        <SearchHit key={result.id} data={result}/>
-      </Box>
-    )
+  } else if (results.length > 0) {
+    const upperCaseQuery = query.toLocaleUpperCase();
+    let resultsBoxes: JSX.Element[] = [];
+
+    // making the exact match to appear first in the search results
+    results.forEach(indexedRule => {
+      const box = <Box className={classes.searchHitBox}>
+        <SearchHit key={indexedRule.id} data={indexedRule}/>
+      </Box>;
+      if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
+        resultsBoxes = [box, ...resultsBoxes];
+      } else {
+        resultsBoxes.push(box);
+      }
+    });
+    resultsDisplay = resultsBoxes;
   }
 
   const paramSetters: Record<string, SearchParamSetter<any>> = {
