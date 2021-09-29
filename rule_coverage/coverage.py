@@ -6,109 +6,118 @@ from git import Repo
 from git import Git
 from pathlib import Path
 
-REPOS=['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security']
+REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security']
 
-CANONICAL_NAMES={
+CANONICAL_NAMES = {
   'JS': 'JAVASCRIPT',
   'TS': 'TYPESCRIPT',
   'WEB': 'HTML'
 }
 
-RULES_FILENAME='covered_rules.json'
-
 def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
 
-# repoAndVersion uniquely identifies the analyzer and version implementing
+def get_rule_id(filename):
+  ruleId = filename[:-5]
+  if '_' in ruleId:
+    return ruleId[:ruleId.find('_')]
+  else:
+    return ruleId
+
+def rule_languages(rule, languages):
+  '''
+  Some analyzers, like SonarJS and sonar-cpp handle multiple languages
+  by the same rule implementation. They add a special field "compatibleLanguages"
+  to the rule metadata to specify which languges each implementation is applicable to.
+  '''
+  if "compatibleLanguages" in rule:
+    return rule["compatibleLanguages"]
+  else:
+    return languages
+
+def get_implemented_rules(path, languages):
+  implemented_rules = {}
+  for lang in languages:
+    implemented_rules[lang] = []
+  for filename in os.listdir(path):
+    if filename.endswith(".json") and not filename.startswith("Sonar_way"):
+        rule = load_json(os.path.join(path, filename))
+        ruleId = get_rule_id(filename)
+        for language in rule_languages(rule, languages):
+          if language not in implemented_rules:
+            implemented_rules[language] = []
+          implemented_rules[language].append(ruleId)
+    else:
+        continue
+  return implemented_rules
+
+# analyzer+version uniquely identifies the analyzer and version implementing
 # the rule for the given languages.
 # Rule implementations for some langauges are spread across multiple repositories
 # for example sonar-java and sonar-security for Java.
-# We use repoAndVersion to avoid confusion between version of different analyzers.
-def get_rules_json(path, languages, repoAndVersion):
-  print(f"Getting rules from {os.getcwd()} {path} for {repoAndVersion}")
-  for filename in os.listdir(path):
-    if filename.endswith(".json") and not filename.startswith("Sonar_way"):
-        rule=load_json(os.path.join(path, filename))
-        dump_rule(filename[:-5], rule, languages, repoAndVersion)
-    else:
-        continue
+# We use analyzer+version to avoid confusion between versions of different analyzers.
+def add_analyzer_version(analyzer, version, implemented_rules, coverage):
+  repoAndVersion = analyzer + ' ' + version
+  lastVersion = version == 'master'
+  for language in implemented_rules:
+    implemented_rules_for_lang = implemented_rules[language]
+    language = canonicalize(language)
+    if language not in coverage:
+      print(f"Create entry for {language}")
+      coverage[language] = {}
+    for ruleId in implemented_rules_for_lang:
+      if lastVersion:
+        if ruleId not in coverage[language]:
+          coverage[language][ruleId] = repoAndVersion
+        elif type(coverage[language][ruleId]) == dict:
+          coverage[language][ruleId] = coverage[language][ruleId]['since']
+      else:
+        if ruleId not in coverage[language]:
+          coverage[language][ruleId] = {'since': repoAndVersion, 'until': repoAndVersion}
+        elif type(coverage[language][ruleId]) == dict:
+          coverage[language][ruleId]['until'] = repoAndVersion
+        else:
+          coverage[language][ruleId] = {'since': coverage[language][ruleId], 'until': repoAndVersion}
 
 def canonicalize(language):
   if language in CANONICAL_NAMES:
     return CANONICAL_NAMES[language]
   return language
 
-def dump_rule(ruleId, rule, languages, repoAndVersion):
-  if "compatibleLanguages" in rule:
-    for language in rule['compatibleLanguages']:
-      store_rule(ruleId, language, repoAndVersion)
-  else:
-    for language in languages:
-      store_rule(ruleId, language, repoAndVersion)
-
-def store_rule(ruleId, language, repoAndVersion):
-  language = canonicalize(language)
-  global rules
-  if language not in rules:
-    print(f"create entry for {language}")
-    rules[language] = {}
-  if '_' in ruleId:
-      ruleId=ruleId[:ruleId.find('_')]
-  if ruleId not in rules[language]:
-    rules[language][ruleId] = {'since': repoAndVersion, 'until': repoAndVersion}
-  elif type(rules[language][ruleId]) == dict:
-    rules[language][ruleId]['until'] = repoAndVersion
-  else:
-    rules[language][ruleId] = {'since': rules[language][ruleId], 'until': repoAndVersion}
-
-def simplify_spec_for_rules_that_are_still_supported():
-  ''' Represent covered range for rules that are still active as a single string holding "since" value.
-  Assumes the rules that are still active have "until" set to "master" branch, which happens if
-  "master" is scanned last after all the tagged versions.'''
-  global rules
-  for language, lang_rules in rules.items():
-    for rule, version in lang_rules.items():
-      if type(version) == dict and version['until'].endswith(' master'):
-        lang_rules[rule] = version['since']
-
-def dump_rules(repo, version):
+def all_implemented_rules():
+  implemented_rules = {}
   for sp_file in Path('.').rglob('sonarpedia.json'):
     print(sp_file)
     sonarpedia_path=sp_file.parents[0]
     sonarpedia = load_json(sp_file)
-    path=str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
-    languages=sonarpedia['languages']
-    simplify_spec_for_rules_that_are_still_supported()
-    get_rules_json(path, languages, repo + ' ' + version)
-    with open(f"../{RULES_FILENAME}", 'w') as outfile:
-      json.dump(rules, outfile, indent=2, sort_keys=True)
+    path = str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
+    languages = sonarpedia['languages']
+    implemented_rules.update(get_implemented_rules(path, languages))
+  return implemented_rules
 
 def checkout_repo(repo):
   token=os.getenv('GITHUB_TOKEN')
-  if not token:
-    git_url=f"git@github.com:SonarSource/{repo}"
-  else:
+  git_url=f"git@github.com:SonarSource/{repo}"
+  if token:
     git_url=f"https://{token}@github.com/SonarSource/{repo}"
-  git_repo=None
   g=Git(repo)
   if not os.path.exists(repo):
     return Repo.clone_from(git_url, repo)
   else:
     return Repo(repo)
 
-def scan_all_versions(repo):
+def scan_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
   tags = git_repo.tags
   tags.sort(key = lambda t: t.commit.committed_date)
-  versions = [tag.name for tag in tags]
+  versions = [tag.name for tag in tags if '-' not in tag.name]
   for version in versions:
-    if not '-' in version:
-      print(f"{repo} {version}")
-      scan_version(repo, version)
-  scan_version(repo, 'master')
+    scan_version(repo, version, coverage)
+  scan_version(repo, 'master', coverage)
 
-def scan_version(repo, version):
+def scan_version(repo, version, coverage):
+  print(f"{repo} {version}")
   r = checkout_repo(repo)
   g = Git(repo)
   os.chdir(repo)
@@ -116,35 +125,46 @@ def scan_version(repo, version):
     r.head.reference = r.commit(version)
     r.head.reset(index=True, working_tree=True)
     g.checkout(version)
-    dump_rules(repo, version)
+    implemented_rules = all_implemented_rules()
+    add_analyzer_version(repo, version, implemented_rules, coverage)
   except Exception as e:
-    print(f"{repo} {version} checkout failed, resetting and cleaning: {e}")
+    print(f"{repo} {version} checkout failed: {e}")
   os.chdir('..')
+
+def load_coverage(filename):
+  if os.path.exists(filename):
+    return load_json(filename)
+  else:
+    return {}
+
+def store_coverage(filename, coverage):
+  with open(filename, 'w') as outfile:
+    json.dump(coverage, outfile, indent=2, sort_keys=True)
 
 def main():
   parser = argparse.ArgumentParser(description='rules coverage')
   parser.add_argument('command', nargs='+', help='see code for help')
   args = parser.parse_args()
 
-  global rules
-  if os.path.exists(RULES_FILENAME):
-    rules=load_json(RULES_FILENAME)
-  else:
-    rules={}
+  RULES_FILENAME = 'covered_rules.json'
+
+  coverage = load_coverage(RULES_FILENAME)
 
   if args.command[0] == "batchall":
     print(f"batch mode for {REPOS}")
     for repo in REPOS:
-      scan_all_versions(repo)
+      scan_all_versions(repo, coverage)
   elif args.command[0] == "batch":
     repo=args.command[1]
     print(f"batch mode for {repo}")
-    scan_all_versions(repo)
+    scan_all_versions(repo, coverage)
   else:
     repo=args.command[0]
     version=args.command[1]
     print(f"checking {repo} version {version}")
-    scan_version(repo, version)
+    scan_version(repo, version, coverage)
+
+  store_coverage(RULES_FILENAME, coverage)
 
 if __name__ == '__main__':
   main()
