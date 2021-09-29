@@ -100,3 +100,7 @@ def resolve_rule(ruleID: str) -> int:
   else:
     return int(m.group(1))
 
+def load_json(file):
+  with open(file) as json_file:
+    return json.load(json_file)
+

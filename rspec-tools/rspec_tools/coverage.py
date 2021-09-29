@@ -5,6 +5,8 @@ from git import Repo
 from git import Git
 from pathlib import Path
 
+from rspec_tools.utils import load_json
+
 REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security']
 
 CANONICAL_NAMES = {
@@ -14,10 +16,6 @@ CANONICAL_NAMES = {
 }
 
 RULES_FILENAME = 'covered_rules.json'
-
-def load_json(file):
-  with open(file) as json_file:
-    return json.load(json_file)
 
 def get_rule_id(filename):
   ruleId = filename[:-5]
