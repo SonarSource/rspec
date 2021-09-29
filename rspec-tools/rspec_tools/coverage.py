@@ -116,8 +116,8 @@ def all_implemented_rules():
   return implemented_rules
 
 def checkout_repo(repo):
+  git_url=f"https://github.com/SonarSource/{repo}"
   token=os.getenv('GITHUB_TOKEN')
-  git_url=f"git@github.com:SonarSource/{repo}"
   if token:
     git_url=f"https://{token}@github.com/SonarSource/{repo}"
   g=Git(repo)
