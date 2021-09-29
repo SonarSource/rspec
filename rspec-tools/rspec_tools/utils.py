@@ -4,6 +4,8 @@ import shutil
 import re
 import tempfile
 import json
+import contextlib
+import os
 
 SUPPORTED_LANGUAGES_FILENAME = '../supported_languages.adoc'
 LANG_TO_LABEL = {'abap': 'abap',
@@ -104,3 +106,11 @@ def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
 
+@contextlib.contextmanager
+def pushd(new_dir):
+  previous_dir = os.getcwd()
+  os.chdir(new_dir)
+  try:
+    yield
+  finally:
+    os.chdir(previous_dir)
