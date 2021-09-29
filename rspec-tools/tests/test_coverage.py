@@ -20,11 +20,11 @@ def test_update_coverage_for_repo_version(tmpdir):
   assert 'S100' in cov['ABAP']
   assert cov['ABAP']['S100'] == {'since': REPO + ' ' + VER, 'until': REPO + ' ' + VER}
 
-  # running it again changes nothing
+  # Running it again changes nothing
   update_coverage_for_repo_version(REPO, VER)
   assert cov == load_json(coverage)
 
-  # running it for a newer version doesn't change when the rules are first implemented
+  # Running it for a newer version doesn't change when the rules are first implemented
   VER2 = '3.8.0.2034'
   update_coverage_for_repo_version(REPO, VER2)
   cov_new = load_json(coverage)
@@ -33,6 +33,10 @@ def test_update_coverage_for_repo_version(tmpdir):
   assert cov_new['ABAP']['S100']['until'] == REPO + ' ' + VER2
   assert cov_new['ABAP']['S2809']['since'] == REPO + ' ' + VER2
   assert cov_new['ABAP']['S2809']['until'] == REPO + ' ' + VER2
+
+  # For rules supported on master only the 'since' part is kept
+  update_coverage_for_repo_version(REPO, 'master')
+  assert load_json(coverage)['ABAP']['S100'] == REPO + ' ' + VER
 
   os.chdir(previous_dir)
 
