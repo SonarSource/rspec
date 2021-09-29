@@ -27,7 +27,7 @@ cd rspec-tools
 if pipenv run rspec-tools check-sections --d ../out; then
     echo "Sections are fine"
 else
-    echo "ERROR: incorrect section names"
+    echo "ERROR: incorrect section names or invalid level-0 headers"
     exit_code=1
 fi
 cd ..
