@@ -37,29 +37,33 @@ def canonicalize(language):
     return canonical_names[language]
   return language
 
-def dump_rule(name, rule, languages, repoAndVersion):
+def dump_rule(ruleId, rule, languages, repoAndVersion):
   if "compatibleLanguages" in rule:
     for language in rule['compatibleLanguages']:
-      store_rule(name, rule, language, repoAndVersion)
+      store_rule(ruleId, language, repoAndVersion)
   else:
     for language in languages:
-      store_rule(name, rule, canonicalize(language), repoAndVersion)
+      store_rule(ruleId, language, repoAndVersion)
 
-def store_rule(name, rule, language, repoAndVersion):
+def store_rule(ruleId, language, repoAndVersion):
+  language = canonicalize(language)
   global rules
   if language not in rules:
     print(f"create entry for {language}")
     rules[language] = {}
-  if '_' in name:
-      name=name[:name.find('_')]
-  if name not in rules[language]:
-    rules[language][name] = {'since': repoAndVersion, 'until': repoAndVersion}
-  elif type(rules[language][name]) == dict:
-    rules[language][name]['until'] = repoAndVersion
+  if '_' in ruleId:
+      ruleId=ruleId[:ruleId.find('_')]
+  if ruleId not in rules[language]:
+    rules[language][ruleId] = {'since': repoAndVersion, 'until': repoAndVersion}
+  elif type(rules[language][ruleId]) == dict:
+    rules[language][ruleId]['until'] = repoAndVersion
   else:
-    rules[language][name] = {'since': rules[language][name], 'until': repoAndVersion}
+    rules[language][ruleId] = {'since': rules[language][ruleId], 'until': repoAndVersion}
 
 def simplify_spec_for_rules_that_are_still_supported():
+  ''' Represent covered range for rules that are still active as a single string holding "since" value.
+  Assumes the rules that are still active have "until" set to "master" branch, which happens if
+  "master" is scanned last after all the tagged versions.'''
   global rules
   for language, lang_rules in rules.items():
     for rule, version in lang_rules.items():
