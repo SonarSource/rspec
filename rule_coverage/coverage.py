@@ -52,38 +52,59 @@ def get_implemented_rules(path, languages):
         continue
   return implemented_rules
 
+def canonicalize(language):
+  if language in CANONICAL_NAMES:
+    return CANONICAL_NAMES[language]
+  return language
+
+class Coverage:
+  '''Keep and update the coverage DB: lang*ruleId -> analyzer version'''
+  def __init__(self, filename):
+    self.rules = {}
+    if os.path.exists(filename):
+      self.rules = load_json(filename)
+
+  def save_to_file(self, filename):
+    with open(filename, 'w') as outfile:
+      json.dump(self.rules, outfile, indent=2, sort_keys=True)
+
+  def _rule_implemented_for_intermediate_version(self, ruleId, language, repo_and_version):
+    if ruleId not in self.rules[language]:
+      self.rules[language][ruleId] = {'since': repo_and_version, 'until': repo_and_version}
+    elif type(self.rules[language][ruleId]) == dict:
+      self.rules[language][ruleId]['until'] = repo_and_version
+    else:
+      self.rules[language][ruleId] = {'since': self.rules[language][ruleId], 'until': repo_and_version}
+
+  def _rule_implemented_for_last_version(self, ruleId, language, repo_and_version):
+    if ruleId not in self.rules[language]:
+      self.rules[language][ruleId] = repo_and_version
+    elif type(self.rules[language][ruleId]) == dict:
+      self.rules[language][ruleId] = self.rules[language][ruleId]['since']
+
+  def rule_implemented(self, ruleId, language, analyzer, version):
+    repo_and_version = analyzer + ' ' + version
+    language = canonicalize(language)
+
+    if language not in self.rules:
+      print(f"Create entry for {language}")
+      self.rules[language] = {}
+
+    if version == 'master':
+      self._rule_implemented_for_last_version(ruleId, language, repo_and_version)
+    else:
+      self._rule_implemented_for_intermediate_version(ruleId, language, repo_and_version)
+
 # analyzer+version uniquely identifies the analyzer and version implementing
 # the rule for the given languages.
 # Rule implementations for some langauges are spread across multiple repositories
 # for example sonar-java and sonar-security for Java.
 # We use analyzer+version to avoid confusion between versions of different analyzers.
 def add_analyzer_version(analyzer, version, implemented_rules, coverage):
-  repoAndVersion = analyzer + ' ' + version
   lastVersion = version == 'master'
   for language in implemented_rules:
-    implemented_rules_for_lang = implemented_rules[language]
-    language = canonicalize(language)
-    if language not in coverage:
-      print(f"Create entry for {language}")
-      coverage[language] = {}
-    for ruleId in implemented_rules_for_lang:
-      if lastVersion:
-        if ruleId not in coverage[language]:
-          coverage[language][ruleId] = repoAndVersion
-        elif type(coverage[language][ruleId]) == dict:
-          coverage[language][ruleId] = coverage[language][ruleId]['since']
-      else:
-        if ruleId not in coverage[language]:
-          coverage[language][ruleId] = {'since': repoAndVersion, 'until': repoAndVersion}
-        elif type(coverage[language][ruleId]) == dict:
-          coverage[language][ruleId]['until'] = repoAndVersion
-        else:
-          coverage[language][ruleId] = {'since': coverage[language][ruleId], 'until': repoAndVersion}
-
-def canonicalize(language):
-  if language in CANONICAL_NAMES:
-    return CANONICAL_NAMES[language]
-  return language
+    for ruleId in implemented_rules[language]:
+      coverage.rule_implemented(ruleId, language, analyzer, version)
 
 def all_implemented_rules():
   implemented_rules = {}
@@ -131,24 +152,13 @@ def scan_version(repo, version, coverage):
     print(f"{repo} {version} checkout failed: {e}")
   os.chdir('..')
 
-def load_coverage(filename):
-  if os.path.exists(filename):
-    return load_json(filename)
-  else:
-    return {}
-
-def store_coverage(filename, coverage):
-  with open(filename, 'w') as outfile:
-    json.dump(coverage, outfile, indent=2, sort_keys=True)
-
 def main():
   parser = argparse.ArgumentParser(description='rules coverage')
   parser.add_argument('command', nargs='+', help='see code for help')
   args = parser.parse_args()
 
   RULES_FILENAME = 'covered_rules.json'
-
-  coverage = load_coverage(RULES_FILENAME)
+  coverage = Coverage(RULES_FILENAME)
 
   if args.command[0] == "batchall":
     print(f"batch mode for {REPOS}")
@@ -164,7 +174,7 @@ def main():
     print(f"checking {repo} version {version}")
     scan_version(repo, version, coverage)
 
-  store_coverage(RULES_FILENAME, coverage)
+  coverage.save_to_file(RULES_FILENAME)
 
 if __name__ == '__main__':
   main()
