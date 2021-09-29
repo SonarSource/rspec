@@ -27,4 +27,9 @@ def validate_section_names(rule_language: LanguageSpecificRule):
     if name not in ACCEPTED_SECTION_NAMES:
       raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{name}"')
 
+def validate_section_levels(rule_language: LanguageSpecificRule):
+  h1 = rule_language.description.find('h1')
+  if h1 is not None:
+    raise RuleValidationError(f'Rule {rule_language.id} has level-0 header')
+
 __all__=['validate_metadata']
