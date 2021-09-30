@@ -55,7 +55,6 @@ def add_language_to_rule(language: str, rule: str, token: str, user: Optional[st
   validate_language(language)
   label = get_label_for_language(language)
   rule_number = resolve_rule(rule)
-  print(rule_number)
   with tempfile.TemporaryDirectory() as tmpdirname:
     rule_creator = RuleCreator(url, tmpdirname, config)
     rule_creator.add_language_pull_request(authGithub(token), rule_number, language, label, user=user)
@@ -111,7 +110,6 @@ class RuleCreator:
       if not rule_dir.is_dir():
         raise InvalidArgumentError(f"Rule \"S{rule_number}\" does not exist.")
       lang_dirs = [d for d in rule_dir.glob('*/') if d.is_dir()]
-      print(lang_dirs)
       if 1 == len(list(lang_dirs)) and is_empty_metadata(rule_dir):
         swap_metadata_files(rule_dir, lang_dirs[0])
       lang_dir = rule_dir.joinpath(language)
