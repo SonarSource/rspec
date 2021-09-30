@@ -38,7 +38,7 @@ def test_level_0_section_fails_validation(rule_language: LanguageSpecificRule):
   invalid_header = invalid_description.new_tag('h1')
   invalid_header.string = 'Invalid header level'
   invalid_description.body.insert(1, invalid_header)
-  with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has level-0 header'):
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has level-0 header "Invalid header level"'):
     with patch.object(LanguageSpecificRule, 'description', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_description
       validate_section_levels(rule_language)
