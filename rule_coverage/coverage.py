@@ -103,7 +103,7 @@ class Coverage:
   # We use analyzer+version to avoid confusion between versions of different analyzers.
   def add_analyzer_version(self, analyzer, version, implemented_rules_per_language):
     for language in implemented_rules_per_language:
-      for ruleId in implemented_rules[language]:
+      for ruleId in implemented_rules_per_language[language]:
         self.rule_implemented(ruleId, language, analyzer, version)
 
 def all_implemented_rules():
