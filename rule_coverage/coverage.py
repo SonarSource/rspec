@@ -19,13 +19,13 @@ def load_json(file):
     return json.load(json_file)
 
 def get_rule_id(filename):
-  ruleId = filename[:-5]
-  if '_' in ruleId:
-    return ruleId[:ruleId.find('_')]
+  rule_id = filename[:-5]
+  if '_' in rule_id:
+    return rule_id[:rule_id.find('_')]
   else:
-    return ruleId
+    return rule_id
 
-def compatible_languages(rule, languagesFromSonarPedia):
+def compatible_languages(rule, languages_from_sonarpedia):
   '''
   Some analyzers, like SonarJS and sonar-cpp handle multiple languages
   by the same rule implementation. They add a special field "compatibleLanguages"
@@ -35,20 +35,20 @@ def compatible_languages(rule, languagesFromSonarPedia):
   if "compatibleLanguages" in rule:
     return rule["compatibleLanguages"]
   else:
-    return languagesFromSonarPedia
+    return languages_from_sonarpedia
 
-def get_implemented_rules(path, languagesFromSonarPedia):
+def get_implemented_rules(path, languages_from_sonarpedia):
   implemented_rules = {}
-  for lang in languagesFromSonarPedia:
+  for lang in languages_from_sonarpedia:
     implemented_rules[lang] = []
   for filename in os.listdir(path):
     if filename.endswith(".json") and not filename.startswith("Sonar_way"):
         rule = load_json(os.path.join(path, filename))
-        ruleId = get_rule_id(filename)
-        for language in compatible_languages(rule, languagesFromSonarPedia):
+        rule_id = get_rule_id(filename)
+        for language in compatible_languages(rule, languages_from_sonarpedia):
           if language not in implemented_rules:
             implemented_rules[language] = []
-          implemented_rules[language].append(ruleId)
+          implemented_rules[language].append(rule_id)
     else:
         continue
   return implemented_rules
@@ -59,7 +59,7 @@ def canonicalize(language):
   return language
 
 class Coverage:
-  '''Keep and update the coverage DB: lang*ruleId -> analyzer version'''
+  '''Keep and update the coverage DB: lang*rule_id -> analyzer version'''
   def __init__(self, filename):
     self.rules = {}
     if os.path.exists(filename):
@@ -69,21 +69,21 @@ class Coverage:
     with open(filename, 'w') as outfile:
       json.dump(self.rules, outfile, indent=2, sort_keys=True)
 
-  def _rule_implemented_for_intermediate_version(self, ruleId, language, repo_and_version):
-    if ruleId not in self.rules[language]:
-      self.rules[language][ruleId] = {'since': repo_and_version, 'until': repo_and_version}
-    elif type(self.rules[language][ruleId]) == dict:
-      self.rules[language][ruleId]['until'] = repo_and_version
+  def _rule_implemented_for_intermediate_version(self, rule_id, language, repo_and_version):
+    if rule_id not in self.rules[language]:
+      self.rules[language][rule_id] = {'since': repo_and_version, 'until': repo_and_version}
+    elif type(self.rules[language][rule_id]) == dict:
+      self.rules[language][rule_id]['until'] = repo_and_version
     else:
-      self.rules[language][ruleId] = {'since': self.rules[language][ruleId], 'until': repo_and_version}
+      self.rules[language][rule_id] = {'since': self.rules[language][rule_id], 'until': repo_and_version}
 
-  def _rule_implemented_for_last_version(self, ruleId, language, repo_and_version):
-    if ruleId not in self.rules[language]:
-      self.rules[language][ruleId] = repo_and_version
-    elif type(self.rules[language][ruleId]) == dict:
-      self.rules[language][ruleId] = self.rules[language][ruleId]['since']
+  def _rule_implemented_for_last_version(self, rule_id, language, repo_and_version):
+    if rule_id not in self.rules[language]:
+      self.rules[language][rule_id] = repo_and_version
+    elif type(self.rules[language][rule_id]) == dict:
+      self.rules[language][rule_id] = self.rules[language][rule_id]['since']
 
-  def rule_implemented(self, ruleId, language, analyzer, version):
+  def rule_implemented(self, rule_id, language, analyzer, version):
     repo_and_version = analyzer + ' ' + version
     language = canonicalize(language)
 
@@ -92,9 +92,9 @@ class Coverage:
       self.rules[language] = {}
 
     if version == 'master':
-      self._rule_implemented_for_last_version(ruleId, language, repo_and_version)
+      self._rule_implemented_for_last_version(rule_id, language, repo_and_version)
     else:
-      self._rule_implemented_for_intermediate_version(ruleId, language, repo_and_version)
+      self._rule_implemented_for_intermediate_version(rule_id, language, repo_and_version)
 
   # analyzer+version uniquely identifies the analyzer and version implementing
   # the rule for the given languages.
@@ -103,8 +103,8 @@ class Coverage:
   # We use analyzer+version to avoid confusion between versions of different analyzers.
   def add_analyzer_version(self, analyzer, version, implemented_rules_per_language):
     for language in implemented_rules_per_language:
-      for ruleId in implemented_rules_per_language[language]:
-        self.rule_implemented(ruleId, language, analyzer, version)
+      for rule_id in implemented_rules_per_language[language]:
+        self.rule_implemented(rule_id, language, analyzer, version)
 
 def all_implemented_rules():
   implemented_rules = {}
