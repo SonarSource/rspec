@@ -39,7 +39,6 @@ LANG_TO_LABEL = {'abap': 'abap',
 
 def copy_directory_content(src:Path, dest:Path):
   for item in src.iterdir():
-    print(item)
     if (item.is_dir()):
       shutil.copytree(item, dest)
     else:

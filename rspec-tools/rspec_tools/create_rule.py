@@ -84,7 +84,6 @@ class RuleCreator:
         split_key = key.split('.')
         config_writer.set_value(*split_key, value)
 
-
   def reserve_rule_number(self) -> int:
     '''Reserve an id on the id counter branch of the repository.'''
     with self._current_git_branch(self.ID_COUNTER_BRANCH):
@@ -125,7 +124,6 @@ class RuleCreator:
       self.repository.index.commit(f'Add {language} to rule S{rule_number}')
     self.repository.git.push('origin', branch_name)
     return branch_name
-
 
   def create_new_rule_branch(self, rule_number: int, languages: Iterable[str]) -> str:
     '''Create all the files required for a new rule.'''
@@ -193,7 +191,6 @@ class RuleCreator:
     pull_request.add_to_labels(*labels)
     click.echo(f'Pull request assigned to {login}')
     return pull_request
-
 
   def add_language_pull_request(self, githubApi: Callable[[Optional[str]], Github], rule_number: int, language: str, label: str, user: Optional[str]):
     branch_name = self.add_language_branch(rule_number, language)
