@@ -8,7 +8,7 @@ from rspec_tools.errors import RuleNotFoundError, RuleValidationError
 from rspec_tools.create_rule import create_new_rule
 from rspec_tools.rules import RulesRepository
 from rspec_tools.validation.metadata import validate_metadata
-from rspec_tools.validation.description import validate_section_names
+from rspec_tools.validation.description import validate_section_names, validate_section_levels
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
@@ -74,6 +74,11 @@ def check_sections(d, rules):
     for lang_spec_rule in rule.specializations:
       try:
         validate_section_names(lang_spec_rule)
+      except RuleValidationError as e:
+        click.echo(e.message, err=True)
+        error_counter += 1
+      try:
+        validate_section_levels(lang_spec_rule)
       except RuleValidationError as e:
         click.echo(e.message, err=True)
         error_counter += 1
