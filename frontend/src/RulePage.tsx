@@ -7,6 +7,7 @@ import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
 import { Link } from '@material-ui/core';
+import { Link as RouterLink } from 'react-router-dom';
 
 import { useHistory } from "react-router-dom";
 
@@ -23,6 +24,9 @@ const useStyles = makeStyles((theme) => ({
     textAlign: 'center',
     marginTop: theme.spacing(3),
     marginBottom: theme.spacing(3),
+  },
+  ruleidLink: {
+    color: 'inherit',
   },
   title: {
     textAlign: 'justify',
@@ -46,7 +50,34 @@ const useStyles = makeStyles((theme) => ({
   },
   unimplemented: {
     color: 'red'
-  }
+  },
+
+  tab: {
+    display: 'flex',
+
+    "&::before": {
+      content: '""',
+      display: 'block',
+      width: theme.spacing(1),
+      height: theme.spacing(1),
+      marginRight: theme.spacing(1),
+      borderRadius: theme.spacing(1),
+    },
+
+    '& > .MuiTab-wrapper': {
+      width: 'auto',
+    }
+  },
+  tabCovered: {
+    "&::before": {
+      backgroundColor: '#4c9bd6',
+    }
+  },
+  tabTargeted: {
+    "&::before": {
+      backgroundColor: '#fd6a00',
+    }
+  },
 }));
 
 const languageToJiraProject = new Map(Object.entries({
@@ -161,7 +192,7 @@ export function RulePage(props: any) {
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
-  const {ruleCoverage, allLangsRuleCoverage} = useRuleCoverage();
+  const {ruleCoverage, allLangsRuleCoverage, isLanguageCovered} = useRuleCoverage();
   let coverage: any = "Loading...";
 
   let title = "Loading..."
@@ -175,7 +206,11 @@ export function RulePage(props: any) {
     }
     branch = metadataJSON.branch;
     metadataJSON.all_languages.sort();
-    languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>);
+    languagesTabs = metadataJSON.all_languages.map(lang => { 
+      const isImplemented = isLanguageCovered(lang, metadataJSON!.allKeys);
+      const classNames = classes.tab + ' ' + (isImplemented ? classes.tabImplemented : classes.tabNotImplemented);
+      return <Tab label={lang} value={lang} className={classNames} />;
+    });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     const coverageMapper = (key: any, range: any) => {
@@ -233,20 +268,22 @@ export function RulePage(props: any) {
     <div>
     <div className={classes.ruleBar}>
       <Container>
-      <Typography variant="h2" classes={{root: classes.ruleid}}>{ruleid}</Typography>
-      <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
-      <Tabs
-          {...tabsValue}
-          onChange={handleLanguageChange}
-          indicatorColor="primary"
-          textColor="primary"
-          centered
-          variant="scrollable"
-          scrollButtons="auto"
-          classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
-      >
-        {languagesTabs}
-      </Tabs>
+        <Typography variant="h2" classes={{root: classes.ruleid}}>
+          <Link className={classes.ruleidLink} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
+        </Typography>
+        <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
+        <Tabs
+            {...tabsValue}
+            onChange={handleLanguageChange}
+            indicatorColor="primary"
+            textColor="primary"
+            centered
+            variant="scrollable"
+            scrollButtons="auto"
+            classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
+        >
+          {languagesTabs}
+        </Tabs>
       </Container>
     </div>
 
