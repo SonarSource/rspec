@@ -208,7 +208,7 @@ export function RulePage(props: any) {
     metadataJSON.all_languages.sort();
     languagesTabs = metadataJSON.all_languages.map(lang => { 
       const isImplemented = isLanguageCovered(lang, metadataJSON!.allKeys);
-      const classNames = classes.tab + ' ' + (isImplemented ? classes.tabImplemented : classes.tabNotImplemented);
+      const classNames = classes.tab + ' ' + (isImplemented ? classes.tabCovered : classes.tabTargeted);
       return <Tab label={lang} value={lang} className={classNames} />;
     });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);

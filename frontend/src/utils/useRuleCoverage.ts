@@ -1,6 +1,6 @@
 import { useFetch } from './useFetch';
 
-export type RuleCoverage = Record<string, Record<string, string>>;
+type RuleCoverage = Record<string, Record<string, string>>;
 
 const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'abap': ['ABAP'],
