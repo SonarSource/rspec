@@ -42,7 +42,7 @@ def create_rule(languages: str, user: Optional[str]):
 @click.option('--rule', required=True)
 @click.option('--user', required=False)
 def add_lang_to_rule(language: str, rule: str, user: Optional[str]):
-  '''Create a new rule.'''
+  '''Add a new language to rule.'''
   token = os.environ.get('GITHUB_TOKEN')
   add_language_to_rule(language, rule, token, user)
 
