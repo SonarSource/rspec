@@ -1,6 +1,9 @@
 from rspec_tools.errors import InvalidArgumentError
 from pathlib import Path
 import shutil
+import re
+import tempfile
+import json
 
 SUPPORTED_LANGUAGES_FILENAME = '../supported_languages.adoc'
 LANG_TO_LABEL = {'abap': 'abap',
@@ -41,6 +44,19 @@ def copy_directory_content(src:Path, dest:Path):
     else:
       shutil.copy2(item, dest)
 
+def swap_metadata_files(dir1:Path, dir2:Path):
+  meta1 = dir1.joinpath('metadata.json')
+  meta2 = dir2.joinpath('metadata.json')
+  with tempfile.TemporaryDirectory() as tmpdir:
+    tmp = Path(tmpdir).joinpath('metadata.json')
+    shutil.copy2(meta1, tmp)
+    shutil.copy2(meta2, meta1)
+    shutil.copy2(tmp, meta2)
+
+def is_empty_metadata(rule_dir:Path):
+  with open(rule_dir.joinpath('metadata.json'), 'r') as meta:
+    return not json.load(meta)
+
 def load_valid_languages():
   with open(SUPPORTED_LANGUAGES_FILENAME, 'r') as supported_langs_file:
     supported_langs = supported_langs_file.read()
@@ -65,7 +81,22 @@ def parse_and_validate_language_list(languages):
       raise InvalidArgumentError(f"Unsupported language: \"{lang}\". See {SUPPORTED_LANGUAGES_FILENAME} for the list of supported languages.")
   return lang_list
 
+def validate_language(language):
+  valid_langs = load_valid_languages()
+  if language not in valid_langs:
+    raise InvalidArgumentError(f"Unsupported language: \"{language}\". See {SUPPORTED_LANGUAGES_FILENAME} for the list of supported languages.")
+
 def get_labels_for_languages(lang_list):
   labels = [LANG_TO_LABEL[lang] for lang in lang_list]
   return list(set(labels))
+
+def get_label_for_language(language: str) -> str:
+  return LANG_TO_LABEL[language]
+
+def resolve_rule(ruleID: str) -> int:
+  m = re.search('^S([0-9]{3,4})$', ruleID)
+  if not m:
+    raise InvalidArgumentError(f"Unrecognized rule id format: \"{ruleID}\". Rule id must start with an \"S\" followed by 3 or 4 digits.")
+  else:
+    return int(m.group(1))
 
