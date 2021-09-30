@@ -71,7 +71,7 @@ export function useRuleCoverage() {
   }
 
   function allLangsRuleCoverage(ruleKeys: string[], mapper: any) {
-    const allLanguageKeys = Array.from(languageToSonarpedia.keys());
+    const allLanguageKeys = Array.from(languageToSonarpedia.values()).flat();
     return ruleCoverageForSonarpediaKeys(allLanguageKeys, ruleKeys, mapper);
   }
 
