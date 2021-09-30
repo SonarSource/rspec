@@ -9,11 +9,14 @@ import Box from '@material-ui/core/Box';
 import { Link } from '@material-ui/core';
 import { Link as RouterLink } from 'react-router-dom';
 
-import { useHistory } from "react-router-dom";
+import Highlight from 'react-highlight';
+import { useHistory } from 'react-router-dom';
 
 import { useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import { RuleMetadata } from './types';
+
+import './hljs-humanoid-light.css';
 
 
 const useStyles = makeStyles((theme) => ({
@@ -246,7 +249,7 @@ export function RulePage(props: any) {
       <hr />
       <a href={editOnGithubUrl}>Edit on Github</a><br/>
       <hr />
-      <pre>{metadataJSONString}</pre>
+      <Highlight className='json'>{metadataJSONString}</Highlight>
     </div>;
   }
   let prLink = <></>;
