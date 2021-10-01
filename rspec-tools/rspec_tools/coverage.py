@@ -127,16 +127,16 @@ def checkout_repo(repo):
   else:
     return Repo(repo)
 
-def scan_all_versions(repo, coverage):
+def collect_coverage_for_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
   tags = git_repo.tags
   tags.sort(key = lambda t: t.commit.committed_date)
   versions = [tag.name for tag in tags if '-' not in tag.name]
   for version in versions:
-    scan_version(repo, version, coverage)
-  scan_version(repo, 'master', coverage)
+    collect_coverage_for_version(repo, version, coverage)
+  collect_coverage_for_version(repo, 'master', coverage)
 
-def scan_version(repo, version, coverage):
+def collect_coverage_for_version(repo, version, coverage):
   print(f"{repo} {version}")
   r = checkout_repo(repo)
   g = Git(repo)
@@ -155,18 +155,18 @@ def update_coverage_for_all_repos():
   print(f"batch mode for {REPOS}")
   coverage = Coverage(RULES_FILENAME)
   for repo in REPOS:
-    scan_all_versions(repo, coverage)
+    collect_coverage_for_all_versions(repo, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
 def update_coverage_for_repo(repo):
   print(f"batch mode for {repo}")
   coverage = Coverage(RULES_FILENAME)
-  scan_all_versions(repo, coverage)
+  collect_coverage_for_all_versions(repo, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
 def update_coverage_for_repo_version(repo, version):
   print(f"checking {repo} version {version}")
   coverage = Coverage(RULES_FILENAME)
-  scan_version(repo, version, coverage)
+  collect_coverage_for_version(repo, version, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
