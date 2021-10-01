@@ -96,6 +96,8 @@ export function useRuleCoverage() {
     );
 
     if (result.length > 0) {
+      // if there is at least one entry with simple (string) type, rule is still part of analyzer
+      // otherwise (when all entries keep an analyzer versions range) the rule is removed
       return result.some(version => typeof version === 'string')
         ? 'covered'
         : 'removed';
