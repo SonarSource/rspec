@@ -7,12 +7,9 @@ import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
 import { Link } from '@material-ui/core';
-import { Link as RouterLink } from 'react-router-dom';
-
 import Highlight from 'react-highlight';
-import { useHistory } from 'react-router-dom';
-
-import { useRuleCoverage } from './utils/useRuleCoverage';
+import { Link as RouterLink, useHistory } from 'react-router-dom';
+import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import { RuleMetadata } from './types';
 
@@ -71,14 +68,19 @@ const useStyles = makeStyles((theme) => ({
       width: 'auto',
     }
   },
-  tabCovered: {
+  coveredTab: {
     "&::before": {
-      backgroundColor: '#4c9bd6',
+      backgroundColor: RULE_STATE['covered'].color,
     }
   },
-  tabTargeted: {
+  targetedTab: {
     "&::before": {
-      backgroundColor: '#fd6a00',
+      backgroundColor: RULE_STATE['targeted'].color,
+    }
+  },
+  removedTab: {
+    "&::before": {
+      backgroundColor: RULE_STATE['removed'].color,
     }
   },
 }));
@@ -195,7 +197,7 @@ export function RulePage(props: any) {
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
-  const {ruleCoverage, allLangsRuleCoverage, isLanguageCovered} = useRuleCoverage();
+  const {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer} = useRuleCoverage();
   let coverage: any = "Loading...";
 
   let title = "Loading..."
@@ -210,8 +212,8 @@ export function RulePage(props: any) {
     branch = metadataJSON.branch;
     metadataJSON.all_languages.sort();
     languagesTabs = metadataJSON.all_languages.map(lang => { 
-      const isImplemented = isLanguageCovered(lang, metadataJSON!.allKeys);
-      const classNames = classes.tab + ' ' + (isImplemented ? classes.tabCovered : classes.tabTargeted);
+      const ruleState = ruleStateInAnalyzer(lang, metadataJSON!.allKeys);
+      const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
       return <Tab label={lang} value={lang} className={classNames} />;
     });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
