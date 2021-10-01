@@ -108,13 +108,13 @@ class RuleCreator:
       rule_dir = repo_dir.joinpath('rules', f'S{rule_number}')
       if not rule_dir.is_dir():
         raise InvalidArgumentError(f"Rule \"S{rule_number}\" does not exist.")
-      lang_dirs = [d for d in rule_dir.glob('*/') if d.is_dir()]
-      if 1 == len(list(lang_dirs)) and is_empty_metadata(rule_dir):
-        swap_metadata_files(rule_dir, lang_dirs[0])
       lang_dir = rule_dir.joinpath(language)
       if lang_dir.is_dir():
         lang_url = f"https://github.com/SonarSource/rspec/tree/master/rules/S{rule_number}/{language}"
-        raise InvalidArgumentError(f"Rule \"S{rule_number}\" is already defined for language {language}. Modify the definition here: {lang_url}.")
+        raise InvalidArgumentError(f"Rule \"S{rule_number}\" is already defined for language {language}. Modify the definition here: {lang_url}")
+      lang_dirs = [d for d in rule_dir.glob('*/') if d.is_dir()]
+      if 1 == len(list(lang_dirs)) and is_empty_metadata(rule_dir):
+        swap_metadata_files(rule_dir, lang_dirs[0])
       lang_dir.mkdir()
 
       lang_specific_template = self.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
