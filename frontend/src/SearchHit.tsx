@@ -9,12 +9,7 @@ import Chip from '@material-ui/core/Chip';
 import { Link as RouterLink } from 'react-router-dom';
 import { Link } from '@material-ui/core';
 import { IndexedRule } from './types/IndexStore';
-import { useRuleCoverage } from './utils/useRuleCoverage';
-
-const blue = '#4c9bd6';
-const darkerBlue = '#25699d';
-const orange = '#fd6a00';
-const darkerOrange = '#c45200';
+import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 
 const useStyles = makeStyles((theme) => ({
   searchHit: {
@@ -32,30 +27,44 @@ const useStyles = makeStyles((theme) => ({
   coveredLanguageChip: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
-    backgroundColor: blue,
+    backgroundColor: RULE_STATE['covered'].color,
     '&:hover, &:focus': {
-      backgroundColor: darkerBlue
+      backgroundColor: RULE_STATE['covered'].darker
     },
   },
   targetedLanguageChip: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
-    backgroundColor: orange,
+    backgroundColor: RULE_STATE['targeted'].color,
     '&:hover, &:focus': {
-      backgroundColor: darkerOrange
+      backgroundColor: RULE_STATE['targeted'].darker
+    },
+  },
+  removedLanguageChip: {
+    marginRight: theme.spacing(1),
+    marginTop: theme.spacing(2),
+    backgroundColor: RULE_STATE['removed'].color,
+    '&:hover, &:focus': {
+      backgroundColor: RULE_STATE['removed'].darker
     },
   },
   targetedMarker: {
     marginTop: theme.spacing(2),
     marginRight: theme.spacing(2),
-    borderColor: orange,
-    color: orange
+    borderColor: RULE_STATE['targeted'].color,
+    color: RULE_STATE['targeted'].color
   },
   coveredMarker: {
     marginTop: theme.spacing(2),
     marginRight: theme.spacing(2),
-    borderColor: blue,
-    color: blue
+    borderColor: RULE_STATE['covered'].color,
+    color: RULE_STATE['covered'].color
+  },
+  removedMarker: {
+    marginTop: theme.spacing(2),
+    marginRight: theme.spacing(2),
+    borderColor: RULE_STATE['removed'].color,
+    color: RULE_STATE['removed'].color
   }
 }));
 
@@ -64,24 +73,31 @@ type SearchHitProps = {
 }
 
 export function SearchHit(props: SearchHitProps) {
-  const { isLanguageCovered } = useRuleCoverage();
+  const { ruleStateInAnalyzer } = useRuleCoverage();
   const classes = useStyles();
 
   const coveredLanguages: JSX.Element[] = [];
   const targetedLanguages: JSX.Element[] = [];
+  const removedLanguages: JSX.Element[] = [];
 
   const actualLanguages = props.data.languages.filter(language => language !== 'default');
   actualLanguages.forEach(lang => {
-    const covered = isLanguageCovered(lang, props.data.all_keys);
+    const ruleState = ruleStateInAnalyzer(lang, props.data.all_keys);
     const chip = <Link component={RouterLink} to={`/${props.data.id}/${lang}`} style={{ textDecoration: 'none' }}>
       <Chip
-        classes={{root: covered ? classes.coveredLanguageChip : classes.targetedLanguageChip }}
+        classes={{root: (classes as any)[ruleState + 'LanguageChip']}}
         label={lang}
         color="primary"
         clickable
       />
     </Link>;
-    (covered ? coveredLanguages : targetedLanguages).push(chip);
+    if (ruleState === 'covered') {
+      coveredLanguages.push(chip);
+    } else if (ruleState === 'targeted') {
+      targetedLanguages.push(chip);
+    } else {
+      removedLanguages.push(chip);
+    }
   });
   const titles = props.data.titles.map(title => (
     <Typography variant="body1" component="p" gutterBottom>
@@ -101,6 +117,12 @@ export function SearchHit(props: SearchHitProps) {
       {targetedLanguages}
     </Typography>;
 
+  const removedBlock = removedLanguages.length === 0 ? <></> 
+    :<Typography variant="body2" component="p" classes={{root: classes.language}}>
+      <Chip classes={{root: classes.removedMarker}} label="Removed" color="secondary" variant="outlined" />
+      {removedLanguages}
+    </Typography>;
+
   return (
     <Card variant="outlined" classes={{root: classes.searchHit}}>
       <CardContent>
@@ -112,6 +134,7 @@ export function SearchHit(props: SearchHitProps) {
         {titles}
         {coveredBlock}
         {targetedBlock}
+        {removedBlock}
       </CardContent>
     </Card>
   )

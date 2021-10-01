@@ -1,6 +1,7 @@
 import { useFetch } from './useFetch';
 
-type RuleCoverage = Record<string, Record<string, string>>;
+type Version = string | { since: string, until: string };
+type RuleCoverage = Record<string, Record<string, Version>>;
 
 const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'abap': ['ABAP'],
@@ -75,21 +76,51 @@ export function useRuleCoverage() {
     return ruleCoverageForSonarpediaKeys(allLanguageKeys, ruleKeys, mapper);
   }
 
-  function isLanguageCovered(language: string, ruleKeys: string[]): boolean {
+  function ruleStateInAnalyzer(language: string, ruleKeys: string[]): 'covered' | 'targeted' | 'removed' {
     const languageKeys = languageToSonarpedia.get(language);
-    if (!languageKeys) {
-      return false;
-    }
-    if (coveredRulesError || coveredRulesIsLoading) {
-      return false;
+    if (!languageKeys || coveredRulesError || coveredRulesIsLoading) {
+      console.error(`Failed to retrieve coverage for following languages: ${languageKeys}`);
+      return 'targeted';
     }
     if (!coveredRules) {
       throw new Error('coveredRules is empty');
     }
-    return !!languageKeys.find(lang => 
-      ruleKeys.find(ruleKey => lang in coveredRules && ruleKey in coveredRules[lang])
+
+    const result: Version[] = [];
+    languageKeys.forEach(lang => 
+      ruleKeys.forEach(ruleKey => {
+        if (lang in coveredRules && ruleKey in coveredRules[lang]) {
+          result.push(coveredRules[lang][ruleKey]);
+        }
+      })
     );
+
+    if (result.length > 0) {
+      return result.some(version => typeof version === 'string')
+        ? 'covered'
+        : 'removed';
+    } else {
+      return 'targeted';
+    }
   }
 
-  return {ruleCoverage, allLangsRuleCoverage, isLanguageCovered};
+  return {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer};
+}
+
+export const RULE_STATE = {
+  'covered': {
+    // blue
+    'color': '#4c9bd6',
+    'darker': '#25699d'
+  },
+  'targeted': {
+    // orange
+    'color': '#FD7D20',
+    'darker': '#E26003'
+  },
+  'removed': {
+    // red
+    'color': '#C72B28',
+    'darker': '#8D1B19'
+  }
 }
