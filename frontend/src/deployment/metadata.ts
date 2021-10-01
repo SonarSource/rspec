@@ -23,6 +23,7 @@ export function generate_one_rule_metadata(srcDir: string, dstDir: string,
   const allKeys = allMetadata
     .reduce((set, {metadata}) => {
       set.add(metadata.sqKey);
+      metadata.extra?.legacyKeys?.forEach((key: string) => set.add(key));
       return set;
     }, new Set<string>());
   const allKeysArray = Array.from(allKeys);
