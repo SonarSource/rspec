@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 import json
 
-from rspec_tools.coverage import update_coverage_for_repo_version, update_coverage_for_repo
+from rspec_tools.coverage import update_coverage_for_repo_version, update_coverage_for_repo, update_coverage_for_all_repos
 from rspec_tools.utils import load_json, pushd
 
 def test_update_coverage_for_repo_version(tmpdir):
@@ -49,3 +49,15 @@ def test_update_coverage_for_repo(tmpdir):
     assert cov['JAVASCRIPT']['S100'] == REPO + ' 3.3.0.5702'
     assert 'S1145' in cov['JAVASCRIPT']
     assert cov['JAVASCRIPT']['S1145'] == {'since': REPO + ' 3.3.0.5702', 'until': REPO + ' 6.7.0.14237'}
+
+@patch('rspec_tools.coverage.REPOS', ['SonarJS', 'sonar-xml'])
+def test_update_coverage_for_all_repos(tmpdir):
+  with pushd(tmpdir):
+    update_coverage_for_all_repos()
+    coverage = tmpdir.join('covered_rules.json')
+    assert coverage.exists()
+    cov = load_json(coverage)
+    assert {'JAVASCRIPT', 'TYPESCRIPT', 'XML'} == set(cov.keys())
+    assert 'S100' in cov['JAVASCRIPT']
+    assert 'S100' not in cov['XML']
+    assert 'S103' in cov['XML']
