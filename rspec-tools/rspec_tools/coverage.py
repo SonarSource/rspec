@@ -1,10 +1,11 @@
 import os
 import sys
-import argparse
 import json
 from git import Repo
 from git import Git
 from pathlib import Path
+
+from rspec_tools.utils import load_json
 
 REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security']
 
@@ -14,9 +15,7 @@ CANONICAL_NAMES = {
   'WEB': 'HTML'
 }
 
-def load_json(file):
-  with open(file) as json_file:
-    return json.load(json_file)
+RULES_FILENAME = 'covered_rules.json'
 
 def get_rule_id(filename):
   rule_id = filename[:-5]
@@ -118,8 +117,8 @@ def all_implemented_rules():
   return implemented_rules
 
 def checkout_repo(repo):
+  git_url=f"https://github.com/SonarSource/{repo}"
   token=os.getenv('GITHUB_TOKEN')
-  git_url=f"git@github.com:SonarSource/{repo}"
   if token:
     git_url=f"https://{token}@github.com/SonarSource/{repo}"
   g=Git(repo)
@@ -128,16 +127,16 @@ def checkout_repo(repo):
   else:
     return Repo(repo)
 
-def scan_all_versions(repo, coverage):
+def collect_coverage_for_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
   tags = git_repo.tags
   tags.sort(key = lambda t: t.commit.committed_date)
   versions = [tag.name for tag in tags if '-' not in tag.name]
   for version in versions:
-    scan_version(repo, version, coverage)
-  scan_version(repo, 'master', coverage)
+    collect_coverage_for_version(repo, version, coverage)
+  collect_coverage_for_version(repo, 'master', coverage)
 
-def scan_version(repo, version, coverage):
+def collect_coverage_for_version(repo, version, coverage):
   print(f"{repo} {version}")
   r = checkout_repo(repo)
   g = Git(repo)
@@ -152,29 +151,22 @@ def scan_version(repo, version, coverage):
     print(f"{repo} {version} checkout failed: {e}")
   os.chdir('..')
 
-def main():
-  parser = argparse.ArgumentParser(description='rules coverage')
-  parser.add_argument('command', nargs='+', help='see code for help')
-  args = parser.parse_args()
-
-  RULES_FILENAME = 'covered_rules.json'
+def update_coverage_for_all_repos():
+  print(f"batch mode for {REPOS}")
   coverage = Coverage(RULES_FILENAME)
-
-  if args.command[0] == "batchall":
-    print(f"batch mode for {REPOS}")
-    for repo in REPOS:
-      scan_all_versions(repo, coverage)
-  elif args.command[0] == "batch":
-    repo=args.command[1]
-    print(f"batch mode for {repo}")
-    scan_all_versions(repo, coverage)
-  else:
-    repo=args.command[0]
-    version=args.command[1]
-    print(f"checking {repo} version {version}")
-    scan_version(repo, version, coverage)
-
+  for repo in REPOS:
+    collect_coverage_for_all_versions(repo, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
-if __name__ == '__main__':
-  main()
+def update_coverage_for_repo(repo):
+  print(f"batch mode for {repo}")
+  coverage = Coverage(RULES_FILENAME)
+  collect_coverage_for_all_versions(repo, coverage)
+  coverage.save_to_file(RULES_FILENAME)
+
+def update_coverage_for_repo_version(repo, version):
+  print(f"checking {repo} version {version}")
+  coverage = Coverage(RULES_FILENAME)
+  collect_coverage_for_version(repo, version, coverage)
+  coverage.save_to_file(RULES_FILENAME)
+
