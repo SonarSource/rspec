@@ -20,18 +20,18 @@ fi
 
 ./ci/generate_html.sh
 
+exit_code=0
+
 cd rspec-tools
 # validate sections in asciidoc
 if pipenv run rspec-tools check-sections --d ../out; then
     echo "Sections are fine"
 else
-    echo "ERROR: incorrect section names"
+    echo "ERROR: incorrect section names or invalid level-0 headers"
     exit_code=1
 fi
 cd ..
 
-
-exit_code=0
 
 for dir in $affected_rules
 do
@@ -72,7 +72,12 @@ do
         echo "== Description" > $TMP_ADOC
         cat $RULE >> $TMP_ADOC
         if asciidoctor --failure-level=WARNING -o /dev/null $TMP_ADOC; then
-          echo "$RULE syntax is fine"
+            if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null $TMP_ADOC; then
+                echo "$RULE syntax is fine"
+            else
+                echo "ERROR: $RULE has incorrect asciidoc in rspecator-view mode"
+                exit_code=1
+            fi
         else
           echo "ERROR: $RULE has incorrect asciidoc"
           exit_code=1
