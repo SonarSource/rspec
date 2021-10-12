@@ -1,18 +1,18 @@
-{cpp}20 coroutines, the `co_await`/`co_yield` expression suspends the currently executed coroutine and resumes the execution to either caller of coroutine function
-or to some already suspended coroutine (including current coroutine).
+With {cpp}20 coroutines, the `co_await`/`co_yield` expression suspends the currently executed coroutine and resumes the execution of either the caller of the coroutine function
+or to some already suspended coroutine (including the current coroutine).
 
-The resumption of the coroutine represented by the `std::coroutine_handle` object, is usually performed by calling the `.resume()` on it.
-However, performing such operation during execution of `await_suspend` (that is part of the `await`), will preserve the activation frame of the `await_suspend` method and the calling coode on the stack.
-This may lead to stack overflow, in a situation when the chain or directly resumed coroutines is deep enough.
+The resumption of the coroutine represented by the `std::coroutine_handle` object is usually performed by calling the `.resume()` on it.
+However, performing such an operation during the execution of `await_suspend` (that is part of the `co_await`), will preserve the activation frame of the `await_suspend` function and the calling code on the stack.
+This may lead to stack overflows in a situation where the chain of directly resumed coroutines is deep enough.
 
-This problem may be avoided by the use of the symmetric transfer. If the `await_suspend` function returns a specialization `std::coroutine_handle`,
-this handle will be automatically resumed by the compiler after the function returns (and its activation frame is removed from the stack).
-Or in a case when special `std::noop_coroutine_handle` is returned, the execution will be passed to the caller.
+This problem may be avoided by the use of the symmetric transfer. When the `await_suspend` function returns a `std::coroutine_handle`,
+this handle will be automatically used by the compiler to resume its coroutine after `await_suspend` returns (and its activation frame is removed from the stack).
+Or, when a `std::noop_coroutine_handle` is returned, the execution will be passed to the caller.
 
 Symmetric transfer solution can be also used to resume the current coroutine (by returning handle passed as the parameter), 
 however in such cases other more optimal methods are available.
 
-This rule raises an issue on invocation of the `resume` method on `coroutine_handle` performed inside the `await_suspend` method.
+This rule raises an issue on the invocations of `std::coroutine_handle::resume` inside `await_suspend`.
 
 == Noncompliant Code Example
 
@@ -22,7 +22,7 @@ struct InvokeOtherAwaiter {
   /* .... */
   void await_suspend(std::coroutine_handle<PromiseType> current) {
     if (auto other = h.promise().other_handle) {
-      other.resume(); // Noncomplaint 
+      other.resume(); // Noncompliant 
     }
   }
 }
@@ -32,7 +32,7 @@ struct WaitForAwaiter {
   /* .... */
   void await_suspend(std::coroutine_handle<> current) {
     if (bool ready = event.register_callback(current)) {
-      h.resume(); // Noncomplaint
+      h.resume(); // Noncompliant
     }
   }
 }
@@ -42,9 +42,9 @@ struct BufferedExecutionAwaiter {
   /* .... */
   void await_suspend(std::coroutine_handle<> h) {
     if (taskQueue.empty()) {
-      h.resume(); // Noncomplaint
+      h.resume(); // Noncompliant
     }
-    auto next = list.front();
+    auto next = taskQueue.front();
     taskQueue.pop();
     taskQueue.push(h);
     next.resume();
@@ -84,11 +84,11 @@ struct BufferedExecutionAwaiter {
 struct WaitForAwaiter {
   Event& event;
   /* .... */
-  void await_suspend(std::coroutine_handle<> v) {
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> v) {
     if (bool ready = event.register_callback(current)) {
       return current;
     } else {  
-      return std:noop_coroutine()
+      return std::noop_coroutine()
     }
   }
   // Altenativelly
