@@ -1,12 +1,16 @@
 One of the use cases for the coroutines is suspending execution until certain conditions are satisfied.
 In some situations, it is possible that the conditions are already satisfied at the point of the await and the execution can be resumed immediately.
 
-Immediate resumption of the coroutine may be performed by returning its handle from the `await_suspend` method or (even worse) calling `resume` directly,
-however the C++ provides a more efficient method to do so. 
-Firstly, the suspension of the coroutine may be avoided entirely, by returning `true` from the `await_ready` method, or the resumption may be triggered
-by returning `false` from the `await_suspend`.
 
-This rule raises an issue on `await_suspend` when it could be changed to use conditional suspension.
+{cpp}++ standard provides an efficient method to conditionally suspend the coroutine.
+Firstly, the result of `await_ready` is used is coroutine should be suspended. Returning a `true` value from this function, when conditions are satisfied,
+void the cost of coroutine suspension.
+Furthermore, there is `bool` returning version of `await_suspend`, allows immediate resumption of current coroutine in the case when `false` is returned
+(returning `true` indicates that coroutine should remain suspended).
+Compared to symmetric transfer, this method provides better optimization opportunities, as the continuation code is known to the compiler - i.e.
+code of current coroutine is invoked, while returned handle could point to arbitral coroutine.
+
+This rule raises an issue on `await_suspend` method that will benefit from use conditional suspension mechanism.
 
 == Noncompliant Code Example
 
@@ -16,6 +20,28 @@ struct WaitForAwaiter {
   /* .... */
   void await_suspend(std::coroutine_handle<> current) { // Noncompliant
     if (bool ready = event.register_callback(current)) {
+      return current;
+    } else {
+      return std::noop_coroutine();
+    }
+  }
+}
+
+struct ReadBytesAwaiter {
+  Socket& socket;
+  std::size_t count;
+  std::span<std::byte> buffer;
+  std::error_code error;
+  /* .... */
+  void await_suspend(std::coroutine_handle<> current) { // Noncompliant
+    auto callback = [&error](std::error_code ec) { 
+      error = ec;
+      h.resume();
+    };
+     
+    auto ec = socket.async_read(buffer, count, callback);
+    if (!ec) {
+      error = ec;
       h.resume();
     }
   }
@@ -29,10 +55,36 @@ struct WaitForAwaiter {
   Event& event;
   /* .... */
   bool await_ready() const {
-    return event.is_ready(); // false if method to check state is not available
+    return event.is_ready();
   }
   bool await_suspend(std::coroutine_handle<> current) {
     return !event.register_callback(current));
+  }
+}
+
+struct ReadBytesAwaiter {
+  Socket& socket;
+  std::size_t count;
+  std::span<std::byte> buffer;
+  std::error_code error;
+  /* .... */
+
+  bool await_ready() const {
+    return false; // no way to query before suspension
+  }
+  void await_suspend(std::coroutine_handle<> current) { // Noncompliant
+    auto callback = [&error](std::error_code ec) { 
+      error = ec;
+      h.resume();
+    };
+     
+    auto ec = socket.async_read(buffer, count, callback);
+    if (!ec) {
+      error = ec;
+      return false;
+    }
+   
+    return true;
   }
 }
 ----
