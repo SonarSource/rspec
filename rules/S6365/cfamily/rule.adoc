@@ -2,15 +2,15 @@ With {cpp}20 coroutines, the `co_await`/`co_yield` expression suspends the curre
 or to some already suspended coroutine (including the current coroutine).
 
 The resumption of the coroutine represented by the `std::coroutine_handle` object is usually performed by calling the `.resume()` on it.
-However, performing such an operation during the execution of `await_suspend` (that is part of the `co_await`), will preserve the activation frame of the `await_suspend` function and the calling code on the stack.
+However, performing such an operation during the execution of `await_suspend` (that is part of `co_await` expression evaluation), will preserve the activation frame of the `await_suspend` function and the calling code on the stack.
 This may lead to stack overflows in a situation where the chain of directly resumed coroutines is deep enough.
 
 This problem may be avoided by the use of the symmetric transfer. When the `await_suspend` function returns a `std::coroutine_handle`,
 this handle will be automatically used by the compiler to resume its coroutine after `await_suspend` returns (and its activation frame is removed from the stack).
 Or, when a `std::noop_coroutine_handle` is returned, the execution will be passed to the caller.
 
-Symmetric transfer solution can be also used to resume the current coroutine (by returning handle passed as the parameter), 
-however in such cases other more optimal methods are available.
+Symmetric transfer solution can be also used to resume the current coroutine (by returning handle passed as the parameter). 
+However, in such case, conditional suspension can more optimal solution.
 
 This rule raises an issue on the invocations of `std::coroutine_handle::resume` inside `await_suspend`.
 
@@ -47,7 +47,7 @@ struct BufferedExecutionAwaiter {
     auto next = taskQueue.front();
     taskQueue.pop();
     taskQueue.push(h);
-    next.resume();
+    next.resume(); // Noncompliant
   }
 }
 ----
@@ -67,6 +67,22 @@ struct InvokeOtherAwaiter {
   }
 }
 
+struct WaitForAwaiter {
+  Event& event;
+  /* .... */
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> v) {
+    if (bool ready = event.register_callback(current)) {
+      return current;
+    } else {  
+      return std::noop_coroutine()
+    }
+  }
+  // Alternatively
+  bool await_suspend(std::coroutine_handle<> current) {
+    return !event.register_callback(current);
+  }
+}
+
 struct BufferedExecutionAwaiter {
   std::queue<std::coroutine_handle<>>& taskQueue;
   /* .... */
@@ -78,22 +94,6 @@ struct BufferedExecutionAwaiter {
     taskQueue.pop();
     taskQueue.push(h);
     return next;
-  }
-}
-
-struct WaitForAwaiter {
-  Event& event;
-  /* .... */
-  std::coroutine_handle<> await_suspend(std::coroutine_handle<> v) {
-    if (bool ready = event.register_callback(current)) {
-      return current;
-    } else {  
-      return std::noop_coroutine()
-    }
-  }
-  // Altenativelly
-  bool await_suspend(std::coroutine_handle<> current) {
-    return !event.register_callback(current);
   }
 }
 ----
