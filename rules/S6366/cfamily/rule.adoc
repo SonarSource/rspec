@@ -1,16 +1,15 @@
 One of the use cases for the coroutines is suspending execution until certain conditions are satisfied.
 In some situations, it is possible that the conditions are already satisfied at the point of the await and the execution can be resumed immediately.
 
-
-{cpp}++ standard provides an efficient method to conditionally suspend the coroutine.
-Firstly, the result of `await_ready` is used is coroutine should be suspended. Returning a `true` value from this function, when conditions are satisfied,
-void the cost of coroutine suspension.
-Furthermore, there is `bool` returning version of `await_suspend`, allows immediate resumption of current coroutine in the case when `false` is returned
-(returning `true` indicates that coroutine should remain suspended).
+The {cpp} standard provides an efficient method to conditionally suspend the coroutine.
+Firstly, the result of `await_ready` is used to determine whether a coroutine should be suspended. Returning `true` from this function, when conditions are satisfied,
+avoids the cost of the coroutine suspension.
+Furthermore, the `bool`-returning version of `await_suspend` allows immediate resumption of the current coroutine in the case when `false` is returned
+(returning `true` indicates that the coroutine should remain suspended).
 Compared to symmetric transfer, this method provides better optimization opportunities, as the continuation code is known to the compiler - i.e.
-code of current coroutine is invoked, while returned handle could point to arbitral coroutine.
+the code of the current coroutine is invoked, while the returned handle could point to an arbitral coroutine.
 
-This rule raises an issue on `await_suspend` method that will benefit from use conditional suspension mechanism.
+This rule raises an issue on `await_suspend` that can benefit from using conditional suspension.
 
 == Noncompliant Code Example
 
@@ -36,13 +35,13 @@ struct ReadBytesAwaiter {
   void await_suspend(std::coroutine_handle<> current) { // Noncompliant
     auto callback = [&error](std::error_code ec) { 
       error = ec;
-      h.resume();
+      current.resume();
     };
      
     auto ec = socket.async_read(buffer, count, callback);
     if (!ec) {
       error = ec;
-      h.resume();
+      current.resume();
     }
   }
 }
@@ -72,10 +71,10 @@ struct ReadBytesAwaiter {
   bool await_ready() const {
     return false; // no way to query before suspension
   }
-  void await_suspend(std::coroutine_handle<> current) { // Noncompliant
+  void await_suspend(std::coroutine_handle<> current) {
     auto callback = [&error](std::error_code ec) { 
       error = ec;
-      h.resume();
+      current.resume();
     };
      
     auto ec = socket.async_read(buffer, count, callback);
