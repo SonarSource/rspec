@@ -1,20 +1,46 @@
-FIXME: add a description
+In a most common scenario, an awaiter object used during the evaluation `co_await` expression is constructed locally in the coroutine.
+Such design makes the access and modification of the waiter member from during coroutine suspension thread-safe, except the `await_suspend` method.
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+At the point of the `await_suspend` method invocation, the current (represented by `coroutine_handle` passed as a parameter) coroutine is in a suspended state.
+Once resumed, the coroutine will complete the execution of the `co_await` expression and destroy the awaiter object. 
+Therefore, once the coroutine handle is exposed for resumption from `await_suspend` (e.g. by registering its resumption as the callback to the event), 
+the awaiter object pointed by `this` pointer may be destroyed, and becomes dangling. 
+At this point, any access to the member of the coroutine may lead to undefined behavior.
+
+This rule reports access to the members of the `this` from the body of the `await_suspend` member function, 
+that are performed when the handle to the current coroutine is already exposed.
 
 == Noncompliant Code Example
 
 ----
-FIXME
+struct WaitForWithTimeoutAwaiter {
+  Event& event;
+  bool wait_was_required = false;
+  /* .... */
+  bool await_suspend(std::coroutine_handle<> current) {
+    wait_was_required = !event.register_callback(current); // Noncomplaint
+    return wait_is_required; 
+  }
+}
+
 ----
 
 == Compliant Solution
 
 ----
-FIXME
+struct WaitForAwaiter {
+  Event& event;
+  bool wait_was_required = false;
+  /* .... */
+  bool await_suspend(std::coroutine_handle<> current) {
+    auto callback = [this, current] () {
+      wait_was_required = true;
+      current.resume(); 
+    };
+    return !event.register_callback(current);
+    // The suspended state will not be checked, until coroutine is resumed
+  }
+}
 ----
 
-== See
 
-FIXME: A list of links
