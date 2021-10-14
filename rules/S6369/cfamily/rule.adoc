@@ -1,20 +1,80 @@
-FIXME: add a description
+When a regular, non-`void` function flows off the end of its body without returning a value, the behavior is undefined. With coroutine, the rules are somewhat similar: flowing off the end of the body of a coroutine results in undefined behavior if `p.return_void()` is not a valid expression, where `p` is the promise for the said coroutine.
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+In other words, either:
+
+* all execution paths in a coroutine should end with a `co_return` statement or throw an exception;
+* or the coroutine promise type `P` should define `P::return_void()`.
+
 
 == Noncompliant Code Example
 
+[source,cpp]
 ----
-FIXME
+struct IsPrimeTask {
+  struct promise_type {
+    // ...
+    void return_value(bool answer) { /* ... */ }
+  };
+  // ...
+};
+
+IsPrimeTask isPrime(long n) {
+  std::optional<bool> result = co_await Oracle::IsPrime(n);
+  if (result.has_value()) {
+    co_return result.value();
+  }
+  // Noncompliant
+}
+
+struct UploadFileTask {
+  struct promise_type {
+    // No return_void() definition.
+    // ...
+  };
+  // ...
+};
+
+UploadFileTask upload(ServerHandle server, File file) {
+  co_await server.transfert(file);
+  // Noncompliant
+}
 ----
 
 == Compliant Solution
 
+[source,cpp]
 ----
-FIXME
+enum class Tristate { TRUE, FALSE, UNKNOWN };
+Tristate toTristate(bool value);
+struct IsPrimeTask {
+  struct promise_type {
+    // ...
+    void return_value(Tristate answer) { /* ... */ }
+  };
+  // ...
+};
+
+IsPrimeTask isPrime(long n) {
+  std::optional<bool> result = co_await Oracle::IsPrime(n);
+  if (result.has_value()) {
+    co_return toTristate(result.value());
+  }
+  co_return Tristate::UNKNOWN;
+}
+
+struct UploadFileTask {
+  struct promise_type {
+    void return_void() { /* ... */ }
+    // ...
+  };
+  // ...
+};
+
+UploadFileTask upload(ServerHandle server, File file) {
+  co_await server.transfert(file);
+}
 ----
 
 == See
 
-FIXME: A list of links
+* S935 - function exit paths should have appropriate return values
