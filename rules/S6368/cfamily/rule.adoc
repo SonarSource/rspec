@@ -8,11 +8,20 @@ to ensure its destructor will properly run at the end of its scope.
 While in some situations the compiler may still be able to optimize such a variable by calling its destructor earlier,
 manually adjusting its scope declaration by placing it inside a nested block guarantees this effect.
 
-This rule raises an issue, for variables that are not visible but not used after a coroutine is suspended.
+This rule raises an issue, for variables that are visible but not used starting from one of the
+suspension points (`co_await` or `co_yield` expressions).
 
 == Noncompliant Code Example
 
 ----
+task<void> serveRequest(Socket& socket) {
+  std::string reqData = co_await read_request(socket); // Noncomplaint
+  Request req = Request::parse(reqData); // Noncomplaint
+  Response res = prepareResponse(req); // Noncomplaint
+  std::string responseData = Response::serialize(res);
+  co_await send_response(socket, responseData);
+}
+
 generator<std::string> generatePermutation(std::string start) {
   std::array<std::string, 100> precomputed = precomputeElements<100>(start); // Noncompliant
   for (auto const& p : precomputed) {
@@ -33,20 +42,32 @@ generator<std::string> generatePermutation(std::string start) {
 == Compliant Solution
 
 ----
+task<void> serveRequest(Socket& socket) {
+  std::string responseData;
+  {
+    std::string reqData = co_await read_request(socket);
+    Request req = Request::parse(reqData);
+    Response res = prepareResponse(req);
+    responseData = Response::serialize(res);
+  }
+  co_await send_response(socket, responseData);
+}
+
 generator<std::string> generatePermutation(std::string start) {
 {
    std::string last;
    {
-     std::array<int, 100> precomputed = precomputeElements<100>(start);
+     std::array<std::string, 100> precomputed = precomputeElements<100>(start);
      for (auto const& p : precomputed) {
        co_yield p;
      last = std::move(precomputed.back());
    }
 
-   std::array<int, 20> context;
+   std::array<std::string, 20> context;
    for (;;) {
      last = computeNext(context, last); 
      co_yield last;
    }
+   // precomputed and context can use the same heap storage
 }
 ----
