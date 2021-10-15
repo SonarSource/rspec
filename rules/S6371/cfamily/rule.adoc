@@ -1,6 +1,10 @@
-When coroutine states are not properly released, some objects (such as coroutine parameters) may not be released properly, which can result in memory or resource leaks.
+Failing to release the state of a coroutine results in leaks of the coroutine frame, its parameters, promise object, and, depending on the suspension point, a set of local variables that where preserved on heap.
 
-To avoid such leaks, the coroutine states need to be destroyed. This can be achieved by calling `destroy()` on suspended coroutine handles.
+On one hand, the coroutine state is automatically released by the compiler when `final_suspend()` completes without suspending the coroutine. In other words, the relevant objects are destroyed when the execution flows off the end of the "body" (as rewritten by the compiler) of the coroutine.
+
+On the other hand, the coroutine state is manually released when `destroy()` is invoked on its handle. Note that destroying a running coroutine or one that was already destroyed leads to undefined behavior.
+
+This rules raises an issue when a coroutine state is leaked.
 
 == Noncompliant Code Example
 
@@ -33,6 +37,7 @@ class ComplexTask {
   std::coroutine_handle<> handle;
 public:
   Task(std::coroutine_handle<> handle) : handle(handle) { }
+  Task(Task&& other) : handle(std::exchange(other.handle, nullptr)) { }
   ~Task() { if (handle) handle.destroy(); }
 };
 
