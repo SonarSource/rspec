@@ -21,6 +21,7 @@ import { IndexAggregates } from './types/IndexStore'
 
 export const SearchPage = () => {
   document.title = "Search"
+
   const classes = useStyles();
 
   const pageSize = 20;
@@ -65,13 +66,22 @@ export const SearchPage = () => {
   let resultsDisplay: string|JSX.Element[] = "No rule found...";
   if (loading) {
     resultsDisplay = "Searching";
-  }
-  else if (results.length > 0) {
-    resultsDisplay = results.map(result =>
-      <Box className={classes.searchHitBox}>
-        <SearchHit key={result.id} data={result}/>
-      </Box>
-    )
+  } else if (results.length > 0) {
+    const upperCaseQuery = query.toLocaleUpperCase();
+    let resultsBoxes: JSX.Element[] = [];
+
+    // making the exact match to appear first in the search results
+    results.forEach(indexedRule => {
+      const box = <Box className={classes.searchHitBox}>
+        <SearchHit key={indexedRule.id} data={indexedRule}/>
+      </Box>;
+      if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
+        resultsBoxes = [box, ...resultsBoxes];
+      } else {
+        resultsBoxes.push(box);
+      }
+    });
+    resultsDisplay = resultsBoxes;
   }
 
   const paramSetters: Record<string, SearchParamSetter<any>> = {
@@ -217,9 +227,6 @@ export const SearchPage = () => {
             <Box className={classes.resultsCount}>
               <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
             </Box>
-            <Typography variant="subtitle1">
-              <a href={"https://github.com/SonarSource/rspec/pulls?q=is%3Aopen+is%3Apr+%22Create+rule%22+" + query}>Search in unimplemented</a>
-            </Typography>
           </Box>
             {resultsDisplay}
           <Pagination count={totalPages} page={pageNumber} siblingCount={2}
