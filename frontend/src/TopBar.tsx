@@ -21,7 +21,7 @@ export default function TopBar() {
             SonarSource Rule Specifications
           </Typography>
             <Button href="https://github.com/SonarSource/rspec/pulls?q=is%3Aopen+is%3Apr+%22Create+rule%22">
-              <span className={classes.unimplemented} > Unimplemented rules </span>
+              <span className={classes.unimplemented} > Rules under specification </span>
             </Button>
         </Toolbar>
       </AppBar>

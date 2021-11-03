@@ -18,13 +18,15 @@ export interface PullRequest {
  * Call the "process" callback for each such rule.
  * @param tmpRepoDir Path to the temporary directory with a throw-away clone of the rspec repository.
  *                   if the repository does not exist, it will clone it first.
- * @param process A callback to process each rule. Takes two arguments:
+ * @param callback A callback to process each rule. Takes two arguments:
  *                srcDir - the path to the incomplete rule found in the corresponding PR.
  *                pr - the pull request attributes that might be useful to process the rule.
  */
 export async function process_incomplete_rspecs(tmpRepoDir: string,
-                                                process: (srcDir: string, pr: PullRequest)=>void) {
-  const octokit = new Octokit({userAgent: 'rspec-tools'});
+                                                callback: (srcDir: string, pr: PullRequest)=>void) {
+  const octokit = process.env.GITHUB_TOKEN ?
+    new Octokit({userAgent: 'rspec-tools', auth: process.env.GITHUB_TOKEN}):
+    new Octokit({userAgent: 'rspec-tools'});
   const { data } = await octokit.rest.pulls.list({owner:'SonarSource', repo:'rspec', state:'open'});
   let pulls = [];
   for (const pull of data) {
@@ -38,7 +40,11 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
   }
   const repo = await (() => {
     if (!fs.existsSync(path.join(tmpRepoDir, '.git'))) {
-      return Git.Clone.clone('https://github.com/SonarSource/rspec/', tmpRepoDir);
+      if (process.env.GITHUB_TOKEN) {
+        return Git.Clone.clone('https://' + process.env.GITHUB_TOKEN + '@github.com/SonarSource/rspec/', tmpRepoDir);
+      } else {
+        return Git.Clone.clone('https://github.com/SonarSource/rspec/', tmpRepoDir);
+      }
     } else {
       return Git.Repository.open(tmpRepoDir);
     }
@@ -52,7 +58,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
     const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
     if (fs.existsSync(ruleDir)) {
       try {
-        process(ruleDir, pull);
+        callback(ruleDir, pull);
       } catch (e) {
         logger.error(`Failed to process PR (${pull.url}), it will be skipped (${e})`);
       }
