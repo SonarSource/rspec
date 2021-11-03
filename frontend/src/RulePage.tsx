@@ -7,12 +7,13 @@ import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
 import { Link } from '@material-ui/core';
-
-import { useHistory } from "react-router-dom";
-
-import { useRuleCoverage } from './utils/useRuleCoverage';
+import Highlight from 'react-highlight';
+import { Link as RouterLink, useHistory } from 'react-router-dom';
+import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import { RuleMetadata } from './types';
+
+import './hljs-humanoid-light.css';
 
 
 const useStyles = makeStyles((theme) => ({
@@ -23,6 +24,9 @@ const useStyles = makeStyles((theme) => ({
     textAlign: 'center',
     marginTop: theme.spacing(3),
     marginBottom: theme.spacing(3),
+  },
+  ruleidLink: {
+    color: 'inherit',
   },
   title: {
     textAlign: 'justify',
@@ -46,7 +50,39 @@ const useStyles = makeStyles((theme) => ({
   },
   unimplemented: {
     color: 'red'
-  }
+  },
+
+  tab: {
+    display: 'flex',
+
+    "&::before": {
+      content: '""',
+      display: 'block',
+      width: theme.spacing(1),
+      height: theme.spacing(1),
+      marginRight: theme.spacing(1),
+      borderRadius: theme.spacing(1),
+    },
+
+    '& > .MuiTab-wrapper': {
+      width: 'auto',
+    }
+  },
+  coveredTab: {
+    "&::before": {
+      backgroundColor: RULE_STATE['covered'].color,
+    }
+  },
+  targetedTab: {
+    "&::before": {
+      backgroundColor: RULE_STATE['targeted'].color,
+    }
+  },
+  removedTab: {
+    "&::before": {
+      backgroundColor: RULE_STATE['removed'].color,
+    }
+  },
 }));
 
 const languageToJiraProject = new Map(Object.entries({
@@ -161,7 +197,7 @@ export function RulePage(props: any) {
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
-  const {ruleCoverage, allLangsRuleCoverage} = useRuleCoverage();
+  const {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer} = useRuleCoverage();
   let coverage: any = "Loading...";
 
   let title = "Loading..."
@@ -175,13 +211,23 @@ export function RulePage(props: any) {
     }
     branch = metadataJSON.branch;
     metadataJSON.all_languages.sort();
-    languagesTabs = metadataJSON.all_languages.map(lang => <Tab label={lang} value={lang}/>);
+    languagesTabs = metadataJSON.all_languages.map(lang => { 
+      const ruleState = ruleStateInAnalyzer(lang, metadataJSON!.allKeys);
+      const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
+      return <Tab label={lang} value={lang} className={classNames} />;
+    });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
-    const coverageMapper = (key: any, version: any) => {
-      return (
-        <li>{key}: {version}</li>
-      )
+    const coverageMapper = (key: any, range: any) => {
+      if (typeof range === "string") {
+        return (
+          <li >{key}: {range}</li>
+        );
+      } else {
+        return (
+          <li>Not covered for {key} anymore. Was covered from {range['since']} to {range['until']}.</li>
+        );
+      }
     };
     if (language) {
       coverage = ruleCoverage(language, metadataJSON.allKeys, coverageMapper);
@@ -205,7 +251,7 @@ export function RulePage(props: any) {
       <hr />
       <a href={editOnGithubUrl}>Edit on Github</a><br/>
       <hr />
-      <pre>{metadataJSONString}</pre>
+      <Highlight className='json'>{metadataJSONString}</Highlight>
     </div>;
   }
   let prLink = <></>;
@@ -227,20 +273,22 @@ export function RulePage(props: any) {
     <div>
     <div className={classes.ruleBar}>
       <Container>
-      <Typography variant="h2" classes={{root: classes.ruleid}}>{ruleid}</Typography>
-      <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
-      <Tabs
-          {...tabsValue}
-          onChange={handleLanguageChange}
-          indicatorColor="primary"
-          textColor="primary"
-          centered
-          variant="scrollable"
-          scrollButtons="auto"
-          classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
-      >
-        {languagesTabs}
-      </Tabs>
+        <Typography variant="h2" classes={{root: classes.ruleid}}>
+          <Link className={classes.ruleidLink} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
+        </Typography>
+        <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
+        <Tabs
+            {...tabsValue}
+            onChange={handleLanguageChange}
+            indicatorColor="primary"
+            textColor="primary"
+            centered
+            variant="scrollable"
+            scrollButtons="auto"
+            classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
+        >
+          {languagesTabs}
+        </Tabs>
       </Container>
     </div>
 
