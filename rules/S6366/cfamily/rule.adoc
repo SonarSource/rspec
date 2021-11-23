@@ -17,14 +17,15 @@ This rule raises an issue on `await_suspend` that can benefit from using conditi
 struct WaitForAwaiter {
   Event& event;
   /* .... */
-  void await_suspend(std::coroutine_handle<> current) { // Noncompliant
-    if (bool ready = event.register_callback(current)) {
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> current) { // Noncompliant
+    bool callback_registered = event.register_callback(current);
+    if (!callback_registered) {
       return current;
     } else {
       return std::noop_coroutine();
     }
   }
-}
+};
 
 struct ReadBytesAwaiter {
   Socket& socket;
@@ -39,12 +40,12 @@ struct ReadBytesAwaiter {
     };
      
     auto ec = socket.async_read(buffer, count, callback);
-    if (!ec) {
+    if (ec) {
       error = ec;
       current.resume();
     }
   }
-}
+};
 ----
 
 == Compliant Solution
@@ -57,9 +58,10 @@ struct WaitForAwaiter {
     return event.is_ready();
   }
   bool await_suspend(std::coroutine_handle<> current) {
-    return !event.register_callback(current));
+    bool callback_registered = event.register_callback(current);
+    return callback_registered;
   }
-}
+};
 
 struct ReadBytesAwaiter {
   Socket& socket;
@@ -71,7 +73,7 @@ struct ReadBytesAwaiter {
   bool await_ready() const {
     return false; // no way to query before suspension
   }
-  std::coroutine_handle<void> await_suspend(std::coroutine_handle<> current) {
+  bool await_suspend(std::coroutine_handle<> current) {
     auto callback = [&error_store=error, current](std::error_code ec) { 
       error_store = ec;
       current.resume();
@@ -85,7 +87,7 @@ struct ReadBytesAwaiter {
    
     return true;
   }
-}
+};
 ----
 
 == See
