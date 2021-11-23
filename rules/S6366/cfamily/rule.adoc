@@ -1,13 +1,14 @@
 One of the use cases for the coroutines is suspending execution until certain conditions are satisfied.
-In some situations, it is possible that the conditions are already satisfied at the point of the await and the execution can be resumed immediately.
+In some situations, it is possible that the expected result is already available at the point of 
+the `co_await`/`co_yield` expression and the execution can be resumed immediately.
 
 The {cpp} standard provides an efficient method to conditionally suspend the coroutine.
-Firstly, the result of `await_ready` is used to determine whether a coroutine should be suspended. Returning `true` from this function, when conditions are satisfied,
-avoids the cost of the coroutine suspension.
+The result of `await_ready` is used to determine whether a coroutine should be suspended. 
+Returning `true` from this function avoids the cost of the coroutine suspension, if it not needed (e.g. result is already available).
 Furthermore, the `bool`-returning version of `await_suspend` allows immediate resumption of the current coroutine in the case when `false` is returned
 (returning `true` indicates that the coroutine should remain suspended).
 Compared to symmetric transfer, this method provides better optimization opportunities, as the continuation code is known to the compiler - i.e.
-the code of the current coroutine is invoked, while the returned handle could point to an arbitral coroutine.
+the code of the current coroutine is invoked, while handle could point to an arbitrary coroutine.
 
 This rule raises an issue on `await_suspend` that can benefit from using conditional suspension.
 
@@ -71,14 +72,14 @@ struct ReadBytesAwaiter {
   bool await_ready() const {
     return false; // no way to query before suspension
   }
-  void await_suspend(std::coroutine_handle<> current) {
+  std::coroutine_handle<void> await_suspend(std::coroutine_handle<> current) {
     auto callback = [&error_store=error, current](std::error_code ec) { 
       error_store = ec;
       current.resume();
     };
      
     auto ec = socket.async_read(buffer, count, callback);
-    if (!ec) {
+    if (ec) {
       error = ec;
       return false;
     }
