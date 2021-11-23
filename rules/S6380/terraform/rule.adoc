@@ -1,15 +1,18 @@
-Authorizing anonymous access can reduce an organization's ability to protect itself against attacks on its critical functions and data, if any.
+Authorizing anonymous access can reduce an organization's ability to protect itself against attacks on its Azure resources.
 
-Depending on the affected Azure resource, multiple choices are possible: Active Directory Authentication, OpenID, or numerous other Oauth 2.0 providers.
+Security incidents may include disrupting critical functions, data theft, and additional Azure subscription costs due to resource overload.
 
-Authentication Coupled with fine-grained authorizations helps follow the Defense-In-Depth principle and bring traceability to investigators of security incidents.
+Using authentication coupled with fine-grained authorizations helps bring Defense-In-Depth and bring traceability to investigators of security incidents.
 
+Depending on the affected Azure resource, multiple authentication choices are possible: Active Directory Authentication, OpenID implementations (Google, Microsoft, etc.) or native Azure mechanisms.
+Unfortunately, specific Azure resources only expose basic authentication, but it should also be an acceptable first layer of defense.
 
 == Ask Yourself Whether
 
 * This Azure resource is essential for the information system infrastructure.
 * This Azure resource is essential for mission-critical functions.
-* Compliance policies require access to this resource to be authenticated
+* This Azure resource stores or processes sensitive data.
+* Compliance policies require access to this resource to be authenticated.
 
 There is a risk if you answered yes to any of those questions.
 
@@ -19,24 +22,45 @@ Enable authentication in this Azure resource, and disable anonymous access.
 
 == Sensitive Code Example
 
-For https://azure.microsoft.com/en-us/services/app-service/[App Service authentication]:
+For https://azure.microsoft.com/en-us/services/app-service/[App Services and equivalent]:
 
 ----
-resource "azurerm_windows_web_app" "example" {
+resource "azurerm_function_app" "example" { # Sensitive
   name = "example"
 
   auth_settings {
-    enabled = false # Sensitive
+    enabled = false
+    unauthenticated_client_action = "AllowAnonymous"
   }
 }
 ----
 
-For https://docs.microsoft.com/en-us/azure/api-management/api-management-howto-protect-backend-with-aad[OpenID Authentication]:
+For https://azure.microsoft.com/en-us/services/api-management/[API Management]:
 
 ----
 resource "azurerm_api_management_api" "example" { # Sensitive, the openid_authentication block is missing
   name = "example-api"
 }
+
+resource "azurerm_api_management" "example" {
+  sign_in {
+    enabled = false # Sensitive
+  }
+----
+
+For https://azure.microsoft.com/en-us/services/data-factory/[Data Factory] Linked Services:
+
+----
+resource "azurerm_data_factory_linked_service_sftp" "example" {
+  authentication_type = "Anonymous"
+}
+----
+
+For https://azure.microsoft.com/en-us/product-categories/storage/[Storage Accounts]:
+
+----
+resource "azurerm_storage_account" "example" {
+  allow_blob_public_access = true
 ----
 
 For https://azure.microsoft.com/en-us/services/cache/[Redis Caches]:
@@ -53,29 +77,51 @@ resource "azurerm_redis_cache" "example" {
 
 == Compliant Solution
 
-For https://azure.microsoft.com/en-us/services/app-service/[App Service authentication]:
+For https://azure.microsoft.com/en-us/services/app-service/[App Services and equivalent]:
 
 ----
-resource "azurerm_windows_web_app" "example" {
+resource "azurerm_function_app" "example" {
   name = "example"
 
   auth_settings {
     enabled = true
+    unauthenticated_client_action = "RedirectToLoginPage"
   }
 }
 ----
 
-For https://docs.microsoft.com/en-us/azure/api-management/api-management-howto-protect-backend-with-aad[OpenID Authentication]:
+For https://azure.microsoft.com/en-us/services/api-management/[API Management]:
 
 ----
-resource "azurerm_api_management_api" "example" {
+resource "azurerm_api_management_api" "example" { # Sensitive, the openid_authentication block is missing
   name = "example-api"
 
   openid_authentication {
     openid_provider_name = azurerm_api_management_openid_connect_provider.example.name
-    bearer_token_sending_methods = "authorizationHeader"
   }
 }
+
+resource "azurerm_api_management" "example" {
+  sign_in {
+    enabled = true
+  }
+----
+
+For https://azure.microsoft.com/en-us/services/data-factory/[Data Factory] Linked Services:
+
+----
+resource "azurerm_data_factory_linked_service_sftp" "example" {
+  authentication_type = "Basic"
+  username            = local.creds.username
+  password            = local.creds.password
+}
+----
+
+For https://azure.microsoft.com/en-us/product-categories/storage/[Storage Accounts]:
+
+----
+resource "azurerm_storage_account" "example" {
+  allow_blob_public_access = true
 ----
 
 For https://azure.microsoft.com/en-us/services/cache/[Redis Caches]:
