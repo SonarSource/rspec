@@ -4,6 +4,8 @@ On the one hand, the compiler automatically releases the coroutine state when `f
 
 On the other hand, the coroutine state is manually released when `destroy()` is invoked on its handle. Note that destroying a running coroutine or one that was already destroyed leads to undefined behavior.
 
+Therefore, the state of a coroutine is leaked when it is suspended via `final_suspend()` but `destroy()` isn't called on its handle.
+
 This rule raises an issue when a coroutine state is leaked.
 
 == Noncompliant Code Example
@@ -11,13 +13,14 @@ This rule raises an issue when a coroutine state is leaked.
 [source,cpp]
 ----
 class ComplexTask {
+public:
   struct promise_type { 
     std::suspend_always final_suspend() const noexcept;
     /* ... */
   };
+private:
   std::coroutine_handle<> handle;
-public:
-  Task(std::coroutine_handle<> handle) : handle(handle) { }
+  ComplexTask(std::coroutine_handle<> handle) : handle(handle) { }
 };
 
 ComplexTask complexTask(Config data) {
@@ -36,15 +39,16 @@ void doSomeWork() {
 [source,cpp]
 ----
 class ComplexTask {
+public:
   struct promise_type {
     std::suspend_always final_suspend() const noexcept;
     /* ... */
   };
+private:
   std::coroutine_handle<> handle;
-public:
-  Task(std::coroutine_handle<> handle) : handle(handle) { }
-  Task(Task&& other) : handle(std::exchange(other.handle, nullptr)) { }
-  ~Task() { if (handle) handle.destroy(); }
+  ComplexTask(std::coroutine_handle<> handle) : handle(handle) { }
+  ComplexTask(ComplexTask&& other) : handle(std::exchange(other.handle, nullptr)) { }
+  ~ ComplexTask() { if (handle) handle.destroy(); }
 };
 
 ComplexTask complexTask(Config data) {
@@ -55,5 +59,5 @@ ComplexTask complexTask(Config data) {
 void doSomeWork() {
   auto task = complexTask(buildConfig());
 }
-// The copy of `data` is released via ~Task().
+// The copy of `data` is released via ~ComplexTask().
 ----
