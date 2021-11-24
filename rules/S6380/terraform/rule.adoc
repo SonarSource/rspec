@@ -5,7 +5,6 @@ Security incidents may include disrupting critical functions, data theft, and ad
 Using authentication coupled with fine-grained authorizations helps bring Defense-In-Depth and bring traceability to investigators of security incidents.
 
 Depending on the affected Azure resource, multiple authentication choices are possible: Active Directory Authentication, OpenID implementations (Google, Microsoft, etc.) or native Azure mechanisms.
-Unfortunately, specific Azure resources only expose basic authentication, but it should also be an acceptable first layer of defense.
 
 == Ask Yourself Whether
 
@@ -20,17 +19,23 @@ There is a risk if you answered yes to any of those questions.
 
 Enable authentication in this Azure resource, and disable anonymous access.
 
+If only Basic Authentication is available, enable it too.
+
 == Sensitive Code Example
 
 For https://azure.microsoft.com/en-us/services/app-service/[App Services and equivalent]:
 
 ----
-resource "azurerm_function_app" "example" { # Sensitive
+resource "azurerm_function_app" "example" {
   name = "example"
 
   auth_settings {
-    enabled = false
-    unauthenticated_client_action = "AllowAnonymous"
+    enabled = false # Sensitive
+  }
+
+  auth_settings {
+    enabled = true
+    unauthenticated_client_action = "AllowAnonymous" # Sensitive
   }
 }
 ----
@@ -61,7 +66,7 @@ For https://azure.microsoft.com/en-us/product-categories/storage/[Storage Accoun
 
 ----
 resource "azurerm_storage_account" "example" {
-  allow_blob_public_access = true
+  allow_blob_public_access = true # Sensitive
 }
 
 resource "azurerm_storage_container" "example" {
@@ -99,7 +104,7 @@ resource "azurerm_function_app" "example" {
 For https://azure.microsoft.com/en-us/services/api-management/[API Management]:
 
 ----
-resource "azurerm_api_management_api" "example" { # Sensitive, the openid_authentication block is missing
+resource "azurerm_api_management_api" "example" {
   name = "example-api"
 
   openid_authentication {
@@ -122,6 +127,13 @@ resource "azurerm_data_factory_linked_service_sftp" "example" {
   username            = local.creds.username
   password            = local.creds.password
 }
+
+resource "data_factory_linked_service_odata" "example" {
+  basic_auth {
+    username = local.creds.username
+    password = local.creds.password
+  }
+}
 ----
 
 For https://azure.microsoft.com/en-us/product-categories/storage/[Storage Accounts]:
@@ -141,7 +153,7 @@ For https://azure.microsoft.com/en-us/services/cache/[Redis Caches]:
 ----
 resource "azurerm_redis_cache" "example" {
   name = "example-cache"
-  
+ 
   redis_configuration {
     enable_authentication = true
   }
@@ -162,23 +174,43 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Make sure that fully or partially disabling authentication is safe here.
+Preliminary Note: App Service and equivalents resources:
+
+* ``app_service``
+* ``app_service_slot``
+* ``function_app``
+* ``function_app_slot``
+* ``linux_web_app``
+* ``windows_web_app``
+
+* For App Service and equivalent resources:
+** If ``auth_settings`` block is missing: Omitting ``auth_settings`` disables authentication. Make sure it is safe here.
+** if ``auth_settings->enabled = false``: Make sure that disabling authentication is safe here.
+** if ``auth_settings->unauthenticated_client_action = "AllowAnonymous"``: Make sure that authorizing anonymous access is safe here.
+* For ``api_management_api``: Omitting ``openid_authentication`` disables authentication. Make sure it is safe here.
+* For ``api_management`` resources:
+** If ``sign_in`` block is missing: Omitting ``sign_in`` authorizes anonymous access. Make sure it is safe here.
+** If ``sign_in->enabled = false``: Make sure that giving anonymous access without enforcing sign in is safe here.
+* For ``data_factory_linked_service_odata``: Omitting the ``basic_authentication`` block disables authentication. Make sure it is safe here.
+* For ``data_factory_linked_service_sftp`` and ``data_factory_linked_service_web``: Make sure that authorizing anonymous access is safe here.
+* For ``redis_cache``: Make sure that disabling authentication is safe here.
+* For ``storage_account``: Make sure that authorizing potential anonymous access is safe here.
+* For ``storage_container``: Make sure that authorizing potential anonymous access is safe here.
 
 === Highlighting
 
-* For App Service and equivalents below: Highlight the resource or ``auth_settings->enabled = false`` or ``auth_settings->unauthenticated_client_action = "AllowAnonymous"``
-** ``app_service``
-** ``app_service_slot``
-** ``function_app``
-** ``function_app_slot``
-** ``linux_web_app``
-** ``windows_web_app``
-* For ``api_management_api``: Highlight the resource
-* For ``api_management``: Highlight ``sign_in->enabled = false``
+* For App Service and equivalents:
+** Highlight the resource if ``auth_settings`` is missing
+** Highlight ``auth_settings->enabled = false`` regardless of ``auth_settings->unauthenticated_client_action = "AllowAnonymous"``
+** Highlight ``auth_settings->unauthenticated_client_action = "AllowAnonymous"``
+* For ``api_management_api``: Highlight the resource if ``openid_authentication`` is missing
+* For ``api_management``:
+** Highlight the resource if the ``sign_in`` block is missing
+** Highlight ``sign_in->enabled = false``
 * For ``data_factory_linked_service_odata``: Highlight the resource if the ``basic_authentication`` block is missing
 * For ``data_factory_linked_service_sftp`` and ``data_factory_linked_service_web``: Highlight ``authentication_type = "Anonymous"``
-* For ``redis_cache``: Highlight ``enable_authentication = false``   
-* For ``storage_account``: Highlight ``allow_blob_public_access = false`` 
-* For ``storage_container``: Highlight ``container_access_type`` if it is not set to ``"private"``
+* For ``redis_cache``: Highlight ``enable_authentication = false``
+* For ``storage_account``: Highlight ``allow_blob_public_access = true``
+* For ``storage_container``: Highlight ``container_access_type = "private"``
 
 endif::env-github,rspecator-view[]
