@@ -57,7 +57,7 @@ def test_update_coverage_for_all_repos(tmpdir):
     coverage = tmpdir.join('covered_rules.json')
     assert coverage.exists()
     cov = load_json(coverage)
-    assert {'JAVASCRIPT', 'TYPESCRIPT', 'XML'} == set(cov.keys())
+    assert {'JAVASCRIPT', 'TYPESCRIPT', 'XML', 'CSS'} == set(cov.keys())
     assert 'S100' in cov['JAVASCRIPT']
     assert 'S100' not in cov['XML']
     assert 'S103' in cov['XML']
