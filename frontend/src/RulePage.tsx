@@ -141,7 +141,7 @@ const languageToGithubProject = new Map(Object.entries({
   "CLOUDFORMATION": "sonar-iac",
   "TERRAFORM": "sonar-iac",
   "SECRETS": "sonar-secrets",
-  "COMMON": "sonar-common",
+  "COMMON": "sonar-text",
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
