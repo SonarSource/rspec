@@ -7,7 +7,7 @@ from pathlib import Path
 
 from rspec_tools.utils import load_json
 
-REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security', 'sonar-iac']
+REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-common','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security', 'sonar-iac']
 
 CANONICAL_NAMES = {
   'JS': 'JAVASCRIPT',
