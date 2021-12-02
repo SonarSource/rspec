@@ -109,6 +109,7 @@ const languageToJiraProject = new Map(Object.entries({
   "XML": "SONARXML",
   "CLOUDFORMATION": "SONARIAC",
   "TERRAFORM": "SONARIAC",
+  "COMMON": "SONARCOMMON",
 }));
 
 const languageToGithubProject = new Map(Object.entries({
@@ -140,6 +141,7 @@ const languageToGithubProject = new Map(Object.entries({
   "CLOUDFORMATION": "sonar-iac",
   "TERRAFORM": "sonar-iac",
   "SECRETS": "sonar-secrets",
+  "COMMON": "sonar-text",
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
