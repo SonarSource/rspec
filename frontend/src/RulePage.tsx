@@ -48,7 +48,7 @@ const useStyles = makeStyles((theme) => ({
   tabScroller: {
     flexGrow: 0
   },
-  unimplemented: {
+  underspecified: {
     color: 'red'
   },
 
@@ -239,8 +239,7 @@ export function RulePage(props: any) {
   }
 
   if (coverage !== "Not Covered") {
-    prUrl = undefined;
-    branch = 'master'; 
+    branch = 'master';
   }
 
   let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
@@ -258,7 +257,7 @@ export function RulePage(props: any) {
   }
   let prLink = <></>;
   if (prUrl) {
-      prLink = <div><span className={classes.unimplemented}>Not implemented (see <a href={prUrl}>PR</a>)</span></div>
+      prLink = <div><span className={classes.underspecified}>Under specification (see <a href={prUrl}>PR</a>)</span></div>
   }
   const ruleNumber = ruleid.substring(1);
 
