@@ -1,0 +1,83 @@
+When a regular, non-`void` function flows off the end of its body without returning a value, the behavior is undefined.
+With a coroutine, when flowing off the end of its body, `return_void()` is invoked on the promise for the said coroutine.
+If such invocation is not possible (e.g., because the function is not defined), the behavior is undefined.
+
+In other words, a coroutine should either:
+
+* have all its execution paths reach a `co_return` statement or throw an exception;
+* or its promise type should provide `return_void()`.
+
+This rule raises an issue on coroutines that do not meet the above criteria.
+
+== Noncompliant Code Example
+
+[source,cpp]
+----
+struct IsPrimeTask {
+  struct promise_type {
+    // ... no return_void() definition ...
+    void return_value(bool answer) { /* ... */ }
+  };
+  // ...
+};
+
+IsPrimeTask isPrime(long n) {
+  std::optional<bool> result = co_await Oracle::IsPrime(n);
+  if (result.has_value()) {
+    co_return result.value();
+  }
+  // Noncompliant
+}
+
+struct UploadFileTask {
+  struct promise_type {
+    // No return_void() definition.
+    // ...
+  };
+  // ...
+};
+
+UploadFileTask upload(ServerHandle server, File file) {
+  co_await server.transfert(file);
+  // Noncompliant
+}
+----
+
+== Compliant Solution
+
+[source,cpp]
+----
+enum class Tristate { TRUE, FALSE, UNKNOWN };
+Tristate toTristate(bool value);
+struct IsPrimeTask {
+  struct promise_type {
+    // ...
+    void return_value(Tristate answer) { /* ... */ }
+  };
+  // ...
+};
+
+IsPrimeTask isPrime(long n) {
+  std::optional<bool> result = co_await Oracle::IsPrime(n);
+  if (result.has_value()) {
+    co_return toTristate(result.value());
+  }
+  co_return Tristate::UNKNOWN;
+}
+
+struct UploadFileTask {
+  struct promise_type {
+    void return_void() { /* ... */ }
+    // ...
+  };
+  // ...
+};
+
+UploadFileTask upload(ServerHandle server, File file) {
+  co_await server.transfert(file);
+}
+----
+
+== See
+
+* S935 - function exit paths should have appropriate return values
