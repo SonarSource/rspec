@@ -1,0 +1,100 @@
+With {cpp}20 coroutines, the `co_await`/`co_yield` expression suspends the currently executed coroutine and resumes the execution of either the caller or the coroutine function
+or to some already suspended coroutine (including the current coroutine).
+
+The resumption of the coroutine represented by the `std::coroutine_handle` object is usually performed by calling the `.resume()` on it.
+However, performing such an operation during the execution of `await_suspend` (that is part of `co_await` expression evaluation) will preserve the activation frame of the `await_suspend` function and the calling code on the stack.
+This may lead to stack overflows in a situation where the chain of directly resumed coroutines is deep enough.
+
+The use of the symmetric transfer may avoid this problem. When the `await_suspend` function returns a `std::coroutine_handle`, the compiler will automatically use this handle to resume its coroutine after `await_suspend` returns (and its activation frame is removed from the stack).
+Or, when a `std::noop_coroutine_handle` is returned, the execution will be passed to the caller.
+
+Symmetric transfer solution can also be used to resume the current coroutine (by returning handle passed as the parameter). 
+However, in such cases, conditional suspension can be a more optimal solution.
+
+This rule raises an issue on `await_suspend` functions that could use symmetric transfer.
+
+== Noncompliant Code Example
+
+----
+struct InvokeOtherAwaiter {
+  /* .... */
+  void await_suspend(std::coroutine_handle<PromiseType> current) {
+    if (auto other = current.promise().other_handle) {
+      other.resume(); // Noncompliant 
+    }
+  }
+};
+
+struct WaitForAwaiter {
+  Event& event;
+  /* .... */
+  void await_suspend(std::coroutine_handle<> current) {
+    if (bool ready = event.register_callback(current)) {
+      current.resume(); // Noncompliant
+    }
+  }
+};
+
+struct BufferedExecutionAwaiter {
+  std::queue<std::coroutine_handle<>>& taskQueue;
+  /* .... */
+  void await_suspend(std::coroutine_handle<> current) {
+    if (taskQueue.empty()) {
+      current.resume(); // Noncompliant
+    }
+    auto next = taskQueue.front();
+    taskQueue.pop();
+    taskQueue.push(current);
+    next.resume(); // Noncompliant
+  }
+};
+----
+
+== Compliant Solution
+
+----
+struct InvokeOtherAwaiter {
+  /* .... */
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<PromiseType> current) {
+    if (auto other = current.promise().other_handle) {
+      return other;
+    } else {
+      return std::noop_coroutine();
+    }
+  }
+};
+
+struct WaitForAwaiter {
+  Event& event;
+  /* .... */
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> current) {
+    if (bool ready = event.register_callback(current)) {
+      return current;
+    } else {  
+      return std::noop_coroutine()
+    }
+  }
+  // Alternatively
+  bool await_suspend(std::coroutine_handle<> current) {
+    return !event.register_callback(current);
+  }
+};
+
+struct BufferedExecutionAwaiter {
+  std::queue<std::coroutine_handle<>>& taskQueue;
+  /* .... */
+  std::coroutine_handle<> await_suspend(std::coroutine_handle<> current) {
+    if (taskQueue.empty()) {
+       return current;
+    }
+    auto next = list.front();
+    taskQueue.pop();
+    taskQueue.push(current);
+    return next;
+  }
+};
+----
+
+== See
+
+S6366 - conditionally suspending current coroutine in optimal way  
