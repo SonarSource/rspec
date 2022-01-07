@@ -85,7 +85,6 @@ describe('metadata generation', () => {
 
         const s200StrMetadata = fs.readFileSync(`${dstPath}/S200/java-metadata.json`);
         const s200Metadata = JSON.parse(s200StrMetadata.toString());
-        console.log(s200Metadata);
         expect(Object.keys(s200Metadata)).toContain('prUrl');
         expect(s200Metadata.branch).toEqual('add-my-rule');
         expect(s200Metadata.prUrl).toEqual('https://some.pr/url');

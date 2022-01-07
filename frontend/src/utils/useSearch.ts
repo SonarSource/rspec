@@ -21,15 +21,12 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
   const [loading, setResultsAreLoading] = useState(true);
 
   React.useEffect(() => {
-    console.log(`trying to load index`);
     if (indexData && !indexDataIsLoading && !indexDataError) {
-      console.log("Loading Index");
       setIndex(lunr.Index.load(indexData));
     }
   }, [indexData, indexDataError, indexDataIsLoading]);
 
   React.useEffect(() => {
-    console.log(`trying to run query`);
     if (index != null && !storeDataIsLoading && !storeDataError) {
       let hits: lunr.Index.Result[] = []
       setError(null);
