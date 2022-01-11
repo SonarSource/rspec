@@ -48,6 +48,22 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: RULE_STATE['removed'].darker
     },
   },
+  deprecatedLanguageChip: {
+    marginRight: theme.spacing(1),
+    marginTop: theme.spacing(2),
+    backgroundColor: RULE_STATE['deprecated'].color,
+    '&:hover, &:focus': {
+      backgroundColor: RULE_STATE['deprecated'].darker
+    },
+  },
+  closedLanguageChip: {
+    marginRight: theme.spacing(1),
+    marginTop: theme.spacing(2),
+    backgroundColor: RULE_STATE['closed'].color,
+    '&:hover, &:focus': {
+      backgroundColor: RULE_STATE['closed'].darker
+    },
+  },
   targetedMarker: {
     marginTop: theme.spacing(2),
     marginRight: theme.spacing(2),
@@ -65,6 +81,18 @@ const useStyles = makeStyles((theme) => ({
     marginRight: theme.spacing(2),
     borderColor: RULE_STATE['removed'].color,
     color: RULE_STATE['removed'].color
+  },
+  deprecatedMarker: {
+    marginTop: theme.spacing(2),
+    marginRight: theme.spacing(2),
+    borderColor: RULE_STATE['deprecated'].color,
+    color: RULE_STATE['deprecated'].color
+  },
+  closedMarker: {
+    marginTop: theme.spacing(2),
+    marginRight: theme.spacing(2),
+    borderColor: RULE_STATE['closed'].color,
+    color: RULE_STATE['closed'].color
   }
 }));
 
@@ -79,27 +107,40 @@ export function SearchHit(props: SearchHitProps) {
   const coveredLanguages: JSX.Element[] = [];
   const targetedLanguages: JSX.Element[] = [];
   const removedLanguages: JSX.Element[] = [];
+  const deprecatedLanguages: JSX.Element[] = [];
+  const closedLanguages: JSX.Element[] = [];
 
-  const actualLanguages = props.data.languages.filter(language => language !== 'default');
-  actualLanguages.forEach(lang => {
-    const ruleState = ruleStateInAnalyzer(lang, props.data.all_keys);
+  const actualLanguages = props.data.languages.map((l, i) => ({language: l, status: props.data.statuses[i]})).filter(l => l.language !== 'default');
+  actualLanguages.forEach((lang, i) => {
+    const ruleState = ruleStateInAnalyzer(lang.language, props.data.all_keys, lang.status);
     const chip = <Link key={lang} component={RouterLink} to={`/${props.data.id}/${lang}`}
                        style={{ textDecoration: 'none' }}>
       <Chip
         classes={{root: (classes as any)[ruleState + 'LanguageChip']}}
-        label={lang}
+        label={lang.language}
         color="primary"
         clickable
         key="{lang}"
       />
     </Link>;
-    if (ruleState === 'covered') {
-      coveredLanguages.push(chip);
-    } else if (ruleState === 'targeted') {
-      targetedLanguages.push(chip);
-    } else {
-      removedLanguages.push(chip);
-    }
+    switch(ruleState) {
+      case 'targeted':
+        targetedLanguages.push(chip);
+        break;
+      case 'removed':
+        removedLanguages.push(chip);
+        break;
+      case 'deprecated':
+        deprecatedLanguages.push(chip);
+        break;
+      case 'closed':
+        closedLanguages.push(chip);
+        break;
+      case 'covered':
+      default:
+        coveredLanguages.push(chip);
+        break;
+      }
   });
   const titles = props.data.titles.map(title => (
     <Typography key={title} variant="body1" component="p" gutterBottom>
@@ -125,6 +166,17 @@ export function SearchHit(props: SearchHitProps) {
       {removedLanguages}
     </Typography>;
 
+  const deprecatedBlock = deprecatedLanguages.length === 0 ? <></>
+    : <Typography variant="body2" component="p" classes={{ root: classes.language }}>
+      <Chip classes={{ root: classes.deprecatedMarker }} label="Deprecated" color="secondary" variant="outlined" />
+      {deprecatedLanguages}
+    </Typography>;
+  const closedBlock = closedLanguages.length === 0 ? <></>
+    : <Typography variant="body2" component="p" classes={{ root: classes.language }}>
+      <Chip classes={{ root: classes.closedMarker }} label="Closed" color="secondary" variant="outlined" />
+      {closedLanguages}
+    </Typography>;
+
   return (
     <Card variant="outlined" classes={{root: classes.searchHit}}>
       <CardContent>
@@ -137,6 +189,8 @@ export function SearchHit(props: SearchHitProps) {
         {coveredBlock}
         {targetedBlock}
         {removedBlock}
+        {deprecatedBlock}
+        {closedBlock}
       </CardContent>
     </Card>
   )

@@ -83,6 +83,16 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: RULE_STATE['removed'].color,
     }
   },
+  closedTab: {
+    "&::before": {
+      backgroundColor: RULE_STATE['closed'].color,
+    }
+  },
+  deprecatedTab: {
+    "&::before": {
+      backgroundColor: RULE_STATE['deprecated'].color,
+    }
+  },
 }));
 
 const languageToJiraProject = new Map(Object.entries({
@@ -214,9 +224,9 @@ export function RulePage(props: any) {
     branch = metadataJSON.branch;
     metadataJSON.all_languages.sort();
     languagesTabs = metadataJSON.all_languages.map(lang => { 
-      const ruleState = ruleStateInAnalyzer(lang, metadataJSON!.allKeys);
+      const ruleState = ruleStateInAnalyzer(lang.name, metadataJSON!.allKeys, lang.status);
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
-      return <Tab key={lang} label={lang} value={lang} className={classNames} />;
+      return <Tab key={lang} label={lang.name} value={lang} className={classNames} />;
     });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 

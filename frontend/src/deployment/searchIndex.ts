@@ -5,7 +5,7 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { IndexedRule, IndexStore, Severity, IndexAggregates } from '../types/IndexStore';
+import { IndexedRule, IndexStore, Severity, Status, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
 
 const logger = rootLogger.child({ source: path.basename(__filename) })
@@ -39,6 +39,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
 
     let types = new Set<string>();
     let severities = new Set<Severity>();
+    let statuses = new Array<Status>();
     const all_keys = new Set<string>([ruleDir]);
     const titles = new Set<string>();
     const tags = new Set<string>();
@@ -68,6 +69,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
       titles.add(metadata.title);
       types.add(metadata.type);
       severities.add(metadata.defaultSeverity as Severity);
+      statuses.push((metadata.status ?? 'default') as Status);
       if (metadata.tags) {
         for (const tag of metadata.tags) {
           tags.add(tag);
@@ -122,6 +124,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
       tags: Array.from(tags).sort(),
       qualityProfiles: Array.from(qualityProfiles).sort(),
       descriptions: Array.from(descriptions).sort(),
+      statuses: statuses,
       prUrl
     }
 

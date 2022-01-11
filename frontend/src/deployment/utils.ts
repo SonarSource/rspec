@@ -1,6 +1,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { Language } from '../types/RuleMetadata';
 
 /**
  * Get the list of source and destination directories for each rule.
@@ -27,8 +28,9 @@ export function getRulesDirectories(srcPath: string, dstPath: string, rules?: st
  * List every language for which a rule has a specialization, i.e. a sub-directory.
  * @param ruleDirectory the rule's source directory
  */
-export function listSupportedLanguage(ruleDirectory: string) {
+export function listSupportedLanguages(ruleDirectory: string) {
   return fs.readdirSync(ruleDirectory)
     .filter(fileName => fs.lstatSync(path.join(ruleDirectory, fileName)).isDirectory())
+    .map(f => ({name: f, status: 'default'} as Language))
     .sort();
 }

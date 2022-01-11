@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import asciidoctor from 'asciidoctor';
 
-import { getRulesDirectories, listSupportedLanguage } from './utils';
+import { getRulesDirectories, listSupportedLanguages } from './utils';
 import { logger } from './deploymentLogger';
 
 const asciidoc = asciidoctor();
@@ -32,11 +32,11 @@ asciidoc.LoggerManager.setLogger(winstonLogger);
  */
 export function generate_one_rule_description(srcDir: string, dstDir: string) {
   fs.mkdirSync(dstDir, { recursive: true });
-  const all_languages = listSupportedLanguage(srcDir);
+  const all_languages = listSupportedLanguages(srcDir);
   let default_descr_wanted = true;
   for (const language of all_languages) {
-    const html = generate_rule_description(srcDir, language);
-    const dstFile = path.join(dstDir, language + "-description.html");
+    const html = generate_rule_description(srcDir, language.name);
+    const dstFile = path.join(dstDir, language.name + "-description.html");
     fs.writeFileSync(dstFile, html, {encoding: 'utf8'});
     if (default_descr_wanted) {
       const dstFile = path.join(dstDir, "default-description.html");
