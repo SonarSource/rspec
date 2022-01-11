@@ -4,8 +4,11 @@ env:
   CIRRUS_CLONE_DEPTH: 1
   # Use bash (instead of sh on linux or cmd.exe on windows)
   CIRRUS_SHELL: bash
-  SONAR_SCANNER_VERSION: 4.6.1.2450
   SONAR_TOKEN: ENCRYPTED[f021c2778f9279a529a16d2aa8e4bd71cc4cdc54c029f6f9774daacc88b81bb9794afc8535e23cc8789d00e7d262dbb8]
+  SONAR_SCANNER_VERSION: 4.6.1.2450
+  SONAR_SCANNER_HOME: ${HOME}/.sonar/sonar-scanner-${SONAR_SCANNER_VERSION}-linux
+  PATH: ${SONAR_SCANNER_HOME}/bin:$PATH
+
 
 container_definition: &CONTAINER_DEFINITION
   builder_image_project: language-team
@@ -14,6 +17,13 @@ container_definition: &CONTAINER_DEFINITION
   zone: us-central1-a
   namespace: default
   use_in_memory_disk: true
+
+setup_sonar_scanner: &SETUP_SONAR_SCANNER
+  setup_sonar_scanner_script:
+    - apt update -y && apt upgrade -y && apt update -y && apt install -y unzip       
+    - curl --create-dirs -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
+    - unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
+    - export PATH=$SONAR_SCANNER_HOME/bin:$PATH
 
 tooling_tests_task:
   gke_container:
@@ -30,14 +40,10 @@ tooling_tests_task:
   tests_script:
     - cd rspec-tools
     - pipenv run pytest --cov=rspec_tools --cov-report=xml
-  download_sonar_scanner_script:
-    - apt install -y zip       
-    - curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux.zip
-    - unzip -o sonar-scanner.zip 
-    - mv sonar-scanner-${SONAR_SCANNER_VERSION}-linux sonar-scanner
+  <<: *SETUP_SONAR_SCANNER
   analyze_script:
     - cd rspec-tools
-    - ../sonar-scanner/bin/sonar-scanner
+    - sonar-scanner
 
 
 frontend_tests_task:
@@ -59,7 +65,11 @@ frontend_tests_task:
   tests_script:
     - cd frontend
     - npm run build
-    - npm test
+    - npm test -- --coverage .
+  <<: *SETUP_SONAR_SCANNER
+  analyze_script:
+    - cd frontend
+    - sonar-scanner
 
 validate_metadata_task:
   gke_container:
