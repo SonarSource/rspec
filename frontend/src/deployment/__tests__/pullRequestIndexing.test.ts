@@ -24,7 +24,7 @@ jest.mock('@octokit/rest', () => {
 beforeEach(() => {
   Git.Clone.clone = jest.fn();
   let repo = {
-    config: () => {return { setString: (name: string, value: string) => {} };},
+    config: () => ({ setString: (name: string, value: string) => {} }),
     fetch: (remote: string) => {},
     getBranch: (name: string) => {},
     checkoutRef: (ref) => {}

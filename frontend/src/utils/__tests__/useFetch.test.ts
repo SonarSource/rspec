@@ -3,10 +3,10 @@ import { renderHook } from '@testing-library/react-hooks';
 
 function fetchMock(url, opts) {
   return Promise.resolve({
-    json: () =>
+    json: () => (
       Promise.resolve({
         data: opts,
-      }),
+      })),
   });
 }
 
