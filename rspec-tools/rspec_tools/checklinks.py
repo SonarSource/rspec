@@ -131,15 +131,17 @@ def get_all_links_from_htmls(dir):
   print("Finding links in html files")
   urls={}
   for rulepath in pathlib.Path(dir).iterdir():
-    if rulepath.is_dir():
-      generic_metadata=rulepath.joinpath('metadata.json')
-      for langpath in rulepath.iterdir():
-        if langpath.is_dir():
-          metadata=langpath.joinpath('metadata.json')
-          filepath=langpath.joinpath('rule.html')
-          filename=str(filepath.absolute())
-          if filepath.exists() and is_active(metadata, generic_metadata):
-            findurl_in_html(filename,urls)
+    if not rulepath.is_dir():
+      continue
+    generic_metadata=rulepath.joinpath('metadata.json')
+    for langpath in rulepath.iterdir():
+      if not langpath.is_dir():
+        continue
+      metadata=langpath.joinpath('metadata.json')
+      filepath=langpath.joinpath('rule.html')
+      filename=str(filepath.absolute())
+      if filepath.exists() and is_active(metadata, generic_metadata):
+        findurl_in_html(filename,urls)
   print("All html files crawled")
   return urls
 
