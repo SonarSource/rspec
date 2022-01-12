@@ -26,6 +26,11 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
     }
   }, [indexData, indexDataError, indexDataIsLoading]);
 
+  // Avoid comparing arrays in the useEffect dependency list,
+  // as that would always return unequal
+  const tagsStr = ruleTags.toString();
+  const profilesStr = qualityProfiles.toString();
+
   React.useEffect(() => {
     if (index != null && !storeDataIsLoading && !storeDataError) {
       let hits: lunr.Index.Result[] = []
@@ -88,7 +93,11 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
         setResultsAreLoading(false);
       }
     }
-  }, [query, ruleType, ruleLang, ruleTags, qualityProfiles, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
+    // ruleTags and qualityProfiles are replaced with tagsStr and profilesStr
+    // to enable correct equality comparison when react decides whether to
+    // re invoke the effect.
+  }, [query, ruleType, ruleLang, tagsStr, profilesStr, pageSize, pageNumber,
+      storeData, storeDataIsLoading, storeDataError, index]);
 
   return {results, numberOfHits, error, loading};
 }
