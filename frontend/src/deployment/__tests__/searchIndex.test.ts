@@ -33,6 +33,14 @@ describe('index store generation', () => {
     expect(ruleS3457.descriptions).toEqual(expect.arrayContaining(expectedWords));
   });
 
+  test('stores all language statuses', () => {
+    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const [indexStore, _] = buildIndexStore(rulesPath);
+    const ruleS3457 = indexStore['S3457'];
+
+    expect(ruleS3457.statuses).toStrictEqual(['ready', 'ready', 'closed', 'deprecated']);
+  });
+
   test('collects all tags', () => {
     const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
     const [_, aggregates] = buildIndexStore(rulesPath);

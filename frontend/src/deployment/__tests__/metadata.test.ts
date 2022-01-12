@@ -39,6 +39,60 @@ describe('metadata generation', () => {
     });
   });
 
+  test('check default status', () => {
+    return withTestDir((srcPath) => {
+      createFiles(srcPath, {
+        'S100/metadata.json': JSON.stringify({
+        }),
+        'S100/java/metadata.json': JSON.stringify({
+        }),
+      });
+      return withTestDir(async (dstPath) => {
+        generate_rules_metadata(srcPath, dstPath);
+        const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
+        const javaMetadata = JSON.parse(javaStrMetadata.toString());
+        expect(javaMetadata).toMatchObject({
+          all_languages: [
+            {name: 'java', status: 'default'}
+          ]
+        });
+      });
+    });
+  });
+
+  test('check status computation', () => {
+    return withTestDir((srcPath) => {
+      createFiles(srcPath, {
+        'S100/metadata.json': JSON.stringify({
+          title: 'Rule S100',
+          status: 'ready'
+        }),
+        'S100/java/metadata.json': JSON.stringify({
+          title: 'Java Rule S100'
+        }),
+        'S100/python/metadata.json': JSON.stringify({
+          status: 'closed'
+        }),
+      });
+      return withTestDir(async (dstPath) => {
+        generate_rules_metadata(srcPath, dstPath);
+        const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
+        const pythonStrMetadata = fs.readFileSync(`${dstPath}/S100/python-metadata.json`);
+        const javaMetadata = JSON.parse(javaStrMetadata.toString());
+        const pythonMetadata = JSON.parse(pythonStrMetadata.toString());
+        expect(pythonMetadata).toMatchObject({
+          title: 'Rule S100',
+          all_languages: [
+            {name: 'java', status: 'ready'},
+            {name: 'python', status: 'closed'}
+          ]
+        });
+
+        expect(javaMetadata.all_languages).toStrictEqual(pythonMetadata.all_languages);
+      });
+    });
+  });
+
   test('generates only requested rules if a list of rule is provided', () => {
     return withTestDir((srcPath) => {
       createFiles(srcPath, {
