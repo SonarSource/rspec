@@ -31,7 +31,6 @@ def load_url_probing_history():
   except Exception as e:
     # If the history file is not present, ignore, will create one in the end.
     print(f"Failed to load historical url-probe results: {e}")
-    pass
 
 def save_url_probing_history():
   global link_probes_history
@@ -133,7 +132,6 @@ def check_html_links(dir):
   errors=[]
   load_url_probing_history()
   print("Finding links in html files")
-  tot_files = 0
   for rulepath in pathlib.Path(dir).iterdir():
     if rulepath.is_dir():
       generic_metadata=rulepath.joinpath('metadata.json')
@@ -143,7 +141,6 @@ def check_html_links(dir):
           filepath=langpath.joinpath('rule.html')
           filename=str(filepath.absolute())
           if filepath.exists() and is_active(metadata, generic_metadata):
-            tot_files += 1
             findurl_in_html(filename,urls)
   print("All html files crawled")
   print("Testing links")
