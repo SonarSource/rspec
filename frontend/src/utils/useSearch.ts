@@ -96,6 +96,7 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
     // ruleTags and qualityProfiles are replaced with tagsStr and profilesStr
     // to enable correct equality comparison when react decides whether to
     // re invoke the effect.
+    // eslint-disable-next-line
   }, [query, ruleType, ruleLang, tagsStr, profilesStr, pageSize, pageNumber,
       storeData, storeDataIsLoading, storeDataError, index]);
 
