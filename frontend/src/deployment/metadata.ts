@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { getRulesDirectories, listSupportedLanguages } from './utils';
-import { Language } from '../types/RuleMetadata';
+import { LanguageSupport } from '../types/RuleMetadata';
 
 /**
  * Generate rule metadata (for all relevant languages) and write it in the destination directory.
@@ -16,8 +16,13 @@ export function generate_one_rule_metadata(srcDir: string, dstDir: string,
   fs.mkdirSync(dstDir, { recursive: true });
   const allLanguages = listSupportedLanguages(srcDir);
   const allMetadata = allLanguages.map((language) => {
-    const metadata = generate_rule_metadata(srcDir, language.name, allLanguages);
+    const metadata = generate_rule_metadata(srcDir, language.name);
     return {language, metadata};
+  });
+
+  // Update language status for all
+  allMetadata.forEach(m => {
+    allLanguages.find(l => l === m.language)!.status = m.metadata.status ?? 'default';
   });
 
   // Merge all sqKeys in an array so that we can use it later to check rule coverage.
@@ -34,6 +39,7 @@ export function generate_one_rule_metadata(srcDir: string, dstDir: string,
       metadata.prUrl = prUrl;
     }
     metadata.branch = branch;
+    metadata.languages_support = allLanguages;
   });
 
   let default_metadata_wanted = true;
@@ -64,19 +70,12 @@ export function generate_rules_metadata(srcPath: string, dstPath: string, rules?
  * Generate the metadata corresponding to one rule and one language.
  * @param srcDir rule's source directory.
  * @param language language for which the metadata should be generated
- * @param all_languages every language the rule supports.
  */
-function generate_rule_metadata(srcDir: string, language: string, all_languages: Language[]) {
+function generate_rule_metadata(srcDir: string, language: string) {
   let parentFile = path.join(srcDir, language, "metadata.json");
   const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
   let childFile = path.join(srcDir, "metadata.json");
   const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
   const mergedJson = {...childJson, ...parentJson};
-  // For ONCE, we can enjoy the fact that JS does shallow copy as we update all_languages for all
-  // metadata.
-  if (mergedJson['status']) {
-    all_languages.find(v => v.name === language)!.status = mergedJson['status'];
-  }
-  mergedJson["all_languages"] = all_languages;
   return mergedJson;
 }

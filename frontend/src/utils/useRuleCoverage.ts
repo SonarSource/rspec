@@ -1,5 +1,5 @@
 import { useFetch } from './useFetch';
-import { Status } from '../types/IndexStore';
+import { Status } from '../types/RuleMetadata';
 
 type Version = string | { since: string, until: string };
 type RuleCoverage = Record<string, Record<string, Version>>;
@@ -99,14 +99,20 @@ export function useRuleCoverage() {
       })
     );
 
-    if (result.length > 0) {
+    if (result.length > 0 && result.some(version => typeof version === 'string')) {
       // if there is at least one entry with simple (string) type, rule is still part of analyzer
-      // otherwise (when all entries keep an analyzer versions range) the rule is removed
-      return result.some(version => typeof version === 'string')
-        ? (status === 'deprecated' ? 'deprecated' : 'covered')
-        : 'removed';
+      if (status === 'deprecated' || status === 'superseded') {
+        return 'deprecated';
+      } else {
+        return 'covered';
+      }
+    } else if (result.length > 0) {
+      // all entries keep an analyzer versions range which means the rule was removed
+      return 'removed';
+    } else if (status === 'closed') {
+      return 'closed';
     } else {
-      return status === 'closed' ? 'closed' : 'targeted';
+      return 'targeted';
     }
   }
 

@@ -13,7 +13,13 @@ describe('index store generation', () => {
     expect(ruleS3457).toMatchObject({
       id: 'S3457',
       type: 'CODE_SMELL',
-      languages: ['cfamily', 'csharp', 'default', 'java', 'python'],
+      languages: [
+        { "name": "cfamily", "status": "ready", },
+        { "name": "csharp", "status": "ready", },
+        { "name": "default", "status": "ready", },
+        { "name": "java", "status": "closed", },
+        { "name": "python", "status": "deprecated", }
+      ],
       tags: ['cert', 'clumsy', 'confusing'],
       severities: ['Major', 'Minor'],
       qualityProfiles: ['MISRA C++ 2008 recommended', 'Sonar way'],
@@ -31,14 +37,6 @@ describe('index store generation', () => {
     ];
 
     expect(ruleS3457.descriptions).toEqual(expect.arrayContaining(expectedWords));
-  });
-
-  test('stores all language statuses', () => {
-    const rulesPath = path.join(__dirname, 'resources', 'metadata');
-    const [indexStore, _] = buildIndexStore(rulesPath);
-    const ruleS3457 = indexStore['S3457'];
-
-    expect(ruleS3457.statuses).toStrictEqual(['ready', 'ready', 'ready', 'closed', 'deprecated']);
   });
 
   test('collects all tags', () => {

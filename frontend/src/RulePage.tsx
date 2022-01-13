@@ -222,8 +222,8 @@ export function RulePage(props: any) {
       prUrl = metadataJSON.prUrl;
     }
     branch = metadataJSON.branch;
-    metadataJSON.all_languages.sort();
-    languagesTabs = metadataJSON.all_languages.map(lang => { 
+    metadataJSON.languages_support.sort();
+    languagesTabs = metadataJSON.languages_support.map(lang => {
       const ruleState = ruleStateInAnalyzer(lang.name, metadataJSON!.allKeys, lang.status);
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
       return <Tab key={lang} label={lang.name} value={lang} className={classNames} />;

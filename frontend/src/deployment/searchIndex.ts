@@ -5,8 +5,9 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { IndexedRule, IndexStore, Severity, Status, IndexAggregates } from '../types/IndexStore';
+import { IndexedRule, IndexStore, Severity, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
+import { LanguageSupport } from '../types/RuleMetadata';
 
 const logger = rootLogger.child({ source: path.basename(__filename) })
 
@@ -35,11 +36,10 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
   const indexedRecords = ruleDirs.map<[string, IndexedRuleWithDescription] | null>((ruleDir) => {
     const allLanguages = fs.readdirSync(path.join(rulesPath, ruleDir))
                             .filter((fileName) => fileName.endsWith('-metadata.json'))
-                            .map((fileName) => fileName.split('-')[0]);
+                            .map((fileName) => ({name: fileName.split('-')[0], status: 'default'} as LanguageSupport));
 
     let types = new Set<string>();
     let severities = new Set<Severity>();
-    const statuses = [] as Array<Status>;
     const all_keys = new Set<string>([ruleDir]);
     const titles = new Set<string>();
     const tags = new Set<string>();
@@ -49,7 +49,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
 
     allLanguages.forEach((lang) => {
       // extract every word of every description of this rule
-      const descriptionPath = path.join(rulesPath, ruleDir, `${lang}-description.html`);
+      const descriptionPath = path.join(rulesPath, ruleDir, `${lang.name}-description.html`);
       const descriptionStr = fs.readFileSync(descriptionPath).toString();
       // Remove HTML tags from the description, extract unique words and normalize them.
       // This reduces a bit the footprint of descriptions in the index.
@@ -57,7 +57,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
       descriptionWords.forEach((word) => descriptions.add(word));
 
       // merge metadata fields of every version of this rule in a single indexed record
-      const metadataPath = path.join(rulesPath, ruleDir, `${lang}-metadata.json`);
+      const metadataPath = path.join(rulesPath, ruleDir, `${lang.name}-metadata.json`);
       const metadataStr = fs.readFileSync(metadataPath).toString();
       const metadata = JSON.parse(metadataStr);
 
@@ -69,7 +69,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
       titles.add(metadata.title);
       types.add(metadata.type);
       severities.add(metadata.defaultSeverity as Severity);
-      statuses.push((metadata.status ?? 'default') as Status);
+      lang.status = metadata.status ?? 'default';
       if (metadata.tags) {
         for (const tag of metadata.tags) {
           tags.add(tag);
@@ -80,10 +80,10 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
           qualityProfiles.add(qualityProfile);
         }
       }
-      if (lang in allLangs) {
-        allLangs[lang] += 1;
+      if (lang.name in allLangs) {
+        allLangs[lang.name] += 1;
       } else {
-        allLangs[lang] = 1;
+        allLangs[lang.name] = 1;
       }
       tags.forEach((tag) => {
         if (tag in allTags) {
@@ -124,7 +124,6 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
       tags: Array.from(tags).sort(),
       qualityProfiles: Array.from(qualityProfiles).sort(),
       descriptions: Array.from(descriptions).sort(),
-      statuses: statuses,
       prUrl
     }
 

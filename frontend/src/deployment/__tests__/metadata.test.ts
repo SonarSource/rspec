@@ -52,7 +52,7 @@ describe('metadata generation', () => {
         const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const javaMetadata = JSON.parse(javaStrMetadata.toString());
         expect(javaMetadata).toMatchObject({
-          all_languages: [
+          languages_support: [
             {name: 'java', status: 'default'}
           ]
         });
@@ -82,13 +82,13 @@ describe('metadata generation', () => {
         const pythonMetadata = JSON.parse(pythonStrMetadata.toString());
         expect(pythonMetadata).toMatchObject({
           title: 'Rule S100',
-          all_languages: [
+          languages_support: [
             {name: 'java', status: 'ready'},
             {name: 'python', status: 'closed'}
           ]
         });
 
-        expect(javaMetadata.all_languages).toStrictEqual(pythonMetadata.all_languages);
+        expect(javaMetadata.languages_support).toStrictEqual(pythonMetadata.languages_support);
       });
     });
   });

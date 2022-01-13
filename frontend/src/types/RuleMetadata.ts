@@ -1,13 +1,13 @@
-import {Status} from './IndexStore'
+export type Status = 'default'|'ready'|'closed'|'deprecated'|'superseded';
 
-export interface Language {
+export interface LanguageSupport {
   name: string,
   status: Status
 }
 
 export default interface RuleMetadata {
   title: string,
-  all_languages: Language[],
+  languages_support: LanguageSupport[],
   allKeys: string[],
   branch: string,
   prUrl?: string
