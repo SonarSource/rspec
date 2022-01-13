@@ -121,7 +121,6 @@ def checkout_repo(repo):
   token=os.getenv('GITHUB_TOKEN')
   if token:
     git_url=f"https://{token}@github.com/SonarSource/{repo}"
-  g=Git(repo)
   if not os.path.exists(repo):
     return Repo.clone_from(git_url, repo)
   else:
