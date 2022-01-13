@@ -83,12 +83,13 @@ export function SearchHit(props: SearchHitProps) {
   const actualLanguages = props.data.languages.filter(language => language !== 'default');
   actualLanguages.forEach(lang => {
     const ruleState = ruleStateInAnalyzer(lang, props.data.all_keys);
-    const chip = <Link component={RouterLink} to={`/${props.data.id}/${lang}`} style={{ textDecoration: 'none' }}>
+    const chip = <Link key={lang} component={RouterLink} to={`/${props.data.id}/${lang}`} style={{ textDecoration: 'none' }}>
       <Chip
         classes={{root: (classes as any)[ruleState + 'LanguageChip']}}
         label={lang}
         color="primary"
         clickable
+        key="{lang}"
       />
     </Link>;
     if (ruleState === 'covered') {
@@ -100,25 +101,25 @@ export function SearchHit(props: SearchHitProps) {
     }
   });
   const titles = props.data.titles.map(title => (
-    <Typography variant="body1" component="p" gutterBottom>
+    <Typography key="title" variant="body1" component="p" gutterBottom>
       {title}
     </Typography>
   ));
 
   const coveredBlock = coveredLanguages.length === 0 ? <></> 
-    : <Typography variant="body2" component="p" classes={{root: classes.language}}>
+    : <Typography key="covered-marker" variant="body2" component="div" classes={{root: classes.language}}>
       <Chip classes={{root: classes.coveredMarker}} label="Covered" color="primary" variant="outlined" />
       {coveredLanguages}
     </Typography>;
 
   const targetedBlock = targetedLanguages.length === 0 ? <></> 
-    :<Typography variant="body2" component="p" classes={{root: classes.language}}>
+    : <Typography key="targeted-marker" variant="body2" component="div" classes={{root: classes.language}}>
       <Chip classes={{root: classes.targetedMarker}} label="Targeted" color="secondary" variant="outlined" />
       {targetedLanguages}
     </Typography>;
 
   const removedBlock = removedLanguages.length === 0 ? <></> 
-    :<Typography variant="body2" component="p" classes={{root: classes.language}}>
+    : <Typography key="removed-marker" variant="body2" component="div" classes={{root: classes.language}}>
       <Chip classes={{root: classes.removedMarker}} label="Removed" color="secondary" variant="outlined" />
       {removedLanguages}
     </Typography>;
@@ -126,7 +127,7 @@ export function SearchHit(props: SearchHitProps) {
   return (
     <Card variant="outlined" classes={{root: classes.searchHit}}>
       <CardContent>
-        <Typography classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>
+        <Typography key="rule-id" classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>
           <Link component={RouterLink} to={`/${props.data.id}`}>
             <div> Rule {props.data.id} </div>
           </Link>
