@@ -33,8 +33,6 @@ beforeEach(() => {
             }
         })
     }
-
-    window.history.pushState({}, 'RSPEC Search Page', '/rspec/#/rspec/');
     jest.spyOn(global, 'fetch').mockImplementation(fetchMock);
 });
 
