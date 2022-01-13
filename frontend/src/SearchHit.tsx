@@ -101,7 +101,7 @@ export function SearchHit(props: SearchHitProps) {
     }
   });
   const titles = props.data.titles.map(title => (
-    <Typography key="title" variant="body1" component="p" gutterBottom>
+    <Typography key={title} variant="body1" component="p" gutterBottom>
       {title}
     </Typography>
   ));
