@@ -167,12 +167,12 @@ export function SearchHit(props: SearchHitProps) {
     </Typography>;
 
   const deprecatedBlock = deprecatedLanguages.length === 0 ? <></>
-    : <Typography variant="body2" component="p" classes={{ root: classes.language }}>
+    : <Typography key="closed-marker" variant="body2" component="div" classes={{ root: classes.language }}>
       <Chip classes={{ root: classes.deprecatedMarker }} label="Deprecated" color="secondary" variant="outlined" />
       {deprecatedLanguages}
     </Typography>;
   const closedBlock = closedLanguages.length === 0 ? <></>
-    : <Typography variant="body2" component="p" classes={{ root: classes.language }}>
+    : <Typography key="closed-marker" variant="body2" component="div" classes={{ root: classes.language }}>
       <Chip classes={{ root: classes.closedMarker }} label="Closed" color="secondary" variant="outlined" />
       {closedLanguages}
     </Typography>;
