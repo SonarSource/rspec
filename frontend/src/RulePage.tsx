@@ -149,7 +149,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
     const upperCaseLanguage = language.toUpperCase();
     const jiraProject = languageToJiraProject.get(upperCaseLanguage);
     const githubProject = languageToGithubProject.get(upperCaseLanguage);
-    const titleWihoutQuotes = title.replaceAll('"','');
+    const titleWihoutQuotes = title.replace(/"/g, "'");
 
     const implementationPRsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
