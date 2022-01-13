@@ -75,7 +75,7 @@ function generate_rule_metadata(srcDir: string, language: string, all_languages:
   // For ONCE, we can enjoy the fact that JS does shallow copy as we update all_languages for all
   // metadata.
   if (mergedJson['status']) {
-    all_languages[all_languages.findIndex(v => v.name === language)].status = mergedJson['status'];
+    all_languages.find(v => v.name === language)!.status = mergedJson['status'];
   }
   mergedJson["all_languages"] = all_languages;
   return mergedJson;

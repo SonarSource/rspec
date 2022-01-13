@@ -145,4 +145,18 @@ describe('metadata generation', () => {
       });
     });
   });
+
+  test('generate test metadata', () => {
+    return withTestDir(async (dstPath) => {
+      generate_rules_metadata(path.join(__dirname, 'resources', 'rules'), dstPath);
+      fs.readdirSync(dstPath).forEach(ruleDir => fs.readdirSync(`${dstPath}/${ruleDir}`).
+        forEach(file => {
+          const actual = JSON.parse(fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString());
+          const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
+          const expected = JSON.parse(fs.readFileSync(expectedPath).toString());
+          expect(actual).toStrictEqual(expected);
+        })
+      );
+    });
+  });
 });

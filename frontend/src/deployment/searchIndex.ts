@@ -39,7 +39,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
 
     let types = new Set<string>();
     let severities = new Set<Severity>();
-    let statuses = new Array<Status>();
+    const statuses = [] as Array<Status>;
     const all_keys = new Set<string>([ruleDir]);
     const titles = new Set<string>();
     const tags = new Set<string>();
