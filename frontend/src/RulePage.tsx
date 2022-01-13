@@ -223,7 +223,7 @@ export function RulePage(props: any) {
     const coverageMapper = (key: any, range: any) => {
       if (typeof range === "string") {
         return (
-          <li >{key}: {range}</li>
+          <li key={key} >{key}: {range}</li>
         );
       } else {
         return (
