@@ -83,7 +83,8 @@ export function SearchHit(props: SearchHitProps) {
   const actualLanguages = props.data.languages.filter(language => language !== 'default');
   actualLanguages.forEach(lang => {
     const ruleState = ruleStateInAnalyzer(lang, props.data.all_keys);
-    const chip = <Link key={lang} component={RouterLink} to={`/${props.data.id}/${lang}`} style={{ textDecoration: 'none' }}>
+    const chip = <Link key={lang} component={RouterLink} to={`/${props.data.id}/${lang}`}
+                       style={{ textDecoration: 'none' }}>
       <Chip
         classes={{root: (classes as any)[ruleState + 'LanguageChip']}}
         label={lang}
