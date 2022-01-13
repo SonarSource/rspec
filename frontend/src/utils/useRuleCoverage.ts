@@ -80,7 +80,9 @@ export function useRuleCoverage() {
   function ruleStateInAnalyzer(language: string, ruleKeys: string[]): 'covered' | 'targeted' | 'removed' {
     const languageKeys = languageToSonarpedia.get(language);
     if (!languageKeys || coveredRulesError || coveredRulesIsLoading) {
-      console.error(`Failed to retrieve coverage for following languages: ${languageKeys}`);
+      if (coveredRulesError) {
+        console.error(`Failed to retrieve coverage for following languages: ${languageKeys} (${coveredRulesError})`);
+      }
       return 'targeted';
     }
     if (!coveredRules) {
@@ -88,7 +90,7 @@ export function useRuleCoverage() {
     }
 
     const result: Version[] = [];
-    languageKeys.forEach(lang => 
+    languageKeys.forEach(lang =>
       ruleKeys.forEach(ruleKey => {
         if (lang in coveredRules && ruleKey in coveredRules[lang]) {
           result.push(coveredRules[lang][ruleKey]);
