@@ -84,12 +84,12 @@ const useStyles = makeStyles((theme) => ({
     }
   },
   closedTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['closed'].color,
     }
   },
   deprecatedTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['deprecated'].color,
     }
   },
@@ -203,16 +203,16 @@ export function RulePage(props: any) {
   const classes = useStyles();
   let branch = 'master'
 
-  let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-description.html";
-  let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-metadata.json";
+  let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + '/' + (language ?? 'default') + '-description.html';
+  let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + '/' + (language ?? 'default') + '-metadata.json';
 
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
   const {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer} = useRuleCoverage();
-  let coverage: any = "Loading...";
+  let coverage: any = 'Loading...';
 
-  let title = "Loading..."
+  let title = 'Loading...'
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
@@ -231,7 +231,7 @@ export function RulePage(props: any) {
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     const coverageMapper = (key: any, range: any) => {
-      if (typeof range === "string") {
+      if (typeof range === 'string') {
         return (
           <li key={key} >{key}: {range}</li>
         );
@@ -248,7 +248,7 @@ export function RulePage(props: any) {
     }
   }
 
-  if (coverage !== "Not Covered") {
+  if (coverage !== 'Not Covered') {
     prUrl = undefined;
     branch = 'master'; 
   }

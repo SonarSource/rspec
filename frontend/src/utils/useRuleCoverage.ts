@@ -78,7 +78,28 @@ export function useRuleCoverage() {
     return ruleCoverageForSonarpediaKeys(allLanguageKeys, ruleKeys, mapper);
   }
 
-  function ruleStateInAnalyzer(language: string, ruleKeys: string[], status: Status): 'covered' | 'targeted' | 'removed' | 'closed' | 'deprecated' {
+  type AnalyzerState = 'covered' | 'targeted' | 'removed' | 'closed' | 'deprecated';
+  function analyzerStateFromCoverageAndStatus(coverage: Version[], status: Status): AnalyzerState {
+    if (coverage.length > 0) {
+      if (coverage.some(version => typeof version === 'string')) {
+        // if there is at least one coverage with simple (string) type, rule is still part of analyzer
+        if (status === 'deprecated' || status === 'superseded') {
+          return 'deprecated';
+        } else {
+          return 'covered';
+        }
+      } else {
+        // all coverages keep an analyzer versions range which means the rule was removed
+        return 'removed';
+      }
+    } else if (status === 'closed') {
+      return 'closed';
+    } else {
+      return 'targeted';
+    }
+  }
+
+  function ruleStateInAnalyzer(language: string, ruleKeys: string[], status: Status): AnalyzerState {
     const languageKeys = languageToSonarpedia.get(language);
     if (!languageKeys || coveredRulesError || coveredRulesIsLoading) {
       if (coveredRulesError) {
@@ -99,21 +120,7 @@ export function useRuleCoverage() {
       })
     );
 
-    if (result.length > 0 && result.some(version => typeof version === 'string')) {
-      // if there is at least one entry with simple (string) type, rule is still part of analyzer
-      if (status === 'deprecated' || status === 'superseded') {
-        return 'deprecated';
-      } else {
-        return 'covered';
-      }
-    } else if (result.length > 0) {
-      // all entries keep an analyzer versions range which means the rule was removed
-      return 'removed';
-    } else if (status === 'closed') {
-      return 'closed';
-    } else {
-      return 'targeted';
-    }
+    return analyzerStateFromCoverageAndStatus(result, status);
   }
 
   return {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer};

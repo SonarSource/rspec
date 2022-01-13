@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { generate_one_rule_metadata, generate_rules_metadata } from '../metadata';
+import { generateOneRuleMetadata, generateRulesMetadata } from '../metadata';
 import { withTestDir, createFiles } from '../testutils';
 
 describe('metadata generation', () => {
@@ -21,7 +21,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_rules_metadata(srcPath, dstPath);
+        generateRulesMetadata(srcPath, dstPath);
         const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const javaMetadata = JSON.parse(javaStrMetadata.toString());
         expect(javaMetadata).toMatchObject({
@@ -48,7 +48,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_rules_metadata(srcPath, dstPath);
+        generateRulesMetadata(srcPath, dstPath);
         const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const javaMetadata = JSON.parse(javaStrMetadata.toString());
         expect(javaMetadata).toMatchObject({
@@ -75,7 +75,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_rules_metadata(srcPath, dstPath);
+        generateRulesMetadata(srcPath, dstPath);
         const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const pythonStrMetadata = fs.readFileSync(`${dstPath}/S100/python-metadata.json`);
         const javaMetadata = JSON.parse(javaStrMetadata.toString());
@@ -104,7 +104,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_rules_metadata(srcPath, dstPath, ['S100']);
+        generateRulesMetadata(srcPath, dstPath, ['S100']);
 
         const s100Exists = fs.existsSync(`${dstPath}/S100/java-metadata.json`);
         expect(s100Exists).toBeTruthy();
@@ -126,7 +126,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_one_rule_metadata(path.join(srcPath, 'S100'), path.join(dstPath, 'S100'), 'master');
+        generateOneRuleMetadata(path.join(srcPath, 'S100'), path.join(dstPath, 'S100'), 'master');
 
         const s100StrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const s100Metadata = JSON.parse(s100StrMetadata.toString());
@@ -134,7 +134,7 @@ describe('metadata generation', () => {
         expect(s100Metadata.branch).toEqual('master');
         expect(Object.keys(s100Metadata)).not.toContain('prUrl');
 
-        generate_one_rule_metadata(path.join(srcPath, 'S200'), path.join(dstPath, 'S200'), 'add-my-rule', 'https://some.pr/url');
+        generateOneRuleMetadata(path.join(srcPath, 'S200'), path.join(dstPath, 'S200'), 'add-my-rule', 'https://some.pr/url');
 
 
         const s200StrMetadata = fs.readFileSync(`${dstPath}/S200/java-metadata.json`);
@@ -148,7 +148,7 @@ describe('metadata generation', () => {
 
   test('generate test metadata', () => {
     return withTestDir(async (dstPath) => {
-      generate_rules_metadata(path.join(__dirname, 'resources', 'rules'), dstPath);
+      generateRulesMetadata(path.join(__dirname, 'resources', 'rules'), dstPath);
       fs.readdirSync(dstPath).forEach(ruleDir => fs.readdirSync(`${dstPath}/${ruleDir}`).
         forEach(file => {
           const actual = JSON.parse(fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString());

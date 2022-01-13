@@ -5,8 +5,8 @@ import yargs from 'yargs/yargs';
 import path from 'path';
 
 import { clean_rules } from './clean';
-import { generate_one_rule_metadata, generate_rules_metadata } from './metadata';
-import { generate_one_rule_description, generate_rules_description, } from './description';
+import { generateOneRuleMetadata, generateRulesMetadata } from './metadata';
+import { generateOneRuleDescription, generateRulesDescription, } from './description';
 import { createIndexFiles } from './searchIndex';
 import { process_incomplete_rspecs, PullRequest } from './pullRequestIndexing';
 
@@ -24,10 +24,10 @@ yargs(process.argv.slice(2))
              yargs.array<string>('rules')
          },
          (argv: any) => {
-             generate_rules_metadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
+             generateRulesMetadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
              process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
                  const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
-                 generate_one_rule_metadata(srcDir, dstDir, pr.branch, pr.url);
+                 generateOneRuleMetadata(srcDir, dstDir, pr.branch, pr.url);
              })
          })
 
@@ -36,10 +36,10 @@ yargs(process.argv.slice(2))
              yargs.array<string>('rules')
          },
          (argv: any) => {
-             generate_rules_description(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
+             generateRulesDescription(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
              process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
                  const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
-                 generate_one_rule_description(srcDir, dstDir);
+                 generateOneRuleDescription(srcDir, dstDir);
              })
          })
 
@@ -50,12 +50,12 @@ yargs(process.argv.slice(2))
 .command('*', 'generate rules metadata, description and index',
 () => {},
 (argv: any) => {
-  generate_rules_metadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
-  generate_rules_description(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
+  generateRulesMetadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
+  generateRulesDescription(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
   process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
     const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
-    generate_one_rule_metadata(srcDir, dstDir, pr.branch, pr.url);
-    generate_one_rule_description(srcDir, dstDir);
+    generateOneRuleMetadata(srcDir, dstDir, pr.branch, pr.url);
+    generateOneRuleDescription(srcDir, dstDir);
   }).then(function() {
     createIndexFiles(RULE_DST_DIRECTORY);
   });

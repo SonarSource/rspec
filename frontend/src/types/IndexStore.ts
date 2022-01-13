@@ -1,4 +1,4 @@
-import {LanguageSupport} from './RuleMetadata'
+import {LanguageSupport} from './RuleMetadata';
 
 export type Severity = 'Blocker'|'Critical'|'Major'|'Minor'|'Info';
 
