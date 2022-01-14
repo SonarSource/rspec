@@ -82,6 +82,8 @@ function generate_rule_description(srcDir: string, language: string) {
         backend: 'xhtml5',
         to_file: false
     };
+
+    // Every rule documentation has an implicit level-1 "Description" header.
     const fileData = fs.readFileSync(ruleSrcFile);
     const data = '== Description\n\n' + fileData;
     return asciidoc.convert(data, opts);
