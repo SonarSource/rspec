@@ -67,16 +67,16 @@ function buildOneRuleRecord(allLanguages: string[],
     }
   });
   return {
-    types: types,
-    severities: severities,
-    allKeys: allKeys,
-    titles: titles,
-    supportedLanguages: supportedLanguages,
-    tags: tags,
-    qualityProfiles: qualityProfiles,
-    descriptions: descriptions,
-    prUrl: prUrl
-  }
+    types,
+    severities,
+    allKeys,
+    titles,
+    supportedLanguages,
+    tags,
+    qualityProfiles,
+    descriptions,
+    prUrl
+  };
 }
 
 function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
@@ -93,7 +93,8 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
     return null;
   }
   if (record.types.size !== 1) {
-    logger.error(`${record.types.size} type(s) found for rule ${ruleDir}, 1 is required: ${JSON.stringify(record.types)}`);
+    logger.error(
+      `${record.types.size} type(s) found for rule ${ruleDir}, 1 is required: ${JSON.stringify(record.types)}`);
     return null;
   }
   if (record.severities.size < 1) {
@@ -118,7 +119,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
 }
 
 function buildIndexAggregate(indexedRecords: [string, IndexedRuleWithDescription][]): IndexAggregates {
-  let aggregates: IndexAggregates = { langs: {}, tags: {}, qualityProfiles: {} };
+  const aggregates: IndexAggregates = { langs: {}, tags: {}, qualityProfiles: {} };
 
   indexedRecords.forEach(record => {
     record[1].qualityProfiles.forEach((qualityProfile) => {
@@ -154,7 +155,7 @@ function buildIndexAggregate(indexedRecords: [string, IndexedRuleWithDescription
  *                  descriptions in HTML format.
  */
 export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWithDescription>, IndexAggregates] {
-  let ruleDirs = fs.readdirSync(rulesPath).filter((fileName) => {
+  const ruleDirs = fs.readdirSync(rulesPath).filter((fileName) => {
     const fullpath = path.join(rulesPath, fileName);
     return fs.lstatSync(fullpath).isDirectory();
   });

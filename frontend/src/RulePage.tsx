@@ -203,8 +203,8 @@ export function RulePage(props: any) {
   const classes = useStyles();
   let branch = 'master'
 
-  let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + '/' + (language ?? 'default') + '-description.html';
-  let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + '/' + (language ?? 'default') + '-metadata.json';
+  const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
+  const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
 
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
@@ -212,7 +212,7 @@ export function RulePage(props: any) {
   const {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer} = useRuleCoverage();
   let coverage: any = 'Loading...';
 
-  let title = 'Loading...'
+  let title = 'Loading...';
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
@@ -222,8 +222,8 @@ export function RulePage(props: any) {
       prUrl = metadataJSON.prUrl;
     }
     branch = metadataJSON.branch;
-    metadataJSON.languages_support.sort();
-    languagesTabs = metadataJSON.languages_support.map(({ name, status }) => {
+    metadataJSON.languagesSupport.sort();
+    languagesTabs = metadataJSON.languagesSupport.map(({ name, status }) => {
       const ruleState = ruleStateInAnalyzer(name, metadataJSON!.allKeys, status);
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
       return <Tab key={name} label={name} value={name} className={classNames} />;

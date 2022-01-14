@@ -38,7 +38,7 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string,
       metadata.prUrl = prUrl;
     }
     metadata.branch = branch;
-    metadata.languages_support = allLanguages;
+    metadata.languagesSupport = allLanguages;
   });
 
   let default_metadata_wanted = true;
@@ -71,9 +71,9 @@ export function generateRulesMetadata(srcPath: string, dstPath: string, rules?: 
  * @param language language for which the metadata should be generated
  */
 function generateRuleMetadata(srcDir: string, language: string) {
-  let parentFile = path.join(srcDir, language, 'metadata.json');
+  const parentFile = path.join(srcDir, language, 'metadata.json');
   const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
-  let childFile = path.join(srcDir, 'metadata.json');
+  const childFile = path.join(srcDir, 'metadata.json');
   const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
   const mergedJson = {...childJson, ...parentJson};
   return mergedJson;

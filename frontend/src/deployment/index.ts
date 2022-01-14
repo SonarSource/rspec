@@ -24,7 +24,7 @@ yargs(process.argv.slice(2))
              yargs.array<string>('rules')
          },
          (argv: any) => {
-             generateRulesMetadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
+             generateRulesMetadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules);
              process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
                  const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
                  generateOneRuleMetadata(srcDir, dstDir, pr.branch, pr.url);
@@ -36,7 +36,7 @@ yargs(process.argv.slice(2))
              yargs.array<string>('rules')
          },
          (argv: any) => {
-             generateRulesDescription(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules)
+             generateRulesDescription(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules);
              process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
                  const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
                  generateOneRuleDescription(srcDir, dstDir);

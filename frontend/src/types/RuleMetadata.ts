@@ -7,7 +7,7 @@ export interface LanguageSupport {
 
 export default interface RuleMetadata {
   title: string,
-  languages_support: LanguageSupport[],
+  languagesSupport: LanguageSupport[],
   allKeys: string[],
   branch: string,
   prUrl?: string
