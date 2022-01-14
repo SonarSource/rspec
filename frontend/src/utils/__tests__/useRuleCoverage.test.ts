@@ -66,4 +66,14 @@ describe('search hook', () => {
     expect(result.current.ruleStateInAnalyzer('cfamily', ['S200'])).toBe('targeted');
     expect(result.current.ruleStateInAnalyzer('cfamily', ['S234'])).toBe('removed');
   });
+
+  test('reports for nonexisting language', async () => {
+    const original = console.error;
+    console.error = jest.fn();
+    const { result, waitForNextUpdate } = renderHook(() => useRuleCoverage());
+    await waitForNextUpdate();
+    expect(result.current.ruleStateInAnalyzer('english', ['S100'])).toBe('targeted');
+    expect(console.error).toHaveBeenCalledTimes(1);
+    console.error = original;
+  });
 });
