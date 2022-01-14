@@ -73,11 +73,18 @@ function generate_rule_description(srcDir: string, language: string) {
     }
     const baseDir = path.resolve(path.dirname(ruleSrcFile));
     const opts = {
-        attributes: {'rspecator-view': ''},
+        attributes: {
+          'rspecator-view': '',
+          docfile: ruleSrcFile,
+        },
         safe: 'unsafe',
         base_dir: baseDir,
         backend: 'xhtml5',
         to_file: false
     };
-    return asciidoc.convertFile(ruleSrcFile, opts);
+
+    // Every rule documentation has an implicit level-1 "Description" header.
+    const fileData = fs.readFileSync(ruleSrcFile);
+    const data = '== Description\n\n' + fileData;
+    return asciidoc.convert(data, opts);
 }

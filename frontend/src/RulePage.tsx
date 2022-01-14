@@ -316,7 +316,6 @@ export function RulePage(props: any) {
       </Box>
 
       <Box>
-        <Typography variant="h4">Description</Typography>
         <Typography component={'span'} className={classes.description}>
           {description}
         </Typography>
