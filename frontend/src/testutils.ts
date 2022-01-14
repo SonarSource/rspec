@@ -9,7 +9,7 @@
  *        an object containing either `json` or `text` field: {json: ...} or {text: ...}
  * @returns a function that can be passed to replace the implementaion of `fetch`.
  */
-export function fetchMock(mockUrls) {
+export function fetchMock(mockUrls: Record<string, {[K in "json" | "text"]?: any}>): (string, any) => Promise {
   return function(url, opts) {
     if (url in mockUrls) {
       const response = mockUrls[url];
