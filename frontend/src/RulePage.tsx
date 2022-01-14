@@ -149,7 +149,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
     const upperCaseLanguage = language.toUpperCase();
     const jiraProject = languageToJiraProject.get(upperCaseLanguage);
     const githubProject = languageToGithubProject.get(upperCaseLanguage);
-    const titleWihoutQuotes = title.replaceAll('"','');
+    const titleWihoutQuotes = title.replace(/"/g, "'");
 
     const implementationPRsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
@@ -216,14 +216,14 @@ export function RulePage(props: any) {
     languagesTabs = metadataJSON.all_languages.map(lang => { 
       const ruleState = ruleStateInAnalyzer(lang, metadataJSON!.allKeys);
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
-      return <Tab label={lang} value={lang} className={classNames} />;
+      return <Tab key={lang} label={lang} value={lang} className={classNames} />;
     });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     const coverageMapper = (key: any, range: any) => {
       if (typeof range === "string") {
         return (
-          <li >{key}: {range}</li>
+          <li key={key} >{key}: {range}</li>
         );
       } else {
         return (
