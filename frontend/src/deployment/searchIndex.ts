@@ -18,16 +18,9 @@ export interface IndexedRuleWithDescription extends IndexedRule {
   descriptions?: Array<string>;
 }
 
-interface IndexStats {
-  tags: { [id: string]: number },
-  langs: { [id: string]: number },
-  qualityProfiles: { [id: string]: number }
-}
-
-function buildOneRuleIndexStats(allLanguages: LanguageSupport[],
+function buildOneRuleRecord(allLanguages: string[],
   rulesPath: string,
-  ruleDir: string,
-  all: IndexStats) {
+  ruleDir: string) {
 
   let types = new Set<string>();
   let severities = new Set<Severity>();
@@ -36,11 +29,12 @@ function buildOneRuleIndexStats(allLanguages: LanguageSupport[],
   const tags = new Set<string>();
   const qualityProfiles = new Set<string>();
   const descriptions = new Set<string>();
+  const supportedLanguages : Array<LanguageSupport> = [];
   let prUrl = undefined;
 
   allLanguages.forEach((lang) => {
     // extract every word of every description of this rule
-    const descriptionPath = path.join(rulesPath, ruleDir, `${lang.name}-description.html`);
+    const descriptionPath = path.join(rulesPath, ruleDir, `${lang}-description.html`);
     const descriptionStr = fs.readFileSync(descriptionPath).toString();
     // Remove HTML tags from the description, extract unique words and normalize them.
     // This reduces a bit the footprint of descriptions in the index.
@@ -48,7 +42,7 @@ function buildOneRuleIndexStats(allLanguages: LanguageSupport[],
     descriptionWords.forEach((word) => descriptions.add(word));
 
     // merge metadata fields of every version of this rule in a single indexed record
-    const metadataPath = path.join(rulesPath, ruleDir, `${lang.name}-metadata.json`);
+    const metadataPath = path.join(rulesPath, ruleDir, `${lang}-metadata.json`);
     const metadataStr = fs.readFileSync(metadataPath).toString();
     const metadata = JSON.parse(metadataStr);
 
@@ -60,7 +54,7 @@ function buildOneRuleIndexStats(allLanguages: LanguageSupport[],
     titles.add(metadata.title);
     types.add(metadata.type);
     severities.add(metadata.defaultSeverity as Severity);
-    lang.status = metadata.status ?? 'default';
+    supportedLanguages.push({name: lang, status: metadata.status ?? 'default'});
     if (metadata.tags) {
       for (const tag of metadata.tags) {
         tags.add(tag);
@@ -71,24 +65,13 @@ function buildOneRuleIndexStats(allLanguages: LanguageSupport[],
         qualityProfiles.add(qualityProfile);
       }
     }
-    if (lang.name in all.langs) {
-      all.langs[lang.name] += 1;
-    } else {
-      all.langs[lang.name] = 1;
-    }
-    tags.forEach((tag) => {
-      if (tag in all.tags) {
-        all.tags[tag] += 1;
-      } else {
-        all.tags[tag] = 1;
-      }
-    });
   });
   return {
     types: types,
     severities: severities,
-    all_keys: allKeys,
+    allKeys: allKeys,
     titles: titles,
+    supportedLanguages: supportedLanguages,
     tags: tags,
     qualityProfiles: qualityProfiles,
     descriptions: descriptions,
@@ -96,50 +79,71 @@ function buildOneRuleIndexStats(allLanguages: LanguageSupport[],
   }
 }
 
-function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string, all: IndexStats)
+function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
   : [string, IndexedRuleWithDescription] | null {
 
   const allLanguages = fs.readdirSync(path.join(rulesPath, ruleDir))
     .filter((fileName) => fileName.endsWith('-metadata.json'))
-    .map((fileName) => ({ name: fileName.split('-')[0], status: 'default' } as LanguageSupport));
+    .map((fileName) => (fileName.split('-')[0]));
 
-  const indexStats = buildOneRuleIndexStats(allLanguages, rulesPath, ruleDir, all);
-
-  indexStats.qualityProfiles.forEach((qualityProfile) => {
-    if (qualityProfile in all.qualityProfiles) {
-      all.qualityProfiles[qualityProfile] += 1;
-    } else {
-      all.qualityProfiles[qualityProfile] = 1;
-    }
-  });
+  const record = buildOneRuleRecord(allLanguages, rulesPath, ruleDir);
 
   if (allLanguages.length < 1) {
     logger.error(`No languages found for rule ${ruleDir}, at least 1 is required`);
     return null;
   }
-  if (indexStats.types.size !== 1) {
-    logger.error(`${indexStats.types.size} type(s) found for rule ${ruleDir}, 1 is required: ${JSON.stringify(indexStats.types)}`);
+  if (record.types.size !== 1) {
+    logger.error(`${record.types.size} type(s) found for rule ${ruleDir}, 1 is required: ${JSON.stringify(record.types)}`);
     return null;
   }
-  if (indexStats.severities.size < 1) {
+  if (record.severities.size < 1) {
     logger.error(`No severity found for rule ${ruleDir}, at least 1 is required`);
     return null;
   }
 
   const indexedRecord: IndexedRuleWithDescription = {
     id: ruleDir,
-    languages: allLanguages.sort(),
-    type: indexStats.types.values().next().value,
-    severities: Array.from(indexStats.severities).sort(),
-    all_keys: Array.from(indexStats.all_keys).sort(),
-    titles: Array.from(indexStats.titles).sort(),
-    tags: Array.from(indexStats.tags).sort(),
-    qualityProfiles: Array.from(indexStats.qualityProfiles).sort(),
-    descriptions: Array.from(indexStats.descriptions).sort(),
-    prUrl: indexStats.prUrl
+    languages: Array.from(record.supportedLanguages).sort(),
+    type: record.types.values().next().value,
+    severities: Array.from(record.severities).sort(),
+    all_keys: Array.from(record.allKeys).sort(),
+    titles: Array.from(record.titles).sort(),
+    tags: Array.from(record.tags).sort(),
+    qualityProfiles: Array.from(record.qualityProfiles).sort(),
+    descriptions: Array.from(record.descriptions).sort(),
+    prUrl: record.prUrl
   }
 
   return [ruleDir, indexedRecord];
+}
+
+function buildIndexAggregate(indexedRecords: [string, IndexedRuleWithDescription][]): IndexAggregates {
+  let aggregates: IndexAggregates = { langs: {}, tags: {}, qualityProfiles: {} };
+
+  indexedRecords.forEach(i => {
+    i[1].qualityProfiles.forEach((qualityProfile) => {
+      if (qualityProfile in aggregates.qualityProfiles) {
+        aggregates.qualityProfiles[qualityProfile] += 1;
+      } else {
+        aggregates.qualityProfiles[qualityProfile] = 1;
+      }
+    });
+    i[1].languages.forEach(lang => {
+      if (lang.name in aggregates.langs) {
+        aggregates.langs[lang.name] += 1;
+      } else {
+        aggregates.langs[lang.name] = 1;
+      }
+    });
+    i[1].tags.forEach((tag) => {
+      if (tag in aggregates.tags) {
+        aggregates.tags[tag] += 1;
+      } else {
+        aggregates.tags[tag] = 1;
+      }
+    });
+  });
+  return aggregates;
 }
 
 /**
@@ -154,12 +158,10 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
     const fullpath = path.join(rulesPath, fileName);
     return fs.lstatSync(fullpath).isDirectory();
   });
-  let all: IndexStats = { langs: {}, tags: {}, qualityProfiles: {} };
-  const indexedRecords = ruleDirs.map((ruleDir) => buildOneRuleIndexedRecord(rulesPath, ruleDir, all));
+  const indexedRecords = ruleDirs.map((ruleDir) => buildOneRuleIndexedRecord(rulesPath, ruleDir));
   const filteredRecords = indexedRecords.filter((value) => value !== null) as [string, IndexedRuleWithDescription][];
-
-  return [Object.fromEntries(filteredRecords),
-          {langs: all.langs, tags: all.tags, qualityProfiles: all.qualityProfiles}];
+  const indexAggregates: IndexAggregates = buildIndexAggregate(filteredRecords);
+  return [Object.fromEntries(filteredRecords), indexAggregates];
 }
 
 /**
@@ -182,7 +184,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
 
   lunr.Pipeline.registerFunction(selectivePipeline, 'selectivePipeline');
 
-  var ruleIndex = lunr(function () {
+  return lunr(function () {
       // Set our own token processing pipeline
       this.pipeline.reset();
       this.pipeline.add(selectivePipeline);
@@ -203,8 +205,6 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
           this.add(transformedRecord);
       }
   })
-
-  return ruleIndex;
 }
 
 /**

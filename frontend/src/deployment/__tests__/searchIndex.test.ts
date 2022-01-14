@@ -42,13 +42,13 @@ describe('index store generation', () => {
   test('collects all tags', () => {
     const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [_, aggregates] = buildIndexStore(rulesPath);
-    expect(aggregates.tags).toEqual({"based-on-misra": 2,
-                                     "cert": 7,
-                                     "clumsy": 7,
-                                     "confusing": 5,
-                                     "lock-in": 2,
-                                     "misra-c++2008": 2,
-                                     "pitfall": 2
+    expect(aggregates.tags).toEqual({"based-on-misra": 1,
+                                     "cert": 2,
+                                     "clumsy": 2,
+                                     "confusing": 1,
+                                     "lock-in": 1,
+                                     "misra-c++2008": 1,
+                                     "pitfall": 1
                                     });
   });
 
