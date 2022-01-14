@@ -72,7 +72,7 @@ export const SearchPage = () => {
 
     // making the exact match to appear first in the search results
     results.forEach(indexedRule => {
-      const box = <Box className={classes.searchHitBox}>
+      const box = <Box key={indexedRule.id} className={classes.searchHitBox}>
         <SearchHit key={indexedRule.id} data={indexedRule}/>
       </Box>;
       if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
@@ -223,7 +223,7 @@ export const SearchPage = () => {
     <Container maxWidth="md">
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <Box className={classes.topRow}>
+          <Box key="total-num" className={classes.topRow}>
             <Box className={classes.resultsCount}>
               <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
             </Box>

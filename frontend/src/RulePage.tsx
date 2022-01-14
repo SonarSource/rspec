@@ -284,7 +284,6 @@ export function RulePage(props: any) {
             onChange={handleLanguageChange}
             indicatorColor="primary"
             textColor="primary"
-            centered
             variant="scrollable"
             scrollButtons="auto"
             classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
@@ -318,7 +317,7 @@ export function RulePage(props: any) {
 
       <Box>
         <Typography variant="h4">Description</Typography>
-        <Typography className={classes.description}>
+        <Typography component={'span'} className={classes.description}>
           {description}
         </Typography>
       </Box>
