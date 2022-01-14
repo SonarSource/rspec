@@ -83,8 +83,6 @@ function generate_rule_description(srcDir: string, language: string) {
         to_file: false
     };
     const fileData = fs.readFileSync(ruleSrcFile);
-    const data = `== Description
-
-` + fileData;
+    const data = '== Description\n\n' + fileData;
     return asciidoc.convert(data, opts);
 }
