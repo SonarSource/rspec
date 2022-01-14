@@ -223,10 +223,10 @@ export function RulePage(props: any) {
     }
     branch = metadataJSON.branch;
     metadataJSON.languages_support.sort();
-    languagesTabs = metadataJSON.languages_support.map(lang => {
-      const ruleState = ruleStateInAnalyzer(lang.name, metadataJSON!.allKeys, lang.status);
+    languagesTabs = metadataJSON.languages_support.map(({ name, status }) => {
+      const ruleState = ruleStateInAnalyzer(name, metadataJSON!.allKeys, status);
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
-      return <Tab key={lang} label={lang.name} value={lang} className={classNames} />;
+      return <Tab key={name} label={name} value={name} className={classNames} />;
     });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
