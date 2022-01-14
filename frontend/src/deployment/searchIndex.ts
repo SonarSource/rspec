@@ -120,22 +120,22 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
 function buildIndexAggregate(indexedRecords: [string, IndexedRuleWithDescription][]): IndexAggregates {
   let aggregates: IndexAggregates = { langs: {}, tags: {}, qualityProfiles: {} };
 
-  indexedRecords.forEach(i => {
-    i[1].qualityProfiles.forEach((qualityProfile) => {
+  indexedRecords.forEach(record => {
+    record[1].qualityProfiles.forEach((qualityProfile) => {
       if (qualityProfile in aggregates.qualityProfiles) {
         aggregates.qualityProfiles[qualityProfile] += 1;
       } else {
         aggregates.qualityProfiles[qualityProfile] = 1;
       }
     });
-    i[1].languages.forEach(lang => {
+    record[1].languages.forEach(lang => {
       if (lang.name in aggregates.langs) {
         aggregates.langs[lang.name] += 1;
       } else {
         aggregates.langs[lang.name] = 1;
       }
     });
-    i[1].tags.forEach((tag) => {
+    record[1].tags.forEach((tag) => {
       if (tag in aggregates.tags) {
         aggregates.tags[tag] += 1;
       } else {
