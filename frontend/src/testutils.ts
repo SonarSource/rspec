@@ -1,6 +1,6 @@
 
-type Fetched = "json" | "text"
-type FetchResult = {[K in Fetched]?: any}
+type Fetched = 'json' | 'text';
+type FetchResult = {[K in Fetched]?: any};
 
 /**
  * Creates a mock `fetch` function. The returned function responds to each url
@@ -17,12 +17,12 @@ export function fetchMock(mockUrls: Record<string, FetchResult>):(url: string, o
     if (url in mockUrls) {
       const response = mockUrls[url];
       if ('json' in response) {
-        return Promise.resolve({json: () => Promise.resolve(response.json)})
+        return Promise.resolve({json: () => Promise.resolve(response.json)});
       } else {
-        return Promise.resolve({text: () => Promise.resolve(response.text)})
+        return Promise.resolve({text: () => Promise.resolve(response.text)});
       }
     } else {
-      return Promise.reject(`unexpected url ${url}`)
+      return Promise.reject(`unexpected url ${url}`);
     }
-  }
+  };
 }
