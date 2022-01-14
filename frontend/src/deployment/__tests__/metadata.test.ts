@@ -149,14 +149,18 @@ describe('metadata generation', () => {
   test('generate test metadata', () => {
     return withTestDir(async (dstPath) => {
       generateRulesMetadata(path.join(__dirname, 'resources', 'rules'), dstPath);
-      fs.readdirSync(dstPath).forEach(ruleDir => fs.readdirSync(`${dstPath}/${ruleDir}`).
-        forEach(file => {
+      const rules = fs.readdirSync(dstPath);
+      expect(rules.length).toEqual(3);
+      rules.forEach(ruleDir => {
+        const languages = fs.readdirSync(`${dstPath}/${ruleDir}`);
+        expect(languages.length).toBeGreaterThanOrEqual(1);
+        languages.forEach(file => {
           const actual = JSON.parse(fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString());
           const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
           const expected = JSON.parse(fs.readFileSync(expectedPath).toString());
           expect(actual).toStrictEqual(expected);
         })
-      );
+      });
     });
   });
 });

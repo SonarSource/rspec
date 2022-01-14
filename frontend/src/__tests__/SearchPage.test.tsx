@@ -17,7 +17,7 @@ function normalize(obj) {
 }
 
 beforeEach(() => {
-    const rulePath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'plugin_rules');
+    const rulePath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
     const [indexStore, indexAggregates] = buildIndexStore(rulePath);
     const searchIndex = buildSearchIndex(indexStore);
     const rootUrl = process.env.PUBLIC_URL;
