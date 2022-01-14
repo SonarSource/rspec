@@ -73,11 +73,18 @@ function generate_rule_description(srcDir: string, language: string) {
     }
     const baseDir = path.resolve(path.dirname(ruleSrcFile));
     const opts = {
-        attributes: {'rspecator-view': ''},
+        attributes: {
+          'rspecator-view': '',
+          docfile: ruleSrcFile,
+        },
         safe: 'unsafe',
         base_dir: baseDir,
         backend: 'xhtml5',
         to_file: false
     };
-    return asciidoc.convertFile(ruleSrcFile, opts);
+    const fileData = fs.readFileSync(ruleSrcFile);
+    const data = `== Description
+
+    ` + fileData;
+    return asciidoc.convert(data, opts);
 }
