@@ -149,7 +149,9 @@ describe('search index enables search by tags and quality profiles', () => {
   test('searches in rule tags', () => {
     const searchIndex = createIndex();
     const searchesS3457 = search(searchIndex, 'cert', 'tags');
-    expect(searchesS3457).toEqual(['S3457', 'S1000']);
+    expect(searchesS3457).toHaveLength(2);
+    expect(searchesS3457).toContain('S1000');
+    expect(searchesS3457).toContain('S3457');
 
     const searchesS987 = search(searchIndex, 'based-on-misra', 'tags');
     expect(searchesS987).toEqual(['S987']);

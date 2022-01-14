@@ -11,7 +11,7 @@ import { getRulesDirectories, listSupportedLanguages } from './utils';
  * @param prUrl optional link to the PR adding the rule. absent for merged rules.
  */
 export function generateOneRuleMetadata(srcDir: string, dstDir: string,
-                                           branch: string, prUrl?: string) {
+                                        branch: string, prUrl?: string) {
   fs.mkdirSync(dstDir, { recursive: true });
   const allLanguages = listSupportedLanguages(srcDir);
   const allMetadata = allLanguages.map((language) => {

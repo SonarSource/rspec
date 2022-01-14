@@ -172,7 +172,7 @@ export function SearchHit(props: SearchHitProps) {
       {deprecatedLanguages}
     </Typography>;
   const closedBlock = closedLanguages.length === 0 ? <></>
-    : <Typography key="closed-marker" variant="body2" component="div" classes={{ root: classes.language }}>
+    : <Typography key="deprecated-marker" variant="body2" component="div" classes={{ root: classes.language }}>
       <Chip classes={{ root: classes.closedMarker }} label="Closed" color="secondary" variant="outlined" />
       {closedLanguages}
     </Typography>;
