@@ -1,4 +1,7 @@
 
+type Fetched = "json" | "text"
+type FetchResult = {[K in Fetched]?: any}
+
 /**
  * Creates a mock `fetch` function. The returned function responds to each url
  * with a promise resolving an object with the provided `json` or `text` field.
@@ -9,7 +12,7 @@
  *        an object containing either `json` or `text` field: {json: ...} or {text: ...}
  * @returns a function that can be passed to replace the implementaion of `fetch`.
  */
-export function fetchMock(mockUrls: Record<string, {[K in "json" | "text"]?: any}>): (string, any) => Promise {
+export function fetchMock(mockUrls: Record<string, FetchResult>):(url: string, opts: any) => Promise<FetchResult> {
   return function(url, opts) {
     if (url in mockUrls) {
       const response = mockUrls[url];
