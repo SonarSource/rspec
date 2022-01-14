@@ -5,43 +5,33 @@ import { render } from '@testing-library/react';
 import { RulePage } from '../RulePage';
 import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
+import { fetchMock } from '../testutils'
+
+const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'plugin_rules');
+
+function readRuleFile(ruleId, filename) {
+    return fs.readFileSync(path.join(rulesPath, ruleId, filename)).toString();
+}
 
 beforeEach(() => {
-    const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'plugin_rules');
-    const specS1000 = fs.readFileSync(path.join(rulesPath, 'S1000', 'cfamily-description.html')).toString();
-    const metadataS1000 = fs.readFileSync(path.join(rulesPath, 'S1000', 'cfamily-metadata.json')).toString();
-    const specS3457 = fs.readFileSync(path.join(rulesPath, 'S3457', 'csharp-description.html')).toString();
-    const metadataS3457 = fs.readFileSync(path.join(rulesPath, 'S3457', 'csharp-metadata.json')).toString();
-    function fetchMock(url, opts) {
-        const coveredRulesUrl = `${process.env.PUBLIC_URL}/covered_rules.json`;
-        const specUrlS1000 = `${process.env.PUBLIC_URL}/rules/S1000/cfamily-description.html`;
-        const metadataUrlS1000 = `${process.env.PUBLIC_URL}/rules/S1000/cfamily-metadata.json`;
-        const specUrlS3457 = `${process.env.PUBLIC_URL}/rules/S3457/csharp-description.html`;
-        const metadataUrlS3457 = `${process.env.PUBLIC_URL}/rules/S3457/csharp-metadata.json`;
-        const specUrlS3457Generic = `${process.env.PUBLIC_URL}/rules/S3457/default-description.html`;
-        const metadataUrlS3457Generic = `${process.env.PUBLIC_URL}/rules/S3457/default-metadata.json`;
-        if (url === specUrlS1000) {
-            return Promise.resolve({text: () => Promise.resolve(specS1000)});
-        } else if (url === metadataUrlS1000) {
-            return Promise.resolve({json: () => Promise.resolve(JSON.parse(metadataS1000))});
-        } if (url === specUrlS3457) {
-            return Promise.resolve({text: () => Promise.resolve(specS3457)});
-        } else if (url === metadataUrlS3457) {
-            return Promise.resolve({json: () => Promise.resolve(JSON.parse(metadataS3457))});
-        } if (url === specUrlS3457Generic) {
-            return Promise.resolve({text: () => Promise.resolve(specS3457)});
-        } else if (url === metadataUrlS3457Generic) {
-            return Promise.resolve({json: () => Promise.resolve(JSON.parse(metadataS3457))});
-        } else if (url === coveredRulesUrl) {
-            return Promise.resolve({json: () => Promise.resolve({'ABAP': {'S100': 'ver1', 'S200': 'ver2'},
-                                                                 'CSH' : {'S3457': 'c#1'},
-                                                                 'C': {'S100': 'c1', 'S234': {'since': 'c2',
-                                                                                              'until': 'c3'}}})});
-        } else {
-            return Promise.reject('unexpected url ' + url);
-        }
-    }
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMock);
+    const specS1000 = readRuleFile('S1000', 'cfamily-description.html');
+    const metadataS1000 = readRuleFile('S1000', 'cfamily-metadata.json');
+    const specS3457 = readRuleFile('S3457', 'csharp-description.html');
+    const metadataS3457 = readRuleFile('S3457', 'csharp-metadata.json');
+    const rootUrl = process.env.PUBLIC_URL;
+    let mockUrls = {};
+    mockUrls[`${rootUrl}/rules/S1000/cfamily-description.html`] = {text: specS1000};
+    mockUrls[`${rootUrl}/rules/S1000/cfamily-metadata.json`] = {json: JSON.parse(metadataS1000)};
+    mockUrls[`${rootUrl}/rules/S3457/csharp-description.html`] = {text: specS3457};
+    mockUrls[`${rootUrl}/rules/S3457/csharp-metadata.json`] = {json: JSON.parse(metadataS3457)};
+    mockUrls[`${rootUrl}/rules/S3457/default-description.html`] = {text: specS3457};
+    mockUrls[`${rootUrl}/rules/S3457/default-metadata.json`] = {json: JSON.parse(metadataS3457)};
+    mockUrls[`${rootUrl}/covered_rules.json`] = {json:
+        {'ABAP': {'S100': 'ver1', 'S200': 'ver2'},
+        'CSH' : {'S3457': 'c#1'},
+        'C': {'S100': 'c1', 'S234': {'since': 'c2', 'until': 'c3'}}}
+    };
+    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
 });
 
 afterEach(() => {
