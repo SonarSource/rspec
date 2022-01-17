@@ -21,7 +21,7 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string,
   });
 
   // Update language status for all
-  let languageSupports =
+  const languageSupports =
    allMetadata.map(m => ({name: m.language, status: m.metadata.status ?? 'ready'} as LanguageSupport));
 
   // Merge all sqKeys in an array so that we can use it later to check rule coverage.
