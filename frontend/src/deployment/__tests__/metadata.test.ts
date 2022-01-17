@@ -151,6 +151,7 @@ describe('metadata generation', () => {
       generateRulesMetadata(path.join(__dirname, 'resources', 'rules'), dstPath);
       const rules = fs.readdirSync(dstPath);
       expect(rules.length).toEqual(3);
+      let treated = 0;
       rules.forEach(ruleDir => {
         const languages = fs.readdirSync(`${dstPath}/${ruleDir}`);
         expect(languages.length).toBeGreaterThanOrEqual(1);
@@ -159,8 +160,10 @@ describe('metadata generation', () => {
           const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
           const expected = JSON.parse(fs.readFileSync(expectedPath).toString());
           expect(actual).toStrictEqual(expected);
+          treated++;
         })
       });
+      expect(treated).toBe(9);
     });
   });
 });
