@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { LanguageSupport } from '../types/RuleMetadata';
 
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 
@@ -15,14 +16,13 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string,
   fs.mkdirSync(dstDir, { recursive: true });
   const allLanguages = listSupportedLanguages(srcDir);
   const allMetadata = allLanguages.map((language) => {
-    const metadata = generateRuleMetadata(srcDir, language.name);
+    const metadata = generateRuleMetadata(srcDir, language);
     return {language, metadata};
   });
 
   // Update language status for all
-  allMetadata.forEach(m => {
-    allLanguages.find(l => l === m.language)!.status = m.metadata.status ?? 'default';
-  });
+  let languageSupports =
+   allMetadata.map(m => ({name: m.language, status: m.metadata.status ?? 'default'} as LanguageSupport));
 
   // Merge all sqKeys in an array so that we can use it later to check rule coverage.
   const allKeys = allMetadata
@@ -38,12 +38,12 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string,
       metadata.prUrl = prUrl;
     }
     metadata.branch = branch;
-    metadata.languagesSupport = allLanguages;
+    metadata.languagesSupport = languageSupports;
   });
 
   let default_metadata_wanted = true;
   for (const { language, metadata } of allMetadata) {
-    const dstJsonFile = path.join(dstDir, language.name + '-metadata.json');
+    const dstJsonFile = path.join(dstDir, language + '-metadata.json');
     fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' })
     if (default_metadata_wanted) {
       const dstFile = path.join(dstDir, 'default-metadata.json');
