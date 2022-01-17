@@ -32,7 +32,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'html': ['HTML'],
   'cloudformation': ['CLOUDFORMATION'],
   'terraform': ['TERRAFORM'],
-  'common': ['COMMON']
+  'text': ['TEXT']
 }));
 
 export function useRuleCoverage() {
