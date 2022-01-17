@@ -53,7 +53,7 @@ describe('metadata generation', () => {
         const javaMetadata = JSON.parse(javaStrMetadata.toString());
         expect(javaMetadata).toMatchObject({
           languagesSupport: [
-            {name: 'java', status: 'default'}
+            {name: 'java', status: 'ready'}
           ]
         });
       });

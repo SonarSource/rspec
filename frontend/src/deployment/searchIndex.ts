@@ -29,7 +29,7 @@ function buildOneRuleRecord(allLanguages: string[],
   const tags = new Set<string>();
   const qualityProfiles = new Set<string>();
   const descriptions = new Set<string>();
-  const supportedLanguages : Array<LanguageSupport> = [];
+  const supportedLanguages : LanguageSupport[] = [];
   let prUrl = undefined;
 
   allLanguages.forEach((lang) => {
@@ -54,7 +54,7 @@ function buildOneRuleRecord(allLanguages: string[],
     titles.add(metadata.title);
     types.add(metadata.type);
     severities.add(metadata.defaultSeverity as Severity);
-    supportedLanguages.push({name: lang, status: metadata.status ?? 'default'});
+    supportedLanguages.push({name: lang, status: metadata.status ?? 'ready'});
     if (metadata.tags) {
       for (const tag of metadata.tags) {
         tags.add(tag);
