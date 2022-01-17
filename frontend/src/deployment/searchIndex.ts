@@ -52,7 +52,7 @@ function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: 
     titles.add(metadata.title);
     types.add(metadata.type);
     severities.add(metadata.defaultSeverity as Severity);
-    supportedLanguages.push({name: lang, status: metadata.status ?? 'ready'});
+    supportedLanguages.push({name: lang, status: metadata.status});
     if (metadata.tags) {
       for (const tag of metadata.tags) {
         tags.add(tag);

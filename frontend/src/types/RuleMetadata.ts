@@ -1,4 +1,4 @@
-export type Status = 'ready' | 'closed' | 'deprecated' | 'superseded';
+export type Status = 'ready' | 'beta' | 'closed' | 'deprecated' | 'superseded';
 
 export interface LanguageSupport {
   name: string,

@@ -39,27 +39,6 @@ describe('metadata generation', () => {
     });
   });
 
-  test('check default status', () => {
-    return withTestDir((srcPath) => {
-      createFiles(srcPath, {
-        'S100/metadata.json': JSON.stringify({
-        }),
-        'S100/java/metadata.json': JSON.stringify({
-        }),
-      });
-      return withTestDir(async (dstPath) => {
-        generateRulesMetadata(srcPath, dstPath);
-        const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
-        const javaMetadata = JSON.parse(javaStrMetadata.toString());
-        expect(javaMetadata).toMatchObject({
-          languagesSupport: [
-            {name: 'java', status: 'ready'}
-          ]
-        });
-      });
-    });
-  });
-
   test('check status computation', () => {
     return withTestDir((srcPath) => {
       createFiles(srcPath, {
