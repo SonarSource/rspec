@@ -58,6 +58,9 @@ async function renderDefaultSearchPageWithHistory() {
 
 async function renderDefaultSearchPage() {
     const {renderResult, _} = await renderDefaultSearchPageWithHistory();
+
+    expect(renderResult.queryByTestId('search-hit-S1000')).not.toBeNull();
+    expect(renderResult.queryByText(/rules found: 4/i)).not.toBeNull();
     return renderResult;
 }
 
@@ -70,17 +73,15 @@ test('renders the list of all rules', async () => {
 test('narrows search by title', async () => {
     const { queryByText, queryByTestId, getByRole } = await renderDefaultSearchPage();
 
-    expect(queryByTestId('search-hit-S1000')).not.toBeNull();
-    expect(queryByText(/rules found: 3/i)).not.toBeNull();
-
     // Enter a search query
     const searchBox = getByRole('textbox');
     fireEvent.change(searchBox, { target: { value: 'should not be used' } });
 
     expect(queryByTestId('search-hit-S987')).not.toBeNull();
     expect(queryByTestId('search-hit-S1000')).toBeNull();
+    expect(queryByTestId('search-hit-S1007')).not.toBeNull();
     expect(queryByTestId('search-hit-S3457')).not.toBeNull();
-    expect(queryByText(/rules found: 2/i)).not.toBeNull();
+    expect(queryByText(/rules found: 3/i)).not.toBeNull();
 });
 
 test('on enter navigates to the ruleid', async () => {
@@ -133,9 +134,6 @@ test('on enter navigates to the singular result', async () => {
 test('shows the exact match first', async () => {
     const { queryByText, queryByTestId, getAllByTestId, getByRole } = await renderDefaultSearchPage();
 
-    expect(queryByTestId('search-hit-S1000')).not.toBeNull();
-    expect(queryByText(/rules found: 3/i)).not.toBeNull();
-
     // Search for S1000
     const searchBox = getByRole('textbox');
     fireEvent.change(searchBox, { target: { value: 'S1000' } });
@@ -163,9 +161,6 @@ test('shows the exact match first', async () => {
 test('narrows search by rule type', async () => {
     const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    expect(queryByTestId('search-hit-S987')).not.toBeNull();
-    expect(queryByText(/rules found: 3/i)).not.toBeNull();
-
     // Select the rule type
     fireEvent.mouseDown(within(getByTestId('rule-type')).getByRole('button'));
     const listbox = within(getByRole('listbox'));
@@ -173,15 +168,13 @@ test('narrows search by rule type', async () => {
 
     expect(queryByTestId('search-hit-S987')).toBeNull();
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
+    expect(queryByTestId('search-hit-S1007')).not.toBeNull();
     expect(queryByTestId('search-hit-S3457')).not.toBeNull();
-    expect(queryByText(/rules found: 2/i)).not.toBeNull();
+    expect(queryByText(/rules found: 3/i)).not.toBeNull();
 });
 
 test('narrows search by rule tags', async () => {
     const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
-
-    expect(queryByTestId('search-hit-S1000')).not.toBeNull();
-    expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
     // Select the 'clumsy' tag
     fireEvent.mouseDown(within(getByTestId('rule-tags')).getByRole('button'));
@@ -203,14 +196,11 @@ test('narrows search by rule tags', async () => {
 test('narrows search by language', async () => {
     const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    expect(queryByTestId('search-hit-S1000')).not.toBeNull();
-    expect(queryByText(/rules found: 3/i)).not.toBeNull();
-
     // Select the cfamily language, should keep all the rules: they all are specified for cfamily
     fireEvent.mouseDown(within(getByTestId('rule-language')).getByRole('button'));
     const listbox = within(getByRole('listbox'));
     fireEvent.click(listbox.getByTestId('rule-language-cfamily'));
-    expect(queryByText(/rules found: 3/i)).not.toBeNull();
+    expect(queryByText(/rules found: 4/i)).not.toBeNull();
     expect(queryByTestId('search-hit-S987')).not.toBeNull();
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByTestId('search-hit-S3457')).not.toBeNull();
@@ -225,9 +215,6 @@ test('narrows search by language', async () => {
 
 test('narrows search by quality profile', async () => {
     const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
-
-    expect(queryByTestId('search-hit-S1000')).not.toBeNull();
-    expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
     // Select MISRA 2008 recommended and Sonar way profiles - only S1000 and S3457 are in these profiles
     fireEvent.mouseDown(within(getByTestId('rule-default-quality-profile')).getByRole('button'));

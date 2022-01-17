@@ -131,6 +131,7 @@ describe('index store generation', () => {
                                      "clumsy": 2,
                                      "confusing": 1,
                                      "lock-in": 1,
+                                     "misra": 1,
                                      "misra-c++2008": 1,
                                      "pitfall": 1
                                     });
@@ -139,9 +140,9 @@ describe('index store generation', () => {
   test('collects all languages', () => {
     const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [_, aggregates] = buildIndexStore(rulesPath);
-    expect(aggregates.langs).toEqual({"cfamily": 3,
+    expect(aggregates.langs).toEqual({"cfamily": 4,
                                       "csharp": 1,
-                                      "default": 3,
+                                      "default": 4,
                                       "java": 1,
                                       "python": 1});
   });
@@ -206,7 +207,7 @@ describe('search index enables search by title and description words', () => {
     expect(searchesUnknown).toHaveLength(0);
 
     const searchesBothRules = findRuleByQuery(searchIndex, 'should be used');
-    expect(searchesBothRules).toEqual(['S3457', 'S987'].sort());
+    expect(searchesBothRules).toEqual(['S1007', 'S3457', 'S987'].sort());
   });
 });
 
@@ -241,7 +242,7 @@ describe('search index enables search by tags, quality profiles and languages', 
     expect(csharpRules).toEqual(['S3457']);
 
     const cfamilyRules = findRulesByLanguage(searchIndex, 'cfamily');
-    expect(cfamilyRules.sort()).toEqual(['S987', 'S1000', 'S3457'].sort());
+    expect(cfamilyRules.sort()).toEqual(['S987', 'S1000', 'S1007', 'S3457'].sort());
   });
 });
 

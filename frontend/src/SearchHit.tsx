@@ -28,6 +28,9 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: 'row',
     justifyContent: 'space-between'
   },
+  avoid: {
+    textDecoration: 'line-through'
+  },
   language: {
     marginRight: theme.spacing(1),
     marginTop: theme.spacing(2),
@@ -136,13 +139,17 @@ export function SearchHit(props: SearchHitProps) {
   const closedLanguages: JSX.Element[] = [];
 
   const actualLanguages = props.data.supportedLanguages.filter(l => l.name !== 'default');
-  actualLanguages.forEach(lang => {
-    const ruleState = ruleStateInAnalyzer(lang.name, props.data.all_keys, lang.status);
-    const chip = <Link key={lang.name} component={RouterLink} to={`/${props.data.id}/${lang.name}`}
+  const ruleStates = actualLanguages.map(l => ({
+    lang: l.name,
+    ruleState: ruleStateInAnalyzer(l.name, props.data.all_keys, l.status)
+  }));
+
+  ruleStates.forEach(({lang, ruleState}) => {
+    const chip = <Link key={lang} component={RouterLink} to={`/${props.data.id}/${lang}`}
                        style={{ textDecoration: 'none' }}>
       <Chip
         classes={{root: (classes as any)[ruleState + 'LanguageChip']}}
-        label={lang.name}
+        label={lang}
         color="primary"
         variant={ruleState === 'targeted' ? 'outlined' : 'default'}
         clickable
@@ -168,6 +175,7 @@ export function SearchHit(props: SearchHitProps) {
         break;
       }
   });
+  const avoid = !ruleStates.some(({ ruleState }) => ruleState === 'targeted' || ruleState === 'covered');
   const titles = props.data.titles.map(title => (
     <Typography key={title} variant="body1" component="p" gutterBottom>
       {title}
@@ -207,7 +215,7 @@ export function SearchHit(props: SearchHitProps) {
   return (
     <Card variant="outlined" classes={{ root: classes.searchHit }}>
       <CardContent>
-        <Typography key="rule-id" classes={{ root: classes.ruleid }} variant="h5" component="h5" gutterBottom>
+        <Typography key="rule-id" classes={{ root: `${classes.ruleid} ${avoid ? classes.avoid : ""}` }} variant="h5" component="h5" gutterBottom>
           <Link component={RouterLink} to={`/${props.data.id}`} data-testid={`search-hit-${props.data.id}`}>
             <div> Rule {props.data.id} </div>
           </Link>

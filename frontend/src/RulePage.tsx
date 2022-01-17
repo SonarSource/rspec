@@ -52,6 +52,9 @@ const useStyles = makeStyles((theme) => ({
     marginTop: theme.spacing(4),
     marginBottom: theme.spacing(4),
   },
+  avoid: {
+    textDecoration: 'line-through'
+  },
   coverage: {
     marginBottom: theme.spacing(3),
   },
@@ -241,6 +244,7 @@ export function RulePage(props: any) {
   let coverage: any = 'Loading...';
 
   let title = 'Loading...';
+  let avoid = false;
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
@@ -251,11 +255,15 @@ export function RulePage(props: any) {
     }
     branch = metadataJSON.branch;
     metadataJSON.languagesSupport.sort();
-    languagesTabs = metadataJSON.languagesSupport.map(({ name, status }) => {
-      const ruleState = ruleStateInAnalyzer(name, metadataJSON!.allKeys, status);
+    const ruleStates = metadataJSON.languagesSupport.map(({ name, status }) => ({
+      name: name,
+      ruleState: ruleStateInAnalyzer(name, metadataJSON!.allKeys, status)
+    }));
+    languagesTabs = ruleStates.map(({ name, ruleState }) => {
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
       return <Tab key={name} label={name} value={name} className={classNames} />;
     });
+    avoid = !ruleStates.some(({ ruleState }) => ruleState === 'covered' || ruleState === 'targeted');
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     const coverageMapper = (key: any, range: any) => {
@@ -314,7 +322,7 @@ export function RulePage(props: any) {
       <div className={classes.ruleBar}>
         <Container>
           <Typography variant="h2" classes={{ root: classes.ruleid }}>
-            <Link className={classes.ruleidLink} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
+            <Link className={`${classes.ruleidLink} ${avoid ? classes.avoid : ""}`} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
           </Typography>
           <Typography variant="h4" classes={{ root: classes.ruleid }}>{prLink}</Typography>
           <Tabs
