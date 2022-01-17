@@ -75,6 +75,5 @@ function generateRuleMetadata(srcDir: string, language: string) {
   const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
   const childFile = path.join(srcDir, 'metadata.json');
   const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
-  const mergedJson = {...childJson, ...parentJson};
-  return mergedJson;
+  return {...childJson, ...parentJson};
 }
