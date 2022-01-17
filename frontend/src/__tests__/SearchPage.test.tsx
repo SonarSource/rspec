@@ -28,7 +28,7 @@ beforeEach(() => {
     mockUrls[`${rootUrl}/covered_rules.json`] = {json:
         {'CPP': {'S1000': 'ver1', 'S987': 'ver2', 'S3457': 'ver1'},
          'C': {'S1000': 'c1', 'S234': {'since': 'c2', 'until': 'c3'}},
-        'PY': {'S3457': {'since': 'p2', 'until': 'p3'}}}
+         'PY': {'S3457': {'since': 'p2', 'until': 'p3'}}}
     };
     jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
 });

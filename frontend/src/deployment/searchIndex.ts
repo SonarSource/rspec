@@ -18,9 +18,7 @@ export interface IndexedRuleWithDescription extends IndexedRule {
   descriptions?: Array<string>;
 }
 
-function buildOneRuleRecord(allLanguages: string[],
-  rulesPath: string,
-  ruleDir: string) {
+function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: string) {
 
   let types = new Set<string>();
   let severities = new Set<Severity>();
@@ -118,7 +116,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
   return [ruleDir, indexedRecord];
 }
 
-function buildIndexAggregate(indexedRecords: [string, IndexedRuleWithDescription][]): IndexAggregates {
+function buildIndexAggregates(indexedRecords: [string, IndexedRuleWithDescription][]): IndexAggregates {
   const aggregates: IndexAggregates = { langs: {}, tags: {}, qualityProfiles: {} };
 
   indexedRecords.forEach(record => {
@@ -161,8 +159,7 @@ export function buildIndexStore(rulesPath: string):[Record<string,IndexedRuleWit
   });
   const indexedRecords = ruleDirs.map((ruleDir) => buildOneRuleIndexedRecord(rulesPath, ruleDir));
   const filteredRecords = indexedRecords.filter((value) => value !== null) as [string, IndexedRuleWithDescription][];
-  const indexAggregates: IndexAggregates = buildIndexAggregate(filteredRecords);
-  return [Object.fromEntries(filteredRecords), indexAggregates];
+  return [Object.fromEntries(filteredRecords), buildIndexAggregates(filteredRecords)];
 }
 
 /**
