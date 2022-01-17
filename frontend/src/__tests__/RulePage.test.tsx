@@ -7,7 +7,7 @@ import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { fetchMock } from '../testutils'
 
-const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'plugin_rules');
+const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
 
 function readRuleFile(ruleId, filename) {
     return fs.readFileSync(path.join(rulesPath, ruleId, filename)).toString();

@@ -6,14 +6,20 @@ import { buildSearchIndex, buildIndexStore, DESCRIPTION_SPLIT_REGEX } from '../s
 
 describe('index store generation', () => {
   test('merges rules metadata', () => {
-    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [indexStore, _] = buildIndexStore(rulesPath);
     const ruleS3457 = indexStore['S3457'];
 
     expect(ruleS3457).toMatchObject({
       id: 'S3457',
       type: 'CODE_SMELL',
-      languages: ['cfamily', 'csharp', 'java', 'python'],
+      languages: [
+        { "name": "cfamily", "status": "ready", },
+        { "name": "csharp", "status": "ready", },
+        { "name": "default", "status": "ready", },
+        { "name": "java", "status": "closed", },
+        { "name": "python", "status": "deprecated", }
+      ],
       tags: ['cert', 'clumsy', 'confusing'],
       severities: ['Major', 'Minor'],
       qualityProfiles: ['MISRA C++ 2008 recommended', 'Sonar way'],
@@ -21,7 +27,7 @@ describe('index store generation', () => {
   });
 
   test('stores description words', () => {
-    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [indexStore, _] = buildIndexStore(rulesPath);
     const ruleS3457 = indexStore['S3457'];
 
@@ -34,28 +40,30 @@ describe('index store generation', () => {
   });
 
   test('collects all tags', () => {
-    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [_, aggregates] = buildIndexStore(rulesPath);
     expect(aggregates.tags).toEqual({"based-on-misra": 1,
-                                     "cert": 5,
-                                     "clumsy": 4,
-                                     "confusing": 4,
+                                     "cert": 2,
+                                     "clumsy": 2,
+                                     "confusing": 1,
                                      "lock-in": 1,
                                      "misra-c++2008": 1,
-                                     "pitfall": 1});
+                                     "pitfall": 1
+                                    });
   });
 
   test('collects all languages', () => {
-    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [_, aggregates] = buildIndexStore(rulesPath);
     expect(aggregates.langs).toEqual({"cfamily": 3,
                                       "csharp": 1,
+                                      "default": 3,
                                       "java": 1,
                                       "python": 1});
   });
 
   test('collects all rule keys', () => {
-    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [indexStore, _] = buildIndexStore(rulesPath);
     expect(indexStore['S3457'].all_keys).toEqual(['RSPEC-3457', 'S3457']);
     expect(indexStore['S1000'].all_keys).toEqual(['RSPEC-1000', 'S1000', 'UnnamedNamespaceInHeader']);
@@ -63,7 +71,7 @@ describe('index store generation', () => {
   });
 
   test('collects all quality profiles', () => {
-    const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+    const rulesPath = path.join(__dirname, 'resources', 'metadata');
     const [_, aggregates] = buildIndexStore(rulesPath);
     expect(aggregates.qualityProfiles).toEqual({
       "MISRA C++ 2008 recommended": 2,
@@ -72,7 +80,7 @@ describe('index store generation', () => {
 });
 
 function createIndex() {
-  const rulesPath = path.join(__dirname, 'resources', 'plugin_rules');
+  const rulesPath = path.join(__dirname, 'resources', 'metadata');
   const [indexStore, _] = buildIndexStore(rulesPath);
 
   // Hack to avoid warnings when 'selectivePipeline' is already registered
@@ -141,7 +149,9 @@ describe('search index enables search by tags and quality profiles', () => {
   test('searches in rule tags', () => {
     const searchIndex = createIndex();
     const searchesS3457 = search(searchIndex, 'cert', 'tags');
-    expect(searchesS3457).toEqual(['S1000', 'S3457']);
+    expect(searchesS3457).toHaveLength(2);
+    expect(searchesS3457).toContain('S1000');
+    expect(searchesS3457).toContain('S3457');
 
     const searchesS987 = search(searchIndex, 'based-on-misra', 'tags');
     expect(searchesS987).toEqual(['S987']);

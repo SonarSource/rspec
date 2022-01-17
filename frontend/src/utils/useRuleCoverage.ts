@@ -1,4 +1,5 @@
 import { useFetch } from './useFetch';
+import { Status } from '../types/RuleMetadata';
 
 type Version = string | { since: string, until: string };
 type RuleCoverage = Record<string, Record<string, Version>>;
@@ -77,7 +78,28 @@ export function useRuleCoverage() {
     return ruleCoverageForSonarpediaKeys(allLanguageKeys, ruleKeys, mapper);
   }
 
-  function ruleStateInAnalyzer(language: string, ruleKeys: string[]): 'covered' | 'targeted' | 'removed' {
+  type AnalyzerState = 'covered' | 'targeted' | 'removed' | 'closed' | 'deprecated';
+  function analyzerStateFromCoverageAndStatus(coverage: Version[], status: Status): AnalyzerState {
+    if (coverage.length > 0) {
+      if (coverage.some(version => typeof version === 'string')) {
+        // if there is at least one coverage with simple (string) type, rule is still part of analyzer
+        if (status === 'deprecated' || status === 'superseded') {
+          return 'deprecated';
+        } else {
+          return 'covered';
+        }
+      } else {
+        // all coverages keep an analyzer versions range which means the rule was removed
+        return 'removed';
+      }
+    } else if (status === 'closed') {
+      return 'closed';
+    } else {
+      return 'targeted';
+    }
+  }
+
+  function ruleStateInAnalyzer(language: string, ruleKeys: string[], status: Status): AnalyzerState {
     const languageKeys = languageToSonarpedia.get(language);
     if (!languageKeys || coveredRulesError || coveredRulesIsLoading) {
       if (coveredRulesError) {
@@ -98,15 +120,7 @@ export function useRuleCoverage() {
       })
     );
 
-    if (result.length > 0) {
-      // if there is at least one entry with simple (string) type, rule is still part of analyzer
-      // otherwise (when all entries keep an analyzer versions range) the rule is removed
-      return result.some(version => typeof version === 'string')
-        ? 'covered'
-        : 'removed';
-    } else {
-      return 'targeted';
-    }
+    return analyzerStateFromCoverageAndStatus(result, status);
   }
 
   return {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer};
@@ -119,13 +133,23 @@ export const RULE_STATE = {
     'darker': '#25699d'
   },
   'targeted': {
-    // orange
-    'color': '#FD7D20',
-    'darker': '#E26003'
+    // blueish green
+    'color': '#8aa8a6',
+    'darker': '#6c9390'
   },
   'removed': {
     // red
     'color': '#C72B28',
     'darker': '#8D1B19'
+  },
+  'deprecated' : {
+    // orange
+    'color': '#FD7D20',
+    'darker': '#E26003'
+  },
+  'closed' : {
+    // dark grey
+    'color': '#505050',
+    'darker': '#202020'
   }
 }

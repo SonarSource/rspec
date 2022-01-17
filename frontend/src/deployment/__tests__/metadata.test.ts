@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { generate_one_rule_metadata, generate_rules_metadata } from '../metadata';
+import { generateOneRuleMetadata, generateRulesMetadata } from '../metadata';
 import { withTestDir, createFiles } from '../testutils';
 
 describe('metadata generation', () => {
@@ -21,7 +21,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_rules_metadata(srcPath, dstPath);
+        generateRulesMetadata(srcPath, dstPath);
         const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const javaMetadata = JSON.parse(javaStrMetadata.toString());
         expect(javaMetadata).toMatchObject({
@@ -39,6 +39,39 @@ describe('metadata generation', () => {
     });
   });
 
+  test('check status computation', () => {
+    return withTestDir((srcPath) => {
+      createFiles(srcPath, {
+        'S100/metadata.json': JSON.stringify({
+          title: 'Rule S100',
+          status: 'ready'
+        }),
+        'S100/java/metadata.json': JSON.stringify({
+          title: 'Java Rule S100'
+        }),
+        'S100/python/metadata.json': JSON.stringify({
+          status: 'closed'
+        }),
+      });
+      return withTestDir(async (dstPath) => {
+        generateRulesMetadata(srcPath, dstPath);
+        const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
+        const pythonStrMetadata = fs.readFileSync(`${dstPath}/S100/python-metadata.json`);
+        const javaMetadata = JSON.parse(javaStrMetadata.toString());
+        const pythonMetadata = JSON.parse(pythonStrMetadata.toString());
+        expect(pythonMetadata).toMatchObject({
+          title: 'Rule S100',
+          languagesSupport: [
+            {name: 'java', status: 'ready'},
+            {name: 'python', status: 'closed'}
+          ]
+        });
+
+        expect(javaMetadata.languagesSupport).toStrictEqual(pythonMetadata.languagesSupport);
+      });
+    });
+  });
+
   test('generates only requested rules if a list of rule is provided', () => {
     return withTestDir((srcPath) => {
       createFiles(srcPath, {
@@ -50,7 +83,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_rules_metadata(srcPath, dstPath, ['S100']);
+        generateRulesMetadata(srcPath, dstPath, ['S100']);
 
         const s100Exists = fs.existsSync(`${dstPath}/S100/java-metadata.json`);
         expect(s100Exists).toBeTruthy();
@@ -72,7 +105,7 @@ describe('metadata generation', () => {
         }),
       });
       return withTestDir(async (dstPath) => {
-        generate_one_rule_metadata(path.join(srcPath, 'S100'), path.join(dstPath, 'S100'), 'master');
+        generateOneRuleMetadata(path.join(srcPath, 'S100'), path.join(dstPath, 'S100'), 'master');
 
         const s100StrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
         const s100Metadata = JSON.parse(s100StrMetadata.toString());
@@ -80,7 +113,7 @@ describe('metadata generation', () => {
         expect(s100Metadata.branch).toEqual('master');
         expect(Object.keys(s100Metadata)).not.toContain('prUrl');
 
-        generate_one_rule_metadata(path.join(srcPath, 'S200'), path.join(dstPath, 'S200'), 'add-my-rule', 'https://some.pr/url');
+        generateOneRuleMetadata(path.join(srcPath, 'S200'), path.join(dstPath, 'S200'), 'add-my-rule', 'https://some.pr/url');
 
 
         const s200StrMetadata = fs.readFileSync(`${dstPath}/S200/java-metadata.json`);
@@ -89,6 +122,27 @@ describe('metadata generation', () => {
         expect(s200Metadata.branch).toEqual('add-my-rule');
         expect(s200Metadata.prUrl).toEqual('https://some.pr/url');
       });
+    });
+  });
+
+  test('generate test metadata', () => {
+    return withTestDir(async (dstPath) => {
+      generateRulesMetadata(path.join(__dirname, 'resources', 'rules'), dstPath);
+      const rules = fs.readdirSync(dstPath);
+      expect(rules.length).toEqual(3);
+      let treated = 0;
+      rules.forEach(ruleDir => {
+        const languages = fs.readdirSync(`${dstPath}/${ruleDir}`);
+        expect(languages.length).toBeGreaterThanOrEqual(1);
+        languages.forEach(file => {
+          const actual = JSON.parse(fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString());
+          const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
+          const expected = JSON.parse(fs.readFileSync(expectedPath).toString());
+          expect(actual).toStrictEqual(expected);
+          treated++;
+        })
+      });
+      expect(treated).toBe(9);
     });
   });
 });

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import asciidoctor from 'asciidoctor';
 
-import { getRulesDirectories, listSupportedLanguage } from './utils';
+import { getRulesDirectories, listSupportedLanguages } from './utils';
 import { logger } from './deploymentLogger';
 
 const asciidoc = asciidoctor();
@@ -30,17 +30,17 @@ asciidoc.LoggerManager.setLogger(winstonLogger);
  * @param srcDir directory containing the original rule metadata and description.
  * @param dstDir directory where the generated rules metadata and description will be written.
  */
-export function generate_one_rule_description(srcDir: string, dstDir: string) {
+export function generateOneRuleDescription(srcDir: string, dstDir: string) {
   fs.mkdirSync(dstDir, { recursive: true });
-  const all_languages = listSupportedLanguage(srcDir);
+  const languages = listSupportedLanguages(srcDir);
   let default_descr_wanted = true;
-  for (const language of all_languages) {
-    const html = generate_rule_description(srcDir, language);
-    const dstFile = path.join(dstDir, language + "-description.html");
+  for (const language of languages) {
+    const html = generateRuleDescription(srcDir, language);
+    const dstFile = path.join(dstDir, language + '-description.html');
     fs.writeFileSync(dstFile, html, {encoding: 'utf8'});
     if (default_descr_wanted) {
-      const dstFile = path.join(dstDir, "default-description.html");
-      fs.writeFileSync(dstFile, html, {encoding: 'utf8'});
+      const defFile = path.join(dstDir, 'default-description.html');
+      fs.writeFileSync(defFile, html, {encoding: 'utf8'});
       default_descr_wanted = false;
     }
   }
@@ -52,9 +52,9 @@ export function generate_one_rule_description(srcDir: string, dstDir: string) {
  * @param dstPath directory where the generated rules metadata and description will be written.
  * @param rules an optional list of rules to list. Other rules won't be generated.
  */
-export function generate_rules_description(srcPath: string, dstPath: string, rules?: string[]) {
+export function generateRulesDescription(srcPath: string, dstPath: string, rules?: string[]) {
   for (const { srcDir, dstDir } of getRulesDirectories(srcPath, dstPath, rules)) {
-    generate_one_rule_description(srcDir, dstDir);
+    generateOneRuleDescription(srcDir, dstDir);
   }
 }
 
@@ -63,12 +63,12 @@ export function generate_rules_description(srcPath: string, dstPath: string, rul
  * @param srcDir rule's source directory.
  * @param language language for which the metadata should be generated
  */
-function generate_rule_description(srcDir: string, language: string) {
-    let ruleSrcFile = path.join(srcDir, language, "rule.adoc");
+function generateRuleDescription(srcDir: string, language: string) {
+    let ruleSrcFile = path.join(srcDir, language, 'rule.adoc');
     if (!fs.existsSync(ruleSrcFile)) {
-        ruleSrcFile = path.join(srcDir, "rule.adoc");
+        ruleSrcFile = path.join(srcDir, 'rule.adoc');
         if (!fs.existsSync(ruleSrcFile)) {
-            throw new Error("Missing file 'rule.adoc' for language '" + language + " in " + srcDir);
+            throw new Error(`Missing file 'rule.adoc' for language ${language} in ${srcDir}`);
         }
     }
     const baseDir = path.resolve(path.dirname(ruleSrcFile));
