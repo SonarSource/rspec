@@ -242,7 +242,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
-  let branch = 'master'
+  let branch = 'master';
   const { ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer } = useRuleCoverage();
   if (metadataJSON && !metadataIsLoading && !metadataError) {
     title = metadataJSON.title;
@@ -297,13 +297,12 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
 }
 
 function useDescription(metadata: PageMetadata, ruleid: string, language: string) {
-  let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
-    metadata.branch + '/rules/' + ruleid + (language ? '/' + language : '');
+  let editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
 
   const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
 
-  let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
+  const [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
 
   if (descHTML !== null && !descIsLoading && !descError) {
     return <div>
@@ -318,9 +317,8 @@ function useDescription(metadata: PageMetadata, ruleid: string, language: string
 }
 
 export function RulePage(props: any) {
-  const ruleid = props.match.params.ruleid;
   // language can be absent
-  const language = props.match.params.language;
+  const {ruleid, language} = props.match.params;
   document.title = ruleid;
 
   const history = useHistory();
@@ -337,7 +335,7 @@ export function RulePage(props: any) {
   if (metadata.prUrl) {
     prLink = <div>
       <span className={classes.unimplemented}>Not implemented (see <a href={metadata.prUrl}>PR</a>)</span>
-    </div>
+    </div>;
   }
   const ruleNumber = ruleid.substring(1);
 
