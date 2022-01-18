@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { process_incomplete_rspecs, PullRequest } from '../pullRequestIndexing';
 import Git from 'nodegit';
+import 'setimmediate';
 
 jest.mock('@octokit/rest', () => {
   let mockModule = {Octokit: function() {
