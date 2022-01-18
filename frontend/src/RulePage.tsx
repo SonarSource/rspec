@@ -297,7 +297,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
 }
 
 function useDescription(metadata: PageMetadata, ruleid: string, language: string) {
-  let editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
+  const editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
 
   const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
