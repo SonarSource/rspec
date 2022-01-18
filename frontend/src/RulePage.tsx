@@ -121,6 +121,8 @@ const useStyles = makeStyles((theme) => ({
 
 const theme = createMuiTheme({});
 
+type UsedStyles = ReturnType<typeof useStyles>;
+
 const languageToJiraProject = new Map(Object.entries({
   'PYTHON': 'SONARPY',
   'ABAP': 'SONARABAP',
@@ -220,34 +222,28 @@ function RuleThemeProvider({ children }: any) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
-export function RulePage(props: any) {
-  const ruleid = props.match.params.ruleid;
-  // language can be absent
-  const language = props.match.params.language;
-  document.title = ruleid;
+interface PageMetadata {
+  title: string;
+  languagesTabs: JSX.Element[] | null;
+  avoid: boolean;
+  prUrl: string | undefined;
+  branch: string;
+  coverage: any;
+  jsonString: string | undefined;
+}
 
-  const history = useHistory();
-  function handleLanguageChange(event: any, lang: string) {
-    history.push(`/${ruleid}/${lang}`);
-  }
-
-  const classes = useStyles();
-  let branch = 'master'
-
-  const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
+function usePageMetadata(ruleid: string, language: string, classes: UsedStyles): PageMetadata {
   const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
-
-  let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
-  const {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer} = useRuleCoverage();
   let coverage: any = 'Loading...';
-
   let title = 'Loading...';
   let avoid = false;
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
+  let branch = 'master'
+  const { ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer } = useRuleCoverage();
   if (metadataJSON && !metadataIsLoading && !metadataError) {
     title = metadataJSON.title;
     if ('prUrl' in metadataJSON) {
@@ -256,7 +252,7 @@ export function RulePage(props: any) {
     branch = metadataJSON.branch;
     metadataJSON.languagesSupport.sort();
     const ruleStates = metadataJSON.languagesSupport.map(({ name, status }) => ({
-      name: name,
+      name,
       ruleState: ruleStateInAnalyzer(name, metadataJSON!.allKeys, status)
     }));
     languagesTabs = ruleStates.map(({ name, ruleState }) => {
@@ -289,22 +285,59 @@ export function RulePage(props: any) {
     branch = 'master'; 
   }
 
-  let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
-                        branch + '/rules/' + ruleid + (language ? '/' + language : '');
+  return {
+    title,
+    languagesTabs,
+    avoid,
+    prUrl,
+    branch,
+    coverage,
+    jsonString: metadataJSONString
+  };
+}
 
-  let description = <div>Loading...</div>;
+function useDescription(metadata: PageMetadata, ruleid: string, language: string) {
+  let editOnGithubUrl = 'https://github.com/SonarSource/rspec/blob/' +
+    metadata.branch + '/rules/' + ruleid + (language ? '/' + language : '');
+
+
+  const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
+
+  let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
+
   if (descHTML !== null && !descIsLoading && !descError) {
-    description = <div>
-      <div dangerouslySetInnerHTML={{__html: descHTML}}/>
+    return <div>
+      <div dangerouslySetInnerHTML={{ __html: descHTML }} />
       <hr />
-      <a href={editOnGithubUrl}>Edit on Github</a><br/>
+      <a href={editOnGithubUrl}>Edit on Github</a><br />
       <hr />
-      <Highlight className='json'>{metadataJSONString}</Highlight>
+      <Highlight className='json'>{metadata.jsonString}</Highlight>
     </div>;
   }
+  return <div>Loading...</div>;
+}
+
+export function RulePage(props: any) {
+  const ruleid = props.match.params.ruleid;
+  // language can be absent
+  const language = props.match.params.language;
+  document.title = ruleid;
+
+  const history = useHistory();
+  function handleLanguageChange(event: any, lang: string) {
+    history.push(`/${ruleid}/${lang}`);
+  }
+
+  const classes = useStyles();
+
+  const metadata = usePageMetadata(ruleid, language, classes);
+  const description = useDescription(metadata, ruleid, language);
+
   let prLink = <></>;
-  if (prUrl) {
-      prLink = <div><span className={classes.unimplemented}>Not implemented (see <a href={prUrl}>PR</a>)</span></div>
+  if (metadata.prUrl) {
+    prLink = <div>
+      <span className={classes.unimplemented}>Not implemented (see <a href={metadata.prUrl}>PR</a>)</span>
+    </div>
   }
   const ruleNumber = ruleid.substring(1);
 
@@ -314,7 +347,7 @@ export function RulePage(props: any) {
     </Link>
   );
 
-  const {ticketsLink, implementationPRsLink} = ticketsAndImplementationPRsLinks(ruleNumber, title, language);
+  const {ticketsLink, implementationPRsLink} = ticketsAndImplementationPRsLinks(ruleNumber, metadata.title, language);
   const tabsValue = language ? {'value' : language} : {'value': false};
 
   return (
@@ -322,7 +355,8 @@ export function RulePage(props: any) {
       <div className={classes.ruleBar}>
         <Container>
           <Typography variant="h2" classes={{ root: classes.ruleid }}>
-            <Link className={`${classes.ruleidLink} ${avoid ? classes.avoid : ""}`} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
+            <Link className={`${classes.ruleidLink} ${metadata.avoid ? classes.avoid : ''}`}
+                component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
           </Typography>
           <Typography variant="h4" classes={{ root: classes.ruleid }}>{prLink}</Typography>
           <Tabs
@@ -334,19 +368,19 @@ export function RulePage(props: any) {
             scrollButtons="auto"
             classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
           >
-            {languagesTabs}
+            {metadata.languagesTabs}
           </Tabs>
         </Container>
       </div>
 
       <RuleThemeProvider>
         <Container maxWidth="md">
-          <h1>{title}</h1>
+          <h1>{metadata.title}</h1>
           <hr />
           <Box className={classes.coverage}>
             <h2>Covered Since</h2>
             <ul>
-              {coverage}
+              {metadata.coverage}
             </ul>
           </Box>
 
