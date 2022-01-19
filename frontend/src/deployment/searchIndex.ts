@@ -172,7 +172,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
     // it is not declared in the Token class. Thus we cast as any here.
     const fields = (token as any).metadata["fields"];
     // process only titles and descriptions
-    if (fields.includes('all_keys') || fields.includes('titles') || fields.includes('descriptions') ) {
+    if (fields.includes('all_keys') || fields.includes('titles') || fields.includes('descriptions')) {
       // We don't use the stopword filter to allow words such as "do", "while", "for"
       const trimmed = lunr.trimmer(token);
       return lunr.stemmer(trimmed);

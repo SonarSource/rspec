@@ -5,6 +5,14 @@ import { LanguageSupport } from '../types/RuleMetadata';
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 
 /**
+ * Save the given metadata to disk.
+ */
+function writeRuleMetadata(dstDir: string, filename: string, metadata: any) {
+  const file = path.join(dstDir, filename);
+  fs.writeFileSync(file, JSON.stringify(metadata), { encoding: 'utf8' });
+}
+
+/**
  * Generate rule metadata (for all relevant languages) and write it in the destination directory.
  * @param srcDir directory containing the original rule's metadata and description.
  * @param dstDir directory where the generated metadata will be written.
@@ -16,7 +24,7 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: 
   fs.mkdirSync(dstDir, { recursive: true });
   const allLanguages = listSupportedLanguages(srcDir);
   const allMetadata = allLanguages.map((language) => {
-    const metadata = generateRuleMetadata(srcDir, language);
+    const metadata = getRuleMetadata(srcDir, language);
     return {language, metadata};
   });
 
@@ -43,13 +51,11 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: 
 
   let isFirstLanguage = true;
   for (const { language, metadata } of allMetadata) {
-    const dstJsonFile = path.join(dstDir, language + '-metadata.json');
-    fs.writeFileSync(dstJsonFile, JSON.stringify(metadata), { encoding: 'utf8' })
+    writeRuleMetadata(dstDir, language + '-metadata.json', metadata);
 
     if (isFirstLanguage) {
       // Use the first language as the default metadata.
-      const dstFile = path.join(dstDir, 'default-metadata.json');
-      fs.writeFileSync(dstFile, JSON.stringify(metadata), { encoding: 'utf8' });
+      writeRuleMetadata(dstDir, 'default-metadata.json', metadata);
       isFirstLanguage = false;
     }
   }
@@ -72,10 +78,10 @@ export function generateRulesMetadata(srcPath: string, dstPath: string, rules?: 
  * @param srcDir rule's source directory.
  * @param language language for which the metadata should be generated
  */
-function generateRuleMetadata(srcDir: string, language: string) {
+function getRuleMetadata(srcDir: string, language: string) {
   const parentFile = path.join(srcDir, language, 'metadata.json');
   const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
   const childFile = path.join(srcDir, 'metadata.json');
   const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
-  return {...childJson, ...parentJson};
+  return { ...childJson, ...parentJson };
 }
