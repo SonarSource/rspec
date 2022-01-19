@@ -13,7 +13,7 @@ describe('index store generation', () => {
     expect(ruleS3457).toMatchObject({
       id: 'S3457',
       type: 'CODE_SMELL',
-      languages: [
+      supportedLanguages: [
         { "name": "cfamily", "status": "ready", },
         { "name": "csharp", "status": "ready", },
         { "name": "default", "status": "ready", },
@@ -144,7 +144,7 @@ describe('search index enables search by title and description words', () => {
   }
 });
 
-describe('search index enables search by tags and quality profiles', () => {
+describe('search index enables search by tags, quality profiles and languages', () => {
 
   test('searches in rule tags', () => {
     const searchIndex = createIndex();
@@ -167,6 +167,15 @@ describe('search index enables search by tags and quality profiles', () => {
 
     const filtersAll = search(searchIndex, 'non-existent', 'qualityProfiles');
     expect(filtersAll).toEqual([]);
+  });
+
+  test('filter per language', () => {
+    const searchIndex = createIndex();
+    const csharpRules = search(searchIndex, 'csharp', 'languages');
+    expect(csharpRules).toEqual(['S3457']);
+
+    const cfamilyRules = search(searchIndex, 'cfamily', 'languages');
+    expect(cfamilyRules.sort()).toEqual(['S987', 'S1000', 'S3457'].sort());
   });
 
   function search(index: lunr.Index, query: string, field: string): string[] {

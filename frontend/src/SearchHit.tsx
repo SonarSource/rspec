@@ -110,7 +110,7 @@ export function SearchHit(props: SearchHitProps) {
   const deprecatedLanguages: JSX.Element[] = [];
   const closedLanguages: JSX.Element[] = [];
 
-  const actualLanguages = props.data.languages.filter(l => l.name !== 'default');
+  const actualLanguages = props.data.supportedLanguages.filter(l => l.name !== 'default');
   actualLanguages.forEach(lang => {
     const ruleState = ruleStateInAnalyzer(lang.name, props.data.all_keys, lang.status);
     const chip = <Link key={lang.name} component={RouterLink} to={`/${props.data.id}/${lang.name}`}
