@@ -2,6 +2,8 @@ import path from 'path';
 import lunr from 'lunr';
 
 import { buildSearchIndex, buildIndexStore, DESCRIPTION_SPLIT_REGEX } from '../searchIndex';
+import { withTestDir, createFiles } from '../testutils';
+import { IndexStore } from '../../types/IndexStore';
 
 
 describe('index store generation', () => {
@@ -12,7 +14,7 @@ describe('index store generation', () => {
 
     expect(ruleS3457).toMatchObject({
       id: 'S3457',
-      type: 'CODE_SMELL',
+      types: ['CODE_SMELL'],
       supportedLanguages: [
         { "name": "cfamily", "status": "ready", },
         { "name": "csharp", "status": "ready", },
@@ -37,6 +39,82 @@ describe('index store generation', () => {
     ];
 
     expect(ruleS3457.descriptions).toEqual(expect.arrayContaining(expectedWords));
+  });
+
+  test('check types computation', () => {
+    return withTestDir(async rulesPath => {
+      createFiles(rulesPath, {
+        'S100/default-metadata.json': JSON.stringify({
+          title: 'Rule S100',
+          type: 'CODE_SMELL',
+        }),
+        'S100/default-description.html': 'Description',
+        'S100/java-metadata.json': JSON.stringify({
+          title: 'Java Rule S100',
+          type: 'CODE_SMELL',
+        }),
+        'S100/java-description.html': 'Description',
+
+        'S101/default-metadata.json': JSON.stringify({
+          title: 'Rule S101',
+          type: 'CODE_SMELL',
+        }),
+        'S101/default-description.html': 'Description',
+        'S101/java-metadata.json': JSON.stringify({
+          title: 'Java Rule S101',
+          type: 'CODE_SMELL',
+        }),
+        'S101/java-description.html': 'Description',
+        'S101/python-metadata.json': JSON.stringify({
+          title: 'Rule S101',
+          type: 'VULNERABILITY',
+        }),
+        'S101/python-description.html': 'Description',
+        'S101/cfamily-metadata.json': JSON.stringify({
+          title: 'Rule S101',
+          type: 'BUG',
+        }),
+        'S101/cfamily-description.html': 'Description',
+      });
+
+      const [indexStore, aggregates] = buildIndexStore(rulesPath);
+      expect(aggregates.langs).toEqual({ 'cfamily': 1, 'default': 2, 'java': 2, 'python': 1 });
+
+      const ruleS100 = indexStore['S100'];
+      expect(ruleS100.types.sort()).toEqual(['CODE_SMELL']);
+
+      const ruleS101 = indexStore['S101'];
+      expect(ruleS101.types.sort()).toEqual(['BUG', 'CODE_SMELL', 'VULNERABILITY']);
+
+      const searchIndex = createIndex(indexStore);
+
+      expect(searchIndex.search('titles:*')).toHaveLength(2);
+      expect(searchIndex.search('types:*')).toHaveLength(2);
+
+      // For types, the wildcard in the search query is required to succeed!
+      // This may be related to how tokenization is handled (or not done for arrays),
+      // but the actual reason doesn't matter for this test.
+      expect(searchIndex.search('BUG')).toHaveLength(1);
+      expect(searchIndex.search('types:BUG')).toHaveLength(1);
+      expect(searchIndex.search('*SMELL')).toHaveLength(2);
+      expect(searchIndex.search('types:*SMELL')).toHaveLength(2);
+      expect(searchIndex.search('*VULNERABILITY')).toHaveLength(1);
+      expect(searchIndex.search('types:*VULNERABILITY')).toHaveLength(1);
+
+      const bugyRules = tokenizedSearch(searchIndex, 'BUG', 'types').sort();
+      expect(bugyRules).toEqual(['S101']);
+      const smellyRulesFuzzy = tokenizedSearch(searchIndex, '*SMELL*', 'types').sort();
+      expect(smellyRulesFuzzy).toEqual(['S100', 'S101']);
+      const vulnerabilityRulesFuzzy = tokenizedSearch(searchIndex, 'VULNERABILITY*', 'types').sort();
+      expect(vulnerabilityRulesFuzzy).toEqual(['S101']);
+      const smellyRules = tokenizedSearch(searchIndex, 'CODE_SMELL*', 'types').sort();
+      expect(smellyRules).toEqual(['S100', 'S101']);
+
+      expect(searchNormalizedField(searchIndex, '*', 'types').sort()).toEqual(['S100', 'S101']);
+      expect(searchNormalizedField(searchIndex, 'BUG', 'types').sort()).toEqual(['S101']);
+      expect(searchNormalizedField(searchIndex, 'CODE_SMELL', 'types').sort()).toEqual(['S100', 'S101']);
+      expect(searchNormalizedField(searchIndex, 'VULNERABILITY', 'types').sort()).toEqual(['S101']);
+    });
   });
 
   test('collects all tags', () => {
@@ -158,9 +236,12 @@ describe('search index enables search by tags, quality profiles and languages', 
   });
 });
 
-function createIndex() {
-  const rulesPath = path.join(__dirname, 'resources', 'metadata');
-  const [ruleIndexStore, _] = buildIndexStore(rulesPath);
+function createIndex(ruleIndexStore?: IndexStore) {
+  if (!ruleIndexStore) {
+    const rulesPath = path.join(__dirname, 'resources', 'metadata');
+    const [indexStore, _] = buildIndexStore(rulesPath);
+    ruleIndexStore = indexStore;
+  }
 
   // Hack to avoid warnings when 'selectivePipeline' is already registered
   if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
@@ -168,6 +249,8 @@ function createIndex() {
   }
   return buildSearchIndex(ruleIndexStore);
 }
+
+// These search functions mimic the behaviors of useSearch.ts.
 
 function tokenizedSearch(index: lunr.Index, query: string, field: string): string[] {
   const hits = index.query(q => {
@@ -184,6 +267,17 @@ function tokenizedSearch(index: lunr.Index, query: string, field: string): strin
 function searchExactField(index: lunr.Index, query: string, field: string): string[] {
   const hits = index.query(q => {
     q.term(query, {
+      fields: [field],
+      presence: lunr.Query.presence.REQUIRED,
+      usePipeline: false
+    });
+  });
+  return hits.map(({ ref }) => ref)
+}
+
+function searchNormalizedField(index: lunr.Index, query: string, field: string): string[] {
+  const hits = index.query(q => {
+    q.term(query.toLowerCase(), {
       fields: [field],
       presence: lunr.Query.presence.REQUIRED,
       usePipeline: false

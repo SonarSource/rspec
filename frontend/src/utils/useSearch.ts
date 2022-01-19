@@ -42,7 +42,7 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
           // Add rule type filter
           if (ruleType) {
             q.term(ruleType.toLowerCase(), {
-              fields: ['type'],
+              fields: ['types'],
               presence: lunr.Query.presence.REQUIRED,
               usePipeline: false
             });

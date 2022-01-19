@@ -72,6 +72,52 @@ describe('metadata generation', () => {
     });
   });
 
+  test('check types computation', () => {
+    return withTestDir((srcPath) => {
+      createFiles(srcPath, {
+        'S100/metadata.json': JSON.stringify({
+          title: 'Rule S100',
+          type: 'CODE_SMELL',
+        }),
+        'S100/java/metadata.json': JSON.stringify({
+          title: 'Java Rule S100',
+        }),
+        'S100/python/metadata.json': JSON.stringify({
+          type: 'CODE_SMELL',
+        }),
+        'S100/cfamily/metadata.json': JSON.stringify({
+          type: 'BUG',
+        }),
+      });
+
+      return withTestDir(async (dstPath) => {
+        generateRulesMetadata(srcPath, dstPath);
+
+        const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
+        const pythonStrMetadata = fs.readFileSync(`${dstPath}/S100/python-metadata.json`);
+        const cfamilyStrMetadata = fs.readFileSync(`${dstPath}/S100/cfamily-metadata.json`);
+        const javaMetadata = JSON.parse(javaStrMetadata.toString());
+        const pythonMetadata = JSON.parse(pythonStrMetadata.toString());
+        const cfamilyMetadata = JSON.parse(cfamilyStrMetadata.toString());
+
+        expect(javaMetadata).toMatchObject({
+          title: 'Java Rule S100',
+          type: 'CODE_SMELL',
+        });
+
+        expect(pythonMetadata).toMatchObject({
+          title: 'Rule S100',
+          type: 'CODE_SMELL',
+        });
+
+        expect(cfamilyMetadata).toMatchObject({
+          title: 'Rule S100',
+          type: 'BUG',
+        });
+      });
+    });
+  });
+
   test('generates only requested rules if a list of rule is provided', () => {
     return withTestDir((srcPath) => {
       createFiles(srcPath, {

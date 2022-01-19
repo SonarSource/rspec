@@ -90,7 +90,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
     logger.error(`No languages found for rule ${ruleDir}, at least 1 is required`);
     return null;
   }
-  if (record.types.size !== 1) {
+  if (record.types.size < 1) {
     logger.error(
       `${record.types.size} type(s) found for rule ${ruleDir}, 1 is required: ${JSON.stringify(record.types)}`);
     return null;
@@ -103,7 +103,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
   const indexedRecord: IndexedRuleWithDescription = {
     id: ruleDir,
     supportedLanguages: Array.from(record.supportedLanguages).sort(),
-    type: record.types.values().next().value,
+    types: Array.from(record.types).sort(),
     severities: Array.from(record.severities).sort(),
     all_keys: Array.from(record.allKeys).sort(),
     titles: Array.from(record.titles).sort(),
@@ -189,7 +189,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
 
     this.ref('id');
     this.field('titles', { extractor: (doc) => (doc as IndexedRule).titles.join('\n') });
-    this.field('type');
+    this.field('types');
     this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(lang => lang.name) });
     this.field('defaultSeverity');
     this.field('tags');
