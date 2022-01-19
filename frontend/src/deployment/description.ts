@@ -26,6 +26,14 @@ const winstonLogger = asciidoc.LoggerManager.newLogger('WinstonLogger', {
 asciidoc.LoggerManager.setLogger(winstonLogger);
 
 /**
+ * Save the given HTML description to disk.
+ */
+function writeRuleDescription(dstDir: string, filename: string, html: string) {
+  const file = path.join(dstDir, filename);
+  fs.writeFileSync(file, html, { encoding: 'utf8' });
+}
+
+/**
  * Generate rule descriptions (for all relevant languages) and write it in the destination directory.
  * @param srcDir directory containing the original rule's metadata and description.
  * @param dstDir directory where the generated rule's description will be written.
@@ -35,14 +43,13 @@ export function generateOneRuleDescription(srcDir: string, dstDir: string) {
   const languages = listSupportedLanguages(srcDir);
   let isFirstLanguage = true;
   for (const language of languages) {
-    const html = generateRuleDescription(srcDir, language);
-    const dstFile = path.join(dstDir, language + '-description.html');
-    fs.writeFileSync(dstFile, html, {encoding: 'utf8'});
+    const adocFile = getRuleAdoc(srcDir, language);
+    const html = generateRuleDescription(adocFile);
+    writeRuleDescription(dstDir, language + '-description.html', html);
 
     if (isFirstLanguage) {
       // Use the first language as the default description.
-      const defFile = path.join(dstDir, 'default-description.html');
-      fs.writeFileSync(defFile, html, {encoding: 'utf8'});
+      writeRuleDescription(dstDir, 'default-description.html', html);
       isFirstLanguage = false;
     }
   }
@@ -61,32 +68,41 @@ export function generateRulesDescription(srcPath: string, dstPath: string, rules
 }
 
 /**
- * Generate the description corresponding to one rule and one language.
+ * Retrieve the path to the rule.adoc file for the given rule and language.
  * @param srcDir rule's source directory.
  * @param language language for which the metadata should be generated
  */
-function generateRuleDescription(srcDir: string, language: string) {
-    let ruleSrcFile = path.join(srcDir, language, 'rule.adoc');
-    if (!fs.existsSync(ruleSrcFile)) {
-        ruleSrcFile = path.join(srcDir, 'rule.adoc');
-        if (!fs.existsSync(ruleSrcFile)) {
-            throw new Error(`Missing file 'rule.adoc' for language ${language} in ${srcDir}`);
-        }
-    }
-    const baseDir = path.resolve(path.dirname(ruleSrcFile));
-    const opts = {
-        attributes: {
-          'rspecator-view': '',
-          docfile: ruleSrcFile,
-        },
-        safe: 'unsafe',
-        base_dir: baseDir,
-        backend: 'xhtml5',
-        to_file: false
-    };
+function getRuleAdoc(srcDir: string, language: string) {
+  let ruleSrcFile = path.join(srcDir, language, 'rule.adoc');
+  if (!fs.existsSync(ruleSrcFile)) {
+    ruleSrcFile = path.join(srcDir, 'rule.adoc');
+  }
 
-    // Every rule documentation has an implicit level-1 "Description" header.
-    const fileData = fs.readFileSync(ruleSrcFile);
-    const data = '== Description\n\n' + fileData;
-    return asciidoc.convert(data, opts);
+  if (!fs.existsSync(ruleSrcFile)) {
+    throw new Error(`Missing file 'rule.adoc' for language ${language} in ${srcDir}`);
+  }
+
+  return ruleSrcFile;
+}
+
+/**
+ * Generate the HTML for the rule description.
+ */
+function generateRuleDescription(ruleAdocFile: string) {
+  const baseDir = path.resolve(path.dirname(ruleAdocFile));
+  const opts = {
+    attributes: {
+      'rspecator-view': '',
+      docfile: ruleAdocFile,
+    },
+    safe: 'unsafe',
+    base_dir: baseDir,
+    backend: 'xhtml5',
+    to_file: false
+  };
+
+  // Every rule documentation has an implicit level-1 "Description" header.
+  const fileData = fs.readFileSync(ruleAdocFile);
+  const data = '== Description\n\n' + fileData;
+  return asciidoc.convert(data, opts) as string;
 }
