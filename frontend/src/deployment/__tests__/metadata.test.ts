@@ -125,7 +125,7 @@ describe('metadata generation', () => {
     });
   });
 
-  test('generate test metadata', () => {
+  test('generate test metadata for active rules', () => {
     return withTestDir(async (dstPath) => {
       generateRulesMetadata(path.join(__dirname, 'resources', 'rules'), dstPath);
       const rules = fs.readdirSync(dstPath);

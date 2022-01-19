@@ -79,113 +79,115 @@ describe('index store generation', () => {
   });
 });
 
-function createIndex() {
-  const rulesPath = path.join(__dirname, 'resources', 'metadata');
-  const [indexStore, _] = buildIndexStore(rulesPath);
-
-  // Hack to avoid warnings when 'selectivePipeline' is already registered
-  if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
-    delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline']
-  }
-  return buildSearchIndex(indexStore);
-}
-
-
 describe('search index enables search by title and description words', () => {
   test('searches in rule keys', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = search(searchIndex, 'S3457', 'all_keys');
+    const searchesS3457 = tokenizedSearch(searchIndex, 'S3457', 'all_keys');
     expect(searchesS3457).toEqual(['S3457']);
 
-    const searchesS987 = search(searchIndex, 'ppincludesignal', 'all_keys');
+    const searchesS987 = tokenizedSearch(searchIndex, 'ppincludesignal', 'all_keys');
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesS1000 = search(searchIndex, 'UnnamedNamespaceInHeader', 'all_keys');
+    const searchesS1000 = tokenizedSearch(searchIndex, 'UnnamedNamespaceInHeader', 'all_keys');
     expect(searchesS1000).toEqual(['S1000']);
   });
 
   test('searches in rule description', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = search(searchIndex, 'Because printf-style format', 'descriptions');
+    const searchesS3457 = tokenizedSearch(searchIndex, 'Because printf-style format', 'descriptions');
     expect(searchesS3457).toEqual(['S3457']);
 
-    const searchesS987 = search(searchIndex, 'Signal handling contains', 'descriptions');
+    const searchesS987 = tokenizedSearch(searchIndex, 'Signal handling contains', 'descriptions');
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesUnknown = search(searchIndex, 'Unknown description', 'descriptions');
+    const searchesUnknown = tokenizedSearch(searchIndex, 'Unknown description', 'descriptions');
     expect(searchesUnknown).toHaveLength(0);
 
-    const searchesBothRules = search(searchIndex, 'Noncompliant Code Example', 'descriptions');
+    const searchesBothRules = tokenizedSearch(searchIndex, 'Noncompliant Code Example', 'descriptions');
     expect(searchesBothRules.sort()).toEqual(['S1000', 'S3457', 'S987'].sort());
   });
 
   test('searches in rule title', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = search(searchIndex, 'Composite format strings', 'titles');
+    const searchesS3457 = tokenizedSearch(searchIndex, 'Composite format strings', 'titles');
     expect(searchesS3457).toEqual(['S3457']);
 
-    const searchesS987 = search(searchIndex, 'signal.h used', 'titles');
+    const searchesS987 = tokenizedSearch(searchIndex, 'signal.h used', 'titles');
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesUnknown = search(searchIndex, 'unknown title', 'titles');
+    const searchesUnknown = tokenizedSearch(searchIndex, 'unknown title', 'titles');
     expect(searchesUnknown).toHaveLength(0);
 
-    const searchesBothRules = search(searchIndex, 'be should', 'titles');
+    const searchesBothRules = tokenizedSearch(searchIndex, 'be should', 'titles');
     expect(searchesBothRules.sort()).toEqual(['S3457', 'S987'].sort());
   });
-
-  function search(index: lunr.Index, query: string, field: string): string[] {
-    const hits = index.query(q => {
-      lunr.tokenizer(query).forEach(token => {
-        q.term(token, {fields: [field], presence: lunr.Query.presence.REQUIRED})
-      })
-    });
-    return hits.map(({ ref }) => ref)
-  }
 });
 
 describe('search index enables search by tags, quality profiles and languages', () => {
 
   test('searches in rule tags', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = search(searchIndex, 'cert', 'tags');
+    const searchesS3457 = searchExactField(searchIndex, 'cert', 'tags');
     expect(searchesS3457).toHaveLength(2);
     expect(searchesS3457).toContain('S1000');
     expect(searchesS3457).toContain('S3457');
 
-    const searchesS987 = search(searchIndex, 'based-on-misra', 'tags');
+    const searchesS987 = searchExactField(searchIndex, 'based-on-misra', 'tags');
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesUnknown = search(searchIndex, 'unknown tag', 'tags');
+    const searchesUnknown = searchExactField(searchIndex, 'unknown tag', 'tags');
     expect(searchesUnknown).toHaveLength(0);
   });
 
   test('searches in rule quality profiles', () => {
     const searchIndex = createIndex();
-    const searchesSonarWay = search(searchIndex, 'sonar way', 'qualityProfiles');
+    const searchesSonarWay = searchExactField(searchIndex, 'sonar way', 'qualityProfiles');
     expect(searchesSonarWay).toEqual(['S1000', 'S3457']);
 
-    const filtersAll = search(searchIndex, 'non-existent', 'qualityProfiles');
+    const filtersAll = searchExactField(searchIndex, 'non-existent', 'qualityProfiles');
     expect(filtersAll).toEqual([]);
   });
 
   test('filter per language', () => {
     const searchIndex = createIndex();
-    const csharpRules = search(searchIndex, 'csharp', 'languages');
+    const csharpRules = searchExactField(searchIndex, 'csharp', 'languages');
     expect(csharpRules).toEqual(['S3457']);
 
-    const cfamilyRules = search(searchIndex, 'cfamily', 'languages');
+    const cfamilyRules = searchExactField(searchIndex, 'cfamily', 'languages');
     expect(cfamilyRules.sort()).toEqual(['S987', 'S1000', 'S3457'].sort());
   });
-
-  function search(index: lunr.Index, query: string, field: string): string[] {
-    const hits = index.query(q => {
-      q.term(query, {
-        fields: [field],
-        presence: lunr.Query.presence.REQUIRED,
-        usePipeline: false
-      });
-    });
-    return hits.map(({ ref }) => ref)
-  }
 });
+
+function createIndex() {
+  const rulesPath = path.join(__dirname, 'resources', 'metadata');
+  const [ruleIndexStore, _] = buildIndexStore(rulesPath);
+
+  // Hack to avoid warnings when 'selectivePipeline' is already registered
+  if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
+    delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline']
+  }
+  return buildSearchIndex(ruleIndexStore);
+}
+
+function tokenizedSearch(index: lunr.Index, query: string, field: string): string[] {
+  const hits = index.query(q => {
+    lunr.tokenizer(query).forEach(token => {
+      q.term(token, {
+        fields: [field],
+        presence: lunr.Query.presence.REQUIRED
+      })
+    })
+  });
+  return hits.map(({ ref }) => ref)
+}
+
+function searchExactField(index: lunr.Index, query: string, field: string): string[] {
+  const hits = index.query(q => {
+    q.term(query, {
+      fields: [field],
+      presence: lunr.Query.presence.REQUIRED,
+      usePipeline: false
+    });
+  });
+  return hits.map(({ ref }) => ref)
+}
