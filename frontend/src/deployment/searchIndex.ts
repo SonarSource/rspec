@@ -188,9 +188,9 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
       this.pipeline.add(selectivePipeline);
 
       this.ref('id');
-      this.field('titles');
+      this.field('titles', { extractor: (doc) => (doc as IndexedRule).titles.join('\n') });
       this.field('type');
-      this.field('languages');
+      this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(_ => _.name) });
       this.field('defaultSeverity');
       this.field('tags');
       this.field('qualityProfiles');
@@ -198,10 +198,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
       this.field('all_keys');
 
       for (const searchRecord of Object.values(ruleIndexStore)) {
-          const transformedRecord: any = { ...searchRecord };
-          transformedRecord.titles = searchRecord.titles.join('\n');
-          transformedRecord.languages = searchRecord.supportedLanguages.map(_ => _.name);
-          this.add(transformedRecord);
+        this.add(searchRecord);
       }
   })
 }
