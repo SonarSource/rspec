@@ -34,6 +34,15 @@ function writeRuleDescription(dstDir: string, filename: string, html: string) {
 }
 
 /**
+ * Generate the default description for a rule without any language-specific data.
+ */
+function generateGenericDescription(srcDir: string, dstDir: string) {
+  const adocFile = getRuleAdoc(srcDir);
+  const html = generateRuleDescription(adocFile);
+  writeRuleDescription(dstDir, 'default-description.html', html);
+}
+
+/**
  * Generate rule descriptions (for all relevant languages) and write it in the destination directory.
  * @param srcDir directory containing the original rule's metadata and description.
  * @param dstDir directory where the generated rule's description will be written.
@@ -41,6 +50,10 @@ function writeRuleDescription(dstDir: string, filename: string, html: string) {
 export function generateOneRuleDescription(srcDir: string, dstDir: string) {
   fs.mkdirSync(dstDir, { recursive: true });
   const languages = listSupportedLanguages(srcDir);
+  if (languages.length == 0) {
+    return generateGenericDescription(srcDir, dstDir);
+  }
+
   let isFirstLanguage = true;
   for (const language of languages) {
     const adocFile = getRuleAdoc(srcDir, language);
@@ -68,13 +81,13 @@ export function generateRulesDescription(srcPath: string, dstPath: string, rules
 }
 
 /**
- * Retrieve the path to the rule.adoc file for the given rule and language.
+ * Retrieve the path to the rule.adoc file for the given rule and optional language.
  * @param srcDir rule's source directory.
- * @param language language for which the metadata should be generated
+ * @param language language for which the metadata should be generated, when provided.
  */
-function getRuleAdoc(srcDir: string, language: string) {
-  let ruleSrcFile = path.join(srcDir, language, 'rule.adoc');
-  if (!fs.existsSync(ruleSrcFile)) {
+function getRuleAdoc(srcDir: string, language?: string) {
+  let ruleSrcFile = language ? path.join(srcDir, language, 'rule.adoc') : undefined;
+  if (!ruleSrcFile || !fs.existsSync(ruleSrcFile)) {
     ruleSrcFile = path.join(srcDir, 'rule.adoc');
   }
 

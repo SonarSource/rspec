@@ -13,6 +13,8 @@ test('generates html from asciidoc', () => {
           'include::../rule.adoc[]',
           'Specific content',
         ].join('\n'),
+
+        'S501/rule.adoc': 'Generic content, no active language',
       });
 
       return withTestDir(async (dstPath) => {
@@ -28,6 +30,20 @@ test('generates html from asciidoc', () => {
           '<div class="paragraph">',
           '<p>Generic content',
           'Specific content</p>',
+          '</div>',
+          '</div>',
+          '</div>',
+        ].join('\n'));
+
+        const s501Default = path.join(dstPath, 'S501', 'default-description.html');
+        expect(fs.existsSync(s501Default)).toBeTruthy();
+        const htmlS501Default = fs.readFileSync(s501Default);
+        expect(htmlS501Default.toString()).toEqual([
+          '<div class="sect1">',
+          '<h2 id="_description">Description</h2>',
+          '<div class="sectionbody">',
+          '<div class="paragraph">',
+          '<p>Generic content, no active language</p>',
           '</div>',
           '</div>',
           '</div>',
