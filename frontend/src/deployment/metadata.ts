@@ -44,12 +44,12 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string,
   let isFirstLanguage = true;
   for (const { language, metadata } of allMetadata) {
     const dstJsonFile = path.join(dstDir, language + '-metadata.json');
-    fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' })
+    fs.writeFileSync(dstJsonFile, JSON.stringify(metadata), { encoding: 'utf8' })
 
     if (isFirstLanguage) {
       // Use the first language as the default metadata.
       const dstFile = path.join(dstDir, 'default-metadata.json');
-      fs.writeFileSync(dstFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' });
+      fs.writeFileSync(dstFile, JSON.stringify(metadata), { encoding: 'utf8' });
       isFirstLanguage = false;
     }
   }

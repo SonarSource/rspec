@@ -219,7 +219,7 @@ export function createIndexFiles(rulesPath: string) {
   for (const rule of Object.values(indexStore)) {
       delete rule.descriptions;
   }
-  const indexStoreJson = JSON.stringify(indexStore, null, 2);
+  const indexStoreJson = JSON.stringify(indexStore);
   const indexStorePath = path.join(rulesPath, "rule-index-store.json")
   fs.writeFileSync(indexStorePath, indexStoreJson, {encoding: 'utf8', flag: 'w'});
 
