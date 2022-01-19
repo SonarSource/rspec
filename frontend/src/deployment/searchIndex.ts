@@ -190,7 +190,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
     this.ref('id');
     this.field('titles', { extractor: (doc) => (doc as IndexedRule).titles.join('\n') });
     this.field('type');
-    this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(_ => _.name) });
+    this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(lang => lang.name) });
     this.field('defaultSeverity');
     this.field('tags');
     this.field('qualityProfiles');
