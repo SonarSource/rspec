@@ -102,7 +102,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
 
   const indexedRecord: IndexedRuleWithDescription = {
     id: ruleDir,
-    languages: Array.from(record.supportedLanguages).sort(),
+    supportedLanguages: Array.from(record.supportedLanguages).sort(),
     type: record.types.values().next().value,
     severities: Array.from(record.severities).sort(),
     all_keys: Array.from(record.allKeys).sort(),
@@ -127,7 +127,7 @@ function buildIndexAggregates(indexedRecords: [string, IndexedRuleWithDescriptio
         aggregates.qualityProfiles[qualityProfile] = 1;
       }
     });
-    record[1].languages.forEach(lang => {
+    record[1].supportedLanguages.forEach(lang => {
       if (lang.name in aggregates.langs) {
         aggregates.langs[lang.name] += 1;
       } else {
@@ -200,6 +200,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
       for (const searchRecord of Object.values(ruleIndexStore)) {
           const transformedRecord: any = { ...searchRecord };
           transformedRecord.titles = searchRecord.titles.join('\n');
+          transformedRecord.languages = searchRecord.supportedLanguages.map(_ => _.name);
           this.add(transformedRecord);
       }
   })
