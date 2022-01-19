@@ -191,4 +191,91 @@ describe('metadata generation', () => {
       expect(treated).toBe(9);
     });
   });
+
+  test('generate test metadata for closed rules', () => {
+    return withTestDir(srcPath => {
+      createFiles(srcPath, {
+        'S01/metadata.json': JSON.stringify({
+          title: 'Rule is closed and has no language-specific specification',
+          type: 'CODE_SMELL',
+          status: 'closed',
+          sqKey: 'S01',
+          extra: {
+            legacyKeys: ['OldS01'],
+          },
+        }),
+
+        'S02/metadata.json': JSON.stringify({
+          title: 'Rule is closed and has one closed language-specific specification',
+          type: 'CODE_SMELL',
+          status: 'closed',
+          sqKey: 'S02',
+        }),
+        'S02/cfamily/metadata.json': JSON.stringify({
+          title: 'Language specification is closed',
+          status: 'closed',
+          extra: {
+            legacyKeys: ['OldS02'],
+          },
+        }),
+      });
+
+      return withTestDir(async dstPath => {
+        generateRulesMetadata(srcPath, dstPath);
+
+        const rules = fs.readdirSync(dstPath).sort();
+        expect(rules).toEqual(['S01', 'S02'].sort());
+
+        {
+          const rule = 'S01';
+          const rulePath = path.join(dstPath, rule);
+          // Verify that the expected files are generated and no others
+          const entries = fs.readdirSync(rulePath).sort();
+          expect(entries).toEqual(['default-metadata.json'].sort());
+
+          // Check the top-level metadata
+          const defaultFile = path.join(rulePath, 'default-metadata.json');
+          const defaultData = JSON.parse(fs.readFileSync(defaultFile, 'utf8'));
+          expect(defaultData).toMatchObject({
+            title: 'Rule is closed and has no language-specific specification',
+            type: 'CODE_SMELL',
+            status: 'closed',
+            languagesSupport: [],
+            allKeys: ['S01', 'OldS01'],
+          });
+        }
+
+        {
+          const rule = 'S02';
+          const rulePath = path.join(dstPath, rule);
+          // Verify that the expected files are generated and no others
+          const entries = fs.readdirSync(rulePath).sort();
+          expect(entries).toEqual(['default-metadata.json', 'cfamily-metadata.json'].sort());
+
+          // Check the top-level metadata
+          const defaultFile = path.join(rulePath, 'default-metadata.json');
+          const defaultData = JSON.parse(fs.readFileSync(defaultFile, 'utf8'));
+          // Generic data is overriden by the first language-specific specification.
+          expect(defaultData).toMatchObject({
+            title: 'Language specification is closed',
+            type: 'CODE_SMELL',
+            status: 'closed',
+            languagesSupport: [{ name: 'cfamily', status: 'closed', }],
+            allKeys: ['S02', 'OldS02'],
+          });
+
+          // Check the language-specific metadata
+          const cfamilyFile = path.join(rulePath, 'cfamily-metadata.json');
+          const cfamilyData = JSON.parse(fs.readFileSync(cfamilyFile, 'utf8'));
+          expect(cfamilyData).toMatchObject({
+            title: 'Language specification is closed',
+            type: 'CODE_SMELL',
+            status: 'closed',
+            languagesSupport: [{ name: 'cfamily', status: 'closed', }],
+            allKeys: ['S02', 'OldS02'],
+          });
+        }
+      });
+    });
+  });
 });

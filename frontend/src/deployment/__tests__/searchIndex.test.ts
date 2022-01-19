@@ -75,10 +75,16 @@ describe('index store generation', () => {
           type: 'BUG',
         }),
         'S101/cfamily-description.html': 'Description',
+
+        'S501/default-metadata.json': JSON.stringify({
+          title: 'Rule S501',
+          type: 'CODE_SMELL',
+        }),
+        'S501/default-description.html': 'Not implemented by any language',
       });
 
       const [indexStore, aggregates] = buildIndexStore(rulesPath);
-      expect(aggregates.langs).toEqual({ 'cfamily': 1, 'default': 2, 'java': 2, 'python': 1 });
+      expect(aggregates.langs).toEqual({ 'cfamily': 1, 'default': 3, 'java': 2, 'python': 1 });
 
       const ruleS100 = indexStore['S100'];
       expect(ruleS100.types.sort()).toEqual(['CODE_SMELL']);
@@ -86,33 +92,38 @@ describe('index store generation', () => {
       const ruleS101 = indexStore['S101'];
       expect(ruleS101.types.sort()).toEqual(['BUG', 'CODE_SMELL', 'VULNERABILITY']);
 
+      const ruleS501 = indexStore['S501'];
+      expect(ruleS501.types.sort()).toEqual(['CODE_SMELL']);
+
       const searchIndex = createIndex(indexStore);
 
-      expect(searchIndex.search('titles:*')).toHaveLength(2);
-      expect(searchIndex.search('types:*')).toHaveLength(2);
+      expect(searchIndex.search('S501')).toHaveLength(1);
+      expect(searchIndex.search('titles:S501')).toHaveLength(1);
+      expect(searchIndex.search('titles:*')).toHaveLength(3);
+      expect(searchIndex.search('types:*')).toHaveLength(3);
 
       // For types, the wildcard in the search query is required to succeed!
       // This may be related to how tokenization is handled (or not done for arrays),
       // but the actual reason doesn't matter for this test.
       expect(searchIndex.search('BUG')).toHaveLength(1);
       expect(searchIndex.search('types:BUG')).toHaveLength(1);
-      expect(searchIndex.search('*SMELL')).toHaveLength(2);
-      expect(searchIndex.search('types:*SMELL')).toHaveLength(2);
+      expect(searchIndex.search('*SMELL')).toHaveLength(3);
+      expect(searchIndex.search('types:*SMELL')).toHaveLength(3);
       expect(searchIndex.search('*VULNERABILITY')).toHaveLength(1);
       expect(searchIndex.search('types:*VULNERABILITY')).toHaveLength(1);
 
       const bugyRules = tokenizedSearch(searchIndex, 'BUG', 'types').sort();
       expect(bugyRules).toEqual(['S101']);
       const smellyRulesFuzzy = tokenizedSearch(searchIndex, '*SMELL*', 'types').sort();
-      expect(smellyRulesFuzzy).toEqual(['S100', 'S101']);
+      expect(smellyRulesFuzzy).toEqual(['S100', 'S101', 'S501']);
       const vulnerabilityRulesFuzzy = tokenizedSearch(searchIndex, 'VULNERABILITY*', 'types').sort();
       expect(vulnerabilityRulesFuzzy).toEqual(['S101']);
       const smellyRules = tokenizedSearch(searchIndex, 'CODE_SMELL*', 'types').sort();
-      expect(smellyRules).toEqual(['S100', 'S101']);
+      expect(smellyRules).toEqual(['S100', 'S101', 'S501']);
 
-      expect(searchNormalizedField(searchIndex, '*', 'types').sort()).toEqual(['S100', 'S101']);
+      expect(searchNormalizedField(searchIndex, '*', 'types').sort()).toEqual(['S100', 'S101', 'S501']);
       expect(searchNormalizedField(searchIndex, 'BUG', 'types').sort()).toEqual(['S101']);
-      expect(searchNormalizedField(searchIndex, 'CODE_SMELL', 'types').sort()).toEqual(['S100', 'S101']);
+      expect(searchNormalizedField(searchIndex, 'CODE_SMELL', 'types').sort()).toEqual(['S100', 'S101', 'S501']);
       expect(searchNormalizedField(searchIndex, 'VULNERABILITY', 'types').sort()).toEqual(['S101']);
     });
   });

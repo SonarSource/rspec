@@ -13,6 +13,33 @@ function writeRuleMetadata(dstDir: string, filename: string, metadata: any) {
 }
 
 /**
+ * Merge all sqKeys in an array to check rule coverage.
+ */
+function getAllKeys(allMetadata: { metadata: any }[]) {
+  const keys = allMetadata.reduce((set, { metadata }) => {
+    set.add(metadata.sqKey);
+    metadata.extra?.legacyKeys?.forEach((key: string) => set.add(key));
+    return set;
+  }, new Set<string>());
+  return Array.from(keys);
+}
+
+/**
+ * Generate the default metadata for a rule without any language-specific data.
+ */
+function generateGenericMetadata(srcDir: string, dstDir: string, branch: string, prUrl?: string) {
+  const metadata = getRuleMetadata(srcDir);
+  metadata.languagesSupport = [];
+  metadata.allKeys = getAllKeys([{ metadata }]);
+  if (prUrl) {
+    metadata.prUrl = prUrl;
+  }
+  metadata.branch = branch;
+
+  writeRuleMetadata(dstDir, 'default-metadata.json', metadata);
+}
+
+/**
  * Generate rule metadata (for all relevant languages) and write it in the destination directory.
  * @param srcDir directory containing the original rule's metadata and description.
  * @param dstDir directory where the generated metadata will be written.
@@ -22,7 +49,11 @@ function writeRuleMetadata(dstDir: string, filename: string, metadata: any) {
  */
 export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: string, prUrl?: string) {
   fs.mkdirSync(dstDir, { recursive: true });
-  const allLanguages = listSupportedLanguages(srcDir);
+  var allLanguages = listSupportedLanguages(srcDir);
+  if (allLanguages.length == 0) {
+    return generateGenericMetadata(srcDir, dstDir, branch, prUrl);
+  }
+
   const allMetadata = allLanguages.map((language) => {
     const metadata = getRuleMetadata(srcDir, language);
     return {language, metadata};
@@ -32,16 +63,9 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: 
   const languageSupports =
    allMetadata.map(m => ({name: m.language, status: m.metadata.status} as LanguageSupport));
 
-  // Merge all sqKeys in an array so that we can use it later to check rule coverage.
-  const allKeys = allMetadata
-    .reduce((set, {metadata}) => {
-      set.add(metadata.sqKey);
-      metadata.extra?.legacyKeys?.forEach((key: string) => set.add(key));
-      return set;
-    }, new Set<string>());
-  const allKeysArray = Array.from(allKeys);
-  allMetadata.forEach(({metadata}) => {
-    metadata.allKeys = allKeysArray;
+  const allKeys = getAllKeys(allMetadata);
+  allMetadata.forEach(({ metadata }) => {
+    metadata.allKeys = allKeys;
     if (prUrl) {
       metadata.prUrl = prUrl;
     }
@@ -76,11 +100,17 @@ export function generateRulesMetadata(srcPath: string, dstPath: string, rules?: 
 /**
  * Generate the metadata corresponding to one rule and one language.
  * @param srcDir rule's source directory.
- * @param language language for which the metadata should be generated
+ * @param language language for which the metadata should be generated (or none)
  */
-function getRuleMetadata(srcDir: string, language: string) {
-  const parentFile = path.join(srcDir, language, 'metadata.json');
-  const parentJson = fs.existsSync(parentFile) ? JSON.parse(fs.readFileSync(parentFile, 'utf8')) : {};
+function getRuleMetadata(srcDir: string, language?: string) {
+  const parentJson = (() => {
+    if (!language)
+      return {};
+    const parentFile = path.join(srcDir, language, 'metadata.json');
+    if (fs.existsSync(parentFile))
+      return JSON.parse(fs.readFileSync(parentFile, 'utf8'));
+    return {};
+  })();
   const childFile = path.join(srcDir, 'metadata.json');
   const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
   return { ...childJson, ...parentJson };
