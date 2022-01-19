@@ -5,7 +5,7 @@ import { generateRulesDescription } from '../description';
 import { withTestDir, createFiles } from '../testutils';
 
 describe('description generation', () => {
-test('generates html from asciidoc', () => {
+  test('generates html from asciidoc', () => {
     return withTestDir((srcPath) => {
       createFiles(srcPath, {
         'S100/rule.adoc': 'Generic content',
