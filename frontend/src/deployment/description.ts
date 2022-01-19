@@ -27,8 +27,8 @@ asciidoc.LoggerManager.setLogger(winstonLogger);
 
 /**
  * Generate rule descriptions (for all relevant languages) and write it in the destination directory.
- * @param srcDir directory containing the original rule metadata and description.
- * @param dstDir directory where the generated rules metadata and description will be written.
+ * @param srcDir directory containing the original rule's metadata and description.
+ * @param dstDir directory where the generated rule's description will be written.
  */
 export function generateOneRuleDescription(srcDir: string, dstDir: string) {
   fs.mkdirSync(dstDir, { recursive: true });
@@ -49,10 +49,10 @@ export function generateOneRuleDescription(srcDir: string, dstDir: string) {
 }
 
 /**
- * Generate rules descriptions and write them in the destination directory.
- * @param srcPath directory containing the original rules metadata and description.
- * @param dstPath directory where the generated rules metadata and description will be written.
- * @param rules an optional list of rules to list. Other rules won't be generated.
+ * Generate one directory per rule with its HTML description.
+ * @param srcPath directory containing all the rules subdirectories, with the metadata and descriptions.
+ * @param dstPath directory where rule directories should be created.
+ * @param rules an optional list of rules to process. Other rules won't be generated.
  */
 export function generateRulesDescription(srcPath: string, dstPath: string, rules?: string[]) {
   for (const { srcDir, dstDir } of getRulesDirectories(srcPath, dstPath, rules)) {

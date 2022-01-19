@@ -1,18 +1,18 @@
 import fs from 'fs';
 import path from 'path';
-import { LanguageSupport } from '../types/RuleMetadata';
 
+import { LanguageSupport } from '../types/RuleMetadata';
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 
 /**
  * Generate rule metadata (for all relevant languages) and write it in the destination directory.
- * @param srcDir directory containing the original rule metadata and description.
- * @param dstDir directory where the generated metadata and description will be written.
- * @param branch the branch containing the given version of the rule. Typically 'master' but can be different for not merged rules.
- * @param prUrl optional link to the PR adding the rule. absent for merged rules.
+ * @param srcDir directory containing the original rule's metadata and description.
+ * @param dstDir directory where the generated metadata will be written.
+ * @param branch the branch containing the given version of the rule.
+ *               Typically 'master' but can be different for not merged rules.
+ * @param prUrl optional link to the PR adding the rule. Absent for merged rules.
  */
-export function generateOneRuleMetadata(srcDir: string, dstDir: string,
-                                        branch: string, prUrl?: string) {
+export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: string, prUrl?: string) {
   fs.mkdirSync(dstDir, { recursive: true });
   const allLanguages = listSupportedLanguages(srcDir);
   const allMetadata = allLanguages.map((language) => {
@@ -56,10 +56,10 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string,
 }
 
 /**
- * Generate rules metadata and write them in the destination directory.
- * @param srcPath directory containing the original rules metadata and description.
- * @param dstPath directory where the generated rules metadata and description will be written.
- * @param rules an optional list of rules to list. Other rules won't be generated.
+ * Generate one directory per rule with its JSON metadata.
+ * @param srcPath directory containing all the rules subdirectories, with the metadata and descriptions.
+ * @param dstPath directory where rule directories should be created.
+ * @param rules an optional list of rules to process. Other rules won't be generated.
  */
 export function generateRulesMetadata(srcPath: string, dstPath: string, rules?: string[]) {
   for (const { srcDir, dstDir } of getRulesDirectories(srcPath, dstPath, rules)) {
