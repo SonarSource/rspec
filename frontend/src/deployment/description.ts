@@ -33,15 +33,17 @@ asciidoc.LoggerManager.setLogger(winstonLogger);
 export function generateOneRuleDescription(srcDir: string, dstDir: string) {
   fs.mkdirSync(dstDir, { recursive: true });
   const languages = listSupportedLanguages(srcDir);
-  let default_descr_wanted = true;
+  let isFirstLanguage = true;
   for (const language of languages) {
     const html = generateRuleDescription(srcDir, language);
     const dstFile = path.join(dstDir, language + '-description.html');
     fs.writeFileSync(dstFile, html, {encoding: 'utf8'});
-    if (default_descr_wanted) {
+
+    if (isFirstLanguage) {
+      // Use the first language as the default description.
       const defFile = path.join(dstDir, 'default-description.html');
       fs.writeFileSync(defFile, html, {encoding: 'utf8'});
-      default_descr_wanted = false;
+      isFirstLanguage = false;
     }
   }
 }

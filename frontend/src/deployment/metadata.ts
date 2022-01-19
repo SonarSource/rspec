@@ -41,14 +41,16 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string,
     metadata.languagesSupport = languageSupports;
   });
 
-  let default_metadata_wanted = true;
+  let isFirstLanguage = true;
   for (const { language, metadata } of allMetadata) {
     const dstJsonFile = path.join(dstDir, language + '-metadata.json');
     fs.writeFileSync(dstJsonFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' })
-    if (default_metadata_wanted) {
+
+    if (isFirstLanguage) {
+      // Use the first language as the default metadata.
       const dstFile = path.join(dstDir, 'default-metadata.json');
       fs.writeFileSync(dstFile, JSON.stringify(metadata, null, 2), { encoding: 'utf8' });
-      default_metadata_wanted = false;
+      isFirstLanguage = false;
     }
   }
 }
