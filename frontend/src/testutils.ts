@@ -1,6 +1,7 @@
+import lunr from "lunr";
 
 type Fetched = 'json' | 'text';
-type FetchResult = {[K in Fetched]?: any};
+export type FetchResult = {[K in Fetched]?: any};
 type FetchFunction = (url: string, opts: any) => Promise<FetchResult>;
 type FetchMocker = {mock: FetchFunction,
                     finished: () => Promise<FetchResult[]>,
@@ -64,8 +65,24 @@ export function fetchMockObject(mockUrls: Record<string, FetchResult>): FetchMoc
  *
  * @param mockUrls a dictionary url -> value, where url is a string, and the value is
  *        an object containing either `json` or `text` field: {json: ...} or {text: ...}
- * @returns a function that can be passed to replace the implementaion of `fetch`.
+ * @returns a function that can be passed to replace the implementation of `fetch`.
  */
-export function fetchMock(mockUrls: Record<string, FetchResult>):FetchFunction {
+export function fetchMock(mockUrls: Record<string, FetchResult>): FetchFunction {
   return fetchMockObject(mockUrls).mock;
+}
+
+export function normalize(obj: any) {
+  // Lunr (the search engine) expects its objects to have been
+  // serialized and deserialized when it is queried.
+  // This is not a no-op, because, for example, it translates function references to
+  // simple labels on the serialization step, and then uses these labels to
+  // restore the function references when loading.
+  return JSON.parse(JSON.stringify(obj));
+}
+
+export function removeSelectivePipeline() {
+  // Hack to avoid warnings when 'selectivePipeline' is already registered
+  if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
+      delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline'];
+  }
 }
