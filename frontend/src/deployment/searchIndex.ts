@@ -5,7 +5,7 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { IndexedRule, IndexStore, Severity, IndexAggregates } from '../types/IndexStore';
+import { IndexedRule, IndexStore, Severity, Type, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
 import { LanguageSupport } from '../types/RuleMetadata';
 
@@ -20,7 +20,7 @@ export interface IndexedRuleWithDescription extends IndexedRule {
 
 function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: string) {
 
-  let types = new Set<string>();
+  let types = new Set<Type>();
   let severities = new Set<Severity>();
   const allKeys = new Set<string>([ruleDir]);
   const titles = new Set<string>();
