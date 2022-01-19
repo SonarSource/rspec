@@ -183,23 +183,23 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
   lunr.Pipeline.registerFunction(selectivePipeline, 'selectivePipeline');
 
   return lunr(function () {
-      // Set our own token processing pipeline
-      this.pipeline.reset();
-      this.pipeline.add(selectivePipeline);
+    // Set our own token processing pipeline
+    this.pipeline.reset();
+    this.pipeline.add(selectivePipeline);
 
-      this.ref('id');
-      this.field('titles', { extractor: (doc) => (doc as IndexedRule).titles.join('\n') });
-      this.field('type');
-      this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(_ => _.name) });
-      this.field('defaultSeverity');
-      this.field('tags');
-      this.field('qualityProfiles');
-      this.field('descriptions');
-      this.field('all_keys');
+    this.ref('id');
+    this.field('titles', { extractor: (doc) => (doc as IndexedRule).titles.join('\n') });
+    this.field('type');
+    this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(_ => _.name) });
+    this.field('defaultSeverity');
+    this.field('tags');
+    this.field('qualityProfiles');
+    this.field('descriptions');
+    this.field('all_keys');
 
-      for (const searchRecord of Object.values(ruleIndexStore)) {
-        this.add(searchRecord);
-      }
+    for (const searchRecord of Object.values(ruleIndexStore)) {
+      this.add(searchRecord);
+    }
   })
 }
 
