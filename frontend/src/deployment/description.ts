@@ -50,8 +50,9 @@ function generateGenericDescription(srcDir: string, dstDir: string) {
 export function generateOneRuleDescription(srcDir: string, dstDir: string) {
   fs.mkdirSync(dstDir, { recursive: true });
   const languages = listSupportedLanguages(srcDir);
-  if (languages.length == 0) {
-    return generateGenericDescription(srcDir, dstDir);
+  if (languages.length === 0) {
+    generateGenericDescription(srcDir, dstDir);
+    return;
   }
 
   let isFirstLanguage = true;

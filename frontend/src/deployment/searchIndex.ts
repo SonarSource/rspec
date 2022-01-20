@@ -20,8 +20,8 @@ export interface IndexedRuleWithDescription extends IndexedRule {
 
 function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: string) {
 
-  let types = new Set<Type>();
-  let severities = new Set<Severity>();
+  const types = new Set<Type>();
+  const severities = new Set<Severity>();
   const allKeys = new Set<string>([ruleDir]);
   const titles = new Set<string>();
   const tags = new Set<string>();

@@ -49,19 +49,20 @@ function generateGenericMetadata(srcDir: string, dstDir: string, branch: string,
  */
 export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: string, prUrl?: string) {
   fs.mkdirSync(dstDir, { recursive: true });
-  var allLanguages = listSupportedLanguages(srcDir);
-  if (allLanguages.length == 0) {
-    return generateGenericMetadata(srcDir, dstDir, branch, prUrl);
+  const allLanguages = listSupportedLanguages(srcDir);
+  if (allLanguages.length === 0) {
+    generateGenericMetadata(srcDir, dstDir, branch, prUrl);
+    return;
   }
 
   const allMetadata = allLanguages.map((language) => {
     const metadata = getRuleMetadata(srcDir, language);
-    return {language, metadata};
+    return { language, metadata };
   });
 
   // Update language status for all
   const languageSupports =
-   allMetadata.map(m => ({name: m.language, status: m.metadata.status} as LanguageSupport));
+    allMetadata.map(m => ({ name: m.language, status: m.metadata.status } as LanguageSupport));
 
   const allKeys = getAllKeys(allMetadata);
   allMetadata.forEach(({ metadata }) => {
@@ -104,11 +105,13 @@ export function generateRulesMetadata(srcPath: string, dstPath: string, rules?: 
  */
 function getRuleMetadata(srcDir: string, language?: string) {
   const parentJson = (() => {
-    if (!language)
+    if (!language) {
       return {};
+    }
     const parentFile = path.join(srcDir, language, 'metadata.json');
-    if (fs.existsSync(parentFile))
+    if (fs.existsSync(parentFile)) {
       return JSON.parse(fs.readFileSync(parentFile, 'utf8'));
+    }
     return {};
   })();
   const childFile = path.join(srcDir, 'metadata.json');
