@@ -83,63 +83,75 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: RULE_STATE['removed'].color,
     }
   },
+  closedTab: {
+    '&::before': {
+      backgroundColor: RULE_STATE['closed'].color,
+    }
+  },
+  deprecatedTab: {
+    '&::before': {
+      backgroundColor: RULE_STATE['deprecated'].color,
+    }
+  },
 }));
 
 const languageToJiraProject = new Map(Object.entries({
-  "PYTHON": "SONARPY",
-  "ABAP": "SONARABAP",
-  "CFAMILY": "CPP",
-  "JAVA": "SONARJAVA",
-  "COBOL": "SONARCOBOL",
-  "FLEX": "SONARFLEX",
-  "HTML": "SONARHTML",
-  "PHP": "SONARPHP",
-  "PLI": "SONARPLI",
-  "PLSQL": "SONARPLSQL",
-  "RPG": "SONARRPG",
-  "APEX": "SONARSLANG",
-  "RUBY": "SONARSLANG",
-  "KOTLIN": "SONARKT",
-  "SCALA": "SONARSLANG",
-  "GO": "SONARSLANG",
-  "SECRETS": "SECRETS",
-  "SWIFT": "SONARSWIFT",
-  "TSQL": "SONARTSQL",
-  "VB6": "SONARVBSIX",
-  "XML": "SONARXML",
-  "CLOUDFORMATION": "SONARIAC",
-  "TERRAFORM": "SONARIAC",
+  'PYTHON': 'SONARPY',
+  'ABAP': 'SONARABAP',
+  'CFAMILY': 'CPP',
+  'JAVA': 'SONARJAVA',
+  'COBOL': 'SONARCOBOL',
+  'FLEX': 'SONARFLEX',
+  'HTML': 'SONARHTML',
+  'PHP': 'SONARPHP',
+  'PLI': 'SONARPLI',
+  'PLSQL': 'SONARPLSQL',
+  'RPG': 'SONARRPG',
+  'APEX': 'SONARSLANG',
+  'RUBY': 'SONARSLANG',
+  'KOTLIN': 'SONARKT',
+  'SCALA': 'SONARSLANG',
+  'GO': 'SONARSLANG',
+  'SECRETS': 'SECRETS',
+  'SWIFT': 'SONARSWIFT',
+  'TSQL': 'SONARTSQL',
+  'VB6': 'SONARVBSIX',
+  'XML': 'SONARXML',
+  'CLOUDFORMATION': 'SONARIAC',
+  'TERRAFORM': 'SONARIAC',
+  'TEXT': 'SONARTEXT',
 }));
 
 const languageToGithubProject = new Map(Object.entries({
-  "ABAP": "sonar-abap",
-  "CSHARP": "sonar-dotnet",
-  "VBNET": "sonar-dotnet",
-  "JAVASCRIPT": "SonarJS",
-  "TYPESCRIPT": "SonarJS",
-  "SWIFT": "sonar-swift",
-  "KOTLIN": "sonar-kotlin",
-  "GO": "slang-enterprise",
-  "SCALA": "slang-enterprise",
-  "RUBY": "slang-enterprise",
-  "APEX": "slang-enterprise",
-  "HTML": "sonar-html",
-  "COBOL": "sonar-cobol",
-  "VB6": "sonar-vb",
-  "JAVA": "sonar-java",
-  "PLI": "sonar-pli",
-  "CFAMILY": "sonar-cpp",
-  "CSS": "sonar-css",
-  "FLEX": "sonar-flex",
-  "PHP": "sonar-php",
-  "PLSQL": "sonar-plsql",
-  "PYTHON": "sonar-python",
-  "RPG": "sonar-rpg",
-  "TSQL": "sonar-tsql",
-  "XML": "sonar-xml",
-  "CLOUDFORMATION": "sonar-iac",
-  "TERRAFORM": "sonar-iac",
-  "SECRETS": "sonar-secrets",
+  'ABAP': 'sonar-abap',
+  'CSHARP': 'sonar-dotnet',
+  'VBNET': 'sonar-dotnet',
+  'JAVASCRIPT': 'SonarJS',
+  'TYPESCRIPT': 'SonarJS',
+  'SWIFT': 'sonar-swift',
+  'KOTLIN': 'sonar-kotlin',
+  'GO': 'slang-enterprise',
+  'SCALA': 'slang-enterprise',
+  'RUBY': 'slang-enterprise',
+  'APEX': 'slang-enterprise',
+  'HTML': 'sonar-html',
+  'COBOL': 'sonar-cobol',
+  'VB6': 'sonar-vb',
+  'JAVA': 'sonar-java',
+  'PLI': 'sonar-pli',
+  'CFAMILY': 'sonar-cpp',
+  'CSS': 'sonar-css',
+  'FLEX': 'sonar-flex',
+  'PHP': 'sonar-php',
+  'PLSQL': 'sonar-plsql',
+  'PYTHON': 'sonar-python',
+  'RPG': 'sonar-rpg',
+  'TSQL': 'sonar-tsql',
+  'XML': 'sonar-xml',
+  'CLOUDFORMATION': 'sonar-iac',
+  'TERRAFORM': 'sonar-iac',
+  'SECRETS': 'sonar-secrets',
+  'TEXT': 'sonar-text',
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
@@ -147,7 +159,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
     const upperCaseLanguage = language.toUpperCase();
     const jiraProject = languageToJiraProject.get(upperCaseLanguage);
     const githubProject = languageToGithubProject.get(upperCaseLanguage);
-    const titleWihoutQuotes = title.replaceAll('"','');
+    const titleWihoutQuotes = title.replace(/"/g, "'");
 
     const implementationPRsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
@@ -191,16 +203,16 @@ export function RulePage(props: any) {
   const classes = useStyles();
   let branch = 'master'
 
-  let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-description.html";
-  let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-metadata.json";
+  const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
+  const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
 
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
   const {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer} = useRuleCoverage();
-  let coverage: any = "Loading...";
+  let coverage: any = 'Loading...';
 
-  let title = "Loading..."
+  let title = 'Loading...';
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
@@ -210,18 +222,18 @@ export function RulePage(props: any) {
       prUrl = metadataJSON.prUrl;
     }
     branch = metadataJSON.branch;
-    metadataJSON.all_languages.sort();
-    languagesTabs = metadataJSON.all_languages.map(lang => { 
-      const ruleState = ruleStateInAnalyzer(lang, metadataJSON!.allKeys);
+    metadataJSON.languagesSupport.sort();
+    languagesTabs = metadataJSON.languagesSupport.map(({ name, status }) => {
+      const ruleState = ruleStateInAnalyzer(name, metadataJSON!.allKeys, status);
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
-      return <Tab label={lang} value={lang} className={classNames} />;
+      return <Tab key={name} label={name} value={name} className={classNames} />;
     });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     const coverageMapper = (key: any, range: any) => {
-      if (typeof range === "string") {
+      if (typeof range === 'string') {
         return (
-          <li >{key}: {range}</li>
+          <li key={key} >{key}: {range}</li>
         );
       } else {
         return (
@@ -236,7 +248,7 @@ export function RulePage(props: any) {
     }
   }
 
-  if (coverage !== "Not Covered") {
+  if (coverage !== 'Not Covered') {
     prUrl = undefined;
     branch = 'master'; 
   }
@@ -282,7 +294,6 @@ export function RulePage(props: any) {
             onChange={handleLanguageChange}
             indicatorColor="primary"
             textColor="primary"
-            centered
             variant="scrollable"
             scrollButtons="auto"
             classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
@@ -315,8 +326,7 @@ export function RulePage(props: any) {
       </Box>
 
       <Box>
-        <Typography variant="h4">Description</Typography>
-        <Typography className={classes.description}>
+        <Typography component={'span'} className={classes.description}>
           {description}
         </Typography>
       </Box>

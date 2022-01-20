@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { generate_rules_description } from '../description';
+import { generateRulesDescription } from '../description';
 import { withTestDir, createFiles } from '../testutils';
 
 describe('description generation', () => {
@@ -14,14 +14,21 @@ test('generates html from asciidoc', () => {
           'Specific content'].join('\n')
       });
       return withTestDir(async (dstPath) => {
-        generate_rules_description(srcPath, dstPath);
+        generateRulesDescription(srcPath, dstPath);
 
         const ruleHtml = fs.readFileSync(path.join(dstPath, 'S100', 'java-description.html'));
         expect(ruleHtml.toString()).toEqual(
-          ['<div class="paragraph">',
-          '<p>Generic content',
-          'Specific content</p>',
-          '</div>'].join('\n')
+          [
+            '<div class="sect1">',
+            '<h2 id="_description">Description</h2>',
+            '<div class="sectionbody">',
+            '<div class="paragraph">',
+            '<p>Generic content',
+            'Specific content</p>',
+            '</div>',
+            '</div>',
+            '</div>'
+          ].join('\n')
         );
       });
     });

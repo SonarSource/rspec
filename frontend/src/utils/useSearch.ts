@@ -21,15 +21,17 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
   const [loading, setResultsAreLoading] = useState(true);
 
   React.useEffect(() => {
-    console.log(`trying to load index`);
     if (indexData && !indexDataIsLoading && !indexDataError) {
-      console.log("Loading Index");
       setIndex(lunr.Index.load(indexData));
     }
   }, [indexData, indexDataError, indexDataIsLoading]);
 
+  // Avoid comparing arrays in the useEffect dependency list,
+  // as that would always return unequal
+  const tagsStr = ruleTags.toString();
+  const profilesStr = qualityProfiles.toString();
+
   React.useEffect(() => {
-    console.log(`trying to run query`);
     if (index != null && !storeDataIsLoading && !storeDataError) {
       let hits: lunr.Index.Result[] = []
       setError(null);
@@ -91,7 +93,12 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
         setResultsAreLoading(false);
       }
     }
-  }, [query, ruleType, ruleLang, ruleTags, qualityProfiles, pageSize, pageNumber, storeData, storeDataIsLoading, storeDataError, index]);
+    // ruleTags and qualityProfiles are replaced with tagsStr and profilesStr
+    // to enable correct equality comparison when react decides whether to
+    // re invoke the effect.
+    // eslint-disable-next-line
+  }, [query, ruleType, ruleLang, tagsStr, profilesStr, pageSize, pageNumber,
+      storeData, storeDataIsLoading, storeDataError, index]);
 
   return {results, numberOfHits, error, loading};
 }
