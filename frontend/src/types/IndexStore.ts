@@ -4,7 +4,7 @@ export type Severity = 'Blocker'|'Critical'|'Major'|'Minor'|'Info';
 
 export interface IndexedRule {
     id: string;
-    languages: LanguageSupport[];
+    supportedLanguages: LanguageSupport[];
     // FIXME: type, defaultSeverity should never be null but the index generation has a bug
     type: 'BUG'|'CODE_SMELL'|'VULNERABILITY'|'SECURITY_HOTSPOT';
     severities: Severity[];
