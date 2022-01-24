@@ -41,7 +41,7 @@ describe('index store generation', () => {
     expect(ruleS3457.descriptions).toEqual(expect.arrayContaining(expectedWords));
   });
 
-  test('check types computation', () => {
+  test('computes types correctly', () => {
     return withTestDir(async rulesPath => {
       createFiles(rulesPath, {
         'S100/default-metadata.json': JSON.stringify({

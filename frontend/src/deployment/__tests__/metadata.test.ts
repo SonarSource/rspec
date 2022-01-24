@@ -72,7 +72,7 @@ describe('metadata generation', () => {
     });
   });
 
-  test('check types computation', () => {
+  test('computes rule types correctly', () => {
     return withTestDir((srcPath) => {
       createFiles(srcPath, {
         'S100/metadata.json': JSON.stringify({
@@ -171,7 +171,7 @@ describe('metadata generation', () => {
     });
   });
 
-  test('generate test metadata for active rules', () => {
+  test('generates metadata for active rules', () => {
     return withTestDir(async (dstPath) => {
       generateRulesMetadata(path.join(__dirname, 'resources', 'rules'), dstPath);
       const rules = fs.readdirSync(dstPath);
@@ -192,7 +192,7 @@ describe('metadata generation', () => {
     });
   });
 
-  test('generate test metadata for closed rules', () => {
+  test('generates metadata for closed rules', () => {
     return withTestDir(srcPath => {
       createFiles(srcPath, {
         'S01/metadata.json': JSON.stringify({
