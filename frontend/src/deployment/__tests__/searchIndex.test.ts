@@ -4,6 +4,7 @@ import lunr from 'lunr';
 import { buildSearchIndex, buildIndexStore, DESCRIPTION_SPLIT_REGEX } from '../searchIndex';
 import { withTestDir, createFiles } from '../testutils';
 import { IndexStore } from '../../types/IndexStore';
+import { filterKeysTitlesDescriptions, filterLanguages, filterQualityProfiles, filterTags, filterTypes } from '../../utils/useSearch';
 
 
 describe('index store generation', () => {
@@ -112,19 +113,10 @@ describe('index store generation', () => {
       expect(searchIndex.search('*VULNERABILITY')).toHaveLength(1);
       expect(searchIndex.search('types:*VULNERABILITY')).toHaveLength(1);
 
-      const bugyRules = tokenizedSearch(searchIndex, 'BUG', 'types').sort();
-      expect(bugyRules).toEqual(['S101']);
-      const smellyRulesFuzzy = tokenizedSearch(searchIndex, '*SMELL*', 'types').sort();
-      expect(smellyRulesFuzzy).toEqual(['S100', 'S101', 'S501']);
-      const vulnerabilityRulesFuzzy = tokenizedSearch(searchIndex, 'VULNERABILITY*', 'types').sort();
-      expect(vulnerabilityRulesFuzzy).toEqual(['S101']);
-      const smellyRules = tokenizedSearch(searchIndex, 'CODE_SMELL*', 'types').sort();
-      expect(smellyRules).toEqual(['S100', 'S101', 'S501']);
-
-      expect(searchNormalizedField(searchIndex, '*', 'types').sort()).toEqual(['S100', 'S101', 'S501']);
-      expect(searchNormalizedField(searchIndex, 'BUG', 'types').sort()).toEqual(['S101']);
-      expect(searchNormalizedField(searchIndex, 'CODE_SMELL', 'types').sort()).toEqual(['S100', 'S101', 'S501']);
-      expect(searchNormalizedField(searchIndex, 'VULNERABILITY', 'types').sort()).toEqual(['S101']);
+      expect(findRulesByType(searchIndex, '*').sort()).toEqual(['S100', 'S101', 'S501']);
+      expect(findRulesByType(searchIndex, 'BUG').sort()).toEqual(['S101']);
+      expect(findRulesByType(searchIndex, 'CODE_SMELL').sort()).toEqual(['S100', 'S101', 'S501']);
+      expect(findRulesByType(searchIndex, 'VULNERABILITY').sort()).toEqual(['S101']);
     });
   });
 
@@ -171,43 +163,43 @@ describe('index store generation', () => {
 describe('search index enables search by title and description words', () => {
   test('searches in rule keys', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = tokenizedSearch(searchIndex, 'S3457', 'all_keys');
+    const searchesS3457 = findRuleByQuery(searchIndex, 'S3457');
     expect(searchesS3457).toEqual(['S3457']);
 
-    const searchesS987 = tokenizedSearch(searchIndex, 'ppincludesignal', 'all_keys');
+    const searchesS987 = findRuleByQuery(searchIndex, 'ppincludesignal');
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesS1000 = tokenizedSearch(searchIndex, 'UnnamedNamespaceInHeader', 'all_keys');
+    const searchesS1000 = findRuleByQuery(searchIndex, 'UnnamedNamespaceInHeader');
     expect(searchesS1000).toEqual(['S1000']);
   });
 
   test('searches in rule description', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = tokenizedSearch(searchIndex, 'Because printf-style format', 'descriptions');
+    const searchesS3457 = findRuleByQuery(searchIndex, 'Because printf-style format');
     expect(searchesS3457).toEqual(['S3457']);
 
-    const searchesS987 = tokenizedSearch(searchIndex, 'Signal handling contains', 'descriptions');
+    const searchesS987 = findRuleByQuery(searchIndex, 'Signal handling contains');
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesUnknown = tokenizedSearch(searchIndex, 'Unknown description', 'descriptions');
+    const searchesUnknown = findRuleByQuery(searchIndex, 'Unknown description');
     expect(searchesUnknown).toHaveLength(0);
 
-    const searchesBothRules = tokenizedSearch(searchIndex, 'Noncompliant Code Example', 'descriptions');
+    const searchesBothRules = findRuleByQuery(searchIndex, 'Noncompliant Code Example');
     expect(searchesBothRules.sort()).toEqual(['S1000', 'S3457', 'S987'].sort());
   });
 
   test('searches in rule title', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = tokenizedSearch(searchIndex, 'Composite format strings', 'titles');
+    const searchesS3457 = findRuleByQuery(searchIndex, 'Composite format strings');
     expect(searchesS3457).toEqual(['S3457']);
 
-    const searchesS987 = tokenizedSearch(searchIndex, 'signal.h used', 'titles');
+    const searchesS987 = findRuleByQuery(searchIndex, 'signal.h used');
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesUnknown = tokenizedSearch(searchIndex, 'unknown title', 'titles');
+    const searchesUnknown = findRuleByQuery(searchIndex, 'unknown title');
     expect(searchesUnknown).toHaveLength(0);
 
-    const searchesBothRules = tokenizedSearch(searchIndex, 'be should', 'titles');
+    const searchesBothRules = findRuleByQuery(searchIndex, 'should be used');
     expect(searchesBothRules.sort()).toEqual(['S3457', 'S987'].sort());
   });
 });
@@ -216,33 +208,33 @@ describe('search index enables search by tags, quality profiles and languages', 
 
   test('searches in rule tags', () => {
     const searchIndex = createIndex();
-    const searchesS3457 = searchExactField(searchIndex, 'cert', 'tags');
+    const searchesS3457 = findRulesByTags(searchIndex, ['cert']);
     expect(searchesS3457).toHaveLength(2);
     expect(searchesS3457).toContain('S1000');
     expect(searchesS3457).toContain('S3457');
 
-    const searchesS987 = searchExactField(searchIndex, 'based-on-misra', 'tags');
+    const searchesS987 = findRulesByTags(searchIndex, ['based-on-misra', 'lock-in']);
     expect(searchesS987).toEqual(['S987']);
 
-    const searchesUnknown = searchExactField(searchIndex, 'unknown tag', 'tags');
+    const searchesUnknown = findRulesByTags(searchIndex, ['unknown tag']);
     expect(searchesUnknown).toHaveLength(0);
   });
 
   test('searches in rule quality profiles', () => {
     const searchIndex = createIndex();
-    const searchesSonarWay = searchExactField(searchIndex, 'sonar way', 'qualityProfiles');
+    const searchesSonarWay = findRulesByProfile(searchIndex, 'sonar way');
     expect(searchesSonarWay).toEqual(['S1000', 'S3457']);
 
-    const filtersAll = searchExactField(searchIndex, 'non-existent', 'qualityProfiles');
+    const filtersAll = findRulesByProfile(searchIndex, 'non-existent');
     expect(filtersAll).toEqual([]);
   });
 
   test('filter per language', () => {
     const searchIndex = createIndex();
-    const csharpRules = searchExactField(searchIndex, 'csharp', 'languages');
+    const csharpRules = findRulesByLanguage(searchIndex, 'csharp');
     expect(csharpRules).toEqual(['S3457']);
 
-    const cfamilyRules = searchExactField(searchIndex, 'cfamily', 'languages');
+    const cfamilyRules = findRulesByLanguage(searchIndex, 'cfamily');
     expect(cfamilyRules.sort()).toEqual(['S987', 'S1000', 'S3457'].sort());
   });
 });
@@ -261,38 +253,31 @@ function createIndex(ruleIndexStore?: IndexStore) {
   return buildSearchIndex(ruleIndexStore);
 }
 
-// These search functions mimic the behaviors of useSearch.ts.
-
-function tokenizedSearch(index: lunr.Index, query: string, field: string): string[] {
-  const hits = index.query(q => {
-    lunr.tokenizer(query).forEach(token => {
-      q.term(token, {
-        fields: [field],
-        presence: lunr.Query.presence.REQUIRED,
-      });
-    });
-  });
+function findRules<QueryParam>(
+  index: lunr.Index,
+  filter: (q: lunr.Query, param: QueryParam) => void,
+  param: QueryParam
+): string[] {
+  const hits = index.query(q => filter(q, param));
   return hits.map(({ ref }) => ref);
 }
 
-function searchExactField(index: lunr.Index, query: string, field: string): string[] {
-  const hits = index.query(q => {
-    q.term(query, {
-      fields: [field],
-      presence: lunr.Query.presence.REQUIRED,
-      usePipeline: false
-    });
-  });
-  return hits.map(({ ref }) => ref);
+function findRulesByType(index: lunr.Index, type: string): string[] {
+  return findRules(index, filterTypes, type);
 }
 
-function searchNormalizedField(index: lunr.Index, query: string, field: string): string[] {
-  const hits = index.query(q => {
-    q.term(query.toLowerCase(), {
-      fields: [field],
-      presence: lunr.Query.presence.REQUIRED,
-      usePipeline: false,
-    });
-  });
-  return hits.map(({ ref }) => ref);
+function findRulesByTags(index: lunr.Index, tags: string[]): string[] {
+  return findRules(index, filterTags, tags);
+}
+
+function findRulesByLanguage(index: lunr.Index, language: string): string[] {
+  return findRules(index, filterLanguages, language);
+}
+
+function findRulesByProfile(index: lunr.Index, profile: string): string[] {
+  return findRules(index, filterQualityProfiles, [profile]);
+}
+
+function findRuleByQuery(index: lunr.Index, query: string): string[] {
+  return findRules(index, filterKeysTitlesDescriptions, query);
 }
