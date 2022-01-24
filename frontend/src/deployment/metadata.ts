@@ -111,17 +111,17 @@ export function generateRulesMetadata(srcPath: string, dstPath: string, rules?: 
  * @param language language for which the metadata should be generated (or none)
  */
 function getRuleMetadata(srcDir: string, language?: string) {
-  const parentJson = (() => {
+  const languageSpecificJson = (() => {
     if (!language) {
       return {};
     }
-    const parentFile = path.join(srcDir, language, 'metadata.json');
-    if (fs.existsSync(parentFile)) {
-      return JSON.parse(fs.readFileSync(parentFile, 'utf8'));
+    const languageFile = path.join(srcDir, language, 'metadata.json');
+    if (fs.existsSync(languageFile)) {
+      return JSON.parse(fs.readFileSync(languageFile, 'utf8'));
     }
     return {};
   })();
-  const childFile = path.join(srcDir, 'metadata.json');
-  const childJson = fs.existsSync(childFile) ? JSON.parse(fs.readFileSync(childFile, 'utf8')) : {};
-  return { ...childJson, ...parentJson };
+  const genericFile = path.join(srcDir, 'metadata.json');
+  const genericJson = fs.existsSync(genericFile) ? JSON.parse(fs.readFileSync(genericFile, 'utf8')) : {};
+  return { ...genericJson, ...languageSpecificJson };
 }
