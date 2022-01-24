@@ -4,18 +4,25 @@ import path from 'path';
 import { LanguageSupport } from '../types/RuleMetadata';
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 
+type Metadata = any;
+
 /**
  * Save the given metadata to disk.
  */
-function writeRuleMetadata(dstDir: string, filename: string, metadata: any) {
+function writeRuleMetadata(dstDir: string, filename: string, metadata: Metadata) {
   const file = path.join(dstDir, filename);
   fs.writeFileSync(file, JSON.stringify(metadata), { encoding: 'utf8' });
 }
 
+type SQKeyMetadata = {
+  sqKey: string,
+  extra: undefined | { legacyKeys: undefined | string[] },
+};
+
 /**
  * Merge all sqKeys in an array to check rule coverage.
  */
-function getAllKeys(allMetadata: { metadata: any }[]) {
+function getAllKeys(allMetadata: { metadata: SQKeyMetadata }[]) {
   const keys = allMetadata.reduce((set, { metadata }) => {
     set.add(metadata.sqKey);
     metadata.extra?.legacyKeys?.forEach((key: string) => set.add(key));
