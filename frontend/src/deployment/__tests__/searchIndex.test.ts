@@ -268,11 +268,11 @@ function tokenizedSearch(index: lunr.Index, query: string, field: string): strin
     lunr.tokenizer(query).forEach(token => {
       q.term(token, {
         fields: [field],
-        presence: lunr.Query.presence.REQUIRED
-      })
-    })
+        presence: lunr.Query.presence.REQUIRED,
+      });
+    });
   });
-  return hits.map(({ ref }) => ref)
+  return hits.map(({ ref }) => ref);
 }
 
 function searchExactField(index: lunr.Index, query: string, field: string): string[] {
@@ -283,7 +283,7 @@ function searchExactField(index: lunr.Index, query: string, field: string): stri
       usePipeline: false
     });
   });
-  return hits.map(({ ref }) => ref)
+  return hits.map(({ ref }) => ref);
 }
 
 function searchNormalizedField(index: lunr.Index, query: string, field: string): string[] {
@@ -291,8 +291,8 @@ function searchNormalizedField(index: lunr.Index, query: string, field: string):
     q.term(query.toLowerCase(), {
       fields: [field],
       presence: lunr.Query.presence.REQUIRED,
-      usePipeline: false
+      usePipeline: false,
     });
   });
-  return hits.map(({ ref }) => ref)
+  return hits.map(({ ref }) => ref);
 }
