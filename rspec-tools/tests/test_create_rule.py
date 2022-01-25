@@ -288,7 +288,7 @@ def test_add_language_new_pr(rule_creator: RuleCreator):
   rule_creator.add_language_pull_request(mockGithub, rule_number, language, 'mylab', user='testuser')
 
   ghRepoMock.create_pull.assert_called_once();
-  assert ghRepoMock.create_pull.call_args.kwargs['title'].startswith(f'Create rule S{rule_number}[{language}]')
+  assert ghRepoMock.create_pull.call_args.kwargs['title'].startswith(f'Create rule S{rule_number}')
   ghRepoMock.create_pull.call_args.kwargs['head'].startswith('rule/')
   pullMock.add_to_assignees.assert_called_with('testuser');
   pullMock.add_to_labels.assert_called_with('mylab');

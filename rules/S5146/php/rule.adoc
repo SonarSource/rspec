@@ -1,29 +1,77 @@
-User provided data, such as URL parameters, POST data payloads, or cookies, should always be considered untrusted and tainted. Applications performing HTTP redirects based on tainted data could enable an attacker to redirect users to a malicious site to, for example, steal login credentials.
+User-provided data, such as URL parameters, POST data payloads, or cookies, should always be considered untrusted and tainted. Applications performing HTTP redirects based on tainted data could enable an attacker to redirect users to a malicious site to, for example, steal login credentials.
 
 
 This problem could be mitigated in any of the following ways:
 
-* Validate the user provided data based on a whitelist and reject input not matching.
-* Redesign the application to not perform redirects based on user provided data.
+* Validate the user-provided data based on a whitelist and reject input not matching.
+* Redesign the application to not perform redirects based on user-provided data.
 
 == Noncompliant Code Example
 
+Symfony
+
 ----
-$url = $this->request->getQuery("url");
-return $this->redirect($url); // Noncompliant
+public function redirect(Request $request)
+{
+  $url = $request->query->get('url');
+  return $this->redirect($url); // Noncompliant
+}
+
+public function setLocatioHeader(Request $request)
+{
+  $url = $request->query->get('url');
+  $response = new Response('Redirecting...', 302);
+  $response->headers->set('Location', $url); // Noncompliant
+  return $response;
+}
+----
+
+Laravel
+----
+public function redirect(Request $request)
+{
+  $url = $request->input('url');
+  return $this->redirect($url); // Noncompliant
+}
+
+public function setLocatioHeader(Request $request)
+{
+  $url = $request->input('url');
+  return response("", 302)
+    ->header('Location', $url) // Noncompliant
+}
 ----
 
 == Compliant Solution
 
+Symfony
+
 ----
-$whitelist = array(
-  "https://www.sonarsource.com/"
-);
-$url = $this->request->getQuery("url");
-if (in_array($url, $whitelist)) {
-  return $this->redirect($url);
-} else {
-  throw new ForbiddenException();
+public function redirect(Request $request)
+{
+  $url = $request->query->get('url');
+  $allowedUrls = ["/index", "/login", "/logout"];
+
+  if (in_array($url, $allowedUrls, true)) {
+    return $this->redirect($url);
+  } else {
+    $this->redirect("/");
+  }
+}
+----
+
+Laravel
+----
+public function redirect(Request $request)
+{
+  $url = $request->input('url');
+  $allowedUrls = ["/index", "/login", "/logout"];
+
+  if (in_array($url, $allowedUrls, true)) {
+    return $this->redirect($url);
+  } else {
+    return redirect("/");
+  }
 }
 ----
 
