@@ -17,13 +17,9 @@ def get_json_schema():
   return json.loads(DEFAULT_SCHEMA_PATH.read_bytes())
 
 def validate_metadata(rule_language: LanguageSpecificRule):
-  try:
-    validate_schema(rule_language)
-    validate_status(rule_language)
-    validate_security_standards(rule_language)
-  except Exception as e:
-    traceback.print_exc() # This will give more insight on the actual issue.
-    raise RuleValidationError(f'Rule {rule_language.id} is not valid due to this error: {e}')
+  validate_schema(rule_language)
+  validate_status(rule_language)
+  validate_security_standards(rule_language)
 
 def validate_metadata_of_modified_rule(rule: GenericRule):
   '''In addition to the test carried out by validate_metadata, a modified rule:
@@ -32,8 +28,9 @@ def validate_metadata_of_modified_rule(rule: GenericRule):
   specializations = list(rule.specializations)
   if len(specializations) == 0:
     raise RuleValidationError(f'Rule {rule.id} has no language-specific data')
-  for language in specializations:
-    validate_metadata(language)
+
+  for language_rule in specializations:
+    validate_metadata(language_rule)
 
 def validate_schema(rule_language: LanguageSpecificRule):
   schema = get_json_schema()
