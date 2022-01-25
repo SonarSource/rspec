@@ -18,20 +18,11 @@ if [ ! -z "$affected_tooling" ]; then
     affected_rules=rules/*
 fi
 
-./ci/generate_html.sh
+rule_dir=$PWD
 
 exit_code=0
 
-# Check that all adoc are included
-root_path=$PWD
-find rules -name "rule.adoc" -execdir sh -c 'grep -h "include::" {} | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs  -I@ realpath --relative-to=$root_path "$PWD/@"' \; > included
-find rules -name "*.adoc" ! -name 'rule.adoc' -exec realpath --relative-to=$PWD {} \; > created
-orphans=comm -1 -3 <(sort included | uniq) <(sort created | uniq)
-
-if [ ! -z orphans ]; then
-    echo "ERROR: Some adoc files are not included anywhere:\n$orphans"
-    exit_code=1
-fi
+./ci/generate_html.sh
 
 cd rspec-tools
 # validate sections in asciidoc
@@ -67,14 +58,14 @@ do
     fi
   else
     #validate asciidoc
-	supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
-	for language in $dir/*/
+    supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
+    for language in $dir/*/
     do
       language=${language%*/}
       echo ${language##*/}
-	  if [[ ! "${supportedLanguages[@]}" =~ "${language##*/}" ]]; then
-	    echo "ERROR: ${language##*/} is not a supported language"
-		exit_code=1
+      if [[ ! "${supportedLanguages[@]}" =~ "${language##*/}" ]]; then
+        echo "ERROR: ${language##*/} is not a supported language"
+        exit_code=1
       fi
       RULE="$language/rule.adoc"
       if test -f $RULE; then
@@ -99,6 +90,15 @@ do
         exit_code=1
       fi
     done
+    # Check that all adoc are included
+    find $dir -name "*.adoc" -execdir sh -c 'grep -h "include::" {} | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs  -I@ realpath --relative-to=$rule_dir "$PWD/@"' \; > included
+    find $dir -name "*.adoc" ! -name 'rule.adoc' -exec realpath --relative-to=$rule_dir {} \; > created
+    orphans=comm -1 -3 <(sort included | uniq) <(sort created | uniq)
+    if [ ! -z orphans ]; then
+        echo "ERROR: These adoc files are not included anywhere:\n$orphans"
+        exit_code=1
+    fi
+    rm included created
   fi
 done
 
