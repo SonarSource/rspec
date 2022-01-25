@@ -31,7 +31,6 @@ def load_url_probing_history():
   except Exception as e:
     # If the history file is not present, ignore, will create one in the end.
     print(f"Failed to load historical url-probe results: {e}")
-    pass
 
 def save_url_probing_history():
   global link_probes_history
@@ -128,24 +127,26 @@ def is_active(metadata_fname, generic_metadata_fname):
     return True
   return True
 
-def check_html_links(dir):  
-  urls={}
-  errors=[]
-  load_url_probing_history()
+def get_all_links_from_htmls(dir):
   print("Finding links in html files")
-  tot_files = 0
+  urls={}
   for rulepath in pathlib.Path(dir).iterdir():
-    if rulepath.is_dir():
-      generic_metadata=rulepath.joinpath('metadata.json')
-      for langpath in rulepath.iterdir():
-        if langpath.is_dir():
-          metadata=langpath.joinpath('metadata.json')
-          filepath=langpath.joinpath('rule.html')
-          filename=str(filepath.absolute())
-          if filepath.exists() and is_active(metadata, generic_metadata):
-            tot_files += 1
-            findurl_in_html(filename,urls)
+    if not rulepath.is_dir():
+      continue
+    generic_metadata=rulepath.joinpath('metadata.json')
+    for langpath in rulepath.iterdir():
+      if not langpath.is_dir():
+        continue
+      metadata=langpath.joinpath('metadata.json')
+      filepath=langpath.joinpath('rule.html')
+      filename=str(filepath.absolute())
+      if filepath.exists() and is_active(metadata, generic_metadata):
+        findurl_in_html(filename,urls)
   print("All html files crawled")
+  return urls
+
+def probe_links(urls):
+  errors = []
   print("Testing links")
   for url in urls:
     print(f"{url} in {len(urls[url])} files")
@@ -157,20 +158,33 @@ def check_html_links(dir):
       rejuvenate_url(url)
     elif url_is_long_dead(url):
       errors.append(url)
+  return errors
+
+def confirm_errors(presumed_errors, urls):
+  confirmed_errors = []
+  print(f"Retrying {len(presumed_errors)} failed probes")
+  for key in presumed_errors:
+    print(f"{key} in {len(urls[key])} files (previously failed)")
+    if not live_url(key, timeout=15):
+      confirmed_errors.append(key)
+    else:
+      rejuvenate_url(key)
+  return confirmed_errors
+
+def report_errors(errors, urls):
+  print("There were errors")
+  for key in errors:
+    print(f"{key} in:")
+    show_files(urls[key])
+
+def check_html_links(dir):
+  load_url_probing_history()
+  urls = get_all_links_from_htmls(dir)
+  errors = probe_links(urls)
   if errors:
-    confirmed_errors=[]
-    print(f"Retrying {len(errors)} failed probes")
-    for key in errors:
-      print(f"{key} in {len(urls[key])} files (previously failed)")
-      if not live_url(key, timeout=15):
-        confirmed_errors.append(key)
-      else:
-        rejuvenate_url(key)
+    confirmed_errors = confirm_errors(errors, urls)
     if confirmed_errors:
-      print("There were errors")
-      for key in confirmed_errors:
-        print(f"{key} in:")
-        show_files(urls[key])
+      report_errors(confirmed_errors, urls)
       print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see the list and related files before")
       exit(1)
   print(f"All {len(urls)} links are good")
