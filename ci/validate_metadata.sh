@@ -4,7 +4,7 @@ set -ueo pipefail
 
 invalid=0
 
-git fetch --quiet "${CIRRUS_DEFAULT_ORIGIN:-origin}" "${CIRRUS_DEFAULT_BRANCH:-master}"
+git fetch "${CIRRUS_DEFAULT_ORIGIN:-origin}" "${CIRRUS_DEFAULT_BRANCH:-master}"
 base="$(git merge-base FETCH_HEAD HEAD)"
 modifiedRules="$(git diff --name-only "${base}" -- rules | sed -Ee 's#rules/(S[0-9]+)/.*#\1#' | sort -u)"
 
