@@ -32,7 +32,7 @@ export function fetchMockObject(mockUrls: Record<string, FetchResult>): FetchMoc
   let finished = function() {
     return Promise.all(allPromises);
   };
-  let keeping = function(p) {
+  let keeping = function(p: Promise<FetchResult>) {
     allPromises.push(p);
     return p;
   }
