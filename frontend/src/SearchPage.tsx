@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { KeyboardEvent } from 'react';
 
 import Typography from '@material-ui/core/Typography';
 import TextField from '@material-ui/core/TextField';
@@ -17,7 +17,23 @@ import {
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
-import { IndexAggregates } from './types/IndexStore'
+import { IndexedRule, IndexAggregates } from './types/IndexStore'
+
+import { useHistory } from "react-router-dom";
+
+function correctResultsOrder(results: IndexedRule[], query: string) {
+  const upperCaseQuery = query.toLocaleUpperCase();
+  let reorderedResults: IndexedRule[] = [];
+
+  results.forEach(indexedRule => {
+    if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
+      reorderedResults = [indexedRule, ...reorderedResults];
+    } else {
+      reorderedResults.push(indexedRule);
+    }
+  });
+  return reorderedResults;
+}
 
 export const SearchPage = () => {
   document.title = "Search"
@@ -26,6 +42,7 @@ export const SearchPage = () => {
 
   const pageSize = 20;
   const [query, setQuery] = useLocationSearchState('query', '');
+    const history = useHistory();
 
   const [ruleType, setRuleType] = useLocationSearchState('types', 'ANY');
   const allRuleTypes: Record<string,string> = {
@@ -71,15 +88,11 @@ export const SearchPage = () => {
     let resultsBoxes: JSX.Element[] = [];
 
     // making the exact match to appear first in the search results
-    results.forEach(indexedRule => {
+    correctResultsOrder(results, query).forEach(indexedRule => {
       const box = <Box key={indexedRule.id} className={classes.searchHitBox}>
         <SearchHit key={indexedRule.id} data={indexedRule}/>
       </Box>;
-      if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
-        resultsBoxes = [box, ...resultsBoxes];
-      } else {
-        resultsBoxes.push(box);
-      }
+      resultsBoxes.push(box);
     });
     resultsDisplay = resultsBoxes;
   }
@@ -101,6 +114,18 @@ export const SearchPage = () => {
         setLocationSearch(uriSearch);
       } else {
         paramSetters[field](event.target.value, {push: false});
+      }
+    }
+  }
+  function handleKeyup(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      const query = (event.target as HTMLTextAreaElement).value;
+      if (query.match(/^(S|RSPEC-?)?[0-9]{3,}$/i)) {
+        if (0 < results.length) {
+          history.push(correctResultsOrder(results, query)[0].id);
+        }
+      } else if (1 === results.length) {
+        history.push(results[0].id);
       }
     }
   }
@@ -126,6 +151,7 @@ export const SearchPage = () => {
             variant="outlined"
             value={query}
             onChange={handleUpdate('query')}
+            onKeyUp={handleKeyup}
             error={!!error}
             helperText={error}
         />
