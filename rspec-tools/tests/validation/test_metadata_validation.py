@@ -27,8 +27,14 @@ def test_valid_metadata_passes_validation(rule_language: LanguageSpecificRule):
 
 def test_modified_rule_with_no_language(invalid_rules: RulesRepository):
   s501 = invalid_rules.get_rule('S501')
-  with pytest.raises(RuleValidationError, match=fr'^Rule {s501.id} has no language-specific data'):
+  with pytest.raises(RuleValidationError, match=fr'^Rule S501 has no language-specific data'):
     validate_metadata_of_modified_rule(s501)
+
+
+def test_modified_rule_with_invalid_language(invalid_rules: RulesRepository):
+  s502 = invalid_rules.get_rule('S502')
+  with pytest.raises(RuleValidationError, match=fr'^Rule scala:S502 has invalid metadata'):
+    validate_metadata_of_modified_rule(s502)
 
 
 def test_missing_required_property_fails_validation(rule_language: LanguageSpecificRule):
