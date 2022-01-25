@@ -22,7 +22,7 @@ ACCEPTED_SECTION_NAMES: Final[list[str]] = ['Noncompliant Code Example',
 
 def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
-  for h2 in descr.findAll('h2'):
+  for h2 in descr.find_all('h2'):
     name = h2.text.strip()
     if name not in ACCEPTED_SECTION_NAMES:
       raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{name}"')
@@ -34,19 +34,21 @@ def validate_section_levels(rule_language: LanguageSpecificRule):
     raise RuleValidationError(f'Rule {rule_language.id} has level-0 header "{name}"')
 
 def validate_one_parameter(child, id):
-  if child.name != 'div' or child['class'] != ['dlist'] or child.children[0].name != 'dl':
+  if child.name != 'div' or child['class'][0] != 'dlist':
     raise RuleValidationError(f'Rule {id} should use labeled listst for parameters')
-  for param in child.children[0].children:
-    if param.name == 'dt' and param.strong == None:
-      raise RuleValidationError(f'Rule {id} should write parameter name {param.text} in bold')
+  for divChild in child.children:
+    if divChild.name is not None:
+      if divChild.name != 'dl':
+        raise RuleValidationError(f'Rule {id} should use labeled listst for parameters')
+      for param in divChild.children:
+        if param.name == 'dt' and param.strong == None:
+          raise RuleValidationError(f'Rule {id} should write parameter name {param.text} in bold')
 
 def validate_parameters(rule_language: LanguageSpecificRule):
   for h3 in rule_language.description.find_all('h3'):
     name = h3.text.strip()
     if name == 'Parameters':
       for child in h3.parent.children:
-        if child == h3:
-          continue
-        if child.name == 'hr':
+        if child.name is None or child == h3 or child.name == 'hr':
           continue
         validate_one_parameter(child, rule_language.id)
