@@ -37,6 +37,11 @@ def test_modified_rule_with_invalid_language(invalid_rules: RulesRepository):
     validate_metadata_of_modified_rule(s502)
 
 
+def test_modified_rule_that_is_fully_valid(mockrules: Path):
+  valid_rule = RulesRepository(rules_path=mockrules).get_rule('S120')
+  validate_metadata_of_modified_rule(valid_rule)
+
+
 def test_missing_required_property_fails_validation(rule_language: LanguageSpecificRule):
   invalid_metadata = deepcopy(rule_language.metadata)
   del invalid_metadata['title']
