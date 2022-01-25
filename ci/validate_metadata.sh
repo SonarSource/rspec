@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 set -ueo pipefail
 
 invalid=0
