@@ -6,16 +6,29 @@ from rspec_tools.errors import RuleValidationError
 from copy import deepcopy
 
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.metadata import validate_metadata
+from rspec_tools.validation.metadata import validate_metadata, validate_metadata_of_modified_rule
 
 @pytest.fixture
 def rule_language(mockrules: Path):
-    rule = RulesRepository(rules_path=mockrules).get_rule('S100')
-    return rule.get_language('kotlin')
+  rule = RulesRepository(rules_path=mockrules).get_rule('S100')
+  return rule.get_language('kotlin')
+
+
+@pytest.fixture
+def invalid_rules():
+  invalid_rules_path = Path(__file__).parent.parent.joinpath('resources', 'invalid-rules')
+  return RulesRepository(rules_path=invalid_rules_path)
+
 
 def test_valid_metadata_passes_validation(rule_language: LanguageSpecificRule):
-  '''Check that language metadata are correctly overriden.'''
+  '''Check that language metadata are correctly overridden.'''
   validate_metadata(rule_language)
+
+
+def test_modified_rule_with_no_language(invalid_rules: RulesRepository):
+  s501 = invalid_rules.get_rule('S501')
+  with pytest.raises(RuleValidationError, match=fr'^Rule {s501.id} has no language-specific data'):
+    validate_metadata_of_modified_rule(s501)
 
 
 def test_missing_required_property_fails_validation(rule_language: LanguageSpecificRule):
