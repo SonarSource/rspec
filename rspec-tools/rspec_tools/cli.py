@@ -68,7 +68,7 @@ def validate_rules_metadata(rules):
         click.echo(e.message, err=True)
         error_counter += 1
   if error_counter > 0:
-    fatalError(f"Validation failed due to {error_counter} errors")
+    fatal_error(f"Validation failed due to {error_counter} errors")
 
 @cli.command()
 @click.argument('rule_key', required=True)
@@ -79,9 +79,9 @@ def validate_modified_rule_metadata(rule_key: str):
   repo = RulesRepository()
   rules = list(filter(lambda rule: rule.id == rule_key, repo.rules))
   if len(rules) == 0:
-    fatalError(f"Rule {rule_key} is not defined")
+    fatal_error(f"Rule {rule_key} is not defined")
   if len(rules) > 1:
-    fatalError(f"Rule {rule_key} is defined multiple times!")
+    fatal_error(f"Rule {rule_key} is defined multiple times!")
 
   validate_metadata_of_modified_rule(rules[0])
 
@@ -108,7 +108,7 @@ def check_sections(d, rules):
         click.echo(e.message, err=True)
         error_counter += 1
   if error_counter > 0:
-    fatalError(f"Validation failed due to {error_counter} errors")
+    fatal_error(f"Validation failed due to {error_counter} errors")
 
 @cli.command()
 @click.option('--repository', required=False)
@@ -130,6 +130,6 @@ def notify_failure_on_slack(message: str, channel: str):
 
 __all__=['cli']
 
-def fatalError(message: str):
+def fatal_error(message: str):
   click.echo(message, err=True)
   raise click.Abort(message)
