@@ -8,7 +8,7 @@ from rspec_tools.errors import RuleNotFoundError, RuleValidationError
 from rspec_tools.create_rule import create_new_rule, add_language_to_rule
 from rspec_tools.rules import RulesRepository
 from rspec_tools.validation.metadata import validate_metadata
-from rspec_tools.validation.description import validate_section_names, validate_section_levels
+from rspec_tools.validation.description import validate_section_names, validate_section_levels, validate_parameters
 from rspec_tools.coverage import update_coverage_for_all_repos, update_coverage_for_repo, update_coverage_for_repo_version
 
 from rspec_tools.notify_failure_on_slack import notify_slack
@@ -91,6 +91,11 @@ def check_sections(d, rules):
         error_counter += 1
       try:
         validate_section_levels(lang_spec_rule)
+      except RuleValidationError as e:
+        click.echo(e.message, err=True)
+        error_counter += 1
+      try:
+        validate_parameters(lang_spec_rule)
       except RuleValidationError as e:
         click.echo(e.message, err=True)
         error_counter += 1

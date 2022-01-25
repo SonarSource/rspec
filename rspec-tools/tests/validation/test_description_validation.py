@@ -6,7 +6,7 @@ from rspec_tools.errors import RuleValidationError
 from copy import deepcopy
 
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.description import validate_section_names, validate_section_levels
+from rspec_tools.validation.description import validate_section_names, validate_section_levels, validate_parameters
 
 @pytest.fixture
 def rule_language(mockrules: Path):
@@ -42,3 +42,20 @@ def test_level_0_section_fails_validation(rule_language: LanguageSpecificRule):
     with patch.object(LanguageSpecificRule, 'description', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_description
       validate_section_levels(rule_language)
+
+def test_parameters_passes_validation(rule_language: LanguageSpecificRule):
+  '''Check that correctly formed parameters are considered valid.'''
+  validate_parameters(rule_language)
+
+def test_parameters_fails_validation_on_list(rule_language: LanguageSpecificRule):
+  '''Check that level-0 section header breaks validation.'''
+  invalid_description = deepcopy(rule_language.description)
+  invalid_param = invalid_description.new_tag('p')
+  for h3 in invalid_description.find_all('h3'):
+    name = h3.text.strip()
+    if name == 'Parameters':
+      h3.parent.insert(2, invalid_param)
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} should use labeled listst for parameters'):
+    with patch.object(LanguageSpecificRule, 'description', new_callable=PropertyMock) as mock:
+      mock.return_value = invalid_description
+      validate_parameters(rule_language)

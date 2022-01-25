@@ -32,3 +32,21 @@ def validate_section_levels(rule_language: LanguageSpecificRule):
   if h1 is not None:
     name = h1.text.strip()
     raise RuleValidationError(f'Rule {rule_language.id} has level-0 header "{name}"')
+
+def validate_one_parameter(child, id):
+  if child.name != 'div' or child['class'] != ['dlist'] or child.children[0].name != 'dl':
+    raise RuleValidationError(f'Rule {id} should use labeled listst for parameters')
+  for param in child.children[0].children:
+    if param.name == 'dt' and param.strong == None:
+      raise RuleValidationError(f'Rule {id} should write parameter name {param.text} in bold')
+
+def validate_parameters(rule_language: LanguageSpecificRule):
+  for h3 in rule_language.description.find_all('h3'):
+    name = h3.text.strip()
+    if name == 'Parameters':
+      for child in h3.parent.children:
+        if child == h3:
+          continue
+        if child.name == 'hr':
+          continue
+        validate_one_parameter(child, rule_language.id)
