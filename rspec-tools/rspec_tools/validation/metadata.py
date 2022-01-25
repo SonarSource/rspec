@@ -1,4 +1,5 @@
 import json
+import traceback
 from pathlib import Path
 from typing import Optional, Final
 from functools import cache
@@ -7,7 +8,7 @@ from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 
 from rspec_tools.errors import RuleValidationError
-from rspec_tools.rules import LanguageSpecificRule
+from rspec_tools.rules import GenericRule, LanguageSpecificRule
 
 DEFAULT_SCHEMA_PATH: Final[Path] = Path(__file__).parent.joinpath('rule-metadata-schema.json')
 
@@ -16,9 +17,23 @@ def get_json_schema():
   return json.loads(DEFAULT_SCHEMA_PATH.read_bytes())
 
 def validate_metadata(rule_language: LanguageSpecificRule):
-  validate_schema(rule_language)
-  validate_status(rule_language)
-  validate_security_standards(rule_language)
+  try:
+    validate_schema(rule_language)
+    validate_status(rule_language)
+    validate_security_standards(rule_language)
+  except Exception as e:
+    traceback.print_exc() # This will give more insight on the actual issue.
+    raise RuleValidationError(f'Rule {rule_language.id} is not valid due to this error: {e}')
+
+def validate_metadata_of_modified_rule(rule: GenericRule):
+  '''In addition to the test carried out by validate_metadata, a modified rule:
+     - must have at least one language
+  '''
+  specializations = list(rule.specializations)
+  if len(specializations) == 0:
+    raise RuleValidationError(f'Rule {rule.id} has no language-specific data')
+  for language in specializations:
+    validate_metadata(language)
 
 def validate_schema(rule_language: LanguageSpecificRule):
   schema = get_json_schema()
