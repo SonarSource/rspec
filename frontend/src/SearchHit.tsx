@@ -181,7 +181,7 @@ export function SearchHit(props: SearchHitProps) {
     <Card variant="outlined" classes={{root: classes.searchHit}}>
       <CardContent>
         <Typography key="rule-id" classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>
-          <Link component={RouterLink} to={`/${props.data.id}`}>
+          <Link component={RouterLink} to={`/${props.data.id}`} data-testid={`search-hit-${props.data.id}`}>
             <div> Rule {props.data.id} </div>
           </Link>
         </Typography>
