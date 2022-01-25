@@ -18,8 +18,6 @@ if [ ! -z "$affected_tooling" ]; then
     affected_rules=rules/*
 fi
 
-rule_dir=$PWD
-
 exit_code=0
 
 ./ci/generate_html.sh
@@ -42,9 +40,9 @@ do
     continue
   fi
   dir=${dir%*/}
-  echo ${dir##*/}
+  echo "${dir##*/}"
 
-  subdircount=$(find $dir -maxdepth 1 -type d | wc -l)
+  subdircount=$(find "$dir" -maxdepth 1 -type d | wc -l)
 
   # check if there are language specializations
   if [[ "$subdircount" -eq 1 ]]
@@ -91,11 +89,11 @@ do
       fi
     done
     # Check that all adoc are included
-    find $dir -name "*.adoc" -execdir sh -c 'grep -h "include::" {} | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs -r -I@ realpath --relative-to=$rule_dir "$PWD/@"' \; > included
-    find $dir -name "*.adoc" ! -name 'rule.adoc' -exec realpath --relative-to=$rule_dir {} \; > created
-    orphans=comm -1 -3 <(sort included | uniq) <(sort created | uniq)
-    if [ ! -z orphans ]; then
-        echo "ERROR: These adoc files are not included anywhere:\n$orphans"
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::" $1 | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
+    find "$dir" -name "*.adoc" ! -name 'rule.adoc' -exec sh -c 'realpath $1' shell {} \; > created
+    orphans=$(comm -1 -3 <(sort included | uniq) <(sort created | uniq))
+    if [ -n "$orphans" ]; then
+        printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
         exit_code=1
     fi
     rm included created
