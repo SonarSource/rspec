@@ -91,7 +91,7 @@ do
       fi
     done
     # Check that all adoc are included
-    find $dir -name "*.adoc" -execdir sh -c 'grep -h "include::" {} | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs  -I@ realpath --relative-to=$rule_dir "$PWD/@"' \; > included
+    find $dir -name "*.adoc" -execdir sh -c 'grep -h "include::" {} | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs -r -I@ realpath --relative-to=$rule_dir "$PWD/@"' \; > included
     find $dir -name "*.adoc" ! -name 'rule.adoc' -exec realpath --relative-to=$rule_dir {} \; > created
     orphans=comm -1 -3 <(sort included | uniq) <(sort created | uniq)
     if [ ! -z orphans ]; then
