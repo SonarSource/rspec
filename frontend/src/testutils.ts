@@ -26,17 +26,17 @@ type FetchMocker = {mock: FetchFunction,
  */
 export function fetchMockObject(mockUrls: Record<string, FetchResult>): FetchMocker {
   let allPromises: Promise<FetchResult>[] = [];
-  let reset = function() {
+  const reset = function() {
     allPromises = [];
   };
-  let finished = function() {
+  const finished = function() {
     return Promise.all(allPromises);
   };
-  let keeping = function(p: Promise<FetchResult>) {
+  const keeping = function(p: Promise<FetchResult>) {
     allPromises.push(p);
     return p;
-  }
-  let mock = function(url: string, opts: any) {
+  };
+  const mock = function(url: string, opts: any) {
     if (url in mockUrls) {
       const response = mockUrls[url];
       if ('json' in response) {
