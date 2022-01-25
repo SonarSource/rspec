@@ -34,13 +34,10 @@ function getAllKeys(allMetadata: { metadata: SQKeyMetadata }[]) {
 /**
  * Generate the default metadata for a rule without any language-specific data.
  */
-function generateGenericMetadata(srcDir: string, dstDir: string, branch: string, prUrl?: string) {
+function generateGenericMetadata(srcDir: string, dstDir: string, branch: string) {
   const metadata = getRuleMetadata(srcDir);
   metadata.languagesSupport = [];
   metadata.allKeys = getAllKeys([{ metadata }]);
-  if (prUrl) {
-    metadata.prUrl = prUrl;
-  }
   metadata.branch = branch;
 
   writeRuleMetadata(dstDir, 'default-metadata.json', metadata);
@@ -58,7 +55,10 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: 
   fs.mkdirSync(dstDir, { recursive: true });
   const allLanguages = listSupportedLanguages(srcDir);
   if (allLanguages.length === 0) {
-    generateGenericMetadata(srcDir, dstDir, branch, prUrl);
+    if (prUrl !== undefined) {
+      console.warn('New rules must have at least one language.');
+    }
+    generateGenericMetadata(srcDir, dstDir, branch);
     return;
   }
 
