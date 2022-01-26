@@ -84,7 +84,6 @@ export const SearchPage = () => {
   if (loading) {
     resultsDisplay = "Searching";
   } else if (results.length > 0) {
-    const upperCaseQuery = query.toLocaleUpperCase();
     let resultsBoxes: JSX.Element[] = [];
 
     // making the exact match to appear first in the search results
