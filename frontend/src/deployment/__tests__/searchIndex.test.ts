@@ -117,6 +117,9 @@ describe('search index enables search by title and description words', () => {
 
     const searchesBothRules = search(searchIndex, 'Noncompliant Code Example', 'descriptions');
     expect(searchesBothRules.sort()).toEqual(['S1000', 'S3457', 'S987'].sort());
+
+    const searchesRuleMentions = search(searchIndex, 'S1000', 'descriptions');
+    expect(searchesRuleMentions).toEqual(['S987'].sort());
   });
 
   test('searches in rule title', () => {
