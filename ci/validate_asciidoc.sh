@@ -2,36 +2,37 @@
 set -uo pipefail
 
 # Install script dependencies
-cd rspec-tools
-pipenv install
-cd ..
+(
+  cd rspec-tools || exit 1
+  pipenv install
+)
 
 # Compute the set of affected rules
-git fetch origin $CIRRUS_DEFAULT_BRANCH
+git fetch origin "$CIRRUS_DEFAULT_BRANCH"
 branch_base_sha=$(git merge-base FETCH_HEAD HEAD)
 echo "Comparing against the merge-base: $branch_base_sha"
-changeset=$(git diff --name-only $branch_base_sha..HEAD)
+changeset=$(git diff --name-only "$branch_base_sha"..HEAD)
 affected_rules=$(printf '%s\n' "$changeset" | grep '/S[0-9]\+/' | sed 's:\(.*/S[0-9]\+\)/.*:\1:' | sort | uniq)
 affected_tooling=$(printf '%s\n' "$changeset" | grep -v '/S[0-9]\+/')
-if [ ! -z "$affected_tooling" ]; then
+if [ -n "$affected_tooling" ]; then
     echo "Some rpec tools are changed, validating all rules"
-    affected_rules=rules/*
+    affected_rules="rules/*"
 fi
 
 exit_code=0
 
 ./ci/generate_html.sh
 
-cd rspec-tools
-# validate sections in asciidoc
-if pipenv run rspec-tools check-sections --d ../out; then
-    echo "Sections are fine"
-else
-    echo "ERROR: incorrect section names or invalid level-0 headers"
-    exit_code=1
-fi
-cd ..
-
+(
+  cd rspec-tools || exit 1
+  # validate sections in asciidoc
+  if pipenv run rspec-tools check-sections --d ../out; then
+      echo "Sections are fine"
+  else
+      echo "ERROR: incorrect section names or invalid level-0 headers"
+      exit_code=1
+  fi
+)
 
 for dir in $affected_rules
 do
@@ -60,19 +61,19 @@ do
     for language in $dir/*/
     do
       language=${language%*/}
-      echo ${language##*/}
-      if [[ ! "${supportedLanguages[@]}" =~ "${language##*/}" ]]; then
+      echo "${language##*/}"
+      if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
         echo "ERROR: ${language##*/} is not a supported language"
         exit_code=1
       fi
       RULE="$language/rule.adoc"
-      if test -f $RULE; then
+      if test -f "$RULE"; then
         echo "$RULE exists."
         TMP_ADOC="$language/tmp.adoc"
-        echo "== Description" > $TMP_ADOC
-        cat $RULE >> $TMP_ADOC
-        if asciidoctor --failure-level=WARNING -o /dev/null $TMP_ADOC; then
-            if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null $TMP_ADOC; then
+        echo "== Description" > "$TMP_ADOC"
+        cat "$RULE" >> "$TMP_ADOC"
+        if asciidoctor --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
+            if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
                 echo "$RULE syntax is fine"
             else
                 echo "ERROR: $RULE has incorrect asciidoc in rspecator-view mode"
@@ -82,7 +83,7 @@ do
           echo "ERROR: $RULE has incorrect asciidoc"
           exit_code=1
         fi
-        rm $TMP_ADOC
+        rm "$TMP_ADOC"
       else
         echo "ERROR: no asciidoc file $RULE"
         exit_code=1
@@ -101,7 +102,7 @@ do
 done
 
 echo "Finished."
-if (( $exit_code == 0 )); then
+if (( exit_code == 0 )); then
     echo "Success"
 else
     echo "There were errors"
