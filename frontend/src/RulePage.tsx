@@ -75,7 +75,9 @@ const useStyles = makeStyles((theme) => ({
   },
   targetedTab: {
     "&::before": {
-      backgroundColor: RULE_STATE['targeted'].color,
+      borderColor: RULE_STATE['targeted'].color,
+      border: "1px solid",
+      backgroundColor: "transparent"
     }
   },
   removedTab: {
