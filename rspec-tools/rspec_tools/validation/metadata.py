@@ -87,7 +87,8 @@ RULES_WITH_NO_LANGUAGES = [
 def get_json_schema():
   return json.loads(DEFAULT_SCHEMA_PATH.read_bytes())
 
-def validate_metadata(rule_language: LanguageSpecificRule):
+
+def validate_rule_specialization_metadata(rule_language: LanguageSpecificRule):
   validate_schema(rule_language)
   validate_status(rule_language)
   validate_security_standards(rule_language)
@@ -115,7 +116,7 @@ def validate_rule_metadata(rule: GenericRule):
   errors: List[str] = []
   for language_rule in specializations:
     try:
-      validate_metadata(language_rule)
+      validate_rule_specialization_metadata(language_rule)
     except RuleValidationError as e:
       errors.append(str(e))
 
@@ -158,4 +159,4 @@ def has_replacement_rules(rule_language: LanguageSpecificRule):
   meta = rule_language.metadata
   return 'extra' in meta and 'replacementRules' in meta.get('extra') and len(meta.get('extra').get('replacementRules')) > 0
 
-__all__=['validate_metadata']
+__all__=['validate_rule_specialization_metadata']

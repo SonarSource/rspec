@@ -6,7 +6,7 @@ from rspec_tools.errors import RuleValidationError
 from copy import deepcopy
 
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.metadata import validate_metadata, validate_rule_metadata
+from rspec_tools.validation.metadata import validate_rule_specialization_metadata, validate_rule_metadata
 
 @pytest.fixture
 def rule_language(mockrules: Path):
@@ -22,7 +22,7 @@ def invalid_rules():
 
 def test_valid_metadata_passes_validation(rule_language: LanguageSpecificRule):
   '''Check that language metadata are correctly overridden.'''
-  validate_metadata(rule_language)
+  validate_rule_specialization_metadata(rule_language)
 
 
 @patch('rspec_tools.validation.metadata.RULES_WITH_NO_LANGUAGES', [])
@@ -73,7 +73,7 @@ def test_missing_required_property_fails_validation(rule_language: LanguageSpeci
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata'):
     with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_metadata
-      validate_metadata(rule_language)
+      validate_rule_specialization_metadata(rule_language)
 
 
 def test_invalid_remediation_fails_validation(rule_language: LanguageSpecificRule):
@@ -82,7 +82,7 @@ def test_invalid_remediation_fails_validation(rule_language: LanguageSpecificRul
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata'):
     with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_metadata
-      validate_metadata(rule_language)
+      validate_rule_specialization_metadata(rule_language)
 
 
 def test_adding_properties_fails_validation(rule_language: LanguageSpecificRule):
@@ -91,7 +91,7 @@ def test_adding_properties_fails_validation(rule_language: LanguageSpecificRule)
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata'):
     with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
       mock.return_value = metadata
-      validate_metadata(rule_language)
+      validate_rule_specialization_metadata(rule_language)
 
 
 def test_ready_rule_with_replacement_fails_validation(rule_language: LanguageSpecificRule):
@@ -100,7 +100,7 @@ def test_ready_rule_with_replacement_fails_validation(rule_language: LanguageSpe
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata: status'):
     with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_metadata
-      validate_metadata(rule_language)
+      validate_rule_specialization_metadata(rule_language)
 
 
 def test_deprecated_rule_with_replacement_passes_validation(rule_language: LanguageSpecificRule):
@@ -109,7 +109,7 @@ def test_deprecated_rule_with_replacement_passes_validation(rule_language: Langu
   metadata['status'] = 'deprecated'
   with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
     mock.return_value = metadata
-    validate_metadata(rule_language)
+    validate_rule_specialization_metadata(rule_language)
 
 
 def test_rule_with_incomplete_list_of_security_standard_fails_validation(rule_language: LanguageSpecificRule):
@@ -119,7 +119,7 @@ def test_rule_with_incomplete_list_of_security_standard_fails_validation(rule_la
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata: securityStandard'):
     with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_metadata
-      validate_metadata(rule_language)
+      validate_rule_specialization_metadata(rule_language)
 
 
 def test_rule_with_complete_list_of_security_standard_passes_validation(rule_language: LanguageSpecificRule):
@@ -127,4 +127,4 @@ def test_rule_with_complete_list_of_security_standard_passes_validation(rule_lan
   metadata['securityStandards'] = {'ASVS 4': [], 'OWASP': [], "OWASP Top 10 2021": []}
   with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
     mock.return_value = metadata
-    validate_metadata(rule_language)
+    validate_rule_specialization_metadata(rule_language)
