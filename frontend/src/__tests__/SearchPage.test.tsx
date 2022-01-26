@@ -45,23 +45,26 @@ afterEach(() => {
     global.fetch.mockClear();
 });
 
-function renderDefaultSearchPage() {
+async function renderDefaultSearchPage() {
     const history = createMemoryHistory();
     history.push('/rspec/#/rspec/');
-    return render(<Router history={history}><SearchPage /></Router>);
+    const renderResult = render(<Router history={history}><SearchPage /></Router>);
+
+    // Finish rendering after fetching all the data
+    await waitFor(() => fetchMocker.finished());
+
+    return renderResult;
 }
 
 test('renders the list of all rules', async () => {
-    const { findByText, asFragment } = renderDefaultSearchPage();
+    const { findByText, asFragment } = await renderDefaultSearchPage();
     await findByText(/rules found/i);
     expect(asFragment()).toMatchSnapshot();
 });
 
 test('narrows search by title', async () => {
-    const { queryByText, queryByTestId, getByRole } = renderDefaultSearchPage();
+    const { queryByText, queryByTestId, getByRole } = await renderDefaultSearchPage();
 
-    // Finish rendering after fetching all the data
-    await waitFor(() => fetchMocker.finished());
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
@@ -76,10 +79,8 @@ test('narrows search by title', async () => {
 });
 
 test('shows the exact match first', async () => {
-    const { queryByText, queryByTestId, getAllByTestId, getByRole } = renderDefaultSearchPage();
+    const { queryByText, queryByTestId, getAllByTestId, getByRole } = await renderDefaultSearchPage();
 
-    // Finish rendering after fetching all the data
-    await waitFor(() => fetchMocker.finished());
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
@@ -108,10 +109,8 @@ test('shows the exact match first', async () => {
 });
 
 test('narrows search by rule type', async () => {
-    const { queryByText, queryByTestId, getByRole, getByTestId } = renderDefaultSearchPage();
+    const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    // Finish rendering after fetching all the data
-    await waitFor(() => fetchMocker.finished());
     expect(queryByTestId('search-hit-S987')).not.toBeNull();
     expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
@@ -127,10 +126,8 @@ test('narrows search by rule type', async () => {
 });
 
 test('narrows search by rule tags', async () => {
-    const { queryByText, queryByTestId, getByRole, getByTestId } = renderDefaultSearchPage();
+    const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    // Finish rendering after fetching all the data
-    await waitFor(() => fetchMocker.finished());
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
@@ -152,10 +149,8 @@ test('narrows search by rule tags', async () => {
 });
 
 test('narrows search by language', async () => {
-    const { queryByText, queryByTestId, getByRole, getByTestId } = renderDefaultSearchPage();
+    const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    // Finish rendering after fetching all the data
-    await waitFor(() => fetchMocker.finished());
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
@@ -177,10 +172,8 @@ test('narrows search by language', async () => {
 });
 
 test('narrows search by quality profile', async () => {
-    const { queryByText, queryByTestId, getByRole, getByTestId } = renderDefaultSearchPage();
+    const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    // Finish rendering after fetching all the data
-    await waitFor(() => fetchMocker.finished());
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByText(/rules found: 3/i)).not.toBeNull();
 
