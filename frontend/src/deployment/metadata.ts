@@ -16,7 +16,7 @@ function writeRuleMetadata(dstDir: string, filename: string, metadata: Metadata)
 
 type SQKeyMetadata = {
   sqKey: string,
-  extra: undefined | { legacyKeys: undefined | string[] },
+  extra?: { legacyKeys?: string[] },
 };
 
 /**
