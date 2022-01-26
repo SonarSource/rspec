@@ -101,7 +101,7 @@ def validate_rule_metadata(rule: GenericRule):
   if rule.id in RULES_WITH_NO_LANGUAGES:
     if specializations:
       # When this triggers, ask yourself whether the rule should be removed from RULES_WITH_NO_LANGUAGES
-      raise RuleValidationError(f'Rule {rule.id} should have no specializations')
+      raise RuleValidationError(f'Rule {rule.id} should have no specializations. Forgot to remove it from the list?')
 
     if rule.generic_metadata.get('status', None) not in ['closed', 'deprecated']:
       raise RuleValidationError(f'Rule {rule.id} should be closed or deprecated')
