@@ -6,7 +6,7 @@ from rspec_tools.errors import RuleValidationError
 from copy import deepcopy
 
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.metadata import validate_metadata, validate_metadata_of_modified_rule
+from rspec_tools.validation.metadata import validate_metadata, validate_rule_metadata
 
 @pytest.fixture
 def rule_language(mockrules: Path):
@@ -25,21 +25,46 @@ def test_valid_metadata_passes_validation(rule_language: LanguageSpecificRule):
   validate_metadata(rule_language)
 
 
-def test_modified_rule_with_no_language(invalid_rules: RulesRepository):
+@patch('rspec_tools.validation.metadata.RULES_WITH_NO_LANGUAGES', [])
+def test_rule_with_no_language(invalid_rules: RulesRepository):
   s501 = invalid_rules.get_rule('S501')
   with pytest.raises(RuleValidationError, match=fr'^Rule S501 has no language-specific data'):
-    validate_metadata_of_modified_rule(s501)
+    validate_rule_metadata(s501)
 
 
-def test_modified_rule_with_invalid_language(invalid_rules: RulesRepository):
-  s502 = invalid_rules.get_rule('S502')
-  with pytest.raises(RuleValidationError, match=fr'^Rule scala:S502 has invalid metadata'):
-    validate_metadata_of_modified_rule(s502)
+@patch('rspec_tools.validation.metadata.RULES_WITH_NO_LANGUAGES', ['S501'])
+def test_rule_with_no_language_in_exception_list(invalid_rules: RulesRepository):
+  s501 = invalid_rules.get_rule('S501')
+  validate_rule_metadata(s501)
+  with patch.dict(s501.generic_metadata, [('status', 'deprecated')]):
+    validate_rule_metadata(s501)
 
 
-def test_modified_rule_that_is_fully_valid(mockrules: Path):
+@patch('rspec_tools.validation.metadata.RULES_WITH_NO_LANGUAGES', ['S501'])
+def test_open_rule_with_no_language_in_exception_list(invalid_rules: RulesRepository):
+  s501 = invalid_rules.get_rule('S501')
+  with pytest.raises(RuleValidationError, match=fr'^Rule S501 should be closed or deprecated'):
+    with patch.dict(s501.generic_metadata, [('status', 'ready')]):
+      validate_rule_metadata(s501)
+
+
+@patch('rspec_tools.validation.metadata.RULES_WITH_NO_LANGUAGES', ['S120'])
+def test_rule_expected_to_have_no_language(mockrules: Path):
   valid_rule = RulesRepository(rules_path=mockrules).get_rule('S120')
-  validate_metadata_of_modified_rule(valid_rule)
+  with pytest.raises(RuleValidationError, match=fr'^Rule S120 should have no specializations'):
+    validate_rule_metadata(valid_rule)
+
+
+@patch('rspec_tools.validation.metadata.RULES_WITH_NO_LANGUAGES', [])
+def test_rule_with_invalid_language(invalid_rules: RulesRepository):
+  s502 = invalid_rules.get_rule('S502')
+  with pytest.raises(RuleValidationError, match=fr'^Rule S502 failed validation for these reasons:\n - Rule scala:S502 has invalid metadata'):
+    validate_rule_metadata(s502)
+
+
+def test_rule_that_is_fully_valid(mockrules: Path):
+  valid_rule = RulesRepository(rules_path=mockrules).get_rule('S120')
+  validate_rule_metadata(valid_rule)
 
 
 def test_missing_required_property_fails_validation(rule_language: LanguageSpecificRule):

@@ -7,7 +7,7 @@ from rspec_tools.checklinks import check_html_links
 from rspec_tools.errors import RuleNotFoundError, RuleValidationError
 from rspec_tools.create_rule import create_new_rule, add_language_to_rule
 from rspec_tools.rules import RulesRepository
-from rspec_tools.validation.metadata import validate_metadata, validate_metadata_of_modified_rule
+from rspec_tools.validation.metadata import validate_rule_metadata
 from rspec_tools.validation.description import validate_section_names, validate_section_levels
 from rspec_tools.coverage import update_coverage_for_all_repos, update_coverage_for_repo, update_coverage_for_repo_version
 
@@ -49,41 +49,23 @@ def add_lang_to_rule(language: str, rule: str, user: Optional[str]):
   token = os.environ.get('GITHUB_TOKEN')
   add_language_to_rule(language, rule, token, user)
 
-
 @cli.command()
-@click.argument('rules', nargs=-1)
+@click.argument('rules', nargs=-1, required=True)
 def validate_rules_metadata(rules):
   '''Validate rules metadata.'''
   rule_repository = RulesRepository()
   error_counter = 0
-  for rule in rule_repository.rules:
 
-    if rules and rule.key not in rules:
-      continue
+  for rule_id in rules:
+    try:
+      rule = rule_repository.get_rule(rule_id)
+      validate_rule_metadata(rule)
+    except RuleValidationError as e:
+      click.echo(e.message, err=True)
+      error_counter += 1
 
-    for lang_spec_rule in rule.specializations:
-      try:
-        validate_metadata(lang_spec_rule)
-      except RuleValidationError as e:
-        click.echo(e.message, err=True)
-        error_counter += 1
   if error_counter > 0:
-    fatal_error(f"Validation failed due to {error_counter} errors")
-
-@cli.command()
-@click.argument('rule_key', required=True)
-def validate_modified_rule_metadata(rule_key: str):
-  '''Validate the given rule, assuming it was modified and therefore requires additional checks
-     on top of validate_rules_metadata().
-  '''
-  repo = RulesRepository()
-  rules = list(filter(lambda rule: rule.id == rule_key, repo.rules))
-  if len(rules) == 0:
-    fatal_error(f"Rule {rule_key} is not defined")
-  if len(rules) > 1:
-    fatal_error(f"Rule {rule_key} is defined multiple times!")
-
-  validate_metadata_of_modified_rule(rules[0])
+    fatal_error(f"Validation failed due to {error_counter} errors out of {len(rules)} analyzed rules")
 
 @cli.command()
 @click.option('--d', required=True)
