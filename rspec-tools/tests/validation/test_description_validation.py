@@ -56,7 +56,7 @@ def test_parameters_fails_validation_on_list(rule_language: LanguageSpecificRule
     name = h3.text.strip()
     if name == 'Parameters':
       h3.parent.insert(2, invalid_param)
-  with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} should use labeled listst for parameters'):
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} should use labeled lists for parameters'):
     with patch.object(LanguageSpecificRule, 'description', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_description
       validate_parameters(rule_language)

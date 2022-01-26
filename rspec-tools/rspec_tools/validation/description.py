@@ -35,11 +35,11 @@ def validate_section_levels(rule_language: LanguageSpecificRule):
 
 def validate_one_parameter(child, id):
   if child.name != 'div' or child['class'][0] != 'dlist':
-    raise RuleValidationError(f'Rule {id} should use labeled listst for parameters')
+    raise RuleValidationError(f'Rule {id} should use labeled lists for parameters')
   for divChild in child.children:
     if divChild.name is not None:
       if divChild.name != 'dl':
-        raise RuleValidationError(f'Rule {id} should use labeled listst for parameters')
+        raise RuleValidationError(f'Rule {id} should use labeled lists for parameters')
       for param in divChild.children:
         if param.name == 'dt' and param.strong == None:
           raise RuleValidationError(f'Rule {id} should write parameter name {param.text} in bold')
