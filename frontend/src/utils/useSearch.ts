@@ -5,7 +5,7 @@ import lunr from 'lunr';
 import { useFetch } from './useFetch';
 import { IndexedRule, IndexStore } from '../types/IndexStore';
 
-export function filterTypes(q: lunr.Query, type: string) {
+export function addFilterForTypes(q: lunr.Query, type: string) {
   q.term(type.toLowerCase(), {
     fields: ['types'],
     presence: lunr.Query.presence.REQUIRED,
@@ -13,7 +13,7 @@ export function filterTypes(q: lunr.Query, type: string) {
   });
 }
 
-export function filterTags(q: lunr.Query, tags: string[]) {
+export function addFilterForTags(q: lunr.Query, tags: string[]) {
   tags.forEach(tag => {
     q.term(tag, {
       fields: ['tags'],
@@ -23,7 +23,7 @@ export function filterTags(q: lunr.Query, tags: string[]) {
   });
 }
 
-export function filterLanguages(q: lunr.Query, language: string) {
+export function addFilterForLanguages(q: lunr.Query, language: string) {
   q.term(language.toLowerCase(), {
     fields: ['languages'],
     presence: lunr.Query.presence.REQUIRED,
@@ -31,7 +31,7 @@ export function filterLanguages(q: lunr.Query, language: string) {
   });
 }
 
-export function filterQualityProfiles(q: lunr.Query, profiles: string[]) {
+export function addFilterForQualityProfiles(q: lunr.Query, profiles: string[]) {
   profiles.forEach(profile => {
     q.term(profile.toLowerCase(), {
       fields: ['qualityProfiles'],
@@ -41,7 +41,7 @@ export function filterQualityProfiles(q: lunr.Query, profiles: string[]) {
   });
 }
 
-export function filterKeysTitlesDescriptions(q: lunr.Query, query: string) {
+export function addFilterForKeysTitlesDescriptions(q: lunr.Query, query: string) {
   lunr.tokenizer(amendQuery(query)).forEach(token => {
     q.term(token, {
       fields: ['all_keys', 'titles', 'descriptions'],
@@ -85,14 +85,14 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
         // control how each filter is added and how the query is processed.
         hits = index.query(q => {
           if (ruleType) {
-            filterTypes(q, ruleType);
+            addFilterForTypes(q, ruleType);
           }
           if (ruleLang) {
-            filterLanguages(q, ruleLang);
+            addFilterForLanguages(q, ruleLang);
           }
-          filterTags(q, ruleTags);
-          filterQualityProfiles(q, qualityProfiles);
-          filterKeysTitlesDescriptions(q, query);
+          addFilterForTags(q, ruleTags);
+          addFilterForQualityProfiles(q, qualityProfiles);
+          addFilterForKeysTitlesDescriptions(q, query);
         });
       } catch (exception) {
         if (exception instanceof lunr.QueryParseError) {

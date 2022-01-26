@@ -4,7 +4,10 @@ import lunr from 'lunr';
 import { buildSearchIndex, buildIndexStore, DESCRIPTION_SPLIT_REGEX } from '../searchIndex';
 import { withTestDir, createFiles } from '../testutils';
 import { IndexStore } from '../../types/IndexStore';
-import { filterKeysTitlesDescriptions, filterLanguages, filterQualityProfiles, filterTags, filterTypes } from '../../utils/useSearch';
+import {
+  addFilterForKeysTitlesDescriptions, addFilterForLanguages,
+  addFilterForQualityProfiles, addFilterForTags, addFilterForTypes
+} from '../../utils/useSearch';
 
 
 describe('index store generation', () => {
@@ -263,21 +266,21 @@ function findRules<QueryParam>(
 }
 
 function findRulesByType(index: lunr.Index, type: string): string[] {
-  return findRules(index, filterTypes, type);
+  return findRules(index, addFilterForTypes, type);
 }
 
 function findRulesByTags(index: lunr.Index, tags: string[]): string[] {
-  return findRules(index, filterTags, tags);
+  return findRules(index, addFilterForTags, tags);
 }
 
 function findRulesByLanguage(index: lunr.Index, language: string): string[] {
-  return findRules(index, filterLanguages, language);
+  return findRules(index, addFilterForLanguages, language);
 }
 
 function findRulesByProfile(index: lunr.Index, profile: string): string[] {
-  return findRules(index, filterQualityProfiles, [profile]);
+  return findRules(index, addFilterForQualityProfiles, [profile]);
 }
 
 function findRuleByQuery(index: lunr.Index, query: string): string[] {
-  return findRules(index, filterKeysTitlesDescriptions, query);
+  return findRules(index, addFilterForKeysTitlesDescriptions, query);
 }
