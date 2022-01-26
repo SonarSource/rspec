@@ -2,10 +2,9 @@
 set -uo pipefail
 
 # Install script dependencies
-(
-  cd rspec-tools || exit 1
-  pipenv install
-)
+cd rspec-tools
+pipenv install
+cd ..
 
 # Compute the set of affected rules
 git fetch origin "$CIRRUS_DEFAULT_BRANCH"
@@ -16,23 +15,22 @@ affected_rules=$(printf '%s\n' "$changeset" | grep '/S[0-9]\+/' | sed 's:\(.*/S[
 affected_tooling=$(printf '%s\n' "$changeset" | grep -v '/S[0-9]\+/')
 if [ -n "$affected_tooling" ]; then
     echo "Some rpec tools are changed, validating all rules"
-    affected_rules="rules/*"
+    affected_rules=rules/*
 fi
 
 exit_code=0
 
 ./ci/generate_html.sh
 
-(
-  cd rspec-tools || exit 1
-  # validate sections in asciidoc
-  if pipenv run rspec-tools check-sections --d ../out; then
-      echo "Sections are fine"
-  else
-      echo "ERROR: incorrect section names or invalid level-0 headers"
-      exit_code=1
-  fi
-)
+cd rspec-tools
+# validate sections in asciidoc
+if pipenv run rspec-tools check-sections --d ../out; then
+    echo "Sections are fine"
+else
+    echo "ERROR: incorrect section names or invalid level-0 headers"
+    exit_code=1
+fi
+cd ..
 
 for dir in $affected_rules
 do
