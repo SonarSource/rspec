@@ -139,12 +139,13 @@ export const SearchPage = () => {
           label="Rule type"
           value={ruleType}
           onChange={handleUpdate('types')}
+          data-testid="rule-type"
         >
           <MenuItem key="Any" value="ANY">
             Any
           </MenuItem>
           {Object.keys(allRuleTypes).map((ruleType) => (
-            <MenuItem key={ruleType} value={ruleType}>
+            <MenuItem key={ruleType} value={ruleType} data-testid={`rule-type-${ruleType}`}>
               {allRuleTypes[ruleType]}
             </MenuItem>
           ))}
@@ -165,9 +166,10 @@ export const SearchPage = () => {
           label="Rule Tags"
           value={ruleTags}
           onChange={handleUpdate('tags')}
+          data-testid="rule-tags"
         >
           {allRuleTags.map((ruleTag) => (
-            <MenuItem key={ruleTag} value={ruleTag}>
+            <MenuItem key={ruleTag} value={ruleTag} data-testid={`rule-tag-${ruleTag}`}>
               {ruleTag}
             </MenuItem>
           ))}
@@ -182,12 +184,13 @@ export const SearchPage = () => {
           label="Language"
           value={ruleLang}
           onChange={handleUpdate('lang')}
+          data-testid="rule-language"
         >
           <MenuItem key="Any" value="ANY">
             Any
           </MenuItem>
           {allLangs.map((lang) => (
-            <MenuItem key={lang} value={lang}>
+            <MenuItem key={lang} value={lang} data-testid={`rule-language-${lang}`}>
               {lang}
             </MenuItem>
           ))}
@@ -208,9 +211,10 @@ export const SearchPage = () => {
           label="Default Quality Profiles"
           value={qualityProfiles}
           onChange={handleUpdate('qualityProfiles')}
+          data-testid="rule-default-quality-profile"
         >
           {allQualityProfiles.map((qualityProfile) => (
-            <MenuItem key={qualityProfile} value={qualityProfile}>
+            <MenuItem key={qualityProfile} value={qualityProfile} data-testid={`rule-qual-profile-${qualityProfile}`}>
               {qualityProfile}
             </MenuItem>
           ))}
