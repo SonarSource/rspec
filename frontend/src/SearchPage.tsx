@@ -17,9 +17,9 @@ import {
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
-import { IndexedRule, IndexAggregates } from './types/IndexStore'
+import { IndexedRule, IndexAggregates } from './types/IndexStore';
 
-import { useHistory } from "react-router-dom";
+import { useHistory } from 'react-router-dom';
 
 function correctResultsOrder(results: IndexedRule[], query: string) {
   const upperCaseQuery = query.toLocaleUpperCase();
@@ -36,7 +36,7 @@ function correctResultsOrder(results: IndexedRule[], query: string) {
 }
 
 export const SearchPage = () => {
-  document.title = "Search"
+  document.title = 'Search'
 
   const classes = useStyles();
 
@@ -80,9 +80,9 @@ export const SearchPage = () => {
     allQualityProfiles = Object.keys(aggregatesData.qualityProfiles).sort();
   }
 
-  let resultsDisplay: string|JSX.Element[] = "No rule found...";
+  let resultsDisplay: string|JSX.Element[] = 'No rule found...';
   if (loading) {
-    resultsDisplay = "Searching";
+    resultsDisplay = 'Searching';
   } else if (results.length > 0) {
     let resultsBoxes: JSX.Element[] = [];
 
