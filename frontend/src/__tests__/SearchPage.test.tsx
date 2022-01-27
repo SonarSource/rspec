@@ -45,7 +45,7 @@ afterEach(() => {
     global.fetch.mockClear();
 });
 
-async function renderDefaultSearchPage() {
+async function renderDefaultSearchPageWithHistory() {
     const history = createMemoryHistory();
     history.push('/rspec/#/rspec/');
     const renderResult = render(<Router history={history}><SearchPage /></Router>);
@@ -53,6 +53,11 @@ async function renderDefaultSearchPage() {
     // Finish rendering after fetching all the data
     await waitFor(() => fetchMocker.finished());
 
+    return {renderResult, history};
+}
+
+async function renderDefaultSearchPage() {
+    const {renderResult, _} = await renderDefaultSearchPageWithHistory();
     return renderResult;
 }
 
@@ -76,6 +81,53 @@ test('narrows search by title', async () => {
     expect(queryByTestId('search-hit-S1000')).toBeNull();
     expect(queryByTestId('search-hit-S3457')).not.toBeNull();
     expect(queryByText(/rules found: 2/i)).not.toBeNull();
+});
+
+test('on enter navigates to the ruleid', async () => {
+    const { renderResult: {queryByText, getByRole}, history } = await renderDefaultSearchPageWithHistory();
+
+    // Enter a search query
+    const searchBox = getByRole('textbox');
+    fireEvent.change(searchBox, { target: { value: 'S1000' } });
+    fireEvent.keyUp(searchBox, { key: 'Enter', code: 'Enter', charCode: 13});
+
+    await waitFor(() => fetchMocker.finished());
+    expect(history.entries[history.entries.length - 1].pathname).toBe('/rspec/S1000');
+});
+
+test('on enter does not navigate to the wrong ruleid', async () => {
+    const { renderResult: {queryByText, getByRole}, history } = await renderDefaultSearchPageWithHistory();
+
+    // Enter a search query
+    const searchBox = getByRole('textbox');
+    fireEvent.change(searchBox, { target: { value: 'S10000' } });
+    fireEvent.keyUp(searchBox, { key: 'Enter', code: 'Enter', charCode: 13});
+
+    await waitFor(() => fetchMocker.finished());
+    expect(history.entries[history.entries.length - 1].pathname).toBe('/rspec/');
+});
+
+test('does nothing on keyup other than enter', async () => {
+    const { renderResult: {queryByText, getByRole}, history } = await renderDefaultSearchPageWithHistory();
+
+    // Enter a search query
+    const searchBox = getByRole('textbox');
+    fireEvent.change(searchBox, { target: { value: 'S1000' } });
+    fireEvent.keyUp(searchBox, { key: 'A', code: 'KeyA'});
+    expect(history.entries[history.entries.length - 1].pathname).toBe('/rspec/');
+});
+
+test('on enter navigates to the singular result', async () => {
+    const { renderResult: {queryByText, getByRole}, history } = await renderDefaultSearchPageWithHistory();
+
+    // Enter a search query
+    const searchBox = getByRole('textbox');
+    fireEvent.change(searchBox, { target: { value: 'rather validated compiler' } });
+    expect(queryByText(/rules found: 1/i)).not.toBeNull();
+    fireEvent.keyUp(searchBox, { key: 'Enter', code: 'Enter', charCode: 13});
+
+    await waitFor(() => fetchMocker.finished());
+    expect(history.entries[history.entries.length - 1].pathname).toBe('/rspec/S3457');
 });
 
 test('shows the exact match first', async () => {
