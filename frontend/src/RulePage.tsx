@@ -6,7 +6,7 @@ import Typography from '@material-ui/core/Typography';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
-import { Link } from '@material-ui/core';
+import { createMuiTheme, Link, ThemeProvider } from '@material-ui/core';
 import Highlight from 'react-highlight';
 import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
@@ -15,8 +15,26 @@ import { RuleMetadata } from './types';
 
 import './hljs-humanoid-light.css';
 
-
 const useStyles = makeStyles((theme) => ({
+  '@global': {
+    h1: {
+      fontSize: '1.6rem',
+      fontWeight: 500,
+      marginTop: theme.spacing(3),
+      marginBottom: theme.spacing(3)
+    },
+    h2: {
+      color: '#720D0C',
+      fontSize: '1.2rem'
+    },
+    h3: {
+      fontSize: '1rem',
+      color: '#65666A'
+    },
+    hr: {
+      color: '#F9F9FB'
+    }
+  },
   ruleBar: {
     borderBottom: '1px solid lightgrey',
   },
@@ -24,6 +42,7 @@ const useStyles = makeStyles((theme) => ({
     textAlign: 'center',
     marginTop: theme.spacing(3),
     marginBottom: theme.spacing(3),
+    color: 'black'
   },
   ruleidLink: {
     color: 'inherit',
@@ -43,7 +62,7 @@ const useStyles = makeStyles((theme) => ({
 
   // style used to center the tabs when there too few of them to fill the container
   tabRoot: {
-    justifyContent: "center"
+    justifyContent: 'center'
   },
   tabScroller: {
     flexGrow: 0
@@ -55,7 +74,7 @@ const useStyles = makeStyles((theme) => ({
   tab: {
     display: 'flex',
 
-    "&::before": {
+    '&::before': {
       content: '""',
       display: 'block',
       width: theme.spacing(1),
@@ -69,17 +88,17 @@ const useStyles = makeStyles((theme) => ({
     }
   },
   coveredTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['covered'].color,
     }
   },
   targetedTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['targeted'].color,
     }
   },
   removedTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['removed'].color,
     }
   },
@@ -94,6 +113,8 @@ const useStyles = makeStyles((theme) => ({
     }
   },
 }));
+
+const theme = createMuiTheme({});
 
 const languageToJiraProject = new Map(Object.entries({
   'PYTHON': 'SONARPY',
@@ -187,6 +208,11 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
     const implementationPRsLink = (<div>Select a language to see the implementation pull requests</div>);
     return {ticketsLink, implementationPRsLink};
   }
+}
+
+function RuleThemeProvider({ children }: any) {
+  useStyles();
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
 export function RulePage(props: any) {
@@ -283,13 +309,13 @@ export function RulePage(props: any) {
 
   return (
     <div>
-    <div className={classes.ruleBar}>
-      <Container>
-        <Typography variant="h2" classes={{root: classes.ruleid}}>
-          <Link className={classes.ruleidLink} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
-        </Typography>
-        <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
-        <Tabs
+      <div className={classes.ruleBar}>
+        <Container>
+          <Typography variant="h2" classes={{ root: classes.ruleid }}>
+            <Link className={classes.ruleidLink} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
+          </Typography>
+          <Typography variant="h4" classes={{ root: classes.ruleid }}>{prLink}</Typography>
+          <Tabs
             {...tabsValue}
             onChange={handleLanguageChange}
             indicatorColor="primary"
@@ -297,41 +323,43 @@ export function RulePage(props: any) {
             variant="scrollable"
             scrollButtons="auto"
             classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
-        >
-          {languagesTabs}
-        </Tabs>
-      </Container>
+          >
+            {languagesTabs}
+          </Tabs>
+        </Container>
+      </div>
+
+      <RuleThemeProvider>
+        <Container maxWidth="md">
+          <h1>{title}</h1>
+          <hr />
+          <Box className={classes.coverage}>
+            <h2>Covered Since</h2>
+            <ul>
+              {coverage}
+            </ul>
+          </Box>
+
+          <Box className={classes.coverage}>
+            <h2>Related Tickets and Pull Requests</h2>
+            <ul>
+              {specificationPRsLink}
+            </ul>
+            <ul>
+              {implementationPRsLink}
+            </ul>
+            <ul>
+              {ticketsLink}
+            </ul>
+          </Box>
+
+          <Box>
+            <Typography component={'span'} className={classes.description}>
+              {description}
+            </Typography>
+          </Box>
+        </Container>
+      </RuleThemeProvider>
     </div>
-
-    <Container maxWidth="md">
-      <Typography variant="h3" classes={{root: classes.title}}>{title}</Typography>
-      <Box className={classes.coverage}>
-        <Typography variant="h4" >Covered Since</Typography>
-        <ul>
-        {coverage}
-        </ul>
-      </Box>
-
-      <Box className={classes.coverage}>
-        <Typography variant="h4" >Related Tickets and Pull Requests</Typography>
-        <ul>
-          {specificationPRsLink}
-        </ul>
-        <ul>
-          {implementationPRsLink}
-        </ul>
-        <ul>
-          {ticketsLink}
-        </ul>
-      </Box>
-
-      <Box>
-        <Typography component={'span'} className={classes.description}>
-          {description}
-        </Typography>
-      </Box>
-    </Container>
-    </div>
-
   );
 }
