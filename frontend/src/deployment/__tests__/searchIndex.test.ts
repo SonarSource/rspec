@@ -188,10 +188,10 @@ describe('search index enables search by title and description words', () => {
     expect(searchesUnknown).toHaveLength(0);
 
     const searchesBothRules = findRuleByQuery(searchIndex, 'Noncompliant Code Example');
-    expect(searchesBothRules.sort()).toEqual(['S1000', 'S3457', 'S987'].sort());
+    expect(searchesBothRules).toEqual(['S1000', 'S3457', 'S987'].sort());
 
-    const searchesRuleMentions = search(searchIndex, 'S1000', 'descriptions');
-    expect(searchesRuleMentions).toEqual(['S987'].sort());
+    const searchesRuleMentions = findRuleByQuery(searchIndex, 'S1000');
+    expect(searchesRuleMentions).toEqual(['S987', 'S1000'].sort());
   });
 
   test('searches in rule title', () => {
@@ -206,7 +206,7 @@ describe('search index enables search by title and description words', () => {
     expect(searchesUnknown).toHaveLength(0);
 
     const searchesBothRules = findRuleByQuery(searchIndex, 'should be used');
-    expect(searchesBothRules.sort()).toEqual(['S3457', 'S987'].sort());
+    expect(searchesBothRules).toEqual(['S3457', 'S987'].sort());
   });
 });
 
@@ -285,5 +285,6 @@ function findRulesByProfile(index: lunr.Index, profile: string): string[] {
 }
 
 function findRuleByQuery(index: lunr.Index, query: string): string[] {
-  return findRules(index, addFilterForKeysTitlesDescriptions, query);
+  const rules = findRules(index, addFilterForKeysTitlesDescriptions, query);
+  return rules.sort();
 }
