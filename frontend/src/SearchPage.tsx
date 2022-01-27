@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { KeyboardEvent } from 'react';
 
 import Typography from '@material-ui/core/Typography';
 import TextField from '@material-ui/core/TextField';
@@ -17,7 +17,23 @@ import {
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
-import { IndexAggregates } from './types/IndexStore'
+import { IndexedRule, IndexAggregates } from './types/IndexStore'
+
+import { useHistory } from "react-router-dom";
+
+function correctResultsOrder(results: IndexedRule[], query: string) {
+  const upperCaseQuery = query.toLocaleUpperCase();
+  let reorderedResults: IndexedRule[] = [];
+
+  results.forEach(indexedRule => {
+    if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
+      reorderedResults = [indexedRule, ...reorderedResults];
+    } else {
+      reorderedResults.push(indexedRule);
+    }
+  });
+  return reorderedResults;
+}
 
 export const SearchPage = () => {
   document.title = "Search"
@@ -26,6 +42,7 @@ export const SearchPage = () => {
 
   const pageSize = 20;
   const [query, setQuery] = useLocationSearchState('query', '');
+    const history = useHistory();
 
   const [ruleType, setRuleType] = useLocationSearchState('types', 'ANY');
   const allRuleTypes: Record<string,string> = {
@@ -67,19 +84,14 @@ export const SearchPage = () => {
   if (loading) {
     resultsDisplay = "Searching";
   } else if (results.length > 0) {
-    const upperCaseQuery = query.toLocaleUpperCase();
     let resultsBoxes: JSX.Element[] = [];
 
     // making the exact match to appear first in the search results
-    results.forEach(indexedRule => {
-      const box = <Box className={classes.searchHitBox}>
+    correctResultsOrder(results, query).forEach(indexedRule => {
+      const box = <Box key={indexedRule.id} className={classes.searchHitBox}>
         <SearchHit key={indexedRule.id} data={indexedRule}/>
       </Box>;
-      if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
-        resultsBoxes = [box, ...resultsBoxes];
-      } else {
-        resultsBoxes.push(box);
-      }
+      resultsBoxes.push(box);
     });
     resultsDisplay = resultsBoxes;
   }
@@ -101,6 +113,18 @@ export const SearchPage = () => {
         setLocationSearch(uriSearch);
       } else {
         paramSetters[field](event.target.value, {push: false});
+      }
+    }
+  }
+  function handleKeyup(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      const query = (event.target as HTMLTextAreaElement).value;
+      if (query.match(/^(S|RSPEC-?)?[0-9]{3,}$/i)) {
+        if (0 < results.length) {
+          history.push(correctResultsOrder(results, query)[0].id);
+        }
+      } else if (1 === results.length) {
+        history.push(results[0].id);
       }
     }
   }
@@ -126,6 +150,7 @@ export const SearchPage = () => {
             variant="outlined"
             value={query}
             onChange={handleUpdate('query')}
+            onKeyUp={handleKeyup}
             error={!!error}
             helperText={error}
         />
@@ -139,12 +164,13 @@ export const SearchPage = () => {
           label="Rule type"
           value={ruleType}
           onChange={handleUpdate('types')}
+          data-testid="rule-type"
         >
           <MenuItem key="Any" value="ANY">
             Any
           </MenuItem>
           {Object.keys(allRuleTypes).map((ruleType) => (
-            <MenuItem key={ruleType} value={ruleType}>
+            <MenuItem key={ruleType} value={ruleType} data-testid={`rule-type-${ruleType}`}>
               {allRuleTypes[ruleType]}
             </MenuItem>
           ))}
@@ -165,9 +191,10 @@ export const SearchPage = () => {
           label="Rule Tags"
           value={ruleTags}
           onChange={handleUpdate('tags')}
+          data-testid="rule-tags"
         >
           {allRuleTags.map((ruleTag) => (
-            <MenuItem key={ruleTag} value={ruleTag}>
+            <MenuItem key={ruleTag} value={ruleTag} data-testid={`rule-tag-${ruleTag}`}>
               {ruleTag}
             </MenuItem>
           ))}
@@ -182,12 +209,13 @@ export const SearchPage = () => {
           label="Language"
           value={ruleLang}
           onChange={handleUpdate('lang')}
+          data-testid="rule-language"
         >
           <MenuItem key="Any" value="ANY">
             Any
           </MenuItem>
           {allLangs.map((lang) => (
-            <MenuItem key={lang} value={lang}>
+            <MenuItem key={lang} value={lang} data-testid={`rule-language-${lang}`}>
               {lang}
             </MenuItem>
           ))}
@@ -208,9 +236,10 @@ export const SearchPage = () => {
           label="Default Quality Profiles"
           value={qualityProfiles}
           onChange={handleUpdate('qualityProfiles')}
+          data-testid="rule-default-quality-profile"
         >
           {allQualityProfiles.map((qualityProfile) => (
-            <MenuItem key={qualityProfile} value={qualityProfile}>
+            <MenuItem key={qualityProfile} value={qualityProfile} data-testid={`rule-qual-profile-${qualityProfile}`}>
               {qualityProfile}
             </MenuItem>
           ))}
@@ -223,7 +252,7 @@ export const SearchPage = () => {
     <Container maxWidth="md">
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <Box className={classes.topRow}>
+          <Box key="total-num" className={classes.topRow}>
             <Box className={classes.resultsCount}>
               <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
             </Box>
