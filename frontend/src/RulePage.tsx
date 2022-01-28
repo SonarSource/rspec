@@ -43,7 +43,7 @@ const useStyles = makeStyles((theme) => ({
 
   // style used to center the tabs when there too few of them to fill the container
   tabRoot: {
-    justifyContent: "center"
+    justifyContent: 'center'
   },
   tabScroller: {
     flexGrow: 0
@@ -55,7 +55,7 @@ const useStyles = makeStyles((theme) => ({
   tab: {
     display: 'flex',
 
-    "&::before": {
+    '&::before': {
       content: '""',
       display: 'block',
       width: theme.spacing(1),
@@ -69,19 +69,19 @@ const useStyles = makeStyles((theme) => ({
     }
   },
   coveredTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['covered'].color,
     }
   },
   targetedTab: {
-    "&::before": {
+    '&::before': {
       borderColor: RULE_STATE['targeted'].color,
-      border: "1px solid",
-      backgroundColor: "transparent"
+      border: '1px solid',
+      backgroundColor: 'transparent'
     }
   },
   removedTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['removed'].color,
     }
   },

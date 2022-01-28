@@ -16,6 +16,9 @@ import { Link } from '@material-ui/core';
 import { IndexedRule } from './types/IndexStore';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 
+const CHIP_V_MARGIN = 0.5;
+const TABLE_PADDING = 1;
+
 const useStyles = makeStyles((theme) => ({
   searchHit: {
 
@@ -31,8 +34,8 @@ const useStyles = makeStyles((theme) => ({
   },
   coveredLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['covered'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['covered'].darker
@@ -40,8 +43,8 @@ const useStyles = makeStyles((theme) => ({
   },
   targetedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     color: RULE_STATE['targeted'].color,
     borderColor: RULE_STATE['targeted'].color,
     '&:hover, &:focus': {
@@ -51,8 +54,8 @@ const useStyles = makeStyles((theme) => ({
   },
   removedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['removed'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['removed'].darker
@@ -60,8 +63,8 @@ const useStyles = makeStyles((theme) => ({
   },
   deprecatedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['deprecated'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['deprecated'].darker
@@ -69,8 +72,8 @@ const useStyles = makeStyles((theme) => ({
   },
   closedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['closed'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['closed'].darker
@@ -78,53 +81,43 @@ const useStyles = makeStyles((theme) => ({
   },
   coveredTitle: {
     borderColor: RULE_STATE['covered'].color,
-    borderLeft: "3px solid",
-    padding: theme.spacing(1)
+    padding: theme.spacing(TABLE_PADDING)
   },
   coveredMarker: {
-    borderColor: RULE_STATE['covered'].color,
-    padding: theme.spacing(1),
-    width: "100%"
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
   },
   targetedTitle: {
     borderColor: RULE_STATE['covered'].color,
-    borderLeft: "3px double",
-    padding: "8px"
+    padding: theme.spacing(TABLE_PADDING)
   },
   targetedMarker: {
-    borderColor: RULE_STATE['covered'].color,
-    padding: "8px",
-    width: "100%"
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
   },
   removedTitle: {
     borderColor: RULE_STATE['removed'].color,
-    borderLeft: "3px solid",
-    padding: "8px"
+    padding: theme.spacing(TABLE_PADDING)
   },
   removedMarker: {
-    borderColor: RULE_STATE['removed'].color,
-    padding: "8px",
-    width: "100%"
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
   },
   deprecatedTitle: {
     borderColor: RULE_STATE['deprecated'].color,
-    borderLeft: "3px solid",
-    padding: "8px"
-  },
+    padding: theme.spacing(TABLE_PADDING)
+    },
   deprecatedMarker: {
-    borderColor: RULE_STATE['deprecated'].color,
-    padding: "8px",
-    width: "100%"
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
   },
   closedTitle: {
     borderColor: RULE_STATE['closed'].color,
-    borderLeft: "3px solid",
-    padding: "8px"
+    padding: theme.spacing(TABLE_PADDING)
   },
   closedMarker: {
-    borderColor: RULE_STATE['closed'].color,
-    padding: "8px",
-    width: "100%"
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
   }
 }));
 
