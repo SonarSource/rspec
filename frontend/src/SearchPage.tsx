@@ -36,11 +36,7 @@ function correctResultsOrder(results: IndexedRule[], query: string) {
 }
 
 export const SearchPage = () => {
-<<<<<<< HEAD
-  document.title = 'Search'
-=======
   document.title = 'Search';
->>>>>>> origin/master
 
   const classes = useStyles();
 
