@@ -11,8 +11,8 @@ from rspec_tools.rules import LanguageSpecificRule
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-SECTION_NAMES_PATH=Path(__file__).parent.parent.parent.parent.joinpath('docs/section_names.adoc')
-SECTION_NAMES_FILE=open(SECTION_NAMES_PATH, 'r', encoding='utf-8').readlines()
+SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath('docs/section_names.adoc')
+SECTION_NAMES_FILE = SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
 ACCEPTED_SECTION_NAMES: Final[list[str]] = [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
 def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
