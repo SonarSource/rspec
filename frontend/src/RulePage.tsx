@@ -24,12 +24,12 @@ const useStyles = makeStyles((theme) => ({
       marginBottom: theme.spacing(3)
     },
     h2: {
-      color: '#720D0C',
+      color: '#0B3C62',
       fontSize: '1.2rem'
     },
     h3: {
       fontSize: '1rem',
-      color: '#65666A'
+      color: '#25699D'
     },
     hr: {
       color: '#F9F9FB'
