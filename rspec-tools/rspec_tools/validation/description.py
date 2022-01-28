@@ -47,3 +47,32 @@ def validate_parameters(rule_language: LanguageSpecificRule):
         if child.name is None or child == h3 or child.name == 'hr':
           continue
         validate_one_parameter(child, rule_language.id)
+
+HIGHLIGHTED_LANGUAGES = {'cfamily': 'cpp',
+                         'csharp': 'cs',
+                         'css': 'css',
+                         'go': 'go',
+                         'java': 'java',
+                         'javascript': 'javascript',
+                         'kotlin': 'kotlin',
+                         'php': 'php',
+                         'plsql': 'sql',
+                         'python': 'python',
+                         'ruby': 'ruby',
+                         'rust': 'rust',
+                         'scala': 'scala',
+                         'swift': 'swift',
+                         'tsql': 'sql',
+                         'xml': 'xml'
+                         }
+
+def validate_source_language(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  if rule_language.language in HIGHLIGHTED_LANGUAGES.keys():
+    for h2 in descr.findAll('h2'):
+      name = h2.text.strip()
+      if name.startswith('Compliant') or name.startswith('Noncompliant'):
+        pre = h2.parent.pre
+        if not pre.has_attr('class') or pre['class'][0] != u'highlight':
+          raise RuleValidationError(f'''Rule {rule_language.id} has non highlighted code example in section "{name}".
+Use [source,{HIGHLIGHTED_LANGUAGES[rule_language.language]}] or [source,text] before the opening '----'.''')

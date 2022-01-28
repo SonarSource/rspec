@@ -7,7 +7,7 @@ from rspec_tools.errors import RuleValidationError
 from copy import deepcopy
 
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.description import validate_section_names, validate_section_levels, validate_parameters
+from rspec_tools.validation.description import validate_section_names, validate_section_levels, validate_parameters, validate_source_language
 
 @pytest.fixture
 def rule_language(mockrules: Path):
@@ -62,3 +62,13 @@ def test_parameters_fails_validation_missing_description(invalid_rule):
   '''Check that parameters without any description break validation.'''
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule.id} should have a description for each parameter'):
     validate_parameters(rule)
+
+def test_valid_source_declaration_validation(rule_language):
+  '''Check that declaring a language for sources is considered valid.'''
+  validate_source_language(rule_language('S100', 'cfamily'))
+
+def test_missing_source_language_fails_validation(invalid_rule):
+  '''Check that forgetting the language for sources breaks validation'''
+  rule = invalid_rule('S100', 'cfamily')
+  with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has non highlighted code example in section "Noncompliant Code Example".\nUse [source,cpp] or [source,text] before the opening \'----\'.')):
+    validate_source_language(rule)

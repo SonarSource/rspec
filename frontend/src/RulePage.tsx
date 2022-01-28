@@ -12,6 +12,7 @@ import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import { RuleMetadata } from './types';
+import parse, {domToReact, Element} from 'html-react-parser';
 
 import './hljs-humanoid-light.css';
 
@@ -324,7 +325,15 @@ function useDescription(metadata: PageMetadata, ruleid: string, language: string
 
   if (descHTML !== null && !descIsLoading && !descError) {
     return <div>
-      <div dangerouslySetInnerHTML={{ __html: descHTML }} />
+      {parse(descHTML, {
+        replace: (d) => {
+          const domNode = d as Element;
+          if (domNode.name === 'code' && domNode.attribs && domNode.attribs['data-lang']) {
+            return <Highlight className={domNode.attribs['data-lang']}>{domToReact(domNode.children)}</Highlight>;
+          }
+        }
+      })
+      }
       <hr />
       <a href={editOnGithubUrl}>Edit on Github</a><br />
       <hr />
