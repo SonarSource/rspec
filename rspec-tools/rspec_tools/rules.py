@@ -81,8 +81,7 @@ class RulesRepository:
 
   rules_path: Final[Path]
 
-  def __init__(self, *, rules_path: Path=DEFAULT_RULES_PATH):
-    print(rules_path.absolute().__str__())
+  def __init__(self, rules_path: Path=DEFAULT_RULES_PATH):
     self.rules_path = rules_path
 
   @property
