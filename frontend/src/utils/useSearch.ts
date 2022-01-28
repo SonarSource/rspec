@@ -1,15 +1,60 @@
 import React, { useState } from 'react';
 
-import * as lunr from 'lunr'
+import lunr from 'lunr';
 
 import { useFetch } from './useFetch';
 import { IndexedRule, IndexStore } from '../types/IndexStore';
 
+export function addFilterForTypes(q: lunr.Query, type: string) {
+  q.term(type.toLowerCase(), {
+    fields: ['types'],
+    presence: lunr.Query.presence.REQUIRED,
+    usePipeline: false,
+  });
+}
+
+export function addFilterForTags(q: lunr.Query, tags: string[]) {
+  tags.forEach(tag => {
+    q.term(tag, {
+      fields: ['tags'],
+      presence: lunr.Query.presence.REQUIRED,
+      usePipeline: false,
+    });
+  });
+}
+
+export function addFilterForLanguages(q: lunr.Query, language: string) {
+  q.term(language.toLowerCase(), {
+    fields: ['languages'],
+    presence: lunr.Query.presence.REQUIRED,
+    usePipeline: false,
+  });
+}
+
+export function addFilterForQualityProfiles(q: lunr.Query, profiles: string[]) {
+  profiles.forEach(profile => {
+    q.term(profile.toLowerCase(), {
+      fields: ['qualityProfiles'],
+      presence: lunr.Query.presence.REQUIRED,
+      usePipeline: false,
+    });
+  });
+}
+
+export function addFilterForKeysTitlesDescriptions(q: lunr.Query, query: string) {
+  lunr.tokenizer(amendQuery(query)).forEach(token => {
+    q.term(token, {
+      fields: ['all_keys', 'titles', 'descriptions'],
+      presence: lunr.Query.presence.REQUIRED
+    });
+  });
+}
+
 export function useSearch(query: string, ruleType: string|null, ruleLang: string|null, ruleTags: string[],
                           qualityProfiles: string[],
                           pageSize: number, pageNumber: number) {
-  let indexDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index.json`;
-  let storeDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-store.json`;
+  const indexDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index.json`;
+  const storeDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-store.json`;
 
   const [indexData, indexDataError, indexDataIsLoading] = useFetch<object>(indexDataUrl);
   const [storeData, storeDataError, storeDataIsLoading] = useFetch<IndexStore>(storeDataUrl);
@@ -33,51 +78,21 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
 
   React.useEffect(() => {
     if (index != null && !storeDataIsLoading && !storeDataError) {
-      let hits: lunr.Index.Result[] = []
+      let hits: lunr.Index.Result[] = [];
       setError(null);
       try {
         // We use index.query instead if index.search in order to fully
         // control how each filter is added and how the query is processed.
         hits = index.query(q => {
-          // Add rule type filter
           if (ruleType) {
-            q.term(ruleType.toLowerCase(), {
-              fields: ['type'],
-              presence: lunr.Query.presence.REQUIRED,
-              usePipeline: false
-            });
+            addFilterForTypes(q, ruleType);
           }
-
           if (ruleLang) {
-            q.term(ruleLang.toLowerCase(), {
-              fields: ['languages'],
-              presence: lunr.Query.presence.REQUIRED,
-              usePipeline: false
-            });
+            addFilterForLanguages(q, ruleLang);
           }
-
-          // Add rule tags filter
-          ruleTags.forEach(ruleTag => {
-            q.term(ruleTag, {
-              fields: ['tags'],
-              presence: lunr.Query.presence.REQUIRED,
-              usePipeline: false
-            });
-          });
-
-          // Add quality profiles filter
-          qualityProfiles.forEach(qualityProfile => {
-            q.term(qualityProfile.toLowerCase(), {
-              fields: ['qualityProfiles'],
-              presence: lunr.Query.presence.REQUIRED,
-              usePipeline: false
-            });
-          });
-
-          // Search for each query token in titles and descriptions
-          lunr.tokenizer(amendQuery(query)).forEach(token => {
-            q.term(token, {fields: ['all_keys', 'titles', 'descriptions'], presence: lunr.Query.presence.REQUIRED})
-          });
+          addFilterForTags(q, ruleTags);
+          addFilterForQualityProfiles(q, qualityProfiles);
+          addFilterForKeysTitlesDescriptions(q, query);
         });
       } catch (exception) {
         if (exception instanceof lunr.QueryParseError) {
@@ -87,7 +102,7 @@ export function useSearch(query: string, ruleType: string|null, ruleLang: string
         }
       }
       if (storeData) {
-        setNumberOfHits(hits.length)
+        setNumberOfHits(hits.length);
         const pageResults = hits.slice(pageSize*(pageNumber - 1), pageSize*(pageNumber));
         setResults(pageResults.map(({ ref }) => storeData[ref]));
         setResultsAreLoading(false);
