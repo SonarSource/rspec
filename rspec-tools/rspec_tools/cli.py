@@ -70,13 +70,13 @@ def validate_rules_metadata(rules):
 @cli.command()
 @click.option('--d', required=True)
 @click.argument('rules', nargs=-1)
-def check_sections(d, rules):
-  '''Validate the section names.'''
+def check_description(d, rules):
+  '''Validate the rule.adoc description.'''
   out_dir = Path(__file__).parent.parent.joinpath(d)
   rule_repository = RulesRepository(rules_path=out_dir)
   error_counter = 0
   for rule in rule_repository.rules:
-    if rules and rule.key not in rules:
+    if rules and rule.id not in rules:
       continue
     for lang_spec_rule in rule.specializations:
       try:

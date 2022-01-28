@@ -24,10 +24,10 @@ exit_code=0
 
 cd rspec-tools
 # validate sections in asciidoc
-if pipenv run rspec-tools check-sections --d ../out; then
-    echo "Sections are fine"
+if pipenv run rspec-tools check-description --d ../out; then
+    echo "rule.adoc is fine"
 else
-    echo "ERROR: incorrect section names or invalid level-0 headers"
+    echo "ERROR: rule.adoc is not valid"
     exit_code=1
 fi
 cd ..
