@@ -5,7 +5,7 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { IndexedRule, IndexStore, Severity, IndexAggregates } from '../types/IndexStore';
+import { IndexedRule, IndexStore, Severity, Type, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
 import { LanguageSupport } from '../types/RuleMetadata';
 
@@ -20,8 +20,8 @@ export interface IndexedRuleWithDescription extends IndexedRule {
 
 function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: string) {
 
-  let types = new Set<string>();
-  let severities = new Set<Severity>();
+  const types = new Set<Type>();
+  const severities = new Set<Severity>();
   const allKeys = new Set<string>([ruleDir]);
   const titles = new Set<string>();
   const tags = new Set<string>();
@@ -90,7 +90,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
     logger.error(`No languages found for rule ${ruleDir}, at least 1 is required`);
     return null;
   }
-  if (record.types.size !== 1) {
+  if (record.types.size < 1) {
     logger.error(
       `${record.types.size} type(s) found for rule ${ruleDir}, 1 is required: ${JSON.stringify(record.types)}`);
     return null;
@@ -103,7 +103,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
   const indexedRecord: IndexedRuleWithDescription = {
     id: ruleDir,
     supportedLanguages: Array.from(record.supportedLanguages).sort(),
-    type: record.types.values().next().value,
+    types: Array.from(record.types).sort(),
     severities: Array.from(record.severities).sort(),
     all_keys: Array.from(record.allKeys).sort(),
     titles: Array.from(record.titles).sort(),
@@ -172,7 +172,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
     // it is not declared in the Token class. Thus we cast as any here.
     const fields = (token as any).metadata["fields"];
     // process only titles and descriptions
-    if (fields.includes('all_keys') || fields.includes('titles') || fields.includes('descriptions') ) {
+    if (fields.includes('all_keys') || fields.includes('titles') || fields.includes('descriptions')) {
       // We don't use the stopword filter to allow words such as "do", "while", "for"
       const trimmed = lunr.trimmer(token);
       return lunr.stemmer(trimmed);
@@ -189,7 +189,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
 
     this.ref('id');
     this.field('titles', { extractor: (doc) => (doc as IndexedRule).titles.join('\n') });
-    this.field('type');
+    this.field('types');
     this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(lang => lang.name) });
     this.field('defaultSeverity');
     this.field('tags');
@@ -219,7 +219,7 @@ export function createIndexFiles(rulesPath: string) {
   for (const rule of Object.values(indexStore)) {
       delete rule.descriptions;
   }
-  const indexStoreJson = JSON.stringify(indexStore, null, 2);
+  const indexStoreJson = JSON.stringify(indexStore);
   const indexStorePath = path.join(rulesPath, "rule-index-store.json")
   fs.writeFileSync(indexStorePath, indexStoreJson, {encoding: 'utf8', flag: 'w'});
 
