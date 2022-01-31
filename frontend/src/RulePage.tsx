@@ -33,6 +33,21 @@ const useStyles = makeStyles((theme) => ({
     },
     hr: {
       color: '#F9F9FB'
+    },
+    '.sidebarblock': {
+      '& .title': {
+        color: '#25699D'
+      },
+      '& pre': {
+        marginLeft: '1rem',
+        marginTop: theme.spacing(1),
+        marginBottom: theme.spacing(1)
+      },
+      '& p': {
+marginLeft: '1rem',
+marginTop: theme.spacing(1),
+marginBottom: theme.spacing(1)
+}
     }
   },
   ruleBar: {
