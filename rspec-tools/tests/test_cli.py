@@ -79,5 +79,5 @@ class TestCLIValidateDescription:
 
   def test_invalid_rule(self):
     result = self._run_invalid(['S100'])
-    assert 'Validation failed due to 3 errors' in result.output
+    assert 'Validation failed due to 7 errors' in result.output
     assert result.exit_code == 1
