@@ -6,7 +6,7 @@ import Typography from '@material-ui/core/Typography';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
-import { Link } from '@material-ui/core';
+import { createMuiTheme, Link, ThemeProvider } from '@material-ui/core';
 import Highlight from 'react-highlight';
 import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
@@ -15,8 +15,26 @@ import { RuleMetadata } from './types';
 
 import './hljs-humanoid-light.css';
 
-
 const useStyles = makeStyles((theme) => ({
+  '@global': {
+    h1: {
+      fontSize: '1.6rem',
+      fontWeight: 500,
+      marginTop: theme.spacing(3),
+      marginBottom: theme.spacing(3)
+    },
+    h2: {
+      color: '#0B3C62',
+      fontSize: '1.2rem'
+    },
+    h3: {
+      fontSize: '1rem',
+      color: '#25699D'
+    },
+    hr: {
+      color: '#F9F9FB'
+    }
+  },
   ruleBar: {
     borderBottom: '1px solid lightgrey',
   },
@@ -24,6 +42,7 @@ const useStyles = makeStyles((theme) => ({
     textAlign: 'center',
     marginTop: theme.spacing(3),
     marginBottom: theme.spacing(3),
+    color: 'black'
   },
   ruleidLink: {
     color: 'inherit',
@@ -43,7 +62,7 @@ const useStyles = makeStyles((theme) => ({
 
   // style used to center the tabs when there too few of them to fill the container
   tabRoot: {
-    justifyContent: "center"
+    justifyContent: 'center'
   },
   tabScroller: {
     flexGrow: 0
@@ -55,7 +74,7 @@ const useStyles = makeStyles((theme) => ({
   tab: {
     display: 'flex',
 
-    "&::before": {
+    '&::before': {
       content: '""',
       display: 'block',
       width: theme.spacing(1),
@@ -69,79 +88,91 @@ const useStyles = makeStyles((theme) => ({
     }
   },
   coveredTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['covered'].color,
     }
   },
   targetedTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['targeted'].color,
     }
   },
   removedTab: {
-    "&::before": {
+    '&::before': {
       backgroundColor: RULE_STATE['removed'].color,
+    }
+  },
+  closedTab: {
+    '&::before': {
+      backgroundColor: RULE_STATE['closed'].color,
+    }
+  },
+  deprecatedTab: {
+    '&::before': {
+      backgroundColor: RULE_STATE['deprecated'].color,
     }
   },
 }));
 
+const theme = createMuiTheme({});
+
 const languageToJiraProject = new Map(Object.entries({
-  "PYTHON": "SONARPY",
-  "ABAP": "SONARABAP",
-  "CFAMILY": "CPP",
-  "JAVA": "SONARJAVA",
-  "COBOL": "SONARCOBOL",
-  "FLEX": "SONARFLEX",
-  "HTML": "SONARHTML",
-  "PHP": "SONARPHP",
-  "PLI": "SONARPLI",
-  "PLSQL": "SONARPLSQL",
-  "RPG": "SONARRPG",
-  "APEX": "SONARSLANG",
-  "RUBY": "SONARSLANG",
-  "KOTLIN": "SONARKT",
-  "SCALA": "SONARSLANG",
-  "GO": "SONARSLANG",
-  "SECRETS": "SECRETS",
-  "SWIFT": "SONARSWIFT",
-  "TSQL": "SONARTSQL",
-  "VB6": "SONARVBSIX",
-  "XML": "SONARXML",
-  "CLOUDFORMATION": "SONARIAC",
-  "TERRAFORM": "SONARIAC",
-  "COMMON": "SONARCOMMON",
+  'PYTHON': 'SONARPY',
+  'ABAP': 'SONARABAP',
+  'CFAMILY': 'CPP',
+  'JAVA': 'SONARJAVA',
+  'COBOL': 'SONARCOBOL',
+  'FLEX': 'SONARFLEX',
+  'HTML': 'SONARHTML',
+  'PHP': 'SONARPHP',
+  'PLI': 'SONARPLI',
+  'PLSQL': 'SONARPLSQL',
+  'RPG': 'SONARRPG',
+  'APEX': 'SONARSLANG',
+  'RUBY': 'SONARSLANG',
+  'KOTLIN': 'SONARKT',
+  'SCALA': 'SONARSLANG',
+  'GO': 'SONARSLANG',
+  'SECRETS': 'SECRETS',
+  'SWIFT': 'SONARSWIFT',
+  'TSQL': 'SONARTSQL',
+  'VB6': 'SONARVBSIX',
+  'XML': 'SONARXML',
+  'CLOUDFORMATION': 'SONARIAC',
+  'TERRAFORM': 'SONARIAC',
+  'TEXT': 'SONARTEXT',
 }));
 
 const languageToGithubProject = new Map(Object.entries({
-  "ABAP": "sonar-abap",
-  "CSHARP": "sonar-dotnet",
-  "VBNET": "sonar-dotnet",
-  "JAVASCRIPT": "SonarJS",
-  "TYPESCRIPT": "SonarJS",
-  "SWIFT": "sonar-swift",
-  "KOTLIN": "sonar-kotlin",
-  "GO": "slang-enterprise",
-  "SCALA": "slang-enterprise",
-  "RUBY": "slang-enterprise",
-  "APEX": "slang-enterprise",
-  "HTML": "sonar-html",
-  "COBOL": "sonar-cobol",
-  "VB6": "sonar-vb",
-  "JAVA": "sonar-java",
-  "PLI": "sonar-pli",
-  "CFAMILY": "sonar-cpp",
-  "CSS": "sonar-css",
-  "FLEX": "sonar-flex",
-  "PHP": "sonar-php",
-  "PLSQL": "sonar-plsql",
-  "PYTHON": "sonar-python",
-  "RPG": "sonar-rpg",
-  "TSQL": "sonar-tsql",
-  "XML": "sonar-xml",
-  "CLOUDFORMATION": "sonar-iac",
-  "TERRAFORM": "sonar-iac",
-  "SECRETS": "sonar-secrets",
-  "COMMON": "sonar-text",
+  'ABAP': 'sonar-abap',
+  'CSHARP': 'sonar-dotnet',
+  'VBNET': 'sonar-dotnet',
+  'JAVASCRIPT': 'SonarJS',
+  'TYPESCRIPT': 'SonarJS',
+  'SWIFT': 'sonar-swift',
+  'KOTLIN': 'sonar-kotlin',
+  'GO': 'slang-enterprise',
+  'SCALA': 'slang-enterprise',
+  'RUBY': 'slang-enterprise',
+  'APEX': 'slang-enterprise',
+  'HTML': 'sonar-html',
+  'COBOL': 'sonar-cobol',
+  'VB6': 'sonar-vb',
+  'JAVA': 'sonar-java',
+  'PLI': 'sonar-pli',
+  'CFAMILY': 'sonar-cpp',
+  'CSS': 'sonar-css',
+  'FLEX': 'sonar-flex',
+  'PHP': 'sonar-php',
+  'PLSQL': 'sonar-plsql',
+  'PYTHON': 'sonar-python',
+  'RPG': 'sonar-rpg',
+  'TSQL': 'sonar-tsql',
+  'XML': 'sonar-xml',
+  'CLOUDFORMATION': 'sonar-iac',
+  'TERRAFORM': 'sonar-iac',
+  'SECRETS': 'sonar-secrets',
+  'TEXT': 'sonar-text',
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
@@ -149,7 +180,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
     const upperCaseLanguage = language.toUpperCase();
     const jiraProject = languageToJiraProject.get(upperCaseLanguage);
     const githubProject = languageToGithubProject.get(upperCaseLanguage);
-    const titleWihoutQuotes = title.replaceAll('"','');
+    const titleWihoutQuotes = title.replace(/"/g, "'");
 
     const implementationPRsLink = (
       <Link href={`https://github.com/SonarSource/${githubProject}/pulls?q=is%3Apr+"S${ruleNumber}"+OR+"RSPEC-${ruleNumber}"`}>
@@ -179,6 +210,11 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
   }
 }
 
+function RuleThemeProvider({ children }: any) {
+  useStyles();
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+}
+
 export function RulePage(props: any) {
   const ruleid = props.match.params.ruleid;
   // language can be absent
@@ -193,16 +229,16 @@ export function RulePage(props: any) {
   const classes = useStyles();
   let branch = 'master'
 
-  let descUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-description.html";
-  let metadataUrl = process.env.PUBLIC_URL + '/rules/' + ruleid + "/" + (language ?? "default") + "-metadata.json";
+  const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
+  const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
 
   let [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
   const {ruleCoverage, allLangsRuleCoverage, ruleStateInAnalyzer} = useRuleCoverage();
-  let coverage: any = "Loading...";
+  let coverage: any = 'Loading...';
 
-  let title = "Loading..."
+  let title = 'Loading...';
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
@@ -212,18 +248,18 @@ export function RulePage(props: any) {
       prUrl = metadataJSON.prUrl;
     }
     branch = metadataJSON.branch;
-    metadataJSON.all_languages.sort();
-    languagesTabs = metadataJSON.all_languages.map(lang => { 
-      const ruleState = ruleStateInAnalyzer(lang, metadataJSON!.allKeys);
+    metadataJSON.languagesSupport.sort();
+    languagesTabs = metadataJSON.languagesSupport.map(({ name, status }) => {
+      const ruleState = ruleStateInAnalyzer(name, metadataJSON!.allKeys, status);
       const classNames = classes.tab + ' ' + (classes as any)[ruleState + 'Tab'];
-      return <Tab label={lang} value={lang} className={classNames} />;
+      return <Tab key={name} label={name} value={name} className={classNames} />;
     });
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
     const coverageMapper = (key: any, range: any) => {
-      if (typeof range === "string") {
+      if (typeof range === 'string') {
         return (
-          <li >{key}: {range}</li>
+          <li key={key} >{key}: {range}</li>
         );
       } else {
         return (
@@ -238,7 +274,7 @@ export function RulePage(props: any) {
     }
   }
 
-  if (coverage !== "Not Covered") {
+  if (coverage !== 'Not Covered') {
     prUrl = undefined;
     branch = 'master'; 
   }
@@ -273,57 +309,57 @@ export function RulePage(props: any) {
 
   return (
     <div>
-    <div className={classes.ruleBar}>
-      <Container>
-        <Typography variant="h2" classes={{root: classes.ruleid}}>
-          <Link className={classes.ruleidLink} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
-        </Typography>
-        <Typography variant="h4" classes={{root: classes.ruleid}}>{prLink}</Typography>
-        <Tabs
+      <div className={classes.ruleBar}>
+        <Container>
+          <Typography variant="h2" classes={{ root: classes.ruleid }}>
+            <Link className={classes.ruleidLink} component={RouterLink} to={`/${ruleid}`} underline="none">{ruleid}</Link>
+          </Typography>
+          <Typography variant="h4" classes={{ root: classes.ruleid }}>{prLink}</Typography>
+          <Tabs
             {...tabsValue}
             onChange={handleLanguageChange}
             indicatorColor="primary"
             textColor="primary"
-            centered
             variant="scrollable"
             scrollButtons="auto"
             classes={{ root: classes.tabRoot, scroller: classes.tabScroller }}
-        >
-          {languagesTabs}
-        </Tabs>
-      </Container>
+          >
+            {languagesTabs}
+          </Tabs>
+        </Container>
+      </div>
+
+      <RuleThemeProvider>
+        <Container maxWidth="md">
+          <h1>{title}</h1>
+          <hr />
+          <Box className={classes.coverage}>
+            <h2>Covered Since</h2>
+            <ul>
+              {coverage}
+            </ul>
+          </Box>
+
+          <Box className={classes.coverage}>
+            <h2>Related Tickets and Pull Requests</h2>
+            <ul>
+              {specificationPRsLink}
+            </ul>
+            <ul>
+              {implementationPRsLink}
+            </ul>
+            <ul>
+              {ticketsLink}
+            </ul>
+          </Box>
+
+          <Box>
+            <Typography component={'span'} className={classes.description}>
+              {description}
+            </Typography>
+          </Box>
+        </Container>
+      </RuleThemeProvider>
     </div>
-
-    <Container maxWidth="md">
-      <Typography variant="h3" classes={{root: classes.title}}>{title}</Typography>
-      <Box className={classes.coverage}>
-        <Typography variant="h4" >Covered Since</Typography>
-        <ul>
-        {coverage}
-        </ul>
-      </Box>
-
-      <Box className={classes.coverage}>
-        <Typography variant="h4" >Related Tickets and Pull Requests</Typography>
-        <ul>
-          {specificationPRsLink}
-        </ul>
-        <ul>
-          {implementationPRsLink}
-        </ul>
-        <ul>
-          {ticketsLink}
-        </ul>
-      </Box>
-
-      <Box>
-        <Typography variant="h4">Description</Typography>
-        <Typography className={classes.description}>
-          {description}
-        </Typography>
-      </Box>
-    </Container>
-    </div>
-
   );
 }
