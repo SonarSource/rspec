@@ -5,11 +5,19 @@ import Typography from '@material-ui/core/Typography';
 import Card from '@material-ui/core/Card';
 import CardContent from '@material-ui/core/CardContent';
 import Chip from '@material-ui/core/Chip';
+import Table from '@material-ui/core/Table';
+import TableBody from '@material-ui/core/TableBody';
+import TableCell from '@material-ui/core/TableCell';
+import TableContainer from '@material-ui/core/TableContainer';
+import TableRow from '@material-ui/core/TableRow';
 
 import { Link as RouterLink } from 'react-router-dom';
 import { Link } from '@material-ui/core';
 import { IndexedRule } from './types/IndexStore';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
+
+const CHIP_V_MARGIN = 0.5;
+const TABLE_PADDING = 1;
 
 const useStyles = makeStyles((theme) => ({
   searchHit: {
@@ -26,7 +34,8 @@ const useStyles = makeStyles((theme) => ({
   },
   coveredLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(2),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['covered'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['covered'].darker
@@ -34,15 +43,19 @@ const useStyles = makeStyles((theme) => ({
   },
   targetedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(2),
-    backgroundColor: RULE_STATE['targeted'].color,
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
+    color: RULE_STATE['targeted'].color,
+    borderColor: RULE_STATE['targeted'].color,
     '&:hover, &:focus': {
-      backgroundColor: RULE_STATE['targeted'].darker
+      color: RULE_STATE['targeted'].darker,
+      borderColor: RULE_STATE['covered'].darker,
     },
   },
   removedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(2),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['removed'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['removed'].darker
@@ -50,7 +63,8 @@ const useStyles = makeStyles((theme) => ({
   },
   deprecatedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(2),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['deprecated'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['deprecated'].darker
@@ -58,41 +72,52 @@ const useStyles = makeStyles((theme) => ({
   },
   closedLanguageChip: {
     marginRight: theme.spacing(1),
-    marginTop: theme.spacing(2),
+    marginTop: theme.spacing(CHIP_V_MARGIN),
+    marginBottom: theme.spacing(CHIP_V_MARGIN),
     backgroundColor: RULE_STATE['closed'].color,
     '&:hover, &:focus': {
       backgroundColor: RULE_STATE['closed'].darker
     },
   },
-  targetedMarker: {
-    marginTop: theme.spacing(2),
-    marginRight: theme.spacing(2),
-    borderColor: RULE_STATE['targeted'].color,
-    color: RULE_STATE['targeted'].color
+  coveredTitle: {
+    borderColor: RULE_STATE['covered'].color,
+    padding: theme.spacing(TABLE_PADDING)
   },
   coveredMarker: {
-    marginTop: theme.spacing(2),
-    marginRight: theme.spacing(2),
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
+  },
+  targetedTitle: {
     borderColor: RULE_STATE['covered'].color,
-    color: RULE_STATE['covered'].color
+    padding: theme.spacing(TABLE_PADDING)
+  },
+  targetedMarker: {
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
+  },
+  removedTitle: {
+    borderColor: RULE_STATE['removed'].color,
+    padding: theme.spacing(TABLE_PADDING)
   },
   removedMarker: {
-    marginTop: theme.spacing(2),
-    marginRight: theme.spacing(2),
-    borderColor: RULE_STATE['removed'].color,
-    color: RULE_STATE['removed'].color
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
   },
-  deprecatedMarker: {
-    marginTop: theme.spacing(2),
-    marginRight: theme.spacing(2),
+  deprecatedTitle: {
     borderColor: RULE_STATE['deprecated'].color,
-    color: RULE_STATE['deprecated'].color
+    padding: theme.spacing(TABLE_PADDING)
+    },
+  deprecatedMarker: {
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
+  },
+  closedTitle: {
+    borderColor: RULE_STATE['closed'].color,
+    padding: theme.spacing(TABLE_PADDING)
   },
   closedMarker: {
-    marginTop: theme.spacing(2),
-    marginRight: theme.spacing(2),
-    borderColor: RULE_STATE['closed'].color,
-    color: RULE_STATE['closed'].color
+    padding: theme.spacing(TABLE_PADDING),
+    width: '100%'
   }
 }));
 
@@ -119,6 +144,7 @@ export function SearchHit(props: SearchHitProps) {
         classes={{root: (classes as any)[ruleState + 'LanguageChip']}}
         label={lang.name}
         color="primary"
+        variant={ruleState === 'targeted' ? 'outlined' : 'default'}
         clickable
         key="{lang}"
       />
@@ -148,49 +174,57 @@ export function SearchHit(props: SearchHitProps) {
     </Typography>
   ));
 
-  const coveredBlock = coveredLanguages.length === 0 ? <></> 
-    : <Typography key="covered-marker" variant="body2" component="div" classes={{root: classes.language}}>
-      <Chip classes={{root: classes.coveredMarker}} label="Covered" color="primary" variant="outlined" />
-      {coveredLanguages}
-    </Typography>;
+  const coveredRow = coveredLanguages.length === 0 ? <></>
+    : <TableRow>
+      <TableCell classes={{ root: classes.coveredTitle }}>Covered</TableCell>
+      <TableCell classes={{ root: classes.coveredMarker }}>{coveredLanguages}</TableCell>
+    </TableRow>;
 
-  const targetedBlock = targetedLanguages.length === 0 ? <></> 
-    : <Typography key="targeted-marker" variant="body2" component="div" classes={{root: classes.language}}>
-      <Chip classes={{root: classes.targetedMarker}} label="Targeted" color="secondary" variant="outlined" />
-      {targetedLanguages}
-    </Typography>;
+  const targetedRow = targetedLanguages.length === 0 ? <></>
+    : <TableRow>
+      <TableCell classes={{ root: classes.targetedTitle }}>Targeted</TableCell>
+      <TableCell classes={{ root: classes.targetedMarker }}>{targetedLanguages}</TableCell>
+    </TableRow>;
 
-  const removedBlock = removedLanguages.length === 0 ? <></> 
-    : <Typography key="removed-marker" variant="body2" component="div" classes={{root: classes.language}}>
-      <Chip classes={{root: classes.removedMarker}} label="Removed" color="secondary" variant="outlined" />
-      {removedLanguages}
-    </Typography>;
+  const deprecatedRow = deprecatedLanguages.length === 0 ? <></>
+    : <TableRow>
+      <TableCell classes={{ root: classes.deprecatedTitle }}>Deprecated</TableCell>
+      <TableCell classes={{ root: classes.deprecatedMarker }}>{deprecatedLanguages}</TableCell>
+    </TableRow>;
 
-  const deprecatedBlock = deprecatedLanguages.length === 0 ? <></>
-    : <Typography key="closed-marker" variant="body2" component="div" classes={{ root: classes.language }}>
-      <Chip classes={{ root: classes.deprecatedMarker }} label="Deprecated" color="secondary" variant="outlined" />
-      {deprecatedLanguages}
-    </Typography>;
-  const closedBlock = closedLanguages.length === 0 ? <></>
-    : <Typography key="deprecated-marker" variant="body2" component="div" classes={{ root: classes.language }}>
-      <Chip classes={{ root: classes.closedMarker }} label="Closed" color="secondary" variant="outlined" />
-      {closedLanguages}
-    </Typography>;
+  const removedRow = removedLanguages.length === 0 ? <></>
+    : <TableRow>
+      <TableCell classes={{ root: classes.removedTitle }}>Removed</TableCell>
+      <TableCell classes={{ root: classes.removedMarker }}>{removedLanguages}</TableCell>
+    </TableRow>;
+
+  const closedRow = closedLanguages.length === 0 ? <></>
+    : <TableRow>
+      <TableCell classes={{ root: classes.closedTitle }}>Closed</TableCell>
+      <TableCell classes={{ root: classes.closedMarker }}>{closedLanguages}</TableCell>
+    </TableRow>;
 
   return (
-    <Card variant="outlined" classes={{root: classes.searchHit}}>
+    <Card variant="outlined" classes={{ root: classes.searchHit }}>
       <CardContent>
-        <Typography key="rule-id" classes={{root: classes.ruleid}} variant="h5" component="h5" gutterBottom>
+        <Typography key="rule-id" classes={{ root: classes.ruleid }} variant="h5" component="h5" gutterBottom>
           <Link component={RouterLink} to={`/${props.data.id}`} data-testid={`search-hit-${props.data.id}`}>
             <div> Rule {props.data.id} </div>
           </Link>
         </Typography>
         {titles}
-        {coveredBlock}
-        {targetedBlock}
-        {removedBlock}
-        {deprecatedBlock}
-        {closedBlock}
+
+        <TableContainer>
+          <Table >
+            <TableBody>
+              {coveredRow}
+              {targetedRow}
+              {removedRow}
+              {deprecatedRow}
+              {closedRow}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </CardContent>
     </Card>
   )
