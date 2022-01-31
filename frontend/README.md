@@ -23,15 +23,6 @@ See the section about [running tests](https://facebook.github.io/create-react-ap
 
 Custom command to build the search index.
 
-**Note:** For this command to work on Windows, you would need to replace in `package.json`
-```json
-"prepare-rules": "ts-node -O '{\"module\":\"commonjs\"}' ./src/deployment/index.ts"
-```
-with
-```json
-"prepare-rules": "ts-node -O {\"\"\"module\"\"\":\"\"\"commonjs\"\"\"} ./src/deployment/index.ts"
-```
-
 ### `npm run build`
 
 Builds the app for production to the `build` folder.\

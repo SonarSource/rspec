@@ -32,5 +32,3 @@ def validate_section_levels(rule_language: LanguageSpecificRule):
   if h1 is not None:
     name = h1.text.strip()
     raise RuleValidationError(f'Rule {rule_language.id} has level-0 header "{name}"')
-
-__all__=['validate_metadata']

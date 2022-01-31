@@ -10,6 +10,7 @@ from rspec_tools.utils import load_json
 REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-text','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security', 'sonar-iac']
 
 CANONICAL_NAMES = {
+  'CLOUD_FORMATION': 'CLOUDFORMATION',
   'JS': 'JAVASCRIPT',
   'TS': 'TYPESCRIPT',
   'WEB': 'HTML'
@@ -121,7 +122,6 @@ def checkout_repo(repo):
   token=os.getenv('GITHUB_TOKEN')
   if token:
     git_url=f"https://{token}@github.com/SonarSource/{repo}"
-  g=Git(repo)
   if not os.path.exists(repo):
     return Repo.clone_from(git_url, repo)
   else:
