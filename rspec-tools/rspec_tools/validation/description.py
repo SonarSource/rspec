@@ -28,15 +28,16 @@ def validate_section_levels(rule_language: LanguageSpecificRule):
     raise RuleValidationError(f'Rule {rule_language.id} has level-0 header "{name}"')
 
 def validate_one_parameter(child, id):
-  if child.name != 'div' or child['class'][0] != 'dlist':
-    raise RuleValidationError(f'Rule {id} should use labeled lists for parameters')
-  for divChild in child.children:
-    if divChild.name is not None:
-      if divChild.name != 'dl':
-        raise RuleValidationError(f'Rule {id} should use labeled lists for parameters')
-      for param in divChild.children:
-        if param.name == 'dt' and param.strong == None:
-          raise RuleValidationError(f'Rule {id} should write parameter name {param.text} in bold')
+  if child.name != 'div' or child['class'][0] != 'sidebarblock':
+    raise RuleValidationError(f'Rule {id} should use `****` blocks for each parameter')
+  for div_child in child.children:
+    if div_child.name is not None:
+      if div_child['class'][0] != 'content':
+        raise RuleValidationError(f'Rule {id} should use `****` blocks for each parameter')
+      if div_child.p is None:
+        raise RuleValidationError(f'Rule {id} should have a description for each parameter')
+      if div_child.find('div', 'title') is None:
+        raise RuleValidationError(f'Rule {id} should have a parameter name declared with `.name` before the bock, for each parameter')
 
 def validate_parameters(rule_language: LanguageSpecificRule):
   for h3 in rule_language.description.find_all('h3'):
