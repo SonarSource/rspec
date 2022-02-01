@@ -23,7 +23,6 @@ exit_code=0
 ./ci/generate_html.sh
 
 cd rspec-tools
-# validate sections in asciidoc
 if pipenv run rspec-tools check-description --d ../out; then
     echo "rule.adoc is fine"
 else
