@@ -1,9 +1,16 @@
 gcp_credentials: ENCRYPTED[!17c59813193e86cc337bce848b358412b90f50bc5fe1b8b39d363cdf14a41ebe76cfba0482e7f81d076994b9f6dbfb4c!]
  
 env:
+  GITHUB_TOKEN: ENCRYPTED[!f458126aa9ed2ac526f220c5acb51dd9cc255726b34761a56fc78d4294c11089502a882888cef0ca7dd4085e72e611a5!]
+  SONAR_HOST_URL: https://next.sonarqube.com/sonarqube
+  SONAR_TOKEN: ENCRYPTED[!b6fd814826c51e64ee61b0b6f3ae621551f6413383f7170f73580e2e141ac78c4b134b506f6288c74faa0dd564c05a29!]
+  SONAR_SCANNER_VERSION: 4.6.1.2450
+  SONAR_SCANNER_HOME: ${HOME}/.sonar/sonar-scanner-${SONAR_SCANNER_VERSION}-linux
+  PATH: ${SONAR_SCANNER_HOME}/bin:$PATH
   CIRRUS_CLONE_DEPTH: 1
   # Use bash (instead of sh on linux or cmd.exe on windows)
   CIRRUS_SHELL: bash
+
 
 container_definition: &CONTAINER_DEFINITION
   builder_image_project: language-team
@@ -13,21 +20,32 @@ container_definition: &CONTAINER_DEFINITION
   namespace: default
   use_in_memory_disk: true
 
+setup_sonar_scanner: &SETUP_SONAR_SCANNER
+  setup_sonar_scanner_script:
+    - apt update -y && apt upgrade -y && apt update -y && apt install -y unzip       
+    - curl --create-dirs -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
+    - unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
+
 tooling_tests_task:
   gke_container:
     <<: *CONTAINER_DEFINITION
     dockerfile: ci/Dockerfile
     cpu: 1
-    memory: 1G
+    memory: 2G
   env:
     PYTHONPATH: .
   install_dependencies_script:
     - cd rspec-tools
     - pipenv install
-    - pipenv run pip install pytest
+    - pipenv run pip install pytest pytest-cov
   tests_script:
     - cd rspec-tools
-    - pipenv run pytest 
+    - pipenv run pytest --cov=rspec_tools --cov-report=xml
+  <<: *SETUP_SONAR_SCANNER
+  analyze_script:
+    - cd rspec-tools
+    - sonar-scanner
+
 
 frontend_tests_task:
   gke_container:
@@ -48,7 +66,11 @@ frontend_tests_task:
   tests_script:
     - cd frontend
     - npm run build
-    - npm test
+    - npm test -- --coverage .
+  <<: *SETUP_SONAR_SCANNER
+  analyze_script:
+    - cd frontend
+    - sonar-scanner
 
 validate_metadata_task:
   gke_container:
@@ -56,6 +78,8 @@ validate_metadata_task:
     dockerfile: ci/Dockerfile
     cpu: 1
     memory: 1G
+  env:
+    CIRRUS_CLONE_DEPTH: 0
   metadata_tests_script:
     - ./ci/validate_metadata.sh
 
