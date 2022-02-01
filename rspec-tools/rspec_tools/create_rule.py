@@ -198,7 +198,7 @@ class RuleCreator:
     return self._create_pull_request(
       github_api,
       branch_name,
-      f'Create rule S{rule_number}[{language}]',
+      f'Create rule S{rule_number}',
       f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).',
       [label],
       user

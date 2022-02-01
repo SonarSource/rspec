@@ -27,7 +27,7 @@ export function getRulesDirectories(srcPath: string, dstPath: string, rules?: st
  * List every language for which a rule has a specialization, i.e. a sub-directory.
  * @param ruleDirectory the rule's source directory
  */
-export function listSupportedLanguage(ruleDirectory: string) {
+export function listSupportedLanguages(ruleDirectory: string): string[] {
   return fs.readdirSync(ruleDirectory)
     .filter(fileName => fs.lstatSync(path.join(ruleDirectory, fileName)).isDirectory())
     .sort();
