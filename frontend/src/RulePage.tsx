@@ -15,6 +15,8 @@ import { RuleMetadata } from './types';
 
 import './hljs-humanoid-light.css';
 
+const PARAMETER_INTERNAL_MARGIN = 0.5;
+
 const useStyles = makeStyles((theme) => ({
   '@global': {
     h1: {
@@ -33,6 +35,22 @@ const useStyles = makeStyles((theme) => ({
     },
     hr: {
       color: '#F9F9FB'
+    },
+    '.sidebarblock': {
+      '& .title': {
+        marginTop: theme.spacing(2),
+        color: '#25699D'
+      },
+      '& pre': {
+        marginLeft: '1rem',
+        marginTop: theme.spacing(PARAMETER_INTERNAL_MARGIN),
+        marginBottom: theme.spacing(PARAMETER_INTERNAL_MARGIN)
+      },
+      '& p': {
+        marginLeft: '1rem',
+        marginTop: theme.spacing(PARAMETER_INTERNAL_MARGIN),
+        marginBottom: theme.spacing(PARAMETER_INTERNAL_MARGIN)
+      }
     }
   },
   ruleBar: {
