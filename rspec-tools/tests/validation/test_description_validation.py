@@ -72,3 +72,9 @@ def test_missing_source_language_fails_validation(invalid_rule):
   rule = invalid_rule('S100', 'cfamily')
   with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has non highlighted code example in section "Noncompliant Code Example".\nUse [source,cpp] or [source,text] before the opening \'----\'.')):
     validate_source_language(rule)
+
+def test_wrong_source_language_fails_validation(invalid_rule):
+  '''Check that forgetting the language for sources breaks validation'''
+  rule = invalid_rule('S100', 'csharp')
+  with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has unknown language "csharp" in code example in section "Noncompliant Code Example".\nIt should be either "cs" or "text".')):
+    validate_source_language(rule)

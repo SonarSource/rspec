@@ -65,14 +65,21 @@ HIGHLIGHTED_LANGUAGES = {'cfamily': 'cpp',
                          'tsql': 'sql',
                          'xml': 'xml'
                          }
+def highlight_name(rule_language: LanguageSpecificRule):
+  if (rule_language.language in HIGHLIGHTED_LANGUAGES):
+    return HIGHLIGHTED_LANGUAGES[rule_language.language]
+  return rule_language.language
+
 
 def validate_source_language(rule_language: LanguageSpecificRule):
   descr = rule_language.description
-  if rule_language.language in HIGHLIGHTED_LANGUAGES.keys():
-    for h2 in descr.findAll('h2'):
-      name = h2.text.strip()
-      if name.startswith('Compliant') or name.startswith('Noncompliant'):
-        pre = h2.parent.pre
-        if not pre.has_attr('class') or pre['class'][0] != u'highlight':
-          raise RuleValidationError(f'''Rule {rule_language.id} has non highlighted code example in section "{name}".
-Use [source,{HIGHLIGHTED_LANGUAGES[rule_language.language]}] or [source,text] before the opening '----'.''')
+  for h2 in descr.findAll('h2'):
+    name = h2.text.strip()
+    if name.startswith('Compliant') or name.startswith('Noncompliant'):
+      pre = h2.parent.pre
+      if not pre or not pre.has_attr('class') or pre['class'][0] != u'highlight' or not pre.code or not pre.code.has_attr('data-lang'):
+        raise RuleValidationError(f'''Rule {rule_language.id} has non highlighted code example in section "{name}".
+Use [source,{highlight_name(rule_language)}] or [source,text] before the opening '----'.''')
+      elif pre.code['data-lang'] != highlight_name(rule_language) and pre.code['data-lang'] != 'text':
+        raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
+It should be either "{highlight_name(rule_language)}" or "text".''')

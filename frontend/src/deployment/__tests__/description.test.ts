@@ -53,10 +53,10 @@ describe('description generation', () => {
   });
 
   expect.extend({
-    toBeSameAsFile(received, validator, expectedPath) {
-      if (validator.replaceAll('\r\n', '\n') === received.replaceAll('\r\n', '\n')) {
+    toBeSameAsFile(received, expected, expectedPath) {
+      if (expected.replaceAll('\r\n', '\n') === received.replaceAll('\r\n', '\n')) {
         return {
-          message: () => `Identity check failed on ${expectedPath}.\nExpected:\n${validator}\n\nReceived:\n${received}`,
+          message: () => `Identity check failed on ${expectedPath}.\nExpected:\n${expected}\n\nReceived:\n${received}`,
           pass: true
         };
       } else {
@@ -69,7 +69,7 @@ describe('description generation', () => {
       }
     }
   });
-  test('generates metadata for active rules', () => {
+  test('generates description for active rules', () => {
     return withTestDir(async (dstPath) => {
       generateRulesDescription(path.join(__dirname, 'resources', 'rules'), dstPath);
       const rules = fs.readdirSync(dstPath);
@@ -82,6 +82,7 @@ describe('description generation', () => {
           const actual = fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString();
           const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
           const expected = fs.readFileSync(expectedPath).toString();
+          expect(expected).not.toBeNull();
           expect(actual).toBeSameAsFile(expected, expectedPath);
           treated++;
         })
