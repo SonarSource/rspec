@@ -53,7 +53,7 @@ describe('description generation', () => {
   });
 
   expect.extend({
-    toBeSameAsFile(received, expected, expectedPath) {
+    toBeSameAsFile(received: string, expected: string, expectedPath: string) {
       if (expected.replaceAll('\r\n', '\n') === received.replaceAll('\r\n', '\n')) {
         return {
           message: () => `Identity check failed on ${expectedPath}.\nExpected:\n${expected}\n\nReceived:\n${received}`,
