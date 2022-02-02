@@ -16,9 +16,9 @@ function generateAutoRspecLinks(html: string) {
   // is viewed.
   // The distinction cannot be made when generating the HTML description because the description
   // for the first language is also used as the default description.
-  return html.replaceAll(
+  return html.replace(
     /(S|RSPEC-)(\d{3,})/g,
-    '<a data-rspec-id="S$2" class="rspec-auto-link">S$2</a>'
+    '<a data-rspec-id="S$2" class="rspec-auto-link">$1$2</a>'
   );
 }
 

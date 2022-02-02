@@ -47,7 +47,7 @@ Specific content</p>
 <p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">S101</a></p>
 </li>
 <li>
-<p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">S101</a></p>
+<p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">RSPEC-101</a></p>
 </li>
 </ul>
 </div>
