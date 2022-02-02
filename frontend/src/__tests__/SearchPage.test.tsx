@@ -7,6 +7,7 @@ import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { fetchMockObject, normalize } from '../testutils';
 
+// The CI system is a bit slow. Increase timeout to avoid random failures.
 jest.setTimeout(20000);
 
 function genMockUrls() {

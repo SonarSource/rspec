@@ -12,6 +12,9 @@ import { createFiles } from '../deployment/testutils';
 import { fetchMock, normalize, FetchResult } from '../testutils';
 import { SearchPage } from '../SearchPage';
 
+// The CI system is a bit slow. Increase timeout to avoid random failures.
+jest.setTimeout(20000);
+
 function readJson(filepath: string) {
   const content = fs.readFileSync(filepath);
   return JSON.parse(content.toString());
