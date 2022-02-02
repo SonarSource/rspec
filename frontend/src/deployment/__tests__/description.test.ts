@@ -44,10 +44,10 @@ Specific content</p>
 <div class=\\"ulist\\">
 <ul>
 <li>
-<p>See S101</p>
+<p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">S101</a></p>
 </li>
 <li>
-<p>See RSPEC-101</p>
+<p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">S101</a></p>
 </li>
 </ul>
 </div>
@@ -65,7 +65,7 @@ Specific content</p>
 <div class=\\"paragraph\\">
 <p>Generic content
 Specific content
-See S100.</p>
+See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
 </div>
 </div>
 </div>"

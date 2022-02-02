@@ -7,6 +7,21 @@ import { logger } from './deploymentLogger';
 
 const asciidoc = asciidoctor();
 
+function generateAutoRspecLinks(html: string) {
+  // Insert placeholder links for SXXX or RSPEC-XXX to the appropriate description page.
+  //
+  // The web application is responsible for providing the target link.
+  // The link will depend on whether the default page is viewed, and in that case it will
+  // point to the default page for the target rules, or whether a language-specific page
+  // is viewed.
+  // The distinction cannot be made when generating the HTML description because the description
+  // for the first language is also used as the default description.
+  return html.replaceAll(
+    /(S|RSPEC-)(\d{3,})/g,
+    '<a data-rspec-id="S$2" class="rspec-auto-link">S$2</a>'
+  );
+}
+
 const winstonLogger = asciidoc.LoggerManager.newLogger('WinstonLogger', {
   postConstruct: function () {
     this.logger = logger
@@ -118,5 +133,6 @@ function generateRuleDescription(ruleAdocFile: string) {
   // Every rule documentation has an implicit level-1 "Description" header.
   const fileData = fs.readFileSync(ruleAdocFile);
   const data = '== Description\n\n' + fileData;
-  return asciidoc.convert(data, opts) as string;
+  const html = asciidoc.convert(data, opts) as string;
+  return generateAutoRspecLinks(html);
 }
