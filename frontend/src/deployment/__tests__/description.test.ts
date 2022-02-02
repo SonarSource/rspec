@@ -53,8 +53,8 @@ describe('description generation', () => {
   });
 
   expect.extend({
-    toBeValid(received, validator, expectedPath) {
-      if (validator === received) {
+    toBeSameAsFile(received, validator, expectedPath) {
+      if (validator.replaceAll('\r\n', '\n') === received.replaceAll('\r\n', '\n')) {
         return {
           message: () => `Identity check failed on ${expectedPath}.\nExpected:\n${validator}\n\nReceived:\n${received}`,
           pass: true
@@ -82,7 +82,7 @@ describe('description generation', () => {
           const actual = fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString();
           const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
           const expected = fs.readFileSync(expectedPath).toString();
-          expect(actual).toBeValid(expected, expectedPath);
+          expect(actual).toBeSameAsFile(expected, expectedPath);
           treated++;
         })
       });
