@@ -35,6 +35,9 @@ beforeAll(() => {
       title: 'Generic Rule S100 Title',
       tags: ['confusing'],
       type: 'CODE_SMELL',
+      defaultQualityProfiles: [
+        'Sonar way'
+      ],
     }),
     'S100/java/rule.adoc': 'Java Content',
     'S100/java/metadata.json': JSON.stringify({
@@ -170,6 +173,60 @@ describe('The main search page display correct results', () => {
     expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
     await findByText(/Number of rules found: 1/);
     await findByText(/Rule S501 Rule is closed with no language-specific specification/);
+  });
+
+  test('Query by type: BUG', async () => {
+    fakeLocation = generateFakeLocation('types=BUG');
+    const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
+    expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
+    await findByText(/Number of rules found: 1/);
+    await findByText(/Java Rule S200 Title/);
+  });
+
+  test('Query by type: VULNERABILITY', async () => {
+    fakeLocation = generateFakeLocation('types=VULNERABILITY');
+    const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
+    expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
+    await findByText(/Number of rules found: 0/);
+  });
+
+  test('Query by tag: confusing', async () => {
+    fakeLocation = generateFakeLocation('tags=confusing');
+    const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
+    expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
+    await findByText(/Number of rules found: 2/);
+    await findByText(/Java Rule S100 Title/);
+    await findByText(/Java Rule S200 Title/);
+    await findByText(/Python Rule S200 Title/);
+  });
+
+  test('Query by tag: confusing & pep8', async () => {
+    fakeLocation = generateFakeLocation('tags=confusing,pep8');
+    const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
+    expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
+    await findByText(/Number of rules found: 1/);
+    await findByText(/Python Rule S200 Title/);
+  });
+
+  // This test emits many warnings:
+  //   Material-UI: You have provided an out-of-range value `ANY` for the select component.
+  //   Consider providing a value that matches one of the available options or ''.
+  //   The available values are `ANY`.
+  // This is because the languages are not yet available when the page renders the first time.
+  test('Query by language: python', async () => {
+    fakeLocation = generateFakeLocation('lang=python');
+    const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
+    expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
+    await findByText(/Number of rules found: 1/);
+    await findByText(/Python Rule S200 Title/);
+  });
+
+  test('Advanced query', async () => {
+    fakeLocation = generateFakeLocation('qualityProfiles=Sonar way&query=Java&tags=confusing');
+    const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
+    expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
+    await findByText(/Number of rules found: 1/);
+    await findByText(/Java Rule S100 Title/);
   });
 
 });
