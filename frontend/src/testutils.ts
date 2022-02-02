@@ -79,10 +79,3 @@ export function normalize(obj: any) {
   // restore the function references when loading.
   return JSON.parse(JSON.stringify(obj));
 }
-
-export function removeSelectivePipeline() {
-  // Hack to avoid warnings when 'selectivePipeline' is already registered
-  if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
-      delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline'];
-  }
-}
