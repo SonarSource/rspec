@@ -321,10 +321,6 @@ function doesRuleExistForLanguage(rspecId: string, language: string) {
 }
 
 function getRspecPath(rspecId: string, language?: string) {
-  if (!rspecId) {
-    return;
-  }
-
   let path = '/rspec#/rspec/' + rspecId;
   if (language && doesRuleExistForLanguage(rspecId, language)) {
     path += '/' + language;
