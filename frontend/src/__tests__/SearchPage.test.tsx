@@ -7,6 +7,8 @@ import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { fetchMockObject, normalize } from '../testutils';
 
+jest.setTimeout(20000);
+
 function genMockUrls() {
     const rulePath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
     const [indexStore, indexAggregates] = buildIndexStore(rulePath);
