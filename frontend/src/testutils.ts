@@ -1,5 +1,3 @@
-import lunr from "lunr";
-
 type Fetched = 'json' | 'text';
 export type FetchResult = {[K in Fetched]?: any};
 type FetchFunction = (url: string, opts: any) => Promise<FetchResult>;
