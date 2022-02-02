@@ -6,7 +6,6 @@ import { RulePage } from '../RulePage';
 import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { fetchMock } from '../testutils'
-import { removeSelectivePipeline } from './SearchPage.test';
 
 const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
 
