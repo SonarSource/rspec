@@ -12,7 +12,7 @@ import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import { RuleMetadata } from './types';
-import parse, {domToReact, Element} from 'html-react-parser';
+import parse, { attributesToProps, domToReact, Element } from 'html-react-parser';
 
 import './hljs-humanoid-light.css';
 
@@ -315,6 +315,24 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   };
 }
 
+function doesRuleExistForLanguage(rspecId: string, language: string) {
+  // FIXME implement me.
+  return false;
+}
+
+function getRspecPath(rspecId: string, language?: string) {
+  if (!rspecId) {
+    return;
+  }
+
+  let path = '/rspec#/rspec/' + rspecId;
+  if (language && doesRuleExistForLanguage(rspecId, language)) {
+    path += '/' + language;
+  }
+
+  return path;
+}
+
 function useDescription(metadata: PageMetadata, ruleid: string, language?: string) {
   const editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
@@ -328,6 +346,12 @@ function useDescription(metadata: PageMetadata, ruleid: string, language?: strin
       {parse(descHTML, {
         replace: (d) => {
           const domNode = d as Element;
+          if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
+            const props = attributesToProps(domNode.attribs);
+            return <a href={getRspecPath(domNode.attribs['data-rspec-id'], language)} {...props}>
+              {domToReact(domNode.children)}
+            </a>;
+          }
         }
       })
       }
