@@ -180,6 +180,7 @@ describe('The main search page display correct results', () => {
     const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
     expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
     await findByText(/Number of rules found: 1/);
+    await findByText(/Python Rule S200 Title/);
     await findByText(/Java Rule S200 Title/);
   });
 
@@ -196,8 +197,8 @@ describe('The main search page display correct results', () => {
     expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
     await findByText(/Number of rules found: 2/);
     await findByText(/Java Rule S100 Title/);
-    await findByText(/Java Rule S200 Title/);
     await findByText(/Python Rule S200 Title/);
+    await findByText(/Java Rule S200 Title/);
   });
 
   test('Query by tag: confusing & pep8', async () => {
@@ -206,6 +207,7 @@ describe('The main search page display correct results', () => {
     expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
     await findByText(/Number of rules found: 1/);
     await findByText(/Python Rule S200 Title/);
+    await findByText(/Java Rule S200 Title/);
   });
 
   test('Query by language: python', async () => {
@@ -214,6 +216,7 @@ describe('The main search page display correct results', () => {
     expect(await findAllByText(/Rule Title and Description/)).toHaveLength(1 + 1); // <label> + <span>
     await findByText(/Number of rules found: 1/);
     await findByText(/Python Rule S200 Title/);
+    await findByText(/Java Rule S200 Title/);
   });
 
   test('Advanced query', async () => {
