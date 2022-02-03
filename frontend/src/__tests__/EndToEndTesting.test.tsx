@@ -211,11 +211,6 @@ describe('The main search page display correct results', () => {
     await findByText(/Python Rule S200 Title/);
   });
 
-  // This test emits many warnings:
-  //   Material-UI: You have provided an out-of-range value `ANY` for the select component.
-  //   Consider providing a value that matches one of the available options or ''.
-  //   The available values are `ANY`.
-  // This is because the languages are not yet available when the page renders the first time.
   test('Query by language: python', async () => {
     fakeLocation = generateFakeLocation('lang=python');
     const { findByText, findAllByText } = render(<Router history={history}> <SearchPage /></Router >);
