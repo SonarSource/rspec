@@ -143,9 +143,6 @@ function generateFakeLocation(search: string): Location {
 }
 
 const history = createMemoryHistory();
-beforeAll(() => {
-  history.push('/rspec/#/rspec/');
-});
 
 describe('The main search page display correct results', () => {
 
