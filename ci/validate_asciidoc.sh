@@ -31,6 +31,8 @@ else
 fi
 cd ..
 
+echo "Testing the following rules: ${affected_rules}"
+
 for dir in $affected_rules
 do
   if [ ! -d "$dir" ]; then
