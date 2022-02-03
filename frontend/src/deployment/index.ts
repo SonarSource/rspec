@@ -1,5 +1,3 @@
-#!/usr/bin/env ts-node
-
 import yargs from 'yargs/yargs';
 
 import path from 'path';
