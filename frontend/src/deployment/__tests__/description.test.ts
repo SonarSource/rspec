@@ -53,9 +53,17 @@ describe('description generation', () => {
   });
 
   expect.extend({
-    toBeSameAsFile(received: string, expected: string, expectedPath: string) {
+    toBeSameAsFile(received: string, expectedPath: string) {
+      if (!fs.existsSync(expectedPath)) {
+        return {
+          message: () => `File ${expectedPath} was not found.`,
+          pass: false
+        };
+      }
+      const expected = fs.readFileSync(expectedPath).toString();
       if (expected.replace(/\r\n/g, '\n') === received.replace(/\r\n/g, '\n')) {
         return {
+          // This message is used in case of test negation `expect(a).not.toBeSameAsFile(f)`
           message: () => `Identity check failed on ${expectedPath}.\nExpected:\n${expected}\n\nReceived:\n${received}`,
           pass: true
         };
@@ -81,9 +89,7 @@ describe('description generation', () => {
         languages.forEach(file => {
           const actual = fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString();
           const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
-          const expected = fs.readFileSync(expectedPath).toString();
-          expect(expected).not.toBeNull();
-          expect(actual).toBeSameAsFile(expected, expectedPath);
+          expect(actual).toBeSameAsFile(expectedPath);
           treated++;
         })
       });

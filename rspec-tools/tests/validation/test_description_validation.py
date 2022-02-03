@@ -65,7 +65,10 @@ def test_parameters_fails_validation_missing_description(invalid_rule):
 
 def test_valid_source_declaration_validation(rule_language):
   '''Check that declaring a language for sources is considered valid.'''
+  # cpp and text
   validate_source_language(rule_language('S100', 'cfamily'))
+  # javascript and no source
+  validate_source_language(rule_language('S100', 'csharp'))
 
 def test_missing_source_language_fails_validation(invalid_rule):
   '''Check that forgetting the language for sources breaks validation'''
@@ -76,5 +79,5 @@ def test_missing_source_language_fails_validation(invalid_rule):
 def test_wrong_source_language_fails_validation(invalid_rule):
   '''Check that forgetting the language for sources breaks validation'''
   rule = invalid_rule('S100', 'csharp')
-  with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has unknown language "csharp" in code example in section "Noncompliant Code Example".\nIt should be either "cs" or "text".')):
+  with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has unknown language "csharp" in code example in section "Noncompliant Code Example".\nAre you looking for "cs"?')):
     validate_source_language(rule)
