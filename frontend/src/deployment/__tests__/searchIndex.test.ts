@@ -9,7 +9,6 @@ import {
   addFilterForQualityProfiles, addFilterForTags, addFilterForTypes
 } from '../../utils/useSearch';
 
-
 describe('index store generation', () => {
   test('merges rules metadata', () => {
     const rulesPath = path.join(__dirname, 'resources', 'metadata');
@@ -253,12 +252,15 @@ function createIndex(ruleIndexStore?: IndexStore) {
     ruleIndexStore = indexStore;
   }
 
-  // Hack to avoid warnings when 'selectivePipeline' is already registered
-  if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
-    delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline']
-  }
   return buildSearchIndex(ruleIndexStore);
 }
+
+afterEach(() => {
+  // Hack to avoid warnings when 'selectivePipeline' is already registered
+  if ('selectivePipeline' in (lunr.Pipeline as any).registeredFunctions) {
+    delete (lunr.Pipeline as any).registeredFunctions['selectivePipeline'];
+  }
+});
 
 function findRules<QueryParam>(
   index: lunr.Index,
