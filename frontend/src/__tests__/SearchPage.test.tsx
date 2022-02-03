@@ -1,21 +1,14 @@
-import React from 'react';
+
 import path from 'path';
 import { render, waitFor, fireEvent, within } from '@testing-library/react';
-import { screen } from '@testing-library/dom';
 import { SearchPage } from '../SearchPage';
 import { buildIndexStore, buildSearchIndex } from '../deployment/searchIndex';
 import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
-import { fetchMockObject } from '../testutils';
+import { fetchMockObject, normalize } from '../testutils';
 
-function normalize(obj) {
-    // Lunr (the search engine) expects its objects to have been
-    // serialized and deserialized when it is queried.
-    // This is not a no-op, because, for example, it translates function references to
-    // simple labels on the serialization step, and then uses these labels to
-    // restore the function references when loading.
-    return JSON.parse(JSON.stringify(obj));
-}
+// The CI system is a bit slow. Increase timeout to avoid random failures.
+jest.setTimeout(20000);
 
 function genMockUrls() {
     const rulePath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
