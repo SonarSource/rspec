@@ -97,13 +97,10 @@ def validate_source_language(rule_language: LanguageSpecificRule):
   for h2 in descr.findAll('h2'):
     name = h2.text.strip()
     if name.startswith('Compliant') or name.startswith('Noncompliant'):
-      pre = h2.parent.pre
-      if not pre:
-        # There is no code block here, which is allowed
-        continue
-      if not pre.has_attr('class') or pre['class'][0] != u'highlight' or not pre.code or not pre.code.has_attr('data-lang'):
-        raise RuleValidationError(f'''Rule {rule_language.id} has non highlighted code example in section "{name}".
+      for pre in h2.parent.find_all('pre'):
+        if not pre.has_attr('class') or pre['class'][0] != u'highlight' or not pre.code or not pre.code.has_attr('data-lang'):
+          raise RuleValidationError(f'''Rule {rule_language.id} has non highlighted code example in section "{name}".
 Use [source,{highlight_name(rule_language)}] or [source,text] before the opening '----'.''')
-      elif not known_highlight(pre.code['data-lang']):
-        raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
+        elif not known_highlight(pre.code['data-lang']):
+          raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
 Are you looking for "{highlight_name(rule_language)}"?''')

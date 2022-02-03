@@ -76,6 +76,12 @@ def test_missing_source_language_fails_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has non highlighted code example in section "Noncompliant Code Example".\nUse [source,cpp] or [source,text] before the opening \'----\'.')):
     validate_source_language(rule)
 
+def test_missing_source_language_on_second_block_fails_validation(invalid_rule):
+  '''Check that forgetting the language for sources breaks validation in case of multiple blocks too'''
+  rule = invalid_rule('S100', 'java')
+  with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has non highlighted code example in section "Noncompliant Code Example".\nUse [source,java] or [source,text] before the opening \'----\'.')):
+    validate_source_language(rule)
+
 def test_wrong_source_language_fails_validation(invalid_rule):
   '''Check that forgetting the language for sources breaks validation'''
   rule = invalid_rule('S100', 'csharp')
