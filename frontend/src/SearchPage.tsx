@@ -208,7 +208,7 @@ export const SearchPage = () => {
                   size="small"
                   variant="outlined"
                   label="Language"
-                  value={ruleLang}
+                  value={allLangs.length === 0 ? '' : ruleLang}
                   onChange={handleUpdate('lang')}
                   data-testid="rule-language"
                 >
