@@ -315,18 +315,9 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   };
 }
 
-function doesRuleExistForLanguage(rspecId: string, language: string) {
-  // FIXME implement me.
-  return false;
-}
-
 function getRspecPath(rspecId: string, language?: string) {
-  let path = '/rspec#/rspec/' + rspecId;
-  if (language && doesRuleExistForLanguage(rspecId, language)) {
-    path += '/' + language;
-  }
-
-  return path;
+  // TODO RULEAPI-742: If the given target `language` exists, the link should point to it.
+  return '/rspec#/rspec/' + rspecId;
 }
 
 function useDescription(metadata: PageMetadata, ruleid: string, language?: string) {
