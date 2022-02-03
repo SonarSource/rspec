@@ -20,7 +20,7 @@ function noArgumentBuilder() {
 
 yargs(process.argv.slice(2))
   .command('clean', 'clean the rules', noArgumentBuilder, clean_rules)
-  .command('gen-metadata', 'generate metadata',
+  .command('gen-metadata [rules..]', 'generate metadata',
     (argBuilder) => {
       argBuilder.array<string>('rules');
     },
@@ -31,7 +31,7 @@ yargs(process.argv.slice(2))
         generateOneRuleMetadata(srcDir, dstDir, pr.branch, pr.url);
       });
     })
-  .command('gen-description', 'generate description',
+  .command('gen-description [rules..]', 'generate description',
     (argBuilder) => {
       argBuilder.array<string>('rules');
     },
