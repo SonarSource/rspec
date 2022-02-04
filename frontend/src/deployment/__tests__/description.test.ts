@@ -88,6 +88,11 @@ See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
     });
   });
 
+  function normalizeString(str: string) {
+    // Ignore \n\r vs \n differences, and ignore extra whitespace.
+    return str.replace(/\r\n/g, '\n').trimEnd();
+  }
+
   expect.extend({
     toBeSameAsFile(received: string, expectedPath: string) {
       if (!fs.existsSync(expectedPath)) {
@@ -97,7 +102,7 @@ See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
         };
       }
       const expected = fs.readFileSync(expectedPath).toString();
-      if (expected.replace(/\r\n/g, '\n') === received.replace(/\r\n/g, '\n')) {
+      if (normalizeString(expected) === normalizeString(received)) {
         return {
           // This message is used in case of test negation `expect(a).not.toBeSameAsFile(f)`
           message: () => `Identity check failed on ${expectedPath}.\nExpected:\n${expected}\n\nReceived:\n${received}`,
@@ -127,7 +132,7 @@ See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
           const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
           expect(actual).toBeSameAsFile(expectedPath);
           treated++;
-        })
+        });
       });
       expect(treated).toBe(11);
     });
