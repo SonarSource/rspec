@@ -31,8 +31,6 @@ else
 fi
 cd ..
 
-echo "Testing the following rules: ${affected_rules}"
-
 for dir in $affected_rules
 do
   if [ ! -d "$dir" ]; then
@@ -40,6 +38,7 @@ do
     continue
   fi
   dir=${dir%*/}
+  echo "${dir##*/}"
 
   subdircount=$(find "$dir" -maxdepth 1 -type d | wc -l)
 
@@ -59,17 +58,21 @@ do
     for language in $dir/*/
     do
       language=${language%*/}
+      echo "${language##*/}"
       if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
         echo "ERROR: ${language##*/} is not a supported language"
         exit_code=1
       fi
       RULE="$language/rule.adoc"
       if test -f "$RULE"; then
+        echo "$RULE exists."
         TMP_ADOC="$language/tmp.adoc"
         echo "== Description" > "$TMP_ADOC"
         cat "$RULE" >> "$TMP_ADOC"
         if asciidoctor --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
-            if ! asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
+            if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
+                echo "$RULE syntax is fine"
+            else
                 echo "ERROR: $RULE has incorrect asciidoc in rspecator-view mode"
                 exit_code=1
             fi
@@ -95,6 +98,7 @@ do
   fi
 done
 
+echo "Finished."
 if (( exit_code == 0 )); then
     echo "Success"
 else
