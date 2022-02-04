@@ -32,10 +32,14 @@ beforeEach(() => {
   };
   Git.Clone.clone.mockReturnValueOnce(repo);
 
-  fs.existsSync = jest.fn((fname) => {
+  jest.spyOn(fs, 'existsSync').mockImplementation((fname) => {
     return fname.includes('rules/S');
   });
-})
+});
+
+afterAll(() => {
+  jest.restoreAllMocks();
+});
 
 
 describe('pull request enumeration', () => {
