@@ -1,9 +1,9 @@
 #!/bin/bash
-set -uxo pipefail
+set -uo pipefail
 
 # Install script dependencies
 cd rspec-tools
-pipenv install --verbose
+pipenv install
 cd ..
 
 # Compute the set of affected rules
