@@ -3,7 +3,7 @@ set -uxo pipefail
 
 # Install script dependencies
 cd rspec-tools
-pipenv install
+pipenv install --verbose
 cd ..
 
 # Compute the set of affected rules
