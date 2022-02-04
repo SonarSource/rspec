@@ -68,24 +68,15 @@ do
         TMP_ADOC="$language/tmp.adoc"
         echo "== Description" > "$TMP_ADOC"
         cat "$RULE" >> "$TMP_ADOC"
-        if asciidoctor --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
-            if ! asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
-                echo "ERROR: $RULE has incorrect asciidoc in rspecator-view mode"
-                exit_code=1
-            fi
-        else
-          echo "ERROR: $RULE has incorrect asciidoc"
-          exit_code=1
-        fi
-        rm "$TMP_ADOC"
       else
         echo "ERROR: no asciidoc file $RULE"
         exit_code=1
       fi
     done
+
     # Check that all adoc are included
     find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::" "$1" | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
-    find "$dir" -name "*.adoc" ! -name 'rule.adoc' -exec sh -c 'realpath $1' shell {} \; > created
+    find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp.adoc' -exec sh -c 'realpath $1' shell {} \; > created
     orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
     if [[ -n "$orphans" ]]; then
         printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
@@ -94,6 +85,19 @@ do
     rm -f included created
   fi
 done
+
+if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp.adoc; then
+    if ! asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp.adoc; then
+        echo "ERROR: malformed asciidoc files in rspecator-view"
+        exit_code=1
+    fi
+else
+  echo "ERROR: malformed asciidoc files"
+  exit_code=1
+fi
+
+find rules -name tmp.adoc -exec rm -f {} \;
+
 
 if (( exit_code == 0 )); then
     echo "Success"
