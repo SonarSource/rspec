@@ -12,7 +12,7 @@ import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import { RuleMetadata } from './types';
-import parse, { attributesToProps, domToReact, Element } from 'html-react-parser';
+import parse, { attributesToProps, domToReact, DOMNode, Element } from 'html-react-parser';
 
 import './hljs-humanoid-light.css';
 
@@ -323,6 +323,22 @@ function getRspecPath(rspecId: string, language?: string) {
 function useDescription(metadata: PageMetadata, ruleid: string, language?: string) {
   const editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
+  function htmlReplacement(domNode: Element) {
+    if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
+      const props = attributesToProps(domNode.attribs);
+      return <a href={getRspecPath(domNode.attribs['data-rspec-id'], language)} {...props}>
+        {domToReact(domNode.children)}
+      </a>;
+    }
+
+    if (domNode.name === 'code' && domNode.attribs && domNode.attribs['data-lang']) {
+      return <Highlight className={domNode.attribs['data-lang']}>
+        {domToReact(domNode.children)}
+      </Highlight>;
+    }
+
+    return undefined; // No modification.
+  }
 
   const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
 
@@ -330,20 +346,7 @@ function useDescription(metadata: PageMetadata, ruleid: string, language?: strin
 
   if (descHTML !== null && !descIsLoading && !descError) {
     return <div>
-      {parse(descHTML, {
-        replace: (d) => {
-          const domNode = d as Element;
-          if (domNode.name === 'code' && domNode.attribs && domNode.attribs['data-lang']) {
-            return <Highlight className={domNode.attribs['data-lang']}>{domToReact(domNode.children)}</Highlight>;
-          } else if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
-            const props = attributesToProps(domNode.attribs);
-            return <a href={getRspecPath(domNode.attribs['data-rspec-id'], language)} {...props}>
-              {domToReact(domNode.children)}
-            </a>;
-          }
-        }
-      })
-      }
+      {parse(descHTML, { replace: (d: DOMNode) => htmlReplacement(d as Element) })}
       <hr />
       <a href={editOnGithubUrl}>Edit on Github</a><br />
       <hr />
