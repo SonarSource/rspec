@@ -7,6 +7,7 @@ from rspec_tools.cli import cli
 from rspec_tools.rules import RulesRepository
 
 import os
+import re
 
 class TestCLIValidateRulesMetadata:
   '''Unit tests for metadata validation through Command Line Interface.'''
@@ -79,5 +80,5 @@ class TestCLIValidateDescription:
 
   def test_invalid_rule(self):
     result = self._run_invalid(['S100'])
-    assert 'Validation failed due to 7 errors' in result.output
+    assert re.search(r'Validation failed due to \d+ errors', result.output)
     assert result.exit_code == 1

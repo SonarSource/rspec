@@ -26,7 +26,7 @@ cd rspec-tools
 if pipenv run rspec-tools check-description --d ../out; then
     echo "rule.adoc is fine"
 else
-    echo "ERROR: rule.adoc is not valid"
+    echo "ERROR: There are invalid rule.adoc"
     exit_code=1
 fi
 cd ..

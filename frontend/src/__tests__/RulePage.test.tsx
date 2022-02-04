@@ -9,7 +9,7 @@ import { fetchMock } from '../testutils'
 
 const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
 
-function readRuleFile(ruleId, filename) {
+function readRuleFile(ruleId: string, filename: string) {
     return fs.readFileSync(path.join(rulesPath, ruleId, filename)).toString();
 }
 
@@ -21,7 +21,7 @@ beforeEach(() => {
     const specS3457 = readRuleFile('S3457', 'csharp-description.html');
     const metadataS3457 = readRuleFile('S3457', 'csharp-metadata.json');
     const rootUrl = process.env.PUBLIC_URL;
-    let mockUrls = {};
+    let mockUrls: {[index: string]:any} = {};
     mockUrls[`${rootUrl}/rules/S1000/cfamily-description.html`] = {text: specS1000};
     mockUrls[`${rootUrl}/rules/S1000/cfamily-metadata.json`] = {json: JSON.parse(metadataS1000)};
     mockUrls[`${rootUrl}/rules/S1007/default-description.html`] = {text: specS1007};
@@ -35,7 +35,7 @@ beforeEach(() => {
         'CSH' : {'S3457': 'c#1'},
         'C': {'S100': 'c1', 'S234': {'since': 'c2', 'until': 'c3'}}}
     };
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
+    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls) as jest.Mocked<typeof fetch>);
 });
 
 afterEach(() => {
