@@ -37,7 +37,7 @@ beforeEach(() => {
   });
 });
 
-afterAll(() => {
+afterEach(() => {
   jest.restoreAllMocks();
 });
 
