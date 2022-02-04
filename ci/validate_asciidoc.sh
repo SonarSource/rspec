@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -uxo pipefail
 
 # Install script dependencies
 cd rspec-tools
