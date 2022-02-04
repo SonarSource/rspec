@@ -9,20 +9,20 @@ describe('description generation', () => {
     return withTestDir((srcPath) => {
       createFiles(srcPath, {
         'S100/rule.adoc': 'Generic content',
-        'S100/java/rule.adoc': [
-          'include::../rule.adoc[]',
-          'Specific content',
-          '',
-          '* See S101',
-          '* See RSPEC-101',
-        ].join('\n'),
+        'S100/java/rule.adoc': `
+include::../rule.adoc[]
+Specific content
+
+* See S101
+* See RSPEC-101
+`,
 
         'S101/rule.adoc': 'Generic content',
-        'S101/java/rule.adoc': [
-          'include::../rule.adoc[]',
-          'Specific content',
-          'See S100.'
-        ].join('\n'),
+        'S101/java/rule.adoc': `
+include::../rule.adoc[]
+Specific content
+See S100.
+`,
 
         'S501/rule.adoc': 'Generic content, no active language',
       });
