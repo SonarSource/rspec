@@ -33,7 +33,7 @@ beforeEach(() => {
   Git.Clone.clone.mockReturnValueOnce(repo);
 
   jest.spyOn(fs, 'existsSync').mockImplementation((fname) => {
-    return fname.includes('rules/S');
+    return fname.replace(/\\/g, '/').includes('rules/S');
   });
 });
 
