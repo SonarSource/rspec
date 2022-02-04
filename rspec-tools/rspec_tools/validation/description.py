@@ -1,4 +1,3 @@
-import json
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
@@ -47,3 +46,61 @@ def validate_parameters(rule_language: LanguageSpecificRule):
         if child.name is None or child == h3 or child.name == 'hr':
           continue
         validate_one_parameter(child, rule_language.id)
+
+
+HIGHLIGHTED_LANGUAGES = {
+    # languages with syntax coloring in highlight.js
+    'abap': 'abap',
+    'cfamily': 'cpp',
+    'csharp': 'csharp',
+    'css': 'css',
+    'go': 'go',
+    'html': 'html',
+    'java': 'java',
+    'javascript': 'javascript',
+    'kotlin': 'kotlin',
+    'php': 'php',
+    'plsql': 'sql',
+    'python': 'python',
+    'ruby': 'ruby',
+    'rust': 'rust',
+    'scala': 'scala',
+    'swift': 'swift',
+    'terraform': 'terraform',
+    'tsql': 'sql',
+    'vbnet': 'vbnet',
+    'xml': 'xml',
+    'c': 'c',
+    'objectivec': 'objectivec',
+    'vb': 'vb',
+    # these languages are not supported by highlight.js as the moment:
+    'apex': 'apex',
+    'cloudformation': 'cloudformation',
+    'cobol': 'cobol',
+    'flex': 'flex',
+    'pli': 'pli',
+    'rpg': 'rpg',
+    'text': 'text',
+    'vb6': 'vb6'
+}
+
+def highlight_name(rule_language: LanguageSpecificRule):
+  if (rule_language.language in HIGHLIGHTED_LANGUAGES):
+    return HIGHLIGHTED_LANGUAGES[rule_language.language]
+  return rule_language.language
+
+def known_highlight(language):
+  return language in HIGHLIGHTED_LANGUAGES.values()
+
+def validate_source_language(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  for h2 in descr.findAll('h2'):
+    name = h2.text.strip()
+    if name.startswith('Compliant') or name.startswith('Noncompliant'):
+      for pre in h2.parent.find_all('pre'):
+        if not pre.has_attr('class') or pre['class'][0] != u'highlight' or not pre.code or not pre.code.has_attr('data-lang'):
+          raise RuleValidationError(f'''Rule {rule_language.id} has non highlighted code example in section "{name}".
+Use [source,{highlight_name(rule_language)}] or [source,text] before the opening '----'.''')
+        elif not known_highlight(pre.code['data-lang']):
+          raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
+Are you looking for "{highlight_name(rule_language)}"?''')
