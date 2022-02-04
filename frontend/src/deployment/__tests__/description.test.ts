@@ -51,4 +51,49 @@ describe('description generation', () => {
       });
     });
   });
+
+  expect.extend({
+    toBeSameAsFile(received: string, expectedPath: string) {
+      if (!fs.existsSync(expectedPath)) {
+        return {
+          message: () => `File ${expectedPath} was not found.`,
+          pass: false
+        };
+      }
+      const expected = fs.readFileSync(expectedPath).toString();
+      if (expected.replace(/\r\n/g, '\n') === received.replace(/\r\n/g, '\n')) {
+        return {
+          // This message is used in case of test negation `expect(a).not.toBeSameAsFile(f)`
+          message: () => `Identity check failed on ${expectedPath}.\nExpected:\n${expected}\n\nReceived:\n${received}`,
+          pass: true
+        };
+      } else {
+        const receivedPath = path.join(path.dirname(expectedPath), 'received-' + path.basename(expectedPath));
+        fs.writeFileSync(receivedPath, received);
+        return {
+          message: () => `Identity check failed on ${expectedPath}.\nReceived file saved in ${receivedPath}`,
+          pass: false
+        };
+      }
+    }
+  });
+  test('generates description for active rules', () => {
+    return withTestDir(async (dstPath) => {
+      generateRulesDescription(path.join(__dirname, 'resources', 'rules'), dstPath);
+      const rules = fs.readdirSync(dstPath);
+      expect(rules.length).toEqual(4);
+      let treated = 0;
+      rules.forEach(ruleDir => {
+        const languages = fs.readdirSync(`${dstPath}/${ruleDir}`);
+        expect(languages.length).toBeGreaterThanOrEqual(1);
+        languages.forEach(file => {
+          const actual = fs.readFileSync(`${dstPath}/${ruleDir}/${file}`).toString();
+          const expectedPath = path.join(__dirname, 'resources', 'metadata', ruleDir, file);
+          expect(actual).toBeSameAsFile(expectedPath);
+          treated++;
+        })
+      });
+      expect(treated).toBe(11);
+    });
+  });
 });
