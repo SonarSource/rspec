@@ -333,7 +333,9 @@ function useDescription(metadata: PageMetadata, ruleid: string, language?: strin
       {parse(descHTML, {
         replace: (d) => {
           const domNode = d as Element;
-          if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
+          if (domNode.name === 'code' && domNode.attribs && domNode.attribs['data-lang']) {
+            return <Highlight className={domNode.attribs['data-lang']}>{domToReact(domNode.children)}</Highlight>;
+          } else if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
             const props = attributesToProps(domNode.attribs);
             return <a href={getRspecPath(domNode.attribs['data-rspec-id'], language)} {...props}>
               {domToReact(domNode.children)}
