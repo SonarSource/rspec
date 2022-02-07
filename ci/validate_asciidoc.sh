@@ -65,27 +65,21 @@ do
       fi
       RULE="$language/rule.adoc"
       if test -f "$RULE"; then
-        TMP_ADOC="$language/tmp.adoc"
+        # We build this filename that describes the path to workaround the fact that asciidoctor will not tell
+        # us the path of the file in case of error.
+        # We can remove it if https://github.com/asciidoctor/asciidoctor/issues/3414 is fixed.
+        TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
         echo "== Description" > "$TMP_ADOC"
         cat "$RULE" >> "$TMP_ADOC"
-        if asciidoctor --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
-            if ! asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null "$TMP_ADOC"; then
-                echo "ERROR: $RULE has incorrect asciidoc in rspecator-view mode"
-                exit_code=1
-            fi
-        else
-          echo "ERROR: $RULE has incorrect asciidoc"
-          exit_code=1
-        fi
-        rm "$TMP_ADOC"
       else
         echo "ERROR: no asciidoc file $RULE"
         exit_code=1
       fi
     done
+
     # Check that all adoc are included
     find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::" "$1" | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
-    find "$dir" -name "*.adoc" ! -name 'rule.adoc' -exec sh -c 'realpath $1' shell {} \; > created
+    find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp*.adoc' -exec sh -c 'realpath $1' shell {} \; > created
     orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
     if [[ -n "$orphans" ]]; then
         printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
@@ -94,6 +88,24 @@ do
     rm -f included created
   fi
 done
+
+ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
+
+if [[ $ADOC_COUNT ]]; then
+  if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+      if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+          echo "${ADOC_COUNT} documents checked with succes"
+      else
+          echo "ERROR: malformed asciidoc files in rspecator-view"
+          exit_code=1
+      fi
+  else
+    echo "ERROR: malformed asciidoc files"
+    exit_code=1
+  fi
+else
+  echo "No new asciidoc file changed"
+fi
 
 if (( exit_code == 0 )); then
     echo "Success"
