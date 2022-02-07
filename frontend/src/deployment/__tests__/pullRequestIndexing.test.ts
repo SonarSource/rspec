@@ -4,7 +4,7 @@ import Git from 'nodegit';
 import 'setimmediate';
 
 jest.mock('@octokit/rest', () => {
-  let mockModule = {Octokit: function() {
+  return {Octokit: function() {
     this.rest = {pulls: {list: jest.fn(() => {
       return { data: [
         { title: 'Irrelevant S832' },
@@ -19,7 +19,6 @@ jest.mock('@octokit/rest', () => {
       ] }
     })}};
   }};
-  return mockModule;
 });
 
 beforeEach(() => {
