@@ -86,18 +86,18 @@ do
   fi
 done
 
-if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
-    if ! asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
-        echo "ERROR: malformed asciidoc files in rspecator-view"
-        exit_code=1
-    fi
-else
-  echo "ERROR: malformed asciidoc files"
-  exit_code=1
+if [[ $(find rules -name "tmp*.adoc" -print -quit) ]]; then
+  if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+      if ! asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+          echo "ERROR: malformed asciidoc files in rspecator-view"
+          exit_code=1
+      fi
+  else
+    echo "ERROR: malformed asciidoc files"
+    exit_code=1
+  fi
+  find rules -name "tmp*.adoc" -exec rm -f {} \;
 fi
-
-find rules -name tmp.adoc -exec rm -f {} \;
-
 
 if (( exit_code == 0 )); then
     echo "Success"
