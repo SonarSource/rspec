@@ -13,8 +13,40 @@ describe('description generation', () => {
 include::../rule.adoc[]
 Specific content
 
-* See S101
+== Test various forms of auto-link for RSPEC. S100
+
+* See S100, S101,S102.
 * See RSPEC-101
+* But not S103badref.
+* This is a code literal \`+S234+\` but this isn't S567.
+
+\\https://sonarsource.github.io/rspec/#/rspec/S100
+
+https://sonarsource.github.io/rspec/#/rspec/S100/cfamily
+
+https://sonarsource.github.io/rspec/#/rspec/S100/cfamily[]
+
+[source,cpp]
+----
+int foo() {
+  // No auto-links in code!
+  auto S100 = 100;
+  auto U100 = 100u;
+  return S100 + U100;
+}
+----
+
+After snippet, See S100.
+
+[source,cpp]
+----
+int goo() {
+  // No auto-links in code!
+  // S100
+}
+----
+
+more ref: RSPEC-200.
 `,
 
         'S101/rule.adoc': 'Generic content',
@@ -41,15 +73,59 @@ See S100.
 <p>Generic content
 Specific content</p>
 </div>
+</div>
+</div>
+<div class=\\"sect1\\">
+<h2 id=\\"_test_various_forms_of_auto_link_for_rspec_s100\\">Test various forms of auto-link for RSPEC. <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a></h2>
+<div class=\\"sectionbody\\">
 <div class=\\"ulist\\">
 <ul>
 <li>
-<p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">S101</a></p>
+<p>See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>, <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">S101</a>,<a data-rspec-id=\\"S102\\" class=\\"rspec-auto-link\\">S102</a>.</p>
 </li>
 <li>
 <p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">RSPEC-101</a></p>
 </li>
+<li>
+<p>But not S103badref.</p>
+</li>
+<li>
+<p>This is a code literal <code>S234</code> but this isn&#8217;t <a data-rspec-id=\\"S567\\" class=\\"rspec-auto-link\\">S567</a>.</p>
+</li>
 </ul>
+</div>
+<div class=\\"paragraph\\">
+<p>https://sonarsource.github.io/rspec/#/rspec/S100</p>
+</div>
+<div class=\\"paragraph\\">
+<p><a href=\\"https://sonarsource.github.io/rspec/#/rspec/S100/cfamily\\" class=\\"bare\\">https://sonarsource.github.io/rspec/#/rspec/S100/cfamily</a></p>
+</div>
+<div class=\\"paragraph\\">
+<p><a href=\\"https://sonarsource.github.io/rspec/#/rspec/S100/cfamily\\" class=\\"bare\\">https://sonarsource.github.io/rspec/#/rspec/S100/cfamily</a></p>
+</div>
+<div class=\\"listingblock\\">
+<div class=\\"content\\">
+<pre class=\\"highlight\\"><code class=\\"language-cpp\\" data-lang=\\"cpp\\">int foo() {
+  // No auto-links in code!
+  auto S100 = 100;
+  auto U100 = 100u;
+  return S100 + U100;
+}</code></pre>
+</div>
+</div>
+<div class=\\"paragraph\\">
+<p>After snippet, See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
+</div>
+<div class=\\"listingblock\\">
+<div class=\\"content\\">
+<pre class=\\"highlight\\"><code class=\\"language-cpp\\" data-lang=\\"cpp\\">int goo() {
+  // No auto-links in code!
+  // S100
+}</code></pre>
+</div>
+</div>
+<div class=\\"paragraph\\">
+<p>more ref: <a data-rspec-id=\\"S200\\" class=\\"rspec-auto-link\\">RSPEC-200</a>.</p>
 </div>
 </div>
 </div>"
