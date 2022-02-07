@@ -86,9 +86,13 @@ do
   fi
 done
 
-if [[ $(find rules -name "tmp*.adoc" -print -quit) ]]; then
+ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
+
+if [[ $ADOC_COUNT ]]; then
   if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
-      if ! asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+      if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+          echo "${ADOC_COUNT} documents checked with succes"
+      else
           echo "ERROR: malformed asciidoc files in rspecator-view"
           exit_code=1
       fi
@@ -96,7 +100,8 @@ if [[ $(find rules -name "tmp*.adoc" -print -quit) ]]; then
     echo "ERROR: malformed asciidoc files"
     exit_code=1
   fi
-  find rules -name "tmp*.adoc" -exec rm -f {} \;
+else
+  echo "No new asciidoc file changed"
 fi
 
 if (( exit_code == 0 )); then
