@@ -11,7 +11,7 @@ from typing import Final, Iterable, Optional, Callable
 from contextlib import contextmanager
 from rspec_tools.utils import parse_and_validate_language_list, get_labels_for_languages, validate_language, get_label_for_language, resolve_rule, swap_metadata_files, is_empty_metadata
 
-from rspec_tools.utils import copy_directory_content
+from rspec_tools.utils import copy_directory_content, LANG_TO_SOURCE
 
 def build_github_repository_url(token: str, user: Optional[str]):
   'Builds the rspec repository url'
@@ -65,8 +65,6 @@ class RuleCreator:
   ID_COUNTER_BRANCH: Final[str] = 'rspec-id-counter'
   ID_COUNTER_FILENAME: Final[str] = 'next_rspec_id.txt'
   TEMPLATE_PATH: Final[Path] = Path(__file__).parent.parent.joinpath('rspec_template')
-  LANGUAGE_NAMES: Final[dict[str, str]] = {
-      'cfamily': 'cpp', 'plsql': 'sql', 'tsql': 'sql'}
 
   repository: Final[Repo]
   origin_url: Final[str]
@@ -157,7 +155,7 @@ class RuleCreator:
     for rule_item in lang_dir.glob('*.adoc'):
       if rule_item.is_file():
         template_content = rule_item.read_text()
-        lang = self.LANGUAGE_NAMES[language] if language in self.LANGUAGE_NAMES else language
+        lang = LANG_TO_SOURCE[language]
         final_content = template_content.replace('[source,text]', f'[source,{lang}]')
         rule_item.write_text(final_content)
 

@@ -4,6 +4,7 @@ from typing import Final
 
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
+from rspec_tools.utils import LANG_TO_SOURCE
 
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
@@ -47,50 +48,13 @@ def validate_parameters(rule_language: LanguageSpecificRule):
           continue
         validate_one_parameter(child, rule_language.id)
 
-
-HIGHLIGHTED_LANGUAGES = {
-    # languages with syntax coloring in highlight.js
-    'abap': 'abap',
-    'cfamily': 'cpp',
-    'csharp': 'csharp',
-    'css': 'css',
-    'go': 'go',
-    'html': 'html',
-    'java': 'java',
-    'javascript': 'javascript',
-    'kotlin': 'kotlin',
-    'php': 'php',
-    'plsql': 'sql',
-    'python': 'python',
-    'ruby': 'ruby',
-    'rust': 'rust',
-    'scala': 'scala',
-    'swift': 'swift',
-    'terraform': 'terraform',
-    'tsql': 'sql',
-    'vbnet': 'vbnet',
-    'xml': 'xml',
-    'c': 'c',
-    'objectivec': 'objectivec',
-    'vb': 'vb',
-    # these languages are not supported by highlight.js as the moment:
-    'apex': 'apex',
-    'cloudformation': 'cloudformation',
-    'cobol': 'cobol',
-    'flex': 'flex',
-    'pli': 'pli',
-    'rpg': 'rpg',
-    'text': 'text',
-    'vb6': 'vb6'
-}
-
 def highlight_name(rule_language: LanguageSpecificRule):
-  if (rule_language.language in HIGHLIGHTED_LANGUAGES):
-    return HIGHLIGHTED_LANGUAGES[rule_language.language]
+  if (rule_language.language in LANG_TO_SOURCE):
+    return LANG_TO_SOURCE[rule_language.language]
   return rule_language.language
 
 def known_highlight(language):
-  return language in HIGHLIGHTED_LANGUAGES.values()
+  return language in LANG_TO_SOURCE.values()
 
 def validate_source_language(rule_language: LanguageSpecificRule):
   descr = rule_language.description
