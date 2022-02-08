@@ -1,11 +1,54 @@
 import fs from 'fs';
 import path from 'path';
 import asciidoctor from 'asciidoctor';
+import { parse, NodeType, HTMLElement, Node, TextNode } from 'node-html-parser';
 
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 import { logger } from './deploymentLogger';
 
 const asciidoc = asciidoctor();
+
+function generateAutoRspecLinks(html: string) {
+  // Insert placeholder links for SXXX or RSPEC-XXX to the appropriate description page.
+  // However, ignore URLs and <pre> and <code> blocks.
+  //
+  // The web application is responsible for providing the target link.
+  // The link will depend on whether the default page is viewed, and in that case it will
+  // point to the default page for the target rules, or whether a language-specific page
+  // is viewed.
+  // The distinction cannot be made when generating the HTML description because the description
+  // for the first language is also used as the default description.
+  function processText(text: string) {
+    return text.replace(
+      /(?<!\w+:\/\/[^\s]*)\b(S|RSPEC-)(\d{3,})\b/g,
+      '<a data-rspec-id="S$2" class="rspec-auto-link">$1$2</a>'
+    );
+  }
+
+  function visitNode(node: Node) {
+    switch (node.nodeType) {
+      case NodeType.ELEMENT_NODE:
+        const element = node as HTMLElement;
+        if (!/^(code|pre|a)$/.test(element.rawTagName)) {
+          visitChildren(node);
+        }
+        break;
+
+      case NodeType.TEXT_NODE:
+        const text = node as TextNode;
+        text.rawText = processText(text.rawText);
+        break;
+    }
+  }
+
+  function visitChildren(node: Node) {
+    node.childNodes.forEach(visitNode);
+  }
+
+  const root = parse(html, { comment: true });
+  visitChildren(root);
+  return root.toString();
+}
 
 const winstonLogger = asciidoc.LoggerManager.newLogger('WinstonLogger', {
   postConstruct: function () {
@@ -118,5 +161,6 @@ function generateRuleDescription(ruleAdocFile: string) {
   // Every rule documentation has an implicit level-1 "Description" header.
   const fileData = fs.readFileSync(ruleAdocFile);
   const data = '== Description\n\n' + fileData;
-  return asciidoc.convert(data, opts) as string;
+  const html = asciidoc.convert(data, opts) as string;
+  return generateAutoRspecLinks(html);
 }
