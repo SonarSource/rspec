@@ -91,7 +91,7 @@ done
 
 ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
 
-if [[ $ADOC_COUNT ]]; then
+if (( ADOC_COUNT > 0 )); then
   if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
       if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
           echo "${ADOC_COUNT} documents checked with succes"
