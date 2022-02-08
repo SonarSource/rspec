@@ -65,6 +65,8 @@ class RuleCreator:
   ID_COUNTER_BRANCH: Final[str] = 'rspec-id-counter'
   ID_COUNTER_FILENAME: Final[str] = 'next_rspec_id.txt'
   TEMPLATE_PATH: Final[Path] = Path(__file__).parent.parent.joinpath('rspec_template')
+  LANGUAGE_NAMES: Final[dict[str, str]] = {
+      'cfamily': 'cpp', 'plsql': 'sql', 'tsql': 'sql'}
 
   repository: Final[Repo]
   origin_url: Final[str]
@@ -120,6 +122,7 @@ class RuleCreator:
       lang_specific_template = self.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
       copy_directory_content(lang_specific_template, lang_dir)
       self._fill_in_the_blanks_in_the_template(lang_dir, rule_number)
+      self._fill_language_name_in_the_template(lang_dir, language)
       self.repository.git.add('--all')
       self.repository.index.commit(f'Add {language} to rule S{rule_number}')
     self.repository.git.push('origin', branch_name)
@@ -150,6 +153,14 @@ class RuleCreator:
         final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
         rule_item.write_text(final_content)
 
+  def _fill_language_name_in_the_template(self, lang_dir: Path, language: str):
+    for rule_item in lang_dir.glob('*.adoc'):
+      if rule_item.is_file():
+        template_content = rule_item.read_text()
+        lang = self.LANGUAGE_NAMES[language] if language in self.LANGUAGE_NAMES else language
+        final_content = template_content.replace('[source,text]', f'[source,{lang}]')
+        rule_item.write_text(final_content)
+
   def _fill_multi_lang_template_files(self, rule_dir: Path, rule_number: int, languages: Iterable[str]):
     common_template = self.TEMPLATE_PATH.joinpath('multi_language', 'common')
     lang_specific_template = self.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
@@ -159,6 +170,7 @@ class RuleCreator:
       lang_dir = rule_dir.joinpath(lang)
       lang_dir.mkdir()
       copy_directory_content(lang_specific_template, lang_dir)
+      self._fill_language_name_in_the_template(lang_dir, lang)
 
     self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
 
@@ -172,6 +184,7 @@ class RuleCreator:
     copy_directory_content(lang_specific_template, lang_dir)
 
     self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
+    self._fill_language_name_in_the_template(lang_dir, language)
 
   def _create_pull_request(self, github_api: Callable[[Optional[str]], Github], branch_name: str, title: str, body: str, labels: Iterable[str], user: Optional[str]):
     repository_url = extract_repository_name(self.origin_url)
