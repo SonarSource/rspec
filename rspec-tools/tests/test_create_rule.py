@@ -5,9 +5,10 @@ from typing import Optional
 from unittest.mock import Mock, patch
 import pytest
 import shutil
+import os
 
 from rspec_tools.create_rule import RuleCreator, create_new_rule, add_language_to_rule
-from rspec_tools.utils import is_empty_metadata
+from rspec_tools.utils import is_empty_metadata, LANG_TO_SOURCE
 
 @pytest.fixture
 def git_config():
@@ -105,6 +106,7 @@ def test_create_new_multi_lang_rule_branch(rule_creator: RuleCreator, mock_rspec
     for lang_item in lang_root.glob('**/*'):
       if lang_item.is_file():
         expected_content = lang_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+        expected_content = expected_content.replace('[source,text]', f'[source,{LANG_TO_SOURCE[os.path.basename(lang)]}]')
         relative_path = lang_item.relative_to(lang_root)
         actual_content = rule_dir.joinpath(lang, relative_path).read_text()
         assert actual_content == expected_content
@@ -134,6 +136,8 @@ def test_create_new_single_lang_rule_branch(rule_creator: RuleCreator, mock_rspe
     for lang_item in lang_root.glob('**/*'):
       if lang_item.is_file():
         expected_content = lang_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+        dir_name = os.path.basename(lang)
+        expected_content = expected_content.replace('[source,text]', f'[source,{LANG_TO_SOURCE[dir_name]}]')
         relative_path = lang_item.relative_to(lang_root)
         actual_content = rule_dir.joinpath(lang, relative_path).read_text()
         assert actual_content == expected_content
@@ -204,6 +208,7 @@ def test_add_lang_singlelang_nonconventional_rule_create_branch(rule_creator: Ru
   for lang_item in lang_root.glob('**/*'):
     if lang_item.is_file():
       expected_content = lang_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+      expected_content = expected_content.replace('[source,text]', f'[source,{LANG_TO_SOURCE[language]}]')
       relative_path = lang_item.relative_to(lang_root)
       actual_content = rule_dir.joinpath(language, relative_path).read_text()
       assert actual_content == expected_content
@@ -249,6 +254,7 @@ def test_add_lang_multilang_rule_create_branch(rule_creator: RuleCreator, mock_r
   for lang_item in lang_root.glob('**/*'):
     if lang_item.is_file():
       expected_content = lang_item.read_text().replace('${RSPEC_ID}', str(rule_number))
+      expected_content = expected_content.replace('[source,text]', f'[source,{LANG_TO_SOURCE[language]}]')
       relative_path = lang_item.relative_to(lang_root)
       actual_content = rule_dir.joinpath(language, relative_path).read_text()
       assert actual_content == expected_content

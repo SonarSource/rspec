@@ -40,6 +40,42 @@ LANG_TO_LABEL = {'abap': 'abap',
                  'xml': 'xml',
 }
 
+LANG_TO_SOURCE = {
+    # languages with syntax coloring in highlight.js
+    'abap': 'abap',
+    'cfamily': 'cpp',
+    'csharp': 'csharp',
+    'css': 'css',
+    'go': 'go',
+    'html': 'html',
+    'java': 'java',
+    'javascript': 'javascript',
+    'kotlin': 'kotlin',
+    'php': 'php',
+    'plsql': 'sql',
+    'python': 'python',
+    'ruby': 'ruby',
+    'rust': 'rust',
+    'scala': 'scala',
+    'swift': 'swift',
+    'terraform': 'terraform',
+    'tsql': 'sql',
+    'vbnet': 'vbnet',
+    'xml': 'xml',
+    'c': 'c',
+    'objectivec': 'objectivec',
+    'vb': 'vb',
+    # these languages are not supported by highlight.js as the moment:
+    'apex': 'apex',
+    'cloudformation': 'cloudformation',
+    'cobol': 'cobol',
+    'flex': 'flex',
+    'pli': 'pli',
+    'rpg': 'rpg',
+    'text': 'text',
+    'vb6': 'vb6'
+}
+
 METADATA_FILE = 'metadata.json'
 
 def copy_directory_content(src:Path, dest:Path):
