@@ -6,9 +6,9 @@ import click
 from rspec_tools.checklinks import check_html_links
 from rspec_tools.errors import RuleNotFoundError, RuleValidationError
 from rspec_tools.create_rule import create_new_rule, add_language_to_rule
-from rspec_tools.rules import RulesRepository
-from rspec_tools.validation.metadata import validate_metadata
-from rspec_tools.validation.description import validate_section_names, validate_section_levels
+from rspec_tools.rules import RulesRepository, LanguageSpecificRule
+from rspec_tools.validation.metadata import validate_rule_metadata
+from rspec_tools.validation.description import validate_section_names, validate_section_levels, validate_parameters, validate_source_language
 from rspec_tools.coverage import update_coverage_for_all_repos, update_coverage_for_repo, update_coverage_for_repo_version
 
 from rspec_tools.notify_failure_on_slack import notify_slack
@@ -49,55 +49,55 @@ def add_lang_to_rule(language: str, rule: str, user: Optional[str]):
   token = os.environ.get('GITHUB_TOKEN')
   add_language_to_rule(language, rule, token, user)
 
-
 @cli.command()
-@click.argument('rules', nargs=-1)
+@click.argument('rules', nargs=-1, required=True)
 def validate_rules_metadata(rules):
   '''Validate rules metadata.'''
   rule_repository = RulesRepository()
   error_counter = 0
-  for rule in rule_repository.rules:
 
-    if rules and rule.key not in rules:
-      continue
+  for rule_id in rules:
+    try:
+      rule = rule_repository.get_rule(rule_id)
+      validate_rule_metadata(rule)
+    except RuleValidationError as e:
+      click.echo(e.message, err=True)
+      error_counter += 1
 
-    for lang_spec_rule in rule.specializations:
-      try:
-        validate_metadata(lang_spec_rule)
-      except RuleValidationError as e:
-        click.echo(e.message, err=True)
-        error_counter += 1
   if error_counter > 0:
-    message = f"Validation failed due to {error_counter} errors"
-    click.echo(message, err=True)
-    raise click.Abort(message)
+    fatal_error(f"Validation failed due to {error_counter} errors out of {len(rules)} analyzed rules")
+
+
+VALIDATORS = [validate_section_names,
+              validate_section_levels,
+              validate_parameters,
+              validate_source_language,
+              ]
+def validate_rule_specialization(lang_spec_rule: LanguageSpecificRule):
+  error_counter = 0
+  for validator in VALIDATORS:
+    try:
+      validator(lang_spec_rule)
+    except RuleValidationError as e:
+      click.echo(e.message, err=True)
+      error_counter += 1
+  return error_counter
 
 @cli.command()
 @click.option('--d', required=True)
 @click.argument('rules', nargs=-1)
-def check_sections(d, rules):
-  '''Validate the section names.'''
+def check_description(d, rules):
+  '''Validate the rule.adoc description.'''
   out_dir = Path(__file__).parent.parent.joinpath(d)
   rule_repository = RulesRepository(rules_path=out_dir)
   error_counter = 0
   for rule in rule_repository.rules:
-    if rules and rule.key not in rules:
+    if rules and rule.id not in rules:
       continue
     for lang_spec_rule in rule.specializations:
-      try:
-        validate_section_names(lang_spec_rule)
-      except RuleValidationError as e:
-        click.echo(e.message, err=True)
-        error_counter += 1
-      try:
-        validate_section_levels(lang_spec_rule)
-      except RuleValidationError as e:
-        click.echo(e.message, err=True)
-        error_counter += 1
+      error_counter += validate_rule_specialization(lang_spec_rule)
   if error_counter > 0:
-    message = f"Validation failed due to {error_counter} errors"
-    click.echo(message, err=True)
-    raise click.Abort(message)
+    fatal_error(f"Validation failed due to {error_counter} errors")
 
 @cli.command()
 @click.option('--repository', required=False)
@@ -118,3 +118,7 @@ def notify_failure_on_slack(message: str, channel: str):
   notify_slack(message, channel)
 
 __all__=['cli']
+
+def fatal_error(message: str):
+  click.echo(message, err=True)
+  raise click.Abort(message)
