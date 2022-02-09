@@ -11,7 +11,7 @@ from typing import Final, Iterable, Optional, Callable
 from contextlib import contextmanager
 from rspec_tools.utils import parse_and_validate_language_list, get_labels_for_languages, validate_language, get_label_for_language, resolve_rule, swap_metadata_files, is_empty_metadata
 
-from rspec_tools.utils import copy_directory_content
+from rspec_tools.utils import copy_directory_content, LANG_TO_SOURCE
 
 def build_github_repository_url(token: str, user: Optional[str]):
   'Builds the rspec repository url'
@@ -24,7 +24,7 @@ def extract_repository_name(url):
   url_end = url.split('/')[-2:]
   return '/'.join(url_end).removesuffix('.git')
 
-def authGithub(token: str) -> Callable[[Optional[str]], Github]:
+def auto_github(token: str) -> Callable[[Optional[str]], Github]:
   def ret(user: Optional[str]):
     if user:
       return Github(user, token)
@@ -44,7 +44,7 @@ def create_new_rule(languages: str, token: str, user: Optional[str]):
   with tempfile.TemporaryDirectory() as tmpdirname:
     rule_creator = RuleCreator(url, tmpdirname, config)
     rule_number = rule_creator.reserve_rule_number()
-    pull_request = rule_creator.create_new_rule_pull_request(authGithub(token), rule_number, lang_list, label_list, user=user)
+    rule_creator.create_new_rule_pull_request(auto_github(token), rule_number, lang_list, label_list, user=user)
 
 def add_language_to_rule(language: str, rule: str, token: str, user: Optional[str]):
   url = build_github_repository_url(token, user)
@@ -57,7 +57,7 @@ def add_language_to_rule(language: str, rule: str, token: str, user: Optional[st
   rule_number = resolve_rule(rule)
   with tempfile.TemporaryDirectory() as tmpdirname:
     rule_creator = RuleCreator(url, tmpdirname, config)
-    rule_creator.add_language_pull_request(authGithub(token), rule_number, language, label, user=user)
+    rule_creator.add_language_pull_request(auto_github(token), rule_number, language, label, user=user)
 
 class RuleCreator:
   ''' Create a new Rule in a repository following the official Github 'rspec' repository structure.'''
@@ -120,6 +120,7 @@ class RuleCreator:
       lang_specific_template = self.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
       copy_directory_content(lang_specific_template, lang_dir)
       self._fill_in_the_blanks_in_the_template(lang_dir, rule_number)
+      self._fill_language_name_in_the_template(lang_dir, language)
       self.repository.git.add('--all')
       self.repository.index.commit(f'Add {language} to rule S{rule_number}')
     self.repository.git.push('origin', branch_name)
@@ -132,7 +133,7 @@ class RuleCreator:
       repo_dir = Path(self.repository.working_dir)
       rule_dir = repo_dir.joinpath('rules', f'S{rule_number}')
       rule_dir.mkdir()
-      lang_count = sum(1 for l in languages)
+      lang_count = sum(1 for _ in languages)
       if lang_count > 1:
         self._fill_multi_lang_template_files(rule_dir, rule_number, languages)
       else:
@@ -150,6 +151,14 @@ class RuleCreator:
         final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
         rule_item.write_text(final_content)
 
+  def _fill_language_name_in_the_template(self, lang_dir: Path, language: str):
+    for rule_item in lang_dir.glob('*.adoc'):
+      if rule_item.is_file():
+        template_content = rule_item.read_text()
+        lang = LANG_TO_SOURCE[language]
+        final_content = template_content.replace('[source,text]', f'[source,{lang}]')
+        rule_item.write_text(final_content)
+
   def _fill_multi_lang_template_files(self, rule_dir: Path, rule_number: int, languages: Iterable[str]):
     common_template = self.TEMPLATE_PATH.joinpath('multi_language', 'common')
     lang_specific_template = self.TEMPLATE_PATH.joinpath('multi_language', 'language_specific')
@@ -159,6 +168,7 @@ class RuleCreator:
       lang_dir = rule_dir.joinpath(lang)
       lang_dir.mkdir()
       copy_directory_content(lang_specific_template, lang_dir)
+      self._fill_language_name_in_the_template(lang_dir, lang)
 
     self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
 
@@ -172,10 +182,11 @@ class RuleCreator:
     copy_directory_content(lang_specific_template, lang_dir)
 
     self._fill_in_the_blanks_in_the_template(rule_dir, rule_number)
+    self._fill_language_name_in_the_template(lang_dir, language)
 
-  def _create_pull_request(self, githubApi: Callable[[Optional[str]], Github], branch_name: str, title: str, body: str, labels: Iterable[str], user: Optional[str]):
+  def _create_pull_request(self, github_api: Callable[[Optional[str]], Github], branch_name: str, title: str, body: str, labels: Iterable[str], user: Optional[str]):
     repository_url = extract_repository_name(self.origin_url)
-    github = githubApi(user)
+    github = github_api(user)
     github_repo = github.get_repo(repository_url)
     pull_request = github_repo.create_pull(
       title=title,
@@ -192,24 +203,24 @@ class RuleCreator:
     click.echo(f'Pull request assigned to {login}')
     return pull_request
 
-  def add_language_pull_request(self, githubApi: Callable[[Optional[str]], Github], rule_number: int, language: str, label: str, user: Optional[str]):
+  def add_language_pull_request(self, github_api: Callable[[Optional[str]], Github], rule_number: int, language: str, label: str, user: Optional[str]):
     branch_name = self.add_language_branch(rule_number, language)
     click.echo(f'Created rule branch {branch_name}')
     return self._create_pull_request(
-      githubApi,
+      github_api,
       branch_name,
-      f'Create rule S{rule_number}[{language}]',
+      f'Create rule S{rule_number}',
       f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).',
       [label],
       user
     )
 
-  def create_new_rule_pull_request(self, githubApi: Callable[[Optional[str]], Github], rule_number: int, languages: Iterable[str], labels: Iterable[str], *, user: Optional[str]) -> PullRequest:
+  def create_new_rule_pull_request(self, github_api: Callable[[Optional[str]], Github], rule_number: int, languages: Iterable[str], labels: Iterable[str], *, user: Optional[str]) -> PullRequest:
     branch_name = self.create_new_rule_branch(rule_number, languages)
     click.echo(f'Created rule branch {branch_name}')
     first_lang = next(iter(languages))
     return self._create_pull_request(
-      githubApi,
+      github_api,
       branch_name,
       f'Create rule S{rule_number}',
       f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).',
