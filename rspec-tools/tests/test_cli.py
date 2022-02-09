@@ -6,9 +6,11 @@ from click.testing import CliRunner
 from rspec_tools.cli import cli
 from rspec_tools.rules import RulesRepository
 
+import os
+import re
 
 class TestCLIValidateRulesMetadata:
-  '''Unit test for the Command Line Interface.'''
+  '''Unit tests for metadata validation through Command Line Interface.'''
 
   def _run(self, rules: List[str]):
     runner = CliRunner()
@@ -54,3 +56,29 @@ class TestCLIValidateRulesMetadata:
       assert 'Rule scala:S502 has invalid metadata : \'remediation\' is a required property' in result.output
       assert 'Validation failed due to 2 errors out of 2 analyzed rules' in result.output
       assert result.exit_code == 1
+
+
+class TestCLIValidateDescription:
+  '''Unit tests for description validation through Command Line Interface.'''
+
+  def _run(self, rules: List[str]):
+    runner = CliRunner()
+    mock_path = os.path.realpath(Path(__file__).parent.joinpath('resources', 'rules'))
+    arguments = ['check-description', '--d', mock_path] + rules
+    return runner.invoke(cli, arguments)
+
+  def _run_invalid(self, rules: List[str]):
+    runner = CliRunner()
+    mock_path = os.path.realpath(Path(__file__).parent.joinpath('resources', 'invalid-rules'))
+    arguments = ['check-description', '--d', mock_path] + rules
+    return runner.invoke(cli, arguments)
+
+  def test_valid_rule(self):
+    result = self._run(['S100'])
+    assert result.output == ''
+    assert result.exit_code == 0
+
+  def test_invalid_rule(self):
+    result = self._run_invalid(['S100'])
+    assert re.search(r'Validation failed due to \d+ errors', result.output)
+    assert result.exit_code == 1
