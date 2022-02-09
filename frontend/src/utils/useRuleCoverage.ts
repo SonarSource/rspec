@@ -133,9 +133,9 @@ export const RULE_STATE = {
     'darker': '#25699d'
   },
   'targeted': {
-    // blueish green
-    'color': '#8aa8a6',
-    'darker': '#6c9390'
+    // same as covered but should be displayed as outline
+    'color': '#4c9bd6',
+    'darker': '#25699d'
   },
   'removed': {
     // red
