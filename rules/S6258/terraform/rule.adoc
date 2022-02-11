@@ -14,22 +14,270 @@ resource "aws_s3_bucket" "mynoncompliantbucket" { # Sensitive
 }
 ----
 
+
+For https://aws.amazon.com/api-gateway/[Amazon API Gateway] stages:
+
+----
+resource "aws_api_gateway_stage" "api-v1" { # Sensitive
+  deployment_id = aws_api_gateway_deployment.example.id
+  rest_api_id   = aws_api_gateway_rest_api.example.id
+  stage_name    = "v1-prod-api"
+  xray_tracing_enabled = false # Sensitive
+}
+----
+
+For https://aws.amazon.com/neptune/[Amazon Neptune] clusters:
+
+----
+resource "aws_neptune_cluster" "cluster" {
+  enable_cloudwatch_logs_exports = []  # Sensitive
+}
+----
+
+For https://aws.amazon.com/msk/[Amazon MSK] broker logs:
+
+----
+resource "aws_msk_cluster" "sensitive_msk" {
+  cluster_name = "sensitive_msk"
+  logging_info {
+    broker_logs { # Sensitive
+      firehose {
+        enabled = false
+      }
+      s3 {
+        enabled = false
+      }
+    }
+  }
+}
+----
+
+For https://aws.amazon.com/amazon-mq/[Amazon MQ]:
+
+----
+resource "aws_mq_broker" "broker" {
+  logs {  # Sensitive
+    audit = false
+    general = false
+  }
+}
+----
+
+For https://aws.amazon.com/documentdb/[Amazon DocumentDB]:
+
+----
+resource "aws_docdb_cluster" "docdb_omitting_logs" { # Sensitive
+  cluster_identifier = "DB Cluster Without Logs"
+}
+----
+
+For https://aws.amazon.com/redshift/[Amazon Redshift]:
+
+----
+resource "aws_redshift_cluster" "cluster" {
+  cluster_identifier = "redshift-cluster"
+
+  logging {
+    enable = false # Sensitive
+  }
+}
+----
+
+For https://aws.amazon.com/global-accelerator/[Amazon Global Accelerator]:
+
+----
+resource "aws_globalaccelerator_accelerator" "accelerator" {
+  attributes {
+    flow_logs_enabled   = false  # Sensitive
+    flow_logs_s3_bucket = "example-bucket"
+    flow_logs_s3_prefix = "flow-logs/"
+  }
+}
+----
+
+For https://aws.amazon.com/opensearch-service/[Amazon OpenSearch] service, or Amazon Elasticsearch service:
+
+----
+resource "aws_elasticsearch_domain" "domain" {
+  log_publishing_options {
+    cloudwatch_log_group_arn = "arn:aws:logs:us-east-1:1234:log-group:es-audit-logs"
+    log_type = "AUDIT_LOGS"
+    enabled = false # Sensitive
+  }
+}
+----
+
+For https://aws.amazon.com/cloudfront/[Amazon CloudFront] distributions:
+
+----
+resource "aws_cloudfront_distribution" "cloudfront_distribution" { # Sensitive
+  default_root_object = "index.html"
+}
+----
+
+For both Amazon https://aws.amazon.com/elasticloadbalancing/classic-load-balancer/[Classic Load Balancing] and https://aws.amazon.com/elasticloadbalancing/application-load-balancer/[Application Load Balancing]:
+
+----
+resource "aws_lb" "load_balancer" {
+  access_logs {
+    enabled = false # Sensitive
+    bucket = "mycompliantbucket"
+    bucket_prefix = "log/lb-"
+  }
+}
+----
+
 == Compliant Solution
 
 For https://aws.amazon.com/s3/[Amazon S3 access requests]:
 
+[source,terraform]
 ----
 resource "aws_s3_bucket" "myloggingbucket" { 
   bucket = "myloggingbucketname"
   acl    = "log-delivery-write"
 }
 
-resource "aws_s3_bucket" "mycompliantbucket" { # Compliant
+resource "aws_s3_bucket" "mycompliantbucket" {
   bucket = "mycompliantbucketname"
 
   logging {
       target_bucket = "myloggingbucketname"
       target_prefix = "log/mycompliantbucket"
+  }
+}
+----
+
+For https://aws.amazon.com/api-gateway/[Amazon API Gateway] stages:
+
+[source,terraform]
+----
+resource "aws_api_gateway_stage" "api-v1" {
+  deployment_id = aws_api_gateway_deployment.example.id
+  rest_api_id   = aws_api_gateway_rest_api.example.id
+  stage_name    = "v1-prod-api"
+  xray_tracing_enabled = true
+  access_log_settings {
+    destination_arn = "arn:aws:logs:eu-west-1:123456789:test"
+    format = "..."
+  }
+}
+----
+
+For https://aws.amazon.com/neptune/[Amazon Neptune] clusters:
+
+[source,terraform]
+----
+resource "aws_neptune_cluster" "cluster" {
+  enable_cloudwatch_logs_exports = ["audit"]
+}
+----
+
+For https://aws.amazon.com/msk/[Amazon MSK] broker logs:
+
+[source,terraform]
+----
+resource "aws_msk_cluster" "sensitive_msk" {
+  cluster_name = "sensitive_msk"
+  logging_info {
+    broker_logs {
+      firehose {
+        enabled = false
+      }
+      s3 {
+        enabled = true
+        bucket  = "myloggingbucketname"
+        prefix  = "log/msk-"
+      }
+    }
+  }
+}
+----
+
+For https://aws.amazon.com/amazon-mq/[Amazon MQ] enable `audit` or `general`:
+
+[source,terraform]
+----
+resource "aws_mq_broker" "broker" {
+  logs {
+    audit = true
+    general = true
+  }
+}
+----
+
+For https://aws.amazon.com/documentdb/[Amazon DocumentDB]:
+
+[source,terraform]
+----
+resource "aws_docdb_cluster" "docdb_omitting_logs" {
+  cluster_identifier = "DB Cluster With Logs"
+  enabled_cloudwatch_logs_exports = ["audit"]
+}
+----
+
+For https://aws.amazon.com/redshift/[Amazon Redshift]:
+
+[source,terraform]
+----
+resource "aws_redshift_cluster" "cluster" {
+  cluster_identifier = "compliant-redshift-cluster"
+  logging {
+    enable           = true
+    bucket_name      = "infra_logs"
+    s3_key_prefix    = "log/redshift-"
+  }
+}
+----
+
+For https://aws.amazon.com/global-accelerator/[Amazon Global Accelerator]:
+
+[source,terraform]
+----
+resource "aws_globalaccelerator_accelerator" "accelerator" {
+  attributes {
+    flow_logs_enabled   = true
+    flow_logs_s3_bucket = "example-bucket"
+    flow_logs_s3_prefix = "flow-logs/"
+  }
+}
+----
+
+For https://aws.amazon.com/opensearch-service/[Amazon OpenSearch] service, or Amazon Elasticsearch service:
+
+[source,terraform]
+----
+resource "aws_elasticsearch_domain" "domain" {
+  log_publishing_options {
+    cloudwatch_log_group_arn = "arn:aws:logs:us-east-1:1234:log-group:es-audit-logs"
+    log_type = "AUDIT_LOGS"
+    enabled = true
+  }
+}
+----
+
+For https://aws.amazon.com/cloudfront/[Amazon CloudFront] distributions:
+
+[source,terraform]
+----
+resource "aws_cloudfront_distribution" "cloudfront_distribution" {
+  default_root_object = "index.html"
+  logging_config {
+    bucket          = "mycompliantbucketname"
+    prefix          = "log/cloudfront-"
+  }
+}
+----
+
+For both Amazon https://aws.amazon.com/elasticloadbalancing/classic-load-balancer/[Classic Load Balancing] and https://aws.amazon.com/elasticloadbalancing/application-load-balancer/[Application Load Balancing]:
+
+[source,terraform]
+----
+resource "aws_lb" "load_balancer" {
+  access_logs {
+    enabled = true
+    bucket = "mycompliantbucket"
+    bucket_prefix = "log/lb-"
   }
 }
 ----
