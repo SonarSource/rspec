@@ -1,24 +1,16 @@
 import { useRuleCoverage } from '../useRuleCoverage';
 import { renderHook } from '@testing-library/react-hooks';
 import lunr from 'lunr';
-
-function fetchMock(url, opts) {
-  const coveredRulesUrl = `${process.env.PUBLIC_URL}/covered_rules.json`;
-  if (url === coveredRulesUrl) {
-    return Promise.resolve({
-      json: () =>
-        Promise.resolve({'ABAP': {'S100': 'ver1', 'S200': 'ver2'},
-                         'C': {'S100': 'c1', 'S234': {'since': 'c2',
-                                                      'until': 'c3'}}}),
-    });
-  } else {
-    return Promise.reject(Error('unexpected url ' + url));
-  }
-}
+import { fetchMock } from '../../testutils';
 
 describe('search hook', () => {
   beforeEach(() => {
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMock);
+    let mockUrls = {};
+    mockUrls[`${process.env.PUBLIC_URL}/covered_rules.json`] = {json:
+      {'ABAP': {'S100': 'ver1', 'S200': 'ver2'},
+       'C': {'S100': 'c1', 'S234': {'since': 'c2', 'until': 'c3'}}}
+    };
+    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
   });
 
   afterEach(() => {
@@ -65,5 +57,18 @@ describe('search hook', () => {
     expect(result.current.ruleStateInAnalyzer('cfamily', ['S100'])).toBe('covered');
     expect(result.current.ruleStateInAnalyzer('cfamily', ['S200'])).toBe('targeted');
     expect(result.current.ruleStateInAnalyzer('cfamily', ['S234'])).toBe('removed');
+  });
+
+  test('reports for nonexisting language', async () => {
+    const original = console.error;
+    console.error = jest.fn();
+    fetch.mockImplementation(fetchMock({})); // eclipse the covered_rules.json
+
+    const { result, waitForNextUpdate } = renderHook(() => useRuleCoverage());
+    await waitForNextUpdate();
+    expect(result.current.ruleStateInAnalyzer('english', ['S100'])).toBe('targeted');
+    expect(console.error).toHaveBeenCalledTimes(1);
+
+    console.error = original;
   });
 });

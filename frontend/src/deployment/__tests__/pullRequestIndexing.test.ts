@@ -1,9 +1,10 @@
 import fs from 'fs';
 import { process_incomplete_rspecs, PullRequest } from '../pullRequestIndexing';
 import Git from 'nodegit';
+import 'setimmediate';
 
 jest.mock('@octokit/rest', () => {
-  let mockModule = {Octokit: function() {
+  return {Octokit: function() {
     this.rest = {pulls: {list: jest.fn(() => {
       return { data: [
         { title: 'Irrelevant S832' },
@@ -18,7 +19,6 @@ jest.mock('@octokit/rest', () => {
       ] }
     })}};
   }};
-  return mockModule;
 });
 
 beforeEach(() => {
@@ -31,10 +31,14 @@ beforeEach(() => {
   };
   Git.Clone.clone.mockReturnValueOnce(repo);
 
-  fs.existsSync = jest.fn((fname) => {
-    return fname.includes('rules/S');
+  jest.spyOn(fs, 'existsSync').mockImplementation((fname) => {
+    return fname.replace(/\\/g, '/').includes('rules/S');
   });
-})
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 
 describe('pull request enumeration', () => {
