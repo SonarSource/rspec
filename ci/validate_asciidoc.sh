@@ -7,31 +7,31 @@ pipenv install
 cd ..
 
 # Compute the set of affected rules
-git fetch origin $CIRRUS_DEFAULT_BRANCH
+git fetch origin "$CIRRUS_DEFAULT_BRANCH"
 branch_base_sha=$(git merge-base FETCH_HEAD HEAD)
 echo "Comparing against the merge-base: $branch_base_sha"
-changeset=$(git diff --name-only $branch_base_sha..HEAD)
+changeset=$(git diff --name-only "$branch_base_sha"..HEAD)
 affected_rules=$(printf '%s\n' "$changeset" | grep '/S[0-9]\+/' | sed 's:\(.*/S[0-9]\+\)/.*:\1:' | sort | uniq)
 affected_tooling=$(printf '%s\n' "$changeset" | grep -v '/S[0-9]\+/')
-if [ ! -z "$affected_tooling" ]; then
+if [ -n "$affected_tooling" ]; then
     echo "Some rpec tools are changed, validating all rules"
     affected_rules=rules/*
 fi
 
+exit_code=0
+
 ./ci/generate_html.sh
 
 cd rspec-tools
-# validate sections in asciidoc
-if pipenv run rspec-tools check-sections --d ../out; then
-    echo "Sections are fine"
+if pipenv run rspec-tools check-description --d ../out; then
+    echo "rule.adoc is fine"
 else
-    echo "ERROR: incorrect section names"
+    echo "ERROR: There are invalid rule.adoc"
     exit_code=1
 fi
 cd ..
 
-
-exit_code=0
+echo "Testing the following rules: ${affected_rules}"
 
 for dir in $affected_rules
 do
@@ -40,9 +40,8 @@ do
     continue
   fi
   dir=${dir%*/}
-  echo ${dir##*/}
 
-  subdircount=$(find $dir -maxdepth 1 -type d | wc -l)
+  subdircount=$(find "$dir" -maxdepth 1 -type d | wc -l)
 
   # check if there are language specializations
   if [[ "$subdircount" -eq 1 ]]
@@ -56,38 +55,59 @@ do
     fi
   else
     #validate asciidoc
-	supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
-	for language in $dir/*/
+    supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
+    for language in $dir/*/
     do
       language=${language%*/}
-      echo ${language##*/}
-	  if [[ ! "${supportedLanguages[@]}" =~ "${language##*/}" ]]; then
-	    echo "ERROR: ${language##*/} is not a supported language"
-		exit_code=1
+      if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
+        echo "ERROR: ${language##*/} is not a supported language"
+        exit_code=1
       fi
       RULE="$language/rule.adoc"
-      if test -f $RULE; then
-        echo "$RULE exists."
-        TMP_ADOC="$language/tmp.adoc"
-        echo "== Description" > $TMP_ADOC
-        cat $RULE >> $TMP_ADOC
-        if asciidoctor --failure-level=WARNING -o /dev/null $TMP_ADOC; then
-          echo "$RULE syntax is fine"
-        else
-          echo "ERROR: $RULE has incorrect asciidoc"
-          exit_code=1
-        fi
-        rm $TMP_ADOC
+      if test -f "$RULE"; then
+        # We build this filename that describes the path to workaround the fact that asciidoctor will not tell
+        # us the path of the file in case of error.
+        # We can remove it if https://github.com/asciidoctor/asciidoctor/issues/3414 is fixed.
+        TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
+        echo "== Description" > "$TMP_ADOC"
+        cat "$RULE" >> "$TMP_ADOC"
       else
         echo "ERROR: no asciidoc file $RULE"
         exit_code=1
       fi
     done
+
+    # Check that all adoc are included
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::" "$1" | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
+    find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp*.adoc' -exec sh -c 'realpath $1' shell {} \; > created
+    orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
+    if [[ -n "$orphans" ]]; then
+        printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
+        exit_code=1
+    fi
+    rm -f included created
   fi
 done
 
-echo "Finished."
-if (( $exit_code == 0 )); then
+ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
+
+if (( ADOC_COUNT > 0 )); then
+  if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+      if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
+          echo "${ADOC_COUNT} documents checked with succes"
+      else
+          echo "ERROR: malformed asciidoc files in rspecator-view"
+          exit_code=1
+      fi
+  else
+    echo "ERROR: malformed asciidoc files"
+    exit_code=1
+  fi
+else
+  echo "No new asciidoc file changed"
+fi
+
+if (( exit_code == 0 )); then
     echo "Success"
 else
     echo "There were errors"
