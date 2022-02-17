@@ -9,19 +9,23 @@ import { fetchMock } from '../testutils'
 
 const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
 
-function readRuleFile(ruleId, filename) {
+function readRuleFile(ruleId: string, filename: string) {
     return fs.readFileSync(path.join(rulesPath, ruleId, filename)).toString();
 }
 
 beforeEach(() => {
     const specS1000 = readRuleFile('S1000', 'cfamily-description.html');
     const metadataS1000 = readRuleFile('S1000', 'cfamily-metadata.json');
+    const specS1007 = readRuleFile('S1007', 'default-description.html');
+    const metadataS1007 = readRuleFile('S1007', 'default-metadata.json');
     const specS3457 = readRuleFile('S3457', 'csharp-description.html');
     const metadataS3457 = readRuleFile('S3457', 'csharp-metadata.json');
     const rootUrl = process.env.PUBLIC_URL;
-    let mockUrls = {};
+    let mockUrls: {[index: string]:any} = {};
     mockUrls[`${rootUrl}/rules/S1000/cfamily-description.html`] = {text: specS1000};
     mockUrls[`${rootUrl}/rules/S1000/cfamily-metadata.json`] = {json: JSON.parse(metadataS1000)};
+    mockUrls[`${rootUrl}/rules/S1007/default-description.html`] = {text: specS1007};
+    mockUrls[`${rootUrl}/rules/S1007/default-metadata.json`] = {json: JSON.parse(metadataS1007)};
     mockUrls[`${rootUrl}/rules/S3457/csharp-description.html`] = {text: specS3457};
     mockUrls[`${rootUrl}/rules/S3457/csharp-metadata.json`] = {json: JSON.parse(metadataS3457)};
     mockUrls[`${rootUrl}/rules/S3457/default-description.html`] = {text: specS3457};
@@ -31,7 +35,7 @@ beforeEach(() => {
         'CSH' : {'S3457': 'c#1'},
         'C': {'S100': 'c1', 'S234': {'since': 'c2', 'until': 'c3'}}}
     };
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
+    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls) as jest.Mocked<typeof fetch>);
 });
 
 afterEach(() => {
@@ -74,5 +78,18 @@ test('renders generic version of S3457', async () => {
     await findAllByText(/S3457/);
     await findAllByText(/cfamily/);
     await findAllByText(/csharp/);
+    expect(asFragment()).toMatchSnapshot();
+});
+
+test('renders closed rule S1007', async () => {
+    const history = createMemoryHistory();
+    history.push('/rspec/#/rspec/S1007');
+    const match = {params: {ruleid: "S1007"}};
+    const { findAllByText, asFragment } = render(<Router history={history}>
+        <RulePage match={match} />
+    </Router>);
+    await findAllByText(/S1007/);
+    await findAllByText(/cfamily/);
+    await findAllByText(/closed/);
     expect(asFragment()).toMatchSnapshot();
 });
