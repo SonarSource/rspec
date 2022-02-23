@@ -1,24 +1,30 @@
-from rspec_tools.errors import InvalidArgumentError
-import click
+import json
+import os
 import tempfile
-import fs
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Callable, Final, Iterable, Optional
+
+import click
 from git import Repo
-from git.remote import PushInfo
 from github import Github
 from github.PullRequest import PullRequest
-from pathlib import Path
-from typing import Final, Iterable, Optional, Callable
-from contextlib import contextmanager
-from rspec_tools.utils import parse_and_validate_language_list, get_labels_for_languages, validate_language, get_label_for_language, resolve_rule, swap_metadata_files, is_empty_metadata
 
-from rspec_tools.utils import copy_directory_content, LANG_TO_SOURCE
+from rspec_tools.errors import InvalidArgumentError
+from rspec_tools.utils import (LANG_TO_SOURCE, copy_directory_content,
+                               get_label_for_language,
+                               get_labels_for_languages, is_empty_metadata,
+                               parse_and_validate_language_list, resolve_rule,
+                               swap_metadata_files, validate_language)
+
 
 def build_github_repository_url(token: str, user: Optional[str]):
-  'Builds the rspec repository url'
+  '''Builds the rspec repository url'''
+  repo = os.environ.get('GITHUB_REPOSITORY', 'SonarSource/rspec')
   if user:
-    return f'https://{user}:{token}@github.com/SonarSource/rspec.git'
+    return f'https://{user}:{token}@github.com/{repo}.git'
   else:
-    return f'https://{token}@github.com/SonarSource/rspec.git'
+    return f'https://{token}@github.com/{repo}.git'
 
 def extract_repository_name(url):
   url_end = url.split('/')[-2:]
@@ -32,32 +38,44 @@ def auto_github(token: str) -> Callable[[Optional[str]], Github]:
       return Github(token)
   return ret
 
-def create_new_rule(languages: str, token: str, user: Optional[str]):
+def _get_url_and_config(token: str, user: Optional[str]):
   url = build_github_repository_url(token, user)
   config = {}
   if user:
     config['user.name'] = user
     config['user.email'] = f'{user}@users.noreply.github.com'
-  lang_list = parse_and_validate_language_list(languages)
-  label_list = get_labels_for_languages(lang_list)
 
+  return url, config
+
+def _get_valid_label_for_language(language: str):
+  validate_language(language)
+  return get_label_for_language(language)
+
+@contextmanager
+def _rule_creator(token: str, user: Optional[str]):
+  url, config = _get_url_and_config(token, user)
   with tempfile.TemporaryDirectory() as tmpdirname:
     rule_creator = RuleCreator(url, tmpdirname, config)
+    yield rule_creator
+
+def create_new_rule(languages: str, token: str, user: Optional[str]):
+  lang_list = parse_and_validate_language_list(languages)
+  label_list = get_labels_for_languages(lang_list)
+  with _rule_creator(token, user) as rule_creator:
     rule_number = rule_creator.reserve_rule_number()
     rule_creator.create_new_rule_pull_request(auto_github(token), rule_number, lang_list, label_list, user=user)
 
 def add_language_to_rule(language: str, rule: str, token: str, user: Optional[str]):
-  url = build_github_repository_url(token, user)
-  config = {}
-  if user:
-    config['user.name'] = user
-    config['user.email'] = f'{user}@users.noreply.github.com'
-  validate_language(language)
-  label = get_label_for_language(language)
+  label = _get_valid_label_for_language(language)
   rule_number = resolve_rule(rule)
-  with tempfile.TemporaryDirectory() as tmpdirname:
-    rule_creator = RuleCreator(url, tmpdirname, config)
+  with _rule_creator(token, user) as rule_creator:
     rule_creator.add_language_pull_request(auto_github(token), rule_number, language, label, user=user)
+
+def update_rule_quickfix_status(language: str, rule: str, status: str, token: str, user: Optional[str]):
+  label = _get_valid_label_for_language(language)
+  rule_number = resolve_rule(rule)
+  with _rule_creator(token, user) as rule_creator:
+    rule_creator.update_quickfix_status_pull_request(auto_github(token), rule_number, language, status, label, user)
 
 class RuleCreator:
   ''' Create a new Rule in a repository following the official Github 'rspec' repository structure.'''
@@ -144,6 +162,39 @@ class RuleCreator:
     self.repository.git.push('origin', branch_name)
     return branch_name
 
+  def update_quickfix_status_branch(self, title: str, rule_number: int, language: str, status: str) -> str:
+    '''Update the given rule/language quick fix metadata field.'''
+    branch_name = f'rule/S{rule_number}-{language}-quickfix'
+    with self._current_git_branch(self.MASTER_BRANCH, branch_name):
+      self._update_quickfix_status(rule_number, language, status)
+      self.repository.git.add('--all')
+      self.repository.index.commit(title)
+    self.repository.git.push('origin', branch_name)
+    return branch_name
+
+  def _get_generic_quickfix_status(self, rule_number: int):
+    DEFAULT = 'unknown'
+    generic_metadata_path = Path(self.repository.working_dir, 'rules', f'S{rule_number}', 'metadata.json')
+    if not generic_metadata_path.is_file():
+      return DEFAULT
+    generic_metadata = json.loads(generic_metadata_path.read_text())
+    return generic_metadata.get('quickfix', DEFAULT)
+
+  def _update_quickfix_status(self, rule_number: int, language: str, status: str):
+    metadata_path = Path(self.repository.working_dir, 'rules', f'S{rule_number}', language, 'metadata.json')
+    if not metadata_path.is_file():
+      raise InvalidArgumentError(f'{metadata_path} does not exist or is not a file')
+
+    metadata = json.loads(metadata_path.read_text())
+    generic_status = self._get_generic_quickfix_status(rule_number)
+    if status == metadata.get('quickfix', generic_status):
+      raise InvalidArgumentError(f'{metadata_path} has already the same status {status}')
+
+    metadata['quickfix'] = status
+    # When generating the JSON, ensure forward slashes are escaped. See RULEAPI-750.
+    json_string = json.dumps(metadata, indent=2).replace("/", "\\/")
+    metadata_path.write_text(json_string)
+
   def _fill_in_the_blanks_in_the_template(self, rule_dir: Path, rule_number: int):
     for rule_item in rule_dir.glob('**/*'):
       if rule_item.is_file():
@@ -225,6 +276,21 @@ class RuleCreator:
       f'Create rule S{rule_number}',
       f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).',
       labels,
+      user
+    )
+
+  def update_quickfix_status_pull_request(self, github_api: Callable[[Optional[str]], Github], rule_number: int, language: str, status: str, label: str, user: Optional[str]):
+    title = f'Modify rule S{rule_number}: mark quick fix as "{status}"'
+    branch_name = self.update_quickfix_status_branch(title, rule_number, language, status)
+    click.echo(f'Created rule branch {branch_name}')
+    return self._create_pull_request(
+      github_api,
+      branch_name,
+      title,
+      f'''See the original rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}).
+
+The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jira.sonarsource.com/browse/RULEAPI-655)''',
+      [label],
       user
     )
 

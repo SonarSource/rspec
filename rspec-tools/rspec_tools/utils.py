@@ -1,5 +1,6 @@
 from rspec_tools.errors import InvalidArgumentError
 from pathlib import Path
+from typing import List
 import shutil
 import re
 import tempfile
@@ -112,20 +113,21 @@ def get_mapped_languages():
   Necessary to make sure all valid languages are mapped (see test_utils.py).'''
   return LANG_TO_LABEL.keys();
 
+def _validate_languages(languages: List[str]):
+  valid_langs = load_valid_languages()
+  for lang in languages:
+    if lang not in valid_langs:
+      raise InvalidArgumentError(f"Unsupported language: \"{lang}\". See {SUPPORTED_LANGUAGES_FILENAME} for the list of supported languages.")
+
 def parse_and_validate_language_list(languages):
   lang_list = [lang.strip() for lang in languages.split(',')]
   if len(languages.strip()) == 0 or len(lang_list) == 0:
     raise InvalidArgumentError('Invalid argument for "languages". At least one language should be provided.')
-  valid_langs = load_valid_languages()
-  for lang in lang_list:
-    if lang not in valid_langs:
-      raise InvalidArgumentError(f"Unsupported language: \"{lang}\". See {SUPPORTED_LANGUAGES_FILENAME} for the list of supported languages.")
+  _validate_languages(lang_list)
   return lang_list
 
 def validate_language(language):
-  valid_langs = load_valid_languages()
-  if language not in valid_langs:
-    raise InvalidArgumentError(f"Unsupported language: \"{language}\". See {SUPPORTED_LANGUAGES_FILENAME} for the list of supported languages.")
+  _validate_languages([language])
 
 def get_labels_for_languages(lang_list):
   labels = [LANG_TO_LABEL[lang] for lang in lang_list]
