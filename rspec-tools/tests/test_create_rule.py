@@ -1,14 +1,18 @@
-from git import Repo, Head
-from rspec_tools.errors import InvalidArgumentError
+import json
+import os
+import shutil
 from pathlib import Path
 from typing import Optional
 from unittest.mock import Mock, patch
-import pytest
-import shutil
-import os
 
-from rspec_tools.create_rule import RuleCreator, create_new_rule, add_language_to_rule
-from rspec_tools.utils import is_empty_metadata, LANG_TO_SOURCE
+import pytest
+from git import Head, Repo
+from rspec_tools.create_rule import (RuleCreator, add_language_to_rule,
+                                     create_new_rule,
+                                     update_rule_quickfix_status)
+from rspec_tools.errors import InvalidArgumentError
+from rspec_tools.utils import LANG_TO_SOURCE, is_empty_metadata
+
 
 @pytest.fixture
 def git_config():
@@ -79,6 +83,121 @@ def read_counter_file(repo):
   repo.git.checkout(RuleCreator.ID_COUNTER_BRANCH)
   counter_path = Path(repo.working_dir).joinpath(RuleCreator.ID_COUNTER_FILENAME)
   return counter_path.read_text()
+
+
+def test_update_quickfix_status_branch1(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test update_quickfix_status_branch when quickfix field is not present in language-specific metadata'''
+  rule_number = 100
+  language = 'cfamily'
+
+  sub_path = Path('rules', f'S{rule_number}', language, 'metadata.json')
+  metadata_path = Path(mock_rspec_repo.working_dir) / sub_path
+  mock_rspec_repo.git.checkout('master')
+  initial_metadata = json.loads(metadata_path.read_text())
+  assert 'quickfix' not in initial_metadata # It is in the parent metadata.json file.
+
+  branch = rule_creator.update_quickfix_status_branch('Some title', rule_number, language, 'covered')
+  mock_rspec_repo.git.checkout(branch)
+  new_metadata = json.loads(metadata_path.read_text())
+
+  # Verify that only the quickfix status is introduced.
+  assert len(initial_metadata.keys()) + 1 == len(new_metadata.keys())
+  assert 'quickfix' in new_metadata
+  assert 'covered' == new_metadata['quickfix']
+  for key in initial_metadata:
+    assert initial_metadata[key] == new_metadata[key]
+
+  # Ensure only one file is modified.
+  modified_files = mock_rspec_repo.git.diff('master', '--name-only').strip()
+  assert modified_files == str(sub_path)
+
+
+def test_update_quickfix_status_branch2(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test update_quickfix_status_branch when quickfix field is already present in language-specific metadata'''
+  rule_number = 100
+  language = 'java'
+
+  sub_path = Path('rules', f'S{rule_number}', language, 'metadata.json')
+  metadata_path = Path(mock_rspec_repo.working_dir) / sub_path
+  mock_rspec_repo.git.checkout('master')
+  initial_metadata = json.loads(metadata_path.read_text())
+  assert 'quickfix' in initial_metadata
+  assert initial_metadata['quickfix'] == 'targeted'
+
+  branch = rule_creator.update_quickfix_status_branch('Some title', rule_number, language, 'covered')
+  mock_rspec_repo.git.checkout(branch)
+  new_metadata = json.loads(metadata_path.read_text())
+
+  # Verify that only the quickfix status is updated.
+  assert len(initial_metadata.keys()) == len(new_metadata.keys())
+  assert 'quickfix' in new_metadata
+  assert 'covered' == new_metadata['quickfix']
+  for key in initial_metadata:
+    if key != 'quickfix':
+      assert initial_metadata[key] == new_metadata[key]
+
+  # Ensure only one file is modified.
+  modified_files = mock_rspec_repo.git.diff('master', '--name-only').strip()
+  assert modified_files == str(sub_path)
+
+
+def test_update_quickfix_status_branch3(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test update_quickfix_status_branch when new and old quickfix status are the same'''
+  rule_number = 100
+  language = 'java'
+
+  metadata_path = Path(mock_rspec_repo.working_dir, 'rules', f'S{rule_number}', language, 'metadata.json')
+  mock_rspec_repo.git.checkout('master')
+  initial_metadata = json.loads(metadata_path.read_text())
+  assert 'quickfix' in initial_metadata
+  assert initial_metadata['quickfix'] == 'targeted'
+
+  with pytest.raises(InvalidArgumentError):
+    rule_creator.update_quickfix_status_branch('Some title', rule_number, language, 'targeted')
+
+
+def test_update_quickfix_status_branch4(rule_creator: RuleCreator, mock_rspec_repo: Repo):
+  '''Test update_quickfix_status_branch when the rule does not exist'''
+  rule_number = 404
+  language = 'java'
+
+  metadata_path = Path(mock_rspec_repo.working_dir, 'rules', f'S{rule_number}', language, 'metadata.json')
+  mock_rspec_repo.git.checkout('master')
+  assert not metadata_path.exists()
+
+  with pytest.raises(InvalidArgumentError):
+    rule_creator.update_quickfix_status_branch('Some title', rule_number, language, 'targeted')
+
+
+def test_update_quickfix_status_pull_request(rule_creator: RuleCreator):
+  '''Test update_quickfix_status_pull_request adds the right user and label.'''
+  ghMock = Mock()
+  ghRepoMock = Mock()
+  pullMock = Mock()
+  ghRepoMock.create_pull = Mock(return_value=pullMock)
+  ghMock.get_repo = Mock(return_value=ghRepoMock)
+  def mockGithub(user: Optional[str]):
+    return ghMock
+
+  rule_creator.update_quickfix_status_pull_request(mockGithub, 100, 'cfamily', 'covered', 'label-fraicheur', 'testuser')
+  ghRepoMock.create_pull.assert_called_once();
+  assert ghRepoMock.create_pull.call_args.kwargs['title'].startswith('Modify rule S100')
+  pullMock.add_to_assignees.assert_called_with('testuser')
+  pullMock.add_to_labels.assert_called_with('label-fraicheur')
+
+
+@patch('rspec_tools.create_rule.RuleCreator')
+def test_update_rule_quickfix_status(mockRuleCreator):
+  '''Test update_rule_quickfix_status uses the expected implementation.'''
+  mockRuleCreator.return_value = Mock()
+  mockRuleCreator.return_value.update_quickfix_status_pull_request = Mock()
+  prMock = mockRuleCreator.return_value.update_quickfix_status_pull_request
+  update_rule_quickfix_status('cfamily', 'S100', 'covered', 'my token', 'testuser')
+  prMock.assert_called_once()
+  assert prMock.call_args.args[1] == 100
+  assert prMock.call_args.args[2] == 'cfamily'
+  assert prMock.call_args.args[3] == 'covered'
+  assert prMock.call_args.args[4] == 'cfamily'
 
 
 def test_create_new_multi_lang_rule_branch(rule_creator: RuleCreator, mock_rspec_repo: Repo):

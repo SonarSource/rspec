@@ -5,11 +5,11 @@ from pathlib import Path
 import click
 from rspec_tools.checklinks import check_html_links
 from rspec_tools.errors import RuleNotFoundError, RuleValidationError
-from rspec_tools.create_rule import create_new_rule, add_language_to_rule
 from rspec_tools.rules import RulesRepository, LanguageSpecificRule
 from rspec_tools.validation.metadata import validate_rule_metadata
 from rspec_tools.validation.description import validate_section_names, validate_section_levels, validate_parameters, validate_source_language
 from rspec_tools.coverage import update_coverage_for_all_repos, update_coverage_for_repo, update_coverage_for_repo_version
+import rspec_tools.create_rule
 
 from rspec_tools.notify_failure_on_slack import notify_slack
 
@@ -38,7 +38,7 @@ def check_links(d):
 def create_rule(languages: str, user: Optional[str]):
   '''Create a new rule.'''
   token = os.environ.get('GITHUB_TOKEN')
-  create_new_rule(languages, token, user)
+  rspec_tools.create_rule.create_new_rule(languages, token, user)
 
 @cli.command()
 @click.option('--language', required=True)
@@ -47,7 +47,17 @@ def create_rule(languages: str, user: Optional[str]):
 def add_lang_to_rule(language: str, rule: str, user: Optional[str]):
   '''Add a new language to rule.'''
   token = os.environ.get('GITHUB_TOKEN')
-  add_language_to_rule(language, rule, token, user)
+  rspec_tools.create_rule.add_language_to_rule(language, rule, token, user)
+
+@cli.command()
+@click.option('--language', required=True)
+@click.option('--rule', required=True)
+@click.option('--status', required=True)
+@click.option('--user', required=False)
+def update_quickfix_status(language: str, rule: str, status: str, user: Optional[str]):
+  '''Update the status of quick fix for the given rule/language'''
+  token = os.environ.get('GITHUB_TOKEN')
+  rspec_tools.create_rule.update_rule_quickfix_status(language, rule, status, token, user)
 
 @cli.command()
 @click.argument('rules', nargs=-1, required=True)
