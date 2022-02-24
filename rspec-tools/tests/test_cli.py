@@ -2,19 +2,18 @@ import os
 import re
 from pathlib import Path
 from typing import List
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from click.testing import CliRunner
 from rspec_tools.cli import cli
 from rspec_tools.rules import RulesRepository
-import rspec_tools
 
 
 class TestCLIUpdateQuickfixStatus:
   '''Unit test for quickfix status update through Command Line Interface.'''
 
   @patch.dict(os.environ, {'GITHUB_TOKEN': 'TOKEN'})
-  @patch('rspec_tools.create_rule.update_rule_quickfix_status')
+  @patch('rspec_tools.modify_rule.update_rule_quickfix_status')
   def test_basic_cli_usage(self, mock):
     arguments = [
       'update-quickfix-status',

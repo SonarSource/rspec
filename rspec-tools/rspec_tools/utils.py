@@ -126,7 +126,7 @@ def parse_and_validate_language_list(languages):
   _validate_languages(lang_list)
   return lang_list
 
-def validate_language(language):
+def _validate_language(language):
   _validate_languages([language])
 
 def get_labels_for_languages(lang_list):
@@ -134,6 +134,7 @@ def get_labels_for_languages(lang_list):
   return list(set(labels))
 
 def get_label_for_language(language: str) -> str:
+  _validate_language(language)
   return LANG_TO_LABEL[language]
 
 def resolve_rule(rule_id: str) -> int:
@@ -146,12 +147,3 @@ def resolve_rule(rule_id: str) -> int:
 def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
-
-@contextlib.contextmanager
-def pushd(new_dir):
-  previous_dir = os.getcwd()
-  os.chdir(new_dir)
-  try:
-    yield
-  finally:
-    os.chdir(previous_dir)
