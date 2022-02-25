@@ -31,6 +31,7 @@ LANG_TO_LABEL = {'abap': 'abap',
                  'secrets': 'secrets',
                  'solidity': 'solidity',
                  'swift': 'swift',
+                 'text': 'text',
                  'tsql': 'tsql',
                  'vb6': 'vb6',
                  'vbnet': 'dotnet',
@@ -38,6 +39,44 @@ LANG_TO_LABEL = {'abap': 'abap',
                  'terraform': 'iac',
                  'xml': 'xml',
 }
+
+LANG_TO_SOURCE = {
+    # languages with syntax coloring in highlight.js
+    'abap': 'abap',
+    'cfamily': 'cpp',
+    'csharp': 'csharp',
+    'css': 'css',
+    'go': 'go',
+    'html': 'html',
+    'java': 'java',
+    'javascript': 'javascript',
+    'kotlin': 'kotlin',
+    'php': 'php',
+    'plsql': 'sql',
+    'python': 'python',
+    'ruby': 'ruby',
+    'rust': 'rust',
+    'scala': 'scala',
+    'swift': 'swift',
+    'terraform': 'terraform',
+    'tsql': 'sql',
+    'vbnet': 'vbnet',
+    'xml': 'xml',
+    'c': 'c',
+    'objectivec': 'objectivec',
+    'vb': 'vb',
+    # these languages are not supported by highlight.js as the moment:
+    'apex': 'apex',
+    'cloudformation': 'cloudformation',
+    'cobol': 'cobol',
+    'flex': 'flex',
+    'pli': 'pli',
+    'rpg': 'rpg',
+    'text': 'text',
+    'vb6': 'vb6'
+}
+
+METADATA_FILE = 'metadata.json'
 
 def copy_directory_content(src:Path, dest:Path):
   for item in src.iterdir():
@@ -47,16 +86,16 @@ def copy_directory_content(src:Path, dest:Path):
       shutil.copy2(item, dest)
 
 def swap_metadata_files(dir1:Path, dir2:Path):
-  meta1 = dir1.joinpath('metadata.json')
-  meta2 = dir2.joinpath('metadata.json')
+  meta1 = dir1.joinpath(METADATA_FILE)
+  meta2 = dir2.joinpath(METADATA_FILE)
   with tempfile.TemporaryDirectory() as tmpdir:
-    tmp = Path(tmpdir).joinpath('metadata.json')
+    tmp = Path(tmpdir).joinpath(METADATA_FILE)
     shutil.copy2(meta1, tmp)
     shutil.copy2(meta2, meta1)
     shutil.copy2(tmp, meta2)
 
 def is_empty_metadata(rule_dir:Path):
-  with open(rule_dir.joinpath('metadata.json'), 'r') as meta:
+  with open(rule_dir.joinpath(METADATA_FILE), 'r') as meta:
     return not json.load(meta)
 
 def load_valid_languages():
@@ -95,10 +134,10 @@ def get_labels_for_languages(lang_list):
 def get_label_for_language(language: str) -> str:
   return LANG_TO_LABEL[language]
 
-def resolve_rule(ruleID: str) -> int:
-  m = re.search('^S([0-9]{3,4})$', ruleID)
+def resolve_rule(rule_id: str) -> int:
+  m = re.search('^S([0-9]{3,4})$', rule_id)
   if not m:
-    raise InvalidArgumentError(f"Unrecognized rule id format: \"{ruleID}\". Rule id must start with an \"S\" followed by 3 or 4 digits.")
+    raise InvalidArgumentError(f"Unrecognized rule id format: \"{rule_id}\". Rule id must start with an \"S\" followed by 3 or 4 digits.")
   else:
     return int(m.group(1))
 
