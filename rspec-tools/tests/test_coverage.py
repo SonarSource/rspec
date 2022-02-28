@@ -1,10 +1,22 @@
-from git import Repo, Head
-from unittest.mock import Mock, patch
-import pytest
-import json
+import os
+from contextlib import contextmanager
+from unittest.mock import patch
 
-from rspec_tools.coverage import update_coverage_for_repo_version, update_coverage_for_repo, update_coverage_for_all_repos
-from rspec_tools.utils import load_json, pushd
+from rspec_tools.coverage import (update_coverage_for_all_repos,
+                                  update_coverage_for_repo,
+                                  update_coverage_for_repo_version)
+from rspec_tools.utils import load_json
+
+
+@contextmanager
+def pushd(new_dir):
+  previous_dir = os.getcwd()
+  os.chdir(new_dir)
+  try:
+    yield
+  finally:
+    os.chdir(previous_dir)
+
 
 def test_update_coverage_for_repo_version(tmpdir):
   with pushd(tmpdir):
@@ -36,6 +48,7 @@ def test_update_coverage_for_repo_version(tmpdir):
     update_coverage_for_repo_version(REPO, 'master')
     assert load_json(coverage)['JAVASCRIPT']['S100'] == REPO + ' ' + VER
 
+
 def test_update_coverage_for_repo(tmpdir):
   with pushd(tmpdir):
     REPO = 'SonarJS'
@@ -49,6 +62,7 @@ def test_update_coverage_for_repo(tmpdir):
     assert cov['JAVASCRIPT']['S100'] == REPO + ' 3.3.0.5702'
     assert 'S1145' in cov['JAVASCRIPT']
     assert cov['JAVASCRIPT']['S1145'] == {'since': REPO + ' 3.3.0.5702', 'until': REPO + ' 6.7.0.14237'}
+
 
 @patch('rspec_tools.coverage.REPOS', ['SonarJS', 'sonar-xml'])
 def test_update_coverage_for_all_repos(tmpdir):
