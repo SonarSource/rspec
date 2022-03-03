@@ -11,7 +11,7 @@ export default makeStyles((theme) => ({
   searchBar: {
     // backgroundColor: 'white'
     borderBottom: '1px solid lightgrey',
-    paddingBottom: theme.spacing(2),
+    paddingBottom: theme.spacing(1),
   },
   searchResults: {
     marginTop: theme.spacing(3),
@@ -23,5 +23,9 @@ export default makeStyles((theme) => ({
   },
   resultsCount: {
     marginBottom: theme.spacing(2),
+  },
+  fullWidth: {
+    maxWidth: '120%',
+    flexBasis: '120%'
   }
 }));
