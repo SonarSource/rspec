@@ -33,7 +33,6 @@ def git_config():
 def mock_git_rspec_repo(tmpdir, mockrules: Path):
   repo_dir = tmpdir.mkdir("mock_rspec")
   repo = Repo.init(str(repo_dir))
-  repo.init()
   rules_dir = repo_dir.join('rules')
   shutil.copytree(mockrules, rules_dir)
 
