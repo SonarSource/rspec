@@ -1,8 +1,5 @@
 from pathlib import Path
 
-import pytest
-from pytest import TempPathFactory
-
 from rspec_tools.rules import RulesRepository
 
 def test_list_rules(mockrules: Path):
