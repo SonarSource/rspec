@@ -93,4 +93,4 @@ class RulesRepository:
     rulepath = self.rules_path.joinpath(ruleid)
     if not rulepath.is_dir():
       raise RuleNotFoundError('Cannot find rule ' + ruleid + ' in ' + str(self.rules_path))
-    return GenericRule(self.rules_path.joinpath(ruleid))
+    return GenericRule(rulepath)
