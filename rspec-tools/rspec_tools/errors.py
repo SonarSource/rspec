@@ -13,3 +13,9 @@ class RuleValidationError(ClickException):
 
     def __init__(self, message):
         super().__init__(message)
+
+class RuleNotFoundError(ClickException):
+    '''Exception raised when a rule does not exist in the repository.'''
+
+    def __init__(self, message):
+        super().__init__(message)

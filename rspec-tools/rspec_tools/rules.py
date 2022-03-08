@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Final, Generator, Iterable, Optional
 from bs4 import BeautifulSoup
+from rspec_tools.errors import RuleNotFoundError
 
 
 METADATA_FILE_NAME: Final[str] = 'metadata.json'
@@ -89,4 +90,7 @@ class RulesRepository:
     return (GenericRule(child) for child in self.rules_path.glob('S*') if child.is_dir())
     
   def get_rule(self, ruleid: str):
+    rulepath = self.rules_path.joinpath(ruleid)
+    if not rulepath.is_dir():
+      raise RuleNotFoundError('Cannot find rule ' + ruleid + ' in ' + str(self.rules_path))
     return GenericRule(self.rules_path.joinpath(ruleid))
