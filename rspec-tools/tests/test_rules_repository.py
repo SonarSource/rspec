@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import pytest
 from rspec_tools.rules import RulesRepository
+from rspec_tools.errors import RuleNotFoundError
 
 def test_list_rules(mockrules: Path):
   '''Check that rules are all listed.'''
@@ -22,3 +24,9 @@ def test_get_metadata(mockrules: Path):
   assert plsql.metadata['sqKey'] == 'PlSql.PackageNaming'
   java = rule.get_language('java')
   assert java.metadata['sqKey'] == 'S120'
+
+
+def test_nonexisting_rule(mockrules: Path):
+  '''Check that a nonexisting rule is reported.'''
+  with pytest.raises(RuleNotFoundError, match=fr'^Cannot find rule S200'):
+    RulesRepository(rules_path=mockrules).get_rule('S200')
