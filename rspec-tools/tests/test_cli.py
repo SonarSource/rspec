@@ -1,3 +1,5 @@
+import os
+import re
 from pathlib import Path
 from typing import List
 from unittest.mock import patch
@@ -6,7 +8,23 @@ from click.testing import CliRunner
 from rspec_tools.cli import cli
 from rspec_tools.rules import RulesRepository
 
-import os
+
+class TestCLIUpdateQuickfixStatus:
+  '''Unit test for quickfix status update through Command Line Interface.'''
+
+  @patch.dict(os.environ, {'GITHUB_TOKEN': 'TOKEN'})
+  @patch('rspec_tools.modify_rule.update_rule_quickfix_status')
+  def test_basic_cli_usage(self, mock):
+    arguments = [
+      'update-quickfix-status',
+      '--language', 'langA',
+      '--rule', 'ruleX',
+      '--status', 'myStatus',
+      '--user', 'bob',
+    ]
+    CliRunner().invoke(cli, arguments)
+    mock.assert_called_once_with('langA', 'ruleX', 'myStatus', 'TOKEN', 'bob')
+
 
 class TestCLIValidateRulesMetadata:
   '''Unit tests for metadata validation through Command Line Interface.'''
@@ -79,5 +97,5 @@ class TestCLIValidateDescription:
 
   def test_invalid_rule(self):
     result = self._run_invalid(['S100'])
-    assert 'Validation failed due to 7 errors' in result.output
+    assert re.search(r'Validation failed due to \d+ errors', result.output)
     assert result.exit_code == 1

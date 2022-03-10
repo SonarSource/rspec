@@ -1,10 +1,10 @@
-import json
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
 
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
+from rspec_tools.utils import LANG_TO_SOURCE
 
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
@@ -47,3 +47,24 @@ def validate_parameters(rule_language: LanguageSpecificRule):
         if child.name is None or child == h3 or child.name == 'hr':
           continue
         validate_one_parameter(child, rule_language.id)
+
+def highlight_name(rule_language: LanguageSpecificRule):
+  if (rule_language.language in LANG_TO_SOURCE):
+    return LANG_TO_SOURCE[rule_language.language]
+  return rule_language.language
+
+def known_highlight(language):
+  return language in LANG_TO_SOURCE.values()
+
+def validate_source_language(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  for h2 in descr.findAll('h2'):
+    name = h2.text.strip()
+    if name.startswith('Compliant') or name.startswith('Noncompliant'):
+      for pre in h2.parent.find_all('pre'):
+        if not pre.has_attr('class') or pre['class'][0] != u'highlight' or not pre.code or not pre.code.has_attr('data-lang'):
+          raise RuleValidationError(f'''Rule {rule_language.id} has non highlighted code example in section "{name}".
+Use [source,{highlight_name(rule_language)}] or [source,text] before the opening '----'.''')
+        elif not known_highlight(pre.code['data-lang']):
+          raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
+Are you looking for "{highlight_name(rule_language)}"?''')

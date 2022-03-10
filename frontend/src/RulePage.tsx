@@ -12,6 +12,7 @@ import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import { RuleMetadata } from './types';
+import parse, { attributesToProps, domToReact, DOMNode, Element } from 'html-react-parser';
 
 import './hljs-humanoid-light.css';
 
@@ -314,9 +315,30 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   };
 }
 
-function useDescription(metadata: PageMetadata, ruleid: string, language: string) {
+function getRspecPath(rspecId: string, language?: string) {
+  // TODO RULEAPI-742: If the given target `language` exists, the link should point to it.
+  return '/rspec#/rspec/' + rspecId;
+}
+
+function useDescription(metadata: PageMetadata, ruleid: string, language?: string) {
   const editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
+  function htmlReplacement(domNode: Element) {
+    if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
+      const props = attributesToProps(domNode.attribs);
+      return <a href={getRspecPath(domNode.attribs['data-rspec-id'], language)} {...props}>
+        {domToReact(domNode.children)}
+      </a>;
+    }
+
+    if (domNode.name === 'code' && domNode.attribs && domNode.attribs['data-lang']) {
+      return <Highlight className={domNode.attribs['data-lang']}>
+        {domToReact(domNode.children)}
+      </Highlight>;
+    }
+
+    return undefined; // No modification.
+  }
 
   const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
 
@@ -324,7 +346,7 @@ function useDescription(metadata: PageMetadata, ruleid: string, language: string
 
   if (descHTML !== null && !descIsLoading && !descError) {
     return <div>
-      <div dangerouslySetInnerHTML={{ __html: descHTML }} />
+      {parse(descHTML, { replace: (d: DOMNode) => htmlReplacement(d as Element) })}
       <hr />
       <a href={editOnGithubUrl}>Edit on Github</a><br />
       <hr />

@@ -1,28 +1,21 @@
-import React from 'react';
+
 import path from 'path';
 import { render, waitFor, fireEvent, within } from '@testing-library/react';
-import { screen } from '@testing-library/dom';
 import { SearchPage } from '../SearchPage';
 import { buildIndexStore, buildSearchIndex } from '../deployment/searchIndex';
 import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
-import { fetchMockObject } from '../testutils';
+import { fetchMockObject, normalize } from '../testutils';
 
-function normalize(obj) {
-    // Lunr (the search engine) expects its objects to have been
-    // serialized and deserialized when it is queried.
-    // This is not a no-op, because, for example, it translates function references to
-    // simple labels on the serialization step, and then uses these labels to
-    // restore the function references when loading.
-    return JSON.parse(JSON.stringify(obj));
-}
+// The CI system is a bit slow. Increase timeout to avoid random failures.
+jest.setTimeout(20000);
 
 function genMockUrls() {
     const rulePath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
     const [indexStore, indexAggregates] = buildIndexStore(rulePath);
-    const searchIndex = buildSearchIndex(indexStore);
+    const searchIndex: lunr.Index = buildSearchIndex(indexStore);
     const rootUrl = process.env.PUBLIC_URL;
-    let mockUrls = {};
+    let mockUrls: {[index: string]: any} = {};
     mockUrls[`${rootUrl}/rules/rule-index.json`] = {json: normalize(searchIndex)};
     mockUrls[`${rootUrl}/rules/rule-index-store.json`] = {json: normalize(indexStore)};
     mockUrls[`${rootUrl}/rules/rule-index-aggregates.json`] = {json: normalize(indexAggregates)};
@@ -37,7 +30,7 @@ function genMockUrls() {
 let fetchMocker = fetchMockObject(genMockUrls());
 
 beforeEach(() => {
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMocker.mock);
+    jest.spyOn(global, 'fetch').mockImplementation(fetchMocker.mock as jest.Mocked<typeof fetch>);
 });
 
 afterEach(() => {
@@ -57,7 +50,7 @@ async function renderDefaultSearchPageWithHistory() {
 }
 
 async function renderDefaultSearchPage() {
-    const {renderResult, _} = await renderDefaultSearchPageWithHistory();
+    const { renderResult } = await renderDefaultSearchPageWithHistory();
 
     expect(renderResult.queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(renderResult.queryByText(/rules found: 4/i)).not.toBeNull();
@@ -85,7 +78,7 @@ test('narrows search by title', async () => {
 });
 
 test('on enter navigates to the ruleid', async () => {
-    const { renderResult: {queryByText, getByRole}, history } = await renderDefaultSearchPageWithHistory();
+    const { renderResult: { getByRole }, history } = await renderDefaultSearchPageWithHistory();
 
     // Enter a search query
     const searchBox = getByRole('textbox');
@@ -97,7 +90,7 @@ test('on enter navigates to the ruleid', async () => {
 });
 
 test('on enter does not navigate to the wrong ruleid', async () => {
-    const { renderResult: {queryByText, getByRole}, history } = await renderDefaultSearchPageWithHistory();
+    const { renderResult: { getByRole }, history } = await renderDefaultSearchPageWithHistory();
 
     // Enter a search query
     const searchBox = getByRole('textbox');
@@ -109,7 +102,7 @@ test('on enter does not navigate to the wrong ruleid', async () => {
 });
 
 test('does nothing on keyup other than enter', async () => {
-    const { renderResult: {queryByText, getByRole}, history } = await renderDefaultSearchPageWithHistory();
+    const { renderResult: { getByRole }, history } = await renderDefaultSearchPageWithHistory();
 
     // Enter a search query
     const searchBox = getByRole('textbox');
