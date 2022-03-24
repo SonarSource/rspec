@@ -11,6 +11,8 @@ env:
   CIRRUS_CLONE_DEPTH: 0
   # Use bash (instead of sh on linux or cmd.exe on windows)
   CIRRUS_SHELL: bash
+  BASE_BRANCH: ${CIRRUS_BASE_BRANCH}
+  DEFAULT_BRANCH: ${CIRRUS_DEFAULT_BRANCH}
 
 
 container_definition: &CONTAINER_DEFINITION
@@ -40,6 +42,7 @@ tooling_tests_task:
     - pipenv install
     - pipenv run pip install pytest pytest-cov
   tests_script:
+    - bash ci/fetch_branches.sh
     - cd rspec-tools
     - pipenv run pytest --cov=rspec_tools --cov-report=xml
   <<: *SETUP_SONAR_SCANNER
@@ -65,6 +68,7 @@ frontend_tests_task:
       - cd frontend
       - npm install
   tests_script:
+    - bash ci/fetch_branches.sh
     - cd frontend
     - npm run build
     - npm test -- --detectOpenHandles --coverage .
@@ -105,4 +109,18 @@ validate_links_task:
     - bash ci/cirrus-cache.sh download ${LINK_CACHE_NAME} ${LINK_CACHE_PATH}
     - ./ci/validate_links.sh ${LINK_CACHE_PATH}
     - bash ci/cirrus-cache.sh upload ${LINK_CACHE_NAME} ${LINK_CACHE_PATH}
+
+all_required_checks_task:
+  depends_on:
+    - tooling_tests
+    - frontend_tests
+    - validate_metadata
+    - validate_asciidoc
+  gke_container:
+    <<: *CONTAINER_DEFINITION
+    dockerfile: ci/Dockerfile
+    cpu: 1
+    memory: 1G
+  print_message_script:
+    - echo 'All required checks have passed'
 
