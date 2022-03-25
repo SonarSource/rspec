@@ -17,9 +17,9 @@ import {
   useLocationSearchState
 } from './utils/routing';
 import { SearchHit } from './SearchHit';
-import { IndexedRule, IndexAggregates } from './types/IndexStore'
+import { IndexedRule, IndexAggregates } from './types/IndexStore';
 
-import { useHistory } from "react-router-dom";
+import { useHistory } from 'react-router-dom';
 
 function correctResultsOrder(results: IndexedRule[], query: string) {
   const upperCaseQuery = query.toLocaleUpperCase();
@@ -36,7 +36,7 @@ function correctResultsOrder(results: IndexedRule[], query: string) {
 }
 
 export const SearchPage = () => {
-  document.title = "Search"
+  document.title = 'Search';
 
   const classes = useStyles();
 
@@ -80,9 +80,9 @@ export const SearchPage = () => {
     allQualityProfiles = Object.keys(aggregatesData.qualityProfiles).sort();
   }
 
-  let resultsDisplay: string|JSX.Element[] = "No rule found...";
+  let resultsDisplay: string|JSX.Element[] = 'No rule found...';
   if (loading) {
-    resultsDisplay = "Searching";
+    resultsDisplay = 'Searching';
   } else if (results.length > 0) {
     let resultsBoxes: JSX.Element[] = [];
 
@@ -131,140 +131,143 @@ export const SearchPage = () => {
 
   return (
     <div className={classes.root}>
-    <div className={classes.searchBar}>
-    <Container maxWidth="md">
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Typography variant="h4">Search Rule Specifications</Typography>
-      </Grid>
-      <Grid item xs={12}>
-        <TextField
-            id="title-query"
-            label="Rule Title and Description"
-            placeholder="Search in rule titles and descriptions"
-            fullWidth
-            margin="normal"
-            InputLabelProps={{
-              shrink: true,
-            }}
-            variant="outlined"
-            value={query}
-            onChange={handleUpdate('query')}
-            onKeyUp={handleKeyup}
-            error={!!error}
-            helperText={error}
-        />
-      </Grid>
-      <Grid item xs={3}>
-        <TextField
-          select
-          fullWidth
-          margin="normal"
-          variant="outlined"
-          label="Rule type"
-          value={ruleType}
-          onChange={handleUpdate('types')}
-          data-testid="rule-type"
-        >
-          <MenuItem key="Any" value="ANY">
-            Any
-          </MenuItem>
-          {Object.keys(allRuleTypes).map((ruleType) => (
-            <MenuItem key={ruleType} value={ruleType} data-testid={`rule-type-${ruleType}`}>
-              {allRuleTypes[ruleType]}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Grid>
-      <Grid item xs={5}>
-      <TextField
-          select
-          fullWidth
-          SelectProps={{
-            multiple: true,
-            renderValue: (selected: any) => {
-              return selected.join(', ');
-            }
-          }}
-          margin="normal"
-          variant="outlined"
-          label="Rule Tags"
-          value={ruleTags}
-          onChange={handleUpdate('tags')}
-          data-testid="rule-tags"
-        >
-          {allRuleTags.map((ruleTag) => (
-            <MenuItem key={ruleTag} value={ruleTag} data-testid={`rule-tag-${ruleTag}`}>
-              {ruleTag}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Grid>
-      <Grid item xs={4}>
-      <TextField
-          select
-          fullWidth
-          margin="normal"
-          variant="outlined"
-          label="Language"
-          value={ruleLang}
-          onChange={handleUpdate('lang')}
-          data-testid="rule-language"
-        >
-          <MenuItem key="Any" value="ANY">
-            Any
-          </MenuItem>
-          {allLangs.map((lang) => (
-            <MenuItem key={lang} value={lang} data-testid={`rule-language-${lang}`}>
-              {lang}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Grid>
-      <Grid item xs={12}>
-      <TextField
-          select
-          fullWidth
-          SelectProps={{
-            multiple: true,
-            renderValue: (selected: any) => {
-              return selected.join(', ');
-            }
-          }}
-          margin="normal"
-          variant="outlined"
-          label="Default Quality Profiles"
-          value={qualityProfiles}
-          onChange={handleUpdate('qualityProfiles')}
-          data-testid="rule-default-quality-profile"
-        >
-          {allQualityProfiles.map((qualityProfile) => (
-            <MenuItem key={qualityProfile} value={qualityProfile} data-testid={`rule-qual-profile-${qualityProfile}`}>
-              {qualityProfile}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Grid>
-    </Grid>
-    </Container>
-  </div>
-  <div className={classes.searchResults}>
-    <Container maxWidth="md">
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Box key="total-num" className={classes.topRow}>
-            <Box className={classes.resultsCount}>
-              <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
-            </Box>
-          </Box>
-            {resultsDisplay}
-          <Pagination count={totalPages} page={pageNumber} siblingCount={2}
-            onChange={(event, value) => setPageNumber(value)}
-            />
-        </Grid>
-      </Grid>
-    </Container>
-  </div>
-  </div>
+      <div className={classes.searchBar}>
+        <Container maxWidth="md">
+          <Grid container>
+            <Grid item xs={12}>
+              <TextField
+                id="title-query"
+                label="Rule Title and Description"
+                placeholder="Search in rule titles and descriptions"
+                fullWidth
+                margin="normal"
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                variant="outlined"
+                value={query}
+                onChange={handleUpdate('query')}
+                onKeyUp={handleKeyup}
+                error={!!error}
+                helperText={error}
+              />
+            </Grid>
+            <Grid item xs={12} container spacing={3} className={classes.fullWidth}>
+              <Grid item xs={3}>
+                <TextField
+                  select
+                  fullWidth
+                  margin="normal"
+                  variant="outlined"
+                  size="small"
+                  label="Rule type"
+                  value={ruleType}
+                  onChange={handleUpdate('types')}
+                  data-testid="rule-type"
+                >
+                  <MenuItem key="Any" value="ANY">
+                    Any
+                  </MenuItem>
+                  {Object.keys(allRuleTypes).map((ruleType) => (
+                    <MenuItem key={ruleType} value={ruleType} data-testid={`rule-type-${ruleType}`}>
+                      {allRuleTypes[ruleType]}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={5}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  SelectProps={{
+                    multiple: true,
+                    renderValue: (selected: any) => {
+                      return selected.join(', ');
+                    }
+                  }}
+                  margin="normal"
+                  variant="outlined"
+                  label="Rule Tags"
+                  value={ruleTags}
+                  onChange={handleUpdate('tags')}
+                  data-testid="rule-tags"
+                >
+                  {allRuleTags.map((ruleTag) => (
+                    <MenuItem key={ruleTag} value={ruleTag} data-testid={`rule-tag-${ruleTag}`}>
+                      {ruleTag}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={4}>
+                <TextField
+                  select
+                  fullWidth
+                  margin="normal"
+                  size="small"
+                  variant="outlined"
+                  label="Language"
+                  value={allLangs.length === 0 ? '' : ruleLang}
+                  onChange={handleUpdate('lang')}
+                  data-testid="rule-language"
+                >
+                  <MenuItem key="Any" value="ANY">
+                    Any
+                  </MenuItem>
+                  {allLangs.map((lang) => (
+                    <MenuItem key={lang} value={lang} data-testid={`rule-language-${lang}`}>
+                      {lang}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                SelectProps={{
+                  multiple: true,
+                  renderValue: (selected: any) => {
+                    return selected.join(', ');
+                  }
+                }}
+                margin="normal"
+                variant="outlined"
+                label="Default Quality Profiles"
+                value={qualityProfiles}
+                onChange={handleUpdate('qualityProfiles')}
+                data-testid="rule-default-quality-profile"
+              >
+                {allQualityProfiles.map((qualityProfile) => (
+                  <MenuItem key={qualityProfile} value={qualityProfile} data-testid={`rule-qual-profile-${qualityProfile}`}>
+                    {qualityProfile}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          </Grid>
+        </Container>
+      </div>
+      <div className={classes.searchResults}>
+        <Container maxWidth="md">
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Box key="total-num" className={classes.topRow}>
+                <Box className={classes.resultsCount}>
+                  <Typography variant="subtitle1">Number of rules found: {numberOfHits}</Typography>
+                </Box>
+              </Box>
+              {resultsDisplay}
+              <Pagination count={totalPages} page={pageNumber} siblingCount={2}
+                onChange={(event, value) => setPageNumber(value)}
+              />
+            </Grid>
+          </Grid>
+        </Container>
+      </div>
+    </div>
   )
 }

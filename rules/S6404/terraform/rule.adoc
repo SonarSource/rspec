@@ -1,0 +1,147 @@
+Granting public access to GCP resources may reduce an organization's ability to
+protect itself against attacks or theft of its GCP resources. +
+Security incidents associated with misuse of public access include disruption
+of critical functions, data theft, and additional costs due to resource
+overload.
+
+To be as prepared as possible in the event of a security incident,
+authentication combined with fine-grained permissions helps maintain the
+principle of defense in depth and trace incidents back to the perpetrators.
+
+GCP also provides the ability to grant access to a large group of people:
+
+* If public access is granted to all Google users, the impact of a data theft
+  is the same as if public access is granted to all Internet users.
+* If access is granted to a large Google group, the impact of a data theft is
+  limited based on the size of the group.
+
+The only thing that changes in these cases is the ability to track user access
+in the event of an incident.
+
+== Ask Yourself Whether
+
+* This GCP resource is essential to the information system infrastructure.
+* This GCP resource is essential to mission-critical functions.
+* This GCP resource stores or processes sensitive data.
+* Compliance policies require that access to this resource be authenticated.
+
+There is a risk if you answered yes to any of these questions.
+
+== Recommended Secure Coding Practices
+
+Explicitly set access to this resource or function as private.
+
+== Sensitive Code Example
+
+For IAM resources:
+[source,terraform]
+----
+resource "google_cloudfunctions_function_iam_binding" "example" {
+  members = [
+    "allUsers",              # Sensitive
+    "allAuthenticatedUsers", # Sensitive
+  ]
+}
+
+resource "google_cloudfunctions_function_iam_member" "example" {
+  member = "allAuthenticatedUsers" # Sensitive
+}
+----
+
+For ACL resources:
+[source,terraform]
+----
+resource "google_storage_bucket_access_control" "example" {
+  entity = "allUsers" # Sensitive
+}
+
+resource "google_storage_bucket_acl" "example" {
+  role_entity = [
+    "READER:allUsers",              # Sensitive
+    "READER:allAuthenticatedUsers", # Sensitive
+  ]
+}
+----
+
+For container clusters:
+[source,terraform]
+----
+resource "google_container_cluster" "example" {
+  private_cluster_config {
+    enable_private_nodes    = false # Sensitive
+    enable_private_endpoint = false # Sensitive
+  }
+}
+----
+
+== Compliant Solution
+
+For IAM resources:
+[source,terraform]
+----
+resource "google_cloudfunctions_function_iam_binding" "example" {
+  members = [
+    "serviceAccount:${google_service_account.example.email}",
+    "group:${var.example_group}"
+  ]
+}
+
+resource "google_cloudfunctions_function_iam_member" "example" {
+  member = "user:${var.example_user}" # Sensitive
+}
+----
+
+For ACL resources:
+[source,terraform]
+----
+resource "google_storage_bucket_access_control" "example" {
+  entity = "user-${var.example_user]"
+}
+
+resource "google_storage_bucket_acl" "example" {
+  role_entity = [
+    "READER:user-name@example.com",
+    "READER:group-admins@example.com"
+  ]
+}
+----
+
+For container clusters:
+[source,terraform]
+----
+resource "google_container_cluster" "example" {
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = true
+  }
+}
+----
+
+== See
+
+* https://owasp.org/Top10/A01_2021-Broken_Access_Control/[OWASP Top 10 2021 Category A1] - Boken Access Control
+* https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control[OWASP Top 10 2017 Category A5] - Broken Access Control
+* https://cwe.mitre.org/data/definitions/668.html[MITRE, CWE-668] - Exposure of Resource to Wrong Sphere
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* For container clusters:
+** Omitted: Omitting {attribute} grants public access to parts of this cluster. Make sure it is safe here.
+** Explicitly set to false: Ensure that granting public access is safe here.
+* For the rest: Ensure that granting public access to this resource is safe here.
+* For ACL resources: Ensure that granting public access to this resource is safe here.
+* For DNS-managed zone omissions: Omitting {attribute} will grant public access to this managed zone. Ensure it is safe here.
+
+=== Highlighting
+
+* Assignments: Highlight the sensitive assignment.
+* Lists: Highlight the sensitive element.
+* Multiple sensitive items: Highlight the resource.
+
+endif::env-github,rspecator-view[]
