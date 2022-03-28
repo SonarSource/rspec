@@ -151,7 +151,7 @@ describe('index store generation', () => {
     const [indexStore, _] = buildIndexStore(rulesPath);
     expect(indexStore['S3457'].all_keys).toEqual(['RSPEC-3457', 'S3457']);
     expect(indexStore['S1000'].all_keys).toEqual(['RSPEC-1000', 'S1000', 'UnnamedNamespaceInHeader']);
-    expect(indexStore['S987'].all_keys).toEqual(['PPIncludeSignal', 'RSPEC-987', 'S987']);
+    expect(indexStore['S987'].all_keys).toEqual(['ALegacyKey', 'PPIncludeSignal', 'RSPEC-987', 'S987']);
   });
 
   test('collects all quality profiles', () => {
@@ -169,8 +169,11 @@ describe('search index enables search by title and description words', () => {
     const searchesS3457 = findRuleByQuery(searchIndex, 'S3457');
     expect(searchesS3457).toEqual(['S3457']);
 
-    const searchesS987 = findRuleByQuery(searchIndex, 'ppincludesignal');
+    const searchesS987 = findRuleByQuery(searchIndex, 'pPIncLuDeSiGNal');
     expect(searchesS987).toEqual(['S987']);
+
+    const searchesByLegacy = findRuleByQuery(searchIndex, 'aLegacyKey');
+    expect(searchesByLegacy).toEqual(['S987']);
 
     const searchesS1000 = findRuleByQuery(searchIndex, 'UnnamedNamespaceInHeader');
     expect(searchesS1000).toEqual(['S1000']);
