@@ -1,12 +1,26 @@
-It is a best practice to make lambda return types implicit. First and foremost, doing so avoids implicit conversions which could result in data or precision loss. Second, omitting the return type helps future-proof the code.
+It is a best practice to make lambda return types implicit whenever possible.
+First and foremost, doing so avoids implicit conversions, which could result in data or precision loss.
+Second, omitting the return type helps future-proof the code.
 
+There are a few exceptions to this rule, such as coroutine lambdas, which require an explicit return type.
+Furthermore, this rule does not trigger on explicit template-dependent or constrained return types since they can be helpful for readability or maintainability.
+Finally, this rule does not trigger if removing the explicit return type would result in a different return type deduced by the compiler or if it would result in ill-formed programs.
 
 == Noncompliant Code Example
 
 [source,cpp]
 ----
-[](int i) -> int // Noncompliant
-{ return i + 42; } 
+// Noncompliant: return type is redundant
+[](int i) -> int { return i + 42; }
+
+// Noncompliant: return type is redundant
+[]() -> auto { return foo(); }
+
+// Noncompliant: return type is redundant
+[](int x) -> std::vector<int> {
+    x = std::max(0, std::min(100, x));
+    return std::vector<int>{ x };
+}
 ----
 
 
@@ -14,7 +28,49 @@ It is a best practice to make lambda return types implicit. First and foremost, 
 
 [source,cpp]
 ----
-[](int i) 
-{ return i + 42; } 
+// Compliant: no explicit return type.
+[](int i) { return i + 42; }
+
+// Compliant: no explicit return type.
+[]() { return foo(); }
+
+// Compliant: no explicit return type.
+[](int x) {
+    x = std::max(0, std::min(100, x));
+    return std::vector<int>{ x };
+}
+
+// Compliant: type deduction doesn't work.
+[](Base* ptr) -> Derived* {
+    if (auto* derived = dynamic_cast<Derived*>(ptr)) {
+        actOnDerived(derived);
+        return derived;
+    }
+
+    return nullptr;
+}
+
+// Compliant: enforces process return a reference.
+[](auto x) -> auto& { return process(x); }
+
+// Compliant: for example, ensure the lambda returns a reference when f does.
+[f](auto arg) -> decltype(f(arg)) { return f(arg); }
+
+// Compliant: return type restricts possible input types.
+[](auto x) -> std::enable_if_t<std::is_integral_v<decltype(x)>> { process(x); }
+
+template <typename T>
+T getGlobalProperty(std::string_view name, T defaultValue) { /* ... */ }
+
+// Compliant: return type is constrained (C++20) and can help maintainability.
+auto getProperty = [](std::string_view name) -> std::totally_ordered auto {
+    return getGlobalProperty(name, 0);
+};
+
+// Compliant: removing this return type would result in a different signature.
+[](int x) -> int { throw std::runtime_error("No more eggs"); }
+
+ // Compliant: coroutine lambda cannot rely on type deduction.
+[]() -> Task { co_await std::suspend_always{}; }
 ----
 
