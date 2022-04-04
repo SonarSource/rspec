@@ -5,7 +5,7 @@ from git import Repo
 from git import Git
 from pathlib import Path
 
-from rspec_tools.utils import load_json
+from rspec_tools.utils import (load_json, pushd)
 
 REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-text','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security', 'sonar-iac']
 
@@ -144,16 +144,16 @@ def collect_coverage_for_version(analyzer_name, git_repo, version, coverage):
   g = Git(git_repo)
   repo_dir = git_repo.working_tree_dir
   print(f"{analyzer_name} {version}")
-  os.chdir(repo_dir)
-  try:
-    git_repo.head.reference = git_repo.commit(version)
-    git_repo.head.reset(index=True, working_tree=True)
-    g.checkout(version)
-    implemented_rules = all_implemented_rules()
-    coverage.add_analyzer_version(analyzer_name, version, implemented_rules)
-  except Exception as e:
-    print(f"{analyzer_name} {version} checkout failed: {e}")
-  os.chdir('..')
+  with pushd(repo_dir):
+    try:
+      git_repo.head.reference = git_repo.commit(version)
+      git_repo.head.reset(index=True, working_tree=True)
+      g.checkout(version)
+      implemented_rules = all_implemented_rules()
+      coverage.add_analyzer_version(analyzer_name, version, implemented_rules)
+    except Exception as e:
+      print(f"{analyzer_name} {version} checkout failed: {e}")
+      raise
 
 def update_coverage_for_all_repos():
   print(f"batch mode for {REPOS}")

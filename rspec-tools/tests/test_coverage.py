@@ -3,23 +3,12 @@ import shutil
 import pytest
 from git import Repo
 from pathlib import Path
-from contextlib import contextmanager
 from unittest.mock import (patch, PropertyMock)
 
 from rspec_tools.coverage import (update_coverage_for_all_repos,
                                   update_coverage_for_repo,
                                   update_coverage_for_repo_version)
-from rspec_tools.utils import load_json
-
-
-@contextmanager
-def pushd(new_dir):
-  previous_dir = os.getcwd()
-  os.chdir(new_dir)
-  try:
-    yield
-  finally:
-    os.chdir(previous_dir)
+from rspec_tools.utils import (load_json, pushd)
 
 def clear_working_dir(repo_dir):
   for f in os.listdir(repo_dir):
@@ -70,6 +59,13 @@ MOCK_REPOS=[{'name':'SonarJS',
                 'files': [['r/Sonar_way_profile.json', '{}'],
                           ['sonarpedia.json', '{"rules-metadata-path": "r", "languages":["XML"]}'],
                           ['r/S103.json', '{}']]}
+             ]},
+            {'name':'broken',
+             'versions': [
+               {'name': 'v1',
+                'date': '2020-01-01 01:01:01',
+                'files': [['sonarpedia.json', 'non-json'], # sonarpedia is non-json
+                          ['r/S100.json', '{}']]}
              ]}]
 
 @pytest.fixture
@@ -162,3 +158,16 @@ def test_update_coverage_for_all_repos(tmpdir, mock_git_analyzer_repos):
     assert 'S103' in cov['XML']
     assert {'S103', 'S1000'} == set(cov['XML'].keys())
     assert cov['XML']['S1000'] == 'SonarJS 7.0.0.14528'
+
+def test_update_coverage_no_sonarpedia(tmpdir, mock_git_analyzer_repos, capsys):
+  with pushd(tmpdir), patch('rspec_tools.coverage.Repo', mock_git_analyzer_repos):
+    update_coverage_for_repo_version('broken', 'v1')
+    assert 'failed to collect implemented rules for' in capsys.readouterr().out
+    coverage = tmpdir.join('covered_rules.json')
+    assert coverage.exists()
+    cov = load_json(coverage)
+    assert cov == {}
+
+    with pytest.raises(Exception):
+      update_coverage_for_repo_version('broken', 'non-existing')
+    assert 'checkout failed' in capsys.readouterr().out

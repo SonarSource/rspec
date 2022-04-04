@@ -1,6 +1,7 @@
 from rspec_tools.errors import InvalidArgumentError
 from pathlib import Path
 from typing import List
+from contextlib import contextmanager
 import shutil
 import re
 import tempfile
@@ -147,3 +148,12 @@ def resolve_rule(rule_id: str) -> int:
 def load_json(file):
   with open(file) as json_file:
     return json.load(json_file)
+
+@contextmanager
+def pushd(new_dir):
+  previous_dir = os.getcwd()
+  os.chdir(new_dir)
+  try:
+    yield
+  finally:
+    os.chdir(previous_dir)
