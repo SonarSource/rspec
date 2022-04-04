@@ -43,14 +43,14 @@ def get_implemented_rules(path, languages_from_sonarpedia):
     implemented_rules[lang] = []
   for filename in os.listdir(path):
     if filename.endswith(".json") and not filename.startswith("Sonar_way"):
-        rule = load_json(os.path.join(path, filename))
-        rule_id = get_rule_id(filename)
-        for language in compatible_languages(rule, languages_from_sonarpedia):
-          if language not in implemented_rules:
-            implemented_rules[language] = []
-          implemented_rules[language].append(rule_id)
+      rule = load_json(os.path.join(path, filename))
+      rule_id = get_rule_id(filename)
+      for language in compatible_languages(rule, languages_from_sonarpedia):
+        if language not in implemented_rules:
+          implemented_rules[language] = []
+        implemented_rules[language].append(rule_id)
     else:
-        continue
+      continue
   return implemented_rules
 
 def canonicalize(language):
@@ -111,10 +111,14 @@ def all_implemented_rules():
   for sp_file in Path('.').rglob('sonarpedia.json'):
     print(sp_file)
     sonarpedia_path=sp_file.parents[0]
-    sonarpedia = load_json(sp_file)
-    path = str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
-    languages = sonarpedia['languages']
-    implemented_rules.update(get_implemented_rules(path, languages))
+    try:
+      sonarpedia = load_json(sp_file)
+      path = str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
+      languages = sonarpedia['languages']
+      implemented_rules.update(get_implemented_rules(path, languages))
+    except Exception as e:
+      print(f"failed to collect implemented rules for {sp_file}: {e}")
+      continue
   return implemented_rules
 
 def checkout_repo(repo):
@@ -133,22 +137,22 @@ def collect_coverage_for_all_versions(repo, coverage):
   tags.sort(key = lambda t: t.commit.committed_date)
   versions = [tag.name for tag in tags if '-' not in tag.name]
   for version in versions:
-    collect_coverage_for_version(repo, version, coverage)
-  collect_coverage_for_version(repo, 'master', coverage)
+    collect_coverage_for_version(repo, git_repo, version, coverage)
+  collect_coverage_for_version(repo, git_repo, 'master', coverage)
 
-def collect_coverage_for_version(repo, version, coverage):
-  print(f"{repo} {version}")
-  r = checkout_repo(repo)
-  g = Git(repo)
-  os.chdir(repo)
+def collect_coverage_for_version(analyzer_name, git_repo, version, coverage):
+  g = Git(git_repo)
+  repo_dir = git_repo.working_tree_dir
+  print(f"{analyzer_name} {version}")
+  os.chdir(repo_dir)
   try:
-    r.head.reference = r.commit(version)
-    r.head.reset(index=True, working_tree=True)
+    git_repo.head.reference = git_repo.commit(version)
+    git_repo.head.reset(index=True, working_tree=True)
     g.checkout(version)
     implemented_rules = all_implemented_rules()
-    coverage.add_analyzer_version(repo, version, implemented_rules)
+    coverage.add_analyzer_version(analyzer_name, version, implemented_rules)
   except Exception as e:
-    print(f"{repo} {version} checkout failed: {e}")
+    print(f"{analyzer_name} {version} checkout failed: {e}")
   os.chdir('..')
 
 def update_coverage_for_all_repos():
@@ -167,6 +171,7 @@ def update_coverage_for_repo(repo):
 def update_coverage_for_repo_version(repo, version):
   print(f"checking {repo} version {version}")
   coverage = Coverage(RULES_FILENAME)
-  collect_coverage_for_version(repo, version, coverage)
+  git_repo = checkout_repo(repo)
+  collect_coverage_for_version(repo, git_repo, version, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
