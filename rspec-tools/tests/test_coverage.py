@@ -168,6 +168,8 @@ def test_update_coverage_no_sonarpedia(tmpdir, mock_git_analyzer_repos, capsys):
     cov = load_json(coverage)
     assert cov == {}
 
+def test_update_coverage_no_sonarpedia(tmpdir, mock_git_analyzer_repos, capsys):
+  with pushd(tmpdir), patch('rspec_tools.coverage.Repo', mock_git_analyzer_repos):
     with pytest.raises(Exception):
       update_coverage_for_repo_version('broken', 'non-existing')
     assert 'checkout failed' in capsys.readouterr().out
