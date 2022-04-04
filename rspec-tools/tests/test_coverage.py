@@ -3,6 +3,7 @@ import shutil
 import pytest
 from git import Repo
 from pathlib import Path
+from datetime import datetime
 from unittest.mock import (patch, PropertyMock)
 
 from rspec_tools.coverage import (update_coverage_for_all_repos,
@@ -18,33 +19,31 @@ def clear_working_dir(repo_dir):
       else:
         os.remove(repo_dir / f)
 
-# Need to keep the tags ordered, and set the commit dates,
-# so FS is not convenient. use json instead:
-JSTS_SONARPEDIA='{"rules-metadata-path": "r", "languages":["JS", "TS"]}'
+JSTS_SONARPEDIA='{"rules-metadata-path": "rules", "languages":["JS", "TS"]}'
 MOCK_REPOS=[{'name':'SonarJS',
              'versions': [
                {'name': '3.3.0.5702',
                 'date': '2020-03-03 10:00:00',
                 'files': [['sonarpedia.json', JSTS_SONARPEDIA],
-                          ['r/Sonar_way_profile.json', '{}'],
-                          ['r/S100.json', '{}'], ['r/S1145.json', '{}'],
+                          ['rules/Sonar_way_profile.json', '{}'],
+                          ['rules/S100.json', '{}'], ['rules/S1145.json', '{}'],
                           # not in the rules directory, so not a rule:
                           ['S200.json', '{}']]},
                {'name': '5.0.0.6962',
                 'date': '2020-05-01 10:00:00',
                 'files': [['sonarpedia.json', JSTS_SONARPEDIA],
-                          ['r/Sonar_way_profile.json', '{}'],
-                          ['r/S100.json', '{}'], ['r/S1145.json', '{}'], ['r/S1192.json', '{}']]},
+                          ['rules/Sonar_way_profile.json', '{}'],
+                          ['rules/S100.json', '{}'], ['rules/S1145.json', '{}'], ['rules/S1192.json', '{}']]},
                {'name': '6.7.0.14237',
                 'date': '2020-06-07 10:00:00',
                 'files': [['sonarpedia.json', JSTS_SONARPEDIA],
-                          ['r/Sonar_way_profile.json', '{}'],
-                          ['r/S100.json', '{}'], ['r/S1145.json', '{}'], ['r/S1192.json', '{}']]},
+                          ['rules/Sonar_way_profile.json', '{}'],
+                          ['rules/S100.json', '{}'], ['rules/S1145.json', '{}'], ['rules/S1192.json', '{}']]},
                {'name': '7.0.0.14528',
                 'date': '2020-07-01 10:00:00',
                 'files': [['sonarpedia.json', JSTS_SONARPEDIA],
-                          ['r/Sonar_way_profile.json', '{}'],
-                          ['r/S100.json', '{}'], ['r/S1192.json', '{}'],
+                          ['rules/Sonar_way_profile.json', '{}'],
+                          ['rules/S100.json', '{}'], ['rules/S1192.json', '{}'],
                           # add a CSS analyzer in this version
                           ['css-plugin/sonarpedia.json', '{"rules-metadata-path":"cssr", "languages":["CSS"]}'],
                           ['css-plugin/cssr/S100.json', '{}'],
@@ -56,17 +55,25 @@ MOCK_REPOS=[{'name':'SonarJS',
              'versions': [
                {'name': '1.2.0.1342',
                 'date': '2020-01-02 10:00:00',
-                'files': [['r/Sonar_way_profile.json', '{}'],
-                          ['sonarpedia.json', '{"rules-metadata-path": "r", "languages":["XML"]}'],
-                          ['r/S103.json', '{}']]}
+                'files': [['rules/Sonar_way_profile.json', '{}'],
+                          ['sonarpedia.json', '{"rules-metadata-path": "rules", "languages":["XML"]}'],
+                          ['rules/S103.json', '{}']]}
              ]},
             {'name':'broken',
              'versions': [
                {'name': 'v1',
                 'date': '2020-01-01 01:01:01',
                 'files': [['sonarpedia.json', 'non-json'], # sonarpedia is non-json
-                          ['r/S100.json', '{}']]}
+                          ['rules/S100.json', '{}']]}
              ]}]
+
+def test_mock_tags_are_sorted_chronologically():
+  for mock_spec in MOCK_REPOS:
+    prev_date = datetime.strptime('1970-01-01 00:00:01', '%Y-%m-%d %H:%M:%S')
+    for tag in mock_spec['versions']:
+      cur_date = datetime.strptime(tag['date'], '%Y-%m-%d %H:%M:%S')
+      assert prev_date < cur_date
+      prev_date = cur_date
 
 @pytest.fixture
 def mock_git_analyzer_repos(tmpdir):
@@ -154,8 +161,6 @@ def test_update_coverage_for_all_repos(tmpdir, mock_git_analyzer_repos):
     assert {'JAVASCRIPT', 'TYPESCRIPT', 'XML', 'CSS'} == set(cov.keys())
     assert 'S100' in cov['JAVASCRIPT']
     assert {'S100'} == set(cov['CSS'].keys())
-    assert 'S100' not in cov['XML']
-    assert 'S103' in cov['XML']
     assert {'S103', 'S1000'} == set(cov['XML'].keys())
     assert cov['XML']['S1000'] == 'SonarJS 7.0.0.14528'
 
@@ -168,7 +173,7 @@ def test_update_coverage_no_sonarpedia(tmpdir, mock_git_analyzer_repos, capsys):
     cov = load_json(coverage)
     assert cov == {}
 
-def test_update_coverage_no_sonarpedia(tmpdir, mock_git_analyzer_repos, capsys):
+def test_update_coverage_nonexisting_versio(tmpdir, mock_git_analyzer_repos, capsys):
   with pushd(tmpdir), patch('rspec_tools.coverage.Repo', mock_git_analyzer_repos):
     with pytest.raises(Exception):
       update_coverage_for_repo_version('broken', 'non-existing')

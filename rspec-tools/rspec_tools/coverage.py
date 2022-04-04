@@ -140,9 +140,9 @@ def collect_coverage_for_all_versions(repo, coverage):
     collect_coverage_for_version(repo, git_repo, version, coverage)
   collect_coverage_for_version(repo, git_repo, 'master', coverage)
 
-def collect_coverage_for_version(analyzer_name, git_repo, version, coverage):
+def collect_coverage_for_version(repo_name, git_repo, version, coverage):
   g = Git(git_repo)
-  print(f"{analyzer_name} {version}")
+  print(f"{repo_name} {version}")
   repo_dir = git_repo.working_tree_dir
   try:
     with pushd(repo_dir):
@@ -150,9 +150,9 @@ def collect_coverage_for_version(analyzer_name, git_repo, version, coverage):
       git_repo.head.reset(index=True, working_tree=True)
       g.checkout(version)
       implemented_rules = all_implemented_rules()
-      coverage.add_analyzer_version(analyzer_name, version, implemented_rules)
+      coverage.add_analyzer_version(repo_name, version, implemented_rules)
   except Exception as e:
-    print(f"{analyzer_name} {version} checkout failed: {e}")
+    print(f"{repo_name} {version} checkout failed: {e}")
     raise
 
 def update_coverage_for_all_repos():
