@@ -142,18 +142,18 @@ def collect_coverage_for_all_versions(repo, coverage):
 
 def collect_coverage_for_version(analyzer_name, git_repo, version, coverage):
   g = Git(git_repo)
-  repo_dir = git_repo.working_tree_dir
   print(f"{analyzer_name} {version}")
-  with pushd(repo_dir):
-    try:
+  repo_dir = git_repo.working_tree_dir
+  try:
+    with pushd(repo_dir):
       git_repo.head.reference = git_repo.commit(version)
       git_repo.head.reset(index=True, working_tree=True)
       g.checkout(version)
       implemented_rules = all_implemented_rules()
       coverage.add_analyzer_version(analyzer_name, version, implemented_rules)
-    except Exception as e:
-      print(f"{analyzer_name} {version} checkout failed: {e}")
-      raise
+  except Exception as e:
+    print(f"{analyzer_name} {version} checkout failed: {e}")
+    raise
 
 def update_coverage_for_all_repos():
   print(f"batch mode for {REPOS}")
