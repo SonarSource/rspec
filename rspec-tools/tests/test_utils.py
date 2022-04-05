@@ -1,6 +1,10 @@
-from rspec_tools.errors import InvalidArgumentError
-from rspec_tools.utils import parse_and_validate_language_list, load_valid_languages, get_mapped_languages, get_labels_for_languages
 import pytest
+from rspec_tools.errors import InvalidArgumentError
+from rspec_tools.utils import (get_label_for_language,
+                               get_labels_for_languages, get_mapped_languages,
+                               load_valid_languages,
+                               parse_and_validate_language_list, resolve_rule)
+
 
 def test_fails_when_no_languages_listed():
   '''Test that language validation fails on empty list.'''
@@ -31,3 +35,26 @@ def test_labels_for_languages():
   lang_list = ['java', 'apex', 'cfamily', 'ruby']
   labels = ['java', 'slang', 'cfamily']
   assert set(get_labels_for_languages(lang_list)) == set(labels)
+
+def test_resolve_rule():
+  assert resolve_rule('S100') == 100
+  assert resolve_rule('S1234') == 1234
+  with pytest.raises(InvalidArgumentError):
+    resolve_rule('S12')
+  with pytest.raises(InvalidArgumentError):
+    resolve_rule('12')
+  with pytest.raises(InvalidArgumentError):
+    resolve_rule('SS13')
+  with pytest.raises(InvalidArgumentError):
+    resolve_rule('RSPEC-1343')
+  with pytest.raises(InvalidArgumentError):
+    resolve_rule(' S1343 ')
+  with pytest.raises(InvalidArgumentError):
+    resolve_rule('SXXXX')
+  with pytest.raises(InvalidArgumentError):
+    resolve_rule('S90000')
+
+def test_label_for_language():
+  assert get_label_for_language('java') == 'java'
+  with pytest.raises(InvalidArgumentError):
+    get_label_for_language('russian')

@@ -1,33 +1,105 @@
-{cpp}11 introduced move-operation: a more efficient way to transfer value from one object to another. This operation is used when the source object is an rvalue, i.e. a temporary or explicitly moved object.
+{cpp}11 introduced the concept of _forwarding-reference_, as a way to transfer values efficiently. 
+In combination with `std::forward`, their usage allows passing values without unnecessary copies.
 
+The expression ``std::forward<T>(obj).mem``, can be used to forward the value of the member, according to the type of `obj`:
+move the value of member `mem` if the `obj` is an rvalue reference and copy it otherwise.
+However, in the corner case, when the member `mem` is of rvalue reference type, the value it references will be copied even if `obj` itself is an rvalue,
+the referenced value will not be moved.
 
-In most situations, the move is performed if a member of an rvalue is accessed (i.e. ``++std::move(val).mem++``). However, in a case where the member itself is declared as an rvalue reference, the referenced object will not be moved. This may lead to unintended copy. This rule helps to identify such cases.
+Similarly for `std::move`: if `mem` is of rvalue reference type, ``std::move(obj).mem`` will copy the value referenced by `mem`.
 
-
-This rule raises an issue when a copy of a member declared with an rvalue reference type is made.
-
+This rule raises issues when a templates is instantiated with a type that leads to an accidental copy of members of forwarded objects.
 
 == Noncompliant Code Example
 
+[source,cpp]
 ----
-void consume(std::pair<std::string, std::string&&>&& p) {
-   auto first = std::move(p).first; // Compliant: move is performed
-   auto second = std::move(p).second; // Noncompliant: copy is made
+template<typename... Ts>
+void consume(Ts&&... ts)
+
+
+template<typename T, typename U>
+void consumePair(std::pair<T, U>&& p) {
+  consume(std::move(p).first, std::move(p).second); // Noncompliant (see later)
+}
+void use1() {
+  std::string x = "x", y = "y";
+  std::pair<std:string&&, std::string&&> rRefPair(std::move(x), std::move(y));
+  consumePair(std::move(rRefPair)); // Triggers noncompliant instantiation of consumePair
+                                    // with T = std:::string&& and U = std::string&&
+}
+
+
+template<typename Pair>
+void forwardPair(Pair&& p) {
+  consume(std::forward<Pair>(p).first, std::forward<Pair>(p).second); // Noncompliant (see later)
+}
+void use2() {
+  std::string x = "x", y = "y";
+  std::pair<std:string&&, std::string&&> rRefPair(std::move(x), std::move(y));
+  forwardPair(rRefPair); // OK, lvalue is passed, and the members should and are copied
+                         // Pair = std::pair<std:string&&, std::string&&>&
+  forwardPair(std::move(rRefPair)); // Triggers noncompliant instantiation of forwardPair
+                                    // with Pair = std::pair<std:string&&, std::string&&>
+}
+
+
+template<typename Pair>
+void forwardStruct(T&& p) {
+  consume(std::forward<T>(p).mem); // Noncompliant (see later)
+}
+struct Proxy {
+    std::vector<int>&& mem;
+};
+void use3() {
+  std::vector<int> v;
+  Proxy proxy{std::move(v)};
+  forwardStruct(proxy); // OK, lvalue is passed, and the members should and are copied
+                        // T = Proxy&
+  forwardStruct(std::move(proxy)); // Triggers noncompliant instantiation of forwardStruct
+                                   // with T = Proxy
+}
+
+
+void compiler_error() {
+  std::unique_ptr<int> u;
+  std::pair<std::unique_ptr<int>&&, int> pair(std::move(u), 1);
+  // std::unique_ptr<int> u2 = std::move(pair).first; // ill-formed trying to copy
 }
 ----
-
 
 == Compliant Solution
 
+[source,cpp]
 ----
-void consume(std::pair<std::string, std::string&&>&& p) {
-   auto first = std::move(p).first;
-   auto second = std::move(p.second);
+template<typename T, typename U>
+void consumePair(std::pair<T, U>&& p) {
+    consume(std::get<0>(std::move(p)), std::get<1>(std::move(p)));
 }
-// or
-void consume(std::pair<std::string, std::string&&>&& p) {
-   auto first = std::get<0>(std::move(p));
-   auto second = std::get<1>(std::move(p));
+
+
+template<typename Pair>
+void forwardPair(Pair&& p) {
+    consume(std::get<0>(std::forward<Pair>(p)), std::get<1>(std::forward<Pair>(p)));
+}
+
+
+template<typename Pair>
+void forwardStruct(T&& t) {
+  constexpr bool isMoveOfRvalueReferenceMember 
+      = std::is_rvalue_reference_v<decltype(t.mem)> && std::is_rvalue_reference_v<T&&>;
+  if constexpr (isMoveOfRvalueReferenceMember) {
+    consume(std::move(t.mem));
+  } else {
+    consume(std::forward<T>(t).mem);
+  }
+}
+
+
+void compiler_error() {
+  std::unique_ptr<int> u;
+  std::pair<std::unique_ptr<int>&&, int> pair(std::move(u), 1);
+  std::unique_ptr<int> u2 = std::move(pair.first);
 }
 ----
 

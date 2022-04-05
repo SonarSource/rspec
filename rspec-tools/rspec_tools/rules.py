@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Final, Generator, Iterable, Optional
 from bs4 import BeautifulSoup
+from rspec_tools.errors import RuleNotFoundError
 
 
 METADATA_FILE_NAME: Final[str] = 'metadata.json'
@@ -31,7 +32,12 @@ class LanguageSpecificRule:
     if self.__metadata is not None:
       return self.__metadata
     metadata_path = self.language_path.joinpath(METADATA_FILE_NAME)
-    lang_metadata = json.loads(metadata_path.read_bytes())
+    try:
+      lang_metadata = json.loads(metadata_path.read_bytes())
+    except:
+      print('Failed to parse ', metadata_path)
+      raise
+
     self.__metadata = self.rule.generic_metadata | lang_metadata
     return self.__metadata
 
@@ -76,8 +82,7 @@ class RulesRepository:
 
   rules_path: Final[Path]
 
-  def __init__(self, *, rules_path: Path=DEFAULT_RULES_PATH):
-    print(rules_path.absolute().__str__())
+  def __init__(self, rules_path: Path=DEFAULT_RULES_PATH):
     self.rules_path = rules_path
 
   @property
@@ -85,4 +90,7 @@ class RulesRepository:
     return (GenericRule(child) for child in self.rules_path.glob('S*') if child.is_dir())
     
   def get_rule(self, ruleid: str):
-    return GenericRule(self.rules_path.joinpath(ruleid))
+    rulepath = self.rules_path.joinpath(ruleid)
+    if not rulepath.is_dir():
+      raise RuleNotFoundError('Cannot find rule ' + ruleid + ' in ' + str(self.rules_path))
+    return GenericRule(rulepath)
