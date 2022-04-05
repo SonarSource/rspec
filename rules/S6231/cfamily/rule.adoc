@@ -1,25 +1,50 @@
-{cpp}20 introduced ``++std::span++`` and ``++std::string_view++`` as thin generic wrappers for a contiguous sequence of elements. These wrappers can be used to unify the interface of functions that were previously accepting references to specific container types: ``++const std::string&++``, ``++const std::vector<int>&++``...
+``++std::string_view++`` (introduced in {cpp}17) and ``++std::span++`` (introduced in {cpp}20) are thin generic wrappers for a contiguous sequence of elements. These wrappers can be used to unify the interface of functions that were previously accepting references to specific container types: ``++const std::string&++``, ``++const std::vector<int>&++``...
 
 
-One of the benefits of such modernization is that it eliminates the need to explicitly create a temporary container. This happens in situations where part of the sequence is passed as an argument: ``++substr++`` is called on ``++std::string++``. It can also happen when the type of the container elements needs to be adjusted: converting ``++std::vector<T*>++`` to ``++std::vector<const&>++``. When changing the type of a function parameter to ``++std::string_view++`` or ``++std::span++`` the modification of the function call site to remove the no longer needed temporary might be missed and the code will still compile. This rule will help eliminate these temporaries.
+One of the benefits of such modernization is that it eliminates the need to explicitly create a temporary container. This happens in situations where part of the sequence is passed as an argument: ``++substr++`` is called on ``++std::string++``. It can also happen when the type of the container elements needs to be adjusted: converting ``++std::vector<T*>++`` to ``++std::vector<const T*>++``. When changing the type of a function parameter to ``++std::string_view++`` or ``++std::span++`` the modification of the function call site to remove the no longer needed temporary might be missed and the code will still compile. This rule will help eliminate these temporaries.
 
 
 This rule raises an issue when an unnecessary temporary is passed as an argument to a parameter of ``++std::string_view++`` or ``++std::span++`` type.
 
 
-== Compliant Solution
+== Noncompliant Code Example
 
+[source,cpp]
 ----
-void process(std::string_view sv);
-bool oddAre0(const std::span<int const*>& nums);
+void parse(std::string_view sv);
+bool oddAre0(std::span<int const* const> nums);
 std::vector<int*> getNums();
 
-void caller() {
-  process(std::string_view(s).substr(10));
-  process(std::string_view(s.data(), 20));
+void caller(std::string const& s) {
+  parse(s.substr(10)); // Noncompliant
+  parse(std::string(s, 2, 5)); // Noncompliant
+  parse(std::string(s.data(), 20)); // Noncompliant
+  parse(std::string(s.data(), 10)); // Noncompliant
+
+  std::vector<int*> nums = getNums();
+  if (oddAre0(std::vector<int const*>{nums.begin(), nums.end()})) { // Noncompliant: This copy is verbose and slow
+    // ...
+  }
+}
+----
+
+== Compliant Solution
+
+[source,cpp]
+----
+void parse(std::string_view sv);
+bool oddAre0(std::span<int const* const> nums);
+std::vector<int*> getNums();
+
+void caller(std::string const& s) {
+  parse(std::string_view(s).substr(10));
+  parse(std::string_view(s).substr(2, 5));
+  parse(std::string_view(s.data(), 20));
+  parse({ s.data(), 10 });
+
   std::vector<int*> nums = getNums();
   if (oddAre0(nums)) {
-    // ...
+      // ...
   }
 }
 ----

@@ -1,0 +1,102 @@
+name: Update rule coverage
+on:
+  schedule:
+    - cron: '17 0 * * *'
+
+jobs:
+  update_coverage:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.COVERAGE_GITHUB_TOKEN }}
+      TMP_BRANCH: temporary/coverage_update
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        persist-credentials: true
+        ref: master
+        path: 'rspec'
+
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+
+    - name: 'Install Pipenv'
+      run: pip install pipenv
+
+    - name: 'Install coverage script dependencies'
+      working-directory: 'rspec/rspec-tools'
+      run: |
+        pipenv --python python3.9 install
+
+    - name: 'Regenerate coverage information'
+      id: gen-coverage
+      working-directory: 'rspec/rspec-tools'
+      run: |
+        pipenv run rspec-tools update-coverage
+        mv ./covered_rules.json ../frontend/public/covered_rules.json
+        if git diff --exit-code ../frontend/public/covered_rules.json; then
+          echo "::set-output name=new_coverage::false"
+        else
+          echo "::set-output name=new_coverage::true"
+        fi
+
+    - name: 'Cancel if coverage did not change'
+      if: steps.gen-coverage.outputs.new_coverage != 'true'
+      uses: andymckay/cancel-action@0.2
+
+    - name: 'Push the updated coverage file to a new branch'
+      id: create-temp-branch
+      if: steps.gen-coverage.outputs.new_coverage == 'true'
+      working-directory: 'rspec'
+      run: |
+        git config --global user.name "SonarTech"
+        git config --global user.email "sonartech@sonarsource.com"
+        git checkout -b $TMP_BRANCH
+        git add frontend/public/covered_rules.json
+        git commit -m "update coverage information"
+        git push --force-with-lease origin $TMP_BRANCH
+
+    - name: 'Wait for CI to succeed'
+      if: steps.gen-coverage.outputs.new_coverage == 'true'
+      uses: fountainhead/action-wait-for-check@v1.0.0
+      id: wait-for-build
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        checkName: all_required_checks
+        ref: ${{ env.TMP_BRANCH }}
+        timeoutSeconds: 2400
+        intervalSeconds: 30
+
+    - name: 'Push the updated coverage to master'
+      if: |
+        steps.gen-coverage.outputs.new_coverage == 'true' &&
+        steps.wait-for-build.outputs.conclusion == 'success'
+      working-directory: 'rspec'
+      run: |
+        git checkout master
+        git merge $TMP_BRANCH
+        git push origin master
+
+    - name: 'Delete the temporary branch'
+      if: always() && steps.create-temp-branch.conclusion == 'success'
+      uses: dawidd6/action-delete-branch@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN}}
+        branches: ${{ env.TMP_BRANCH}}
+
+    - name: 'Fail if the change breaks CI'
+      if: |
+        steps.gen-coverage.outputs.new_coverage == 'true' &&
+        steps.wait-for-build.outputs.conclusion != 'success'
+      run: exit 1
+
+    - name: 'Notify on slack about the failure'
+      if: ${{ failure() }}
+      env:
+        SLACK_API_TOKEN: ${{secrets.SLACK_API_TOKEN }}
+      working-directory: 'rspec/rspec-tools'
+      run: |
+        pipenv run rspec-tools notify-failure-on-slack \
+          --message "ERROR: failed to update rule coverage. See https://github.com/SonarSource/rspec/actions/runs/$GITHUB_RUN_ID" \
+          --channel team-lang-rspec-v2
