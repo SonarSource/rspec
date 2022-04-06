@@ -58,10 +58,34 @@ def canonicalize(language):
     return CANONICAL_NAMES[language]
   return language
 
+def read_all_alternative_keys(metadata):
+  ret = []
+  if 'sqKey' in metadata:
+    ret.append(metadata['sqKey'])
+  if 'ruleSpecification' in metadata:
+    ret.append(metadata['ruleSpecification'])
+  if 'extra' in metadata and 'legacyKeys' in metadata['extra']:
+    ret.extend(metadata['extra']['legacyKeys'])
+  return ret
+
+def read_canonical_rule_ids(rules_dir):
+  '''
+  Map all the keys identifying a rule to its modern key (which is also its directory name).
+  '''
+  print('Collecting the rule-id synonyms from ' + str(rules_dir))
+  canonical_id = {}
+  rule_dirs = [entry for entry in os.scandir(rules_dir) if entry.is_dir()]
+  for rule_dir in rule_dirs:
+    for metadata_path in Path(rule_dir).rglob('metadata.json'):
+      for alternative_key in read_all_alternative_keys(load_json(metadata_path)):
+        canonical_id[alternative_key] = rule_dir.name
+  return canonical_id
+
 class Coverage:
   '''Keep and update the coverage DB: lang*rule_id -> analyzer version'''
-  def __init__(self, filename):
+  def __init__(self, filename, rules_dir):
     self.rules = {}
+    self.canonical_ids = read_canonical_rule_ids(rules_dir)
     if os.path.exists(filename):
       self.rules = load_json(filename)
 
@@ -86,6 +110,8 @@ class Coverage:
   def rule_implemented(self, rule_id, language, analyzer, version):
     repo_and_version = analyzer + ' ' + version
     language = canonicalize(language)
+    if rule_id in self.canonical_ids:
+      rule_id = self.canonical_ids[rule_id]
 
     if language not in self.rules:
       print(f"Create entry for {language}")
@@ -155,22 +181,22 @@ def collect_coverage_for_version(repo_name, git_repo, version, coverage):
     print(f"{repo_name} {version} checkout failed: {e}")
     raise
 
-def update_coverage_for_all_repos():
+def update_coverage_for_all_repos(rules_dir):
   print(f"batch mode for {REPOS}")
-  coverage = Coverage(RULES_FILENAME)
+  coverage = Coverage(RULES_FILENAME, rules_dir)
   for repo in REPOS:
     collect_coverage_for_all_versions(repo, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
-def update_coverage_for_repo(repo):
+def update_coverage_for_repo(repo, rules_dir):
   print(f"batch mode for {repo}")
-  coverage = Coverage(RULES_FILENAME)
+  coverage = Coverage(RULES_FILENAME, rules_dir)
   collect_coverage_for_all_versions(repo, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
-def update_coverage_for_repo_version(repo, version):
+def update_coverage_for_repo_version(repo, version, rules_dir):
   print(f"checking {repo} version {version}")
-  coverage = Coverage(RULES_FILENAME)
+  coverage = Coverage(RULES_FILENAME, rules_dir)
   git_repo = checkout_repo(repo)
   collect_coverage_for_version(repo, git_repo, version, coverage)
   coverage.save_to_file(RULES_FILENAME)
