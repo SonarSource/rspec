@@ -12,27 +12,32 @@ include::../../threats.adoc[]
 
 include::../../fix/intro.adoc[]
 
-//Nice to have:
-//include::{S5131}/fix/data_encoding_section_3.adoc[]
 include::../../fix/data_encoding_section_3.adoc[]
-// Protect well-meaning users from the actions of malicious users by ensuring that user-supplied data cannot break out of its context when injected into a response. 
-// To do this, encode the data according to its context. The following table lists how user input should be handled depending on its output context.
-
-Note: Special Razor Form tags are already encoded by default:
-* The {asp-route-\{value\}} attribute is automatically encoded by the {BeginWriteTagHelperAttribute()} function.
-* HTML Attributes are automatically encoded by the Runtime, with {AddHtmlAttributeValue}.
-
+// inclusion:
+// Protect well-meaning users from the actions of malicious users by ensuring that user-supplied data
+// cannot break out of its context when injected into a response. 
+// To do this, encode the data according to its context. The following table lists how user input
+// should be handled depending on its output context.
 
 ==== In the View, Model, or ViewModel 
-IHtmlContent is considered already as HTML content and won't be encoded, to avoid double-encoding.
-To encode data from a View, Model, or ViewModel, multiple considerations are possible:
+:official-doc: https://docs.microsoft.com/en-us/aspnet/core/security/cross-site-scripting?view=aspnetcore-6.0
 
-1. Avoiding {IHtmlContent}, that is considered already-encoded by Razor, which won't encode it at runtime
-2. Using {Dependency Injection} to retrieve an HtmlEncoder, JavaScriptEncoder, or UrlEncoder
+To prevent cross-site scripting directly from code, two concepts are worth mentioning:
+
+First, that the compiler considers `IHtmlContent` to be a developer-defined HTML content. This means that:
+
+* Razer does not HTML-encode it at runtime to avoid double-encoding.
+* Any data that is not programmatically HTML encoded before it is sent to Razor is unsafe.
+
+Second, the HTML, JavaScript and URL encoders are available to the C# code in two ways:
+
+* Via Dependency Injection
+* Via the `System.Text.Encodings.Web` namespace
+
+The return type of the encoders is a string.
 
 [source,csharp]
 ----
-// Non-Compliant Sample
 public class ViewModel 
 {
     public string ThirdPartyString     { get; private set; }
@@ -41,96 +46,153 @@ public class ViewModel
     public ViewModel(string thirdPartyData)
     {
         this.ThirdPartyString = thirdPartyData;
-        this.ThirdPartyHtml   = new HtmlString(thirdPartyData);
+        this.ThirdPartyHtml   = new HtmlString(thirdPartyData); # NonCompliant
     }
 }
 ----
 
 [source,csharp]
 ----
-// Compliant Sample
 public class ViewModel 
 {
-    public string ThirdPartyString     { get; private set; }
-    public IHtmlContent ThirdPartyHtml { get; private set; }
+    public string       CleanThirdPartyString { get; private set; }
+    public IHtmlContent CleanThirdPartyHtml   { get; private set; }
 
     public ViewModel(string thirdPartyData, HtmlEncoder htmlEncoder)
     {
-        thirdPartyData        = htmlEncoder(thirdPartyData);
-        this.ThirdPartyString = thirdPartyData;
-        this.ThirdPartyHtml   = new HtmlString(thirdPartyData);
+        thirdPartyData             = htmlEncoder(thirdPartyData);
+        this.CleanThirdPartyString = thirdPartyData;
+        this.CleanThirdPartyHtml   = new HtmlString(thirdPartyData);
     }
 }
 ----
 
 ==== In the Razor View
-Important: everything except IHtmlContent is encoded under the hood
 
-The data passed via special .Net objects is encoded the same way as regular data, such as Model data. The aforementionned objects are:
+To prevent cross-site scripting from a Razor view, it is especially important to identify what types of input are being sent from the underlying C# code:
 
-* ViewData
-* ViewBag
-* TempData
-* Context (HttpContext.Items)
+* `IHtmlContent` is considered by the runtime environment to be a developer-defined HTML content. This means that:
+** Razer does not HTML-encode it at runtime to avoid double-encoding.
+** Any data that is not programmatically HTML encoded before it is sent to Razor is unsafe.
+* `string` variables are automatically encoded by Razor if they are included with the default `@variable` notation.
 
-[source,html]
-----
-// Non-Compliant Sample
 
-@Model.TaintedHtml  @*Noncompliant (S5131)*@
+Two Razor functions are to be avoided:
 
-@Html.Raw(Model.TaintedString) @*Noncompliant*@
+* `@Html.Raw(any)`: This function returns `IHTMLString`, which is not encoded because it is an `IHtmlContent`.
+* `@{ Output.Write(Model.ThirdPartyString); }`: This function uses `Razor` 's internal raw `TextWriter`, which does not perform any transformations, such as encoding.
 
-@{ Output.Write(Model.TaintedString);} @*Noncompliant*@
+Finally, if `IHtmlContent` actually needs to be used by the Razor view, the `@Html.Encode()` function will make the content harmless. 
 
-@ViewData["TaintedHtml"]   @*Noncompliant*@
-@Html.Raw(ViewData["TaintedString"]) @*Noncompliant*@
-@Html.Raw(ViewBag.TaintedString) @*Noncompliant*@
+*Note*: This section applies to all data passed to a Razor view, including global objects such as:
 
-@{
-    object taintedObject = ViewBag.TaintedString; // Value is read from ViewBagAll argument => can cause FP
-    string taintedString = ViewBag.TaintedString as string;
-}
-@Html.Raw(taintedObject) @*Noncompliant*@
-@taintedObject @*Noncompliant FP, everything except IHtmlContent is encoded under the hood*@
-----
+* `ViewData`
+* `ViewBag`
+* `TempData`
+* `Context` (`HttpContext.Items`)
+
 
 [source,html]
 ----
-// Compliant Sample
-@Model.CleanString
-@Model.TaintedString @*Compliant, automatically encoded*@
+@*
+    // Code sent to the Razor View
+  
+    IHtmlContent   ThirdPartyHtml;
+    string         ThirdPartyString;
+*@
 
-@Model.CleanHtml    @*Compliant, engine is field sensitive*@
+@Model.ThirdPartyHtml @* Noncompliant *@
 
-@Html.Raw(Model.CleanString)   @*Compliant, engine is field sensitive*@
+@Html.Raw(Model.ThirdPartyString) @* Noncompliant *@
 
-@{ Output.Write(Model.CleanString);}   @*Compliant, engine is field sensitive*@
+@{ Output.Write(Model.ThirdPartyString); } @* Noncompliant *@
 
-@ViewData["TaintedString"] @*Compliant, everything except IHtmlContent is encoded under the hood*@
-@Html.Raw(ViewBag.CleanString)
+@ViewData["ThirdPartyHtml"]   @* Noncompliant *@
+@Html.Raw(ViewData["ThirdPartyString"]) @* Noncompliant *@
+@Html.Raw(ViewBag.ThirdPartyString) @* Noncompliant *@
 
 @{
-    object taintedObject = ViewBag.TaintedString; // Value is read from ViewBagAll argument => can cause FP
-    string taintedString = ViewBag.TaintedString as string;
+    object thirdPartyObject = ViewBag.ThirdPartyString;
+    string thirdPartyString = ViewBag.ThirdPartyString as string;
 }
-@taintedString @*Compliant, overload with string argument is recognized here*@
+@Html.Raw(thirdPartyObject) @* Noncompliant *@
+@thirdPartyObject @* Noncompliant
 ----
+
+[source,html]
+----
+@*
+    // Code sent to the Razor View
+  
+    IHtmlContent ThirdPartyHtml;
+    string       ThirdPartyString;
+
+    IHtmlContent CleanThirdPartyHtml   = new HtmlString(HTMLEncoder.Encode(ThirdPartyString));
+    string       CleanThirdPartyString = HTMLEncoder.Encode(ThirdPartyString);
+*@
+
+@Html.Encode(Model.ThirdPartyHtml)
+
+@Model.ThirdPartyString 
+
+@Model.CleanThirdPartyHtml
+
+@Html.Raw(Model.CleanThirdPartyString)   
+
+@{ Output.Write(Model.CleanThirdPartyString); }
+
+@ViewData["ThirdPartyString"] 
+@Html.Raw(ViewBag.CleanThirdPartyString)
+
+@{
+    object thirdPartyObject = ViewBag.ThirdPartyString; // Value is read from ViewBagAll argument => can cause FP
+    string thirdPartyString = ViewBag.ThirdPartyString as string;
+}
+@thirdPartyString 
+----
+
+==== Special Cases
+
+Note: Including third-party data in Special Razor Form tags is considered safe
+for some of them:
+
+* The `asp-route-{value}` attribute is automatically encoded by the `BeginWriteTagHelperAttribute()` function.
+* HTML Attributes are automatically encoded by the Runtime, with `AddHtmlAttributeValue`.
 
 
 === Pitfalls
 
 include::../../pitfalls/deny-lists.adoc[]
 
-To create an allow-list in .Net Core, you have TODO TODO TODO TODO
+If the application needs to handle rich content, the preferred option is to use
+Markdown in conjunction with a parser that removes embedded HTML.
+
+By removing embedded HTML and leaving the generation of HTML to internal
+code, validation and sanitization help prevent third-party tampering.
 
 === Going the extra mile
 
 include::../../extra-mile/csp.adoc[]
 
-To add CSP in .Net Blabla, you have TODO TODO TODO
+:blazor-csps: https://docs.microsoft.com/en-us/aspnet/core/blazor/security/content-security-policy?view=aspnetcore-6.0
+:aspdotnet-core-middleware: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-6.0
+:csp-nonces-owin: https://vcsjones.dev/content-security-policy-nonces-in-asp-net-and-owin/
+
+Implementing content security policies differs from one architecture to another.
+
+When client-side code is processed by Blazor::
+* {blazor-csps}[the library supports it by default].
+When CSP requirements are low::
+* {aspdotnet-core-middleware}[the ASP.Net Core Middleware provides header control].
+When code requirements enforce optimal CSP, including content security policies nonces::
+* The Open Web Interface for . NET (OWIN) {csp-nonces-owin}[can be used for a simple implementation].
+
 
 include::../../resources.adoc[]
+
+// Articles & Blog Posts
+* https://vcsjones.dev/content-security-policy-nonces-in-asp-net-and-owin/[vcsjones.dev, Content-Security-Policy Nonces in ASP.NET and OWIN]
+* http://owin.org/[owin.org, OWIN - Open Web Interface for .NET]
 
 ifdef::env-github,rspecator-view[]
 
