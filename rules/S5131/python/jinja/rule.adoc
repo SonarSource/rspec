@@ -10,19 +10,92 @@ include::../../threats.adoc[]
 
 == How to fix it?
 
-[source,python]
-----
-
-----
+The following code is vulnerable to XSS because Jinja autoescaping of special HTML charactrer as been disabled.
 
 [source,python]
 ----
+from flask import render_template
 
+@app.route('/hello/<name>')
+def hello(name=None):
+    hello = f"<h1>Hello { name }</h1>"
+    return render_template('hello.html', hello=hello)
+----
+
+[source,html]
+----
+<!doctype html>
+{% autoescape false %} 
+{{ hello }} <!-- Noncompliant -->
+{% endautoescape %}
+----
+
+One option is to move the dynamic HTML content to the template engine and stop disableing autoescape.
+
+[[source,python]
+----
+from flask import render_template
+
+@app.route('/hello/<name>')
+def hello(name=None):
+    return render_template('hello.html', name=name)
+----
+[source,html]
+----
+<!doctype html>
+<h1>Hello {{ name }}</h1>
+----
+
+Qnother option is to use ``++jinja2.escape++`` or ``++html.escape++`` to sanitize untruted value before using them in the dynamicly generated HTML string
+
+[[source,python]
+----
+from flask import render_template
+import html
+
+@app.route('/hello/<name>')
+def hello(name=None):
+    hello = f"<h1>Hello { html.escape(name) }</h1>"
+    return render_template('hello.html', hello=hello)
+----
+
+[source,html]
+----
+<!doctype html>
+{% autoescape false %} 
+{{ hello }}
+{% endautoescape %}
 ----
 
 === How does this work?
 
+Template engines are used by web application to build HTML content. Template files contains static HTML as well as template language instruction. These instruction allow for example to insert dynamic values in the document as template is rendered. Template engine can autoescape HTML special characters from dynamic value in order to prevent XSS vulnerabilities.
+
+In Flask applications, Jinja autoescaping feature is unabled by default. XSS vulnerabilities arise when an untrusted value is injected in the tamplate and that autoescaping is disabled using `{% autoescape false %}`. This is often the case when a piece of dynamic HTML is generated from the Python code and used as a template parameter. 
+
 === Pitfalls
+
+Although Jinja autoescaping drastically decreases the chance of introducing Cross-Site Scripting vulnerabilities, there are still specific cases where vulnerabilities can occure.
+
+==== Dynamic values inside a script tag
+
+Autoescaping doesn't prevent XSS when dynamic value are replaced inside ```++<script>++` tags.
+In the following example, if ``++name++`` is not untrusted, JavaScript code can be injected.
+
+[source,html]
+----
+<!doctype html>
+<script> var name = {{ name }}</script>
+----
+
+In this case dynamic data should be retrived asynchronously form the JavaScript code.
+Alternatively the ``++tojson++`` filter can be use to insert a data structure in the JavaScript code at render time.
+
+[source,html]
+----
+<!doctype html>
+<script> var name = {{ name | tojson }}</script>
+----
 
 === Going the extra mile
 
