@@ -95,8 +95,9 @@ def test_create_new_rule_pull_request(rule_creator: RuleCreator):
     mock_repo.create_pull.return_value.add_to_labels.assert_called_with('mylab', 'other-lab');
 
 
+@patch('rspec_tools.create_rule.tmp_rspec_repo')
 @patch('rspec_tools.create_rule.RuleCreator')
-def test_create_new_rule(mockRuleCreator):
+def test_create_new_rule(mockRuleCreator, mock_tmp_rspec_repo):
   prMock = mockRuleCreator.return_value.create_new_rule_pull_request
   create_new_rule('cfamily,php', 'my token', 'testuser')
   prMock.assert_called_once()
@@ -199,8 +200,9 @@ def test_add_unsupported_language(mock):
   mock.return_value.add_language_pull_request.assert_not_called()
 
 
+@patch('rspec_tools.create_rule.tmp_rspec_repo')
 @patch('rspec_tools.create_rule.RuleCreator')
-def test_add_supported_language(mock):
+def test_add_supported_language(mock, mock_tmp_rspec_repo):
   '''Test language validation.'''
   add_language_to_rule('cfamily', 'S1033', 'my token', 'testuser')
   mock.return_value.add_language_pull_request.assert_called_once()
