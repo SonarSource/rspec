@@ -1,0 +1,64 @@
+An Azure function should be stateless as there's no control over where and when function instances are provisioned and de-provisioned. Managing and storing data/state between requests can lead to inconsistencies.
+If, for any reason, you need to have a stateful function, consider using the Durable Azure functions extension.
+
+// If you want to factorize the description uncomment the following line and create the file.
+//include::../description.adoc[]
+
+== Noncompliant Code Example
+
+[source,csharp]
+----
+    public class HttpExample
+    {
+        private readonly int port = 2000;
+        private int numOfRequests = 1;
+
+        [FunctionName("HttpExample")]
+        public static async Task<IActionResult> Run( [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest request, ILogger log)
+        {
+            string requestBody = await new StreamReader(request.Body).ReadToEndAsync();
+            dynamic data = JsonConvert.DeserializeObject(requestBody);
+
+            numOfRequests += 1; // Noncompliant
+            log.LogInformation($"Number of POST requests is {numOfRequests}.");
+
+            string responseMessage = $"Requests on port {port}: {data}"; // Compliant, state is only read.
+
+            return new OkObjectResult(responseMessage);
+        }
+    }
+----
+
+== Compliant Solution
+
+[source,csharp]
+----
+    public class HttpExample
+    {
+        private readonly int port = 2000;
+
+        [FunctionName("HttpExample")]
+        public async Task<IActionResult> Run( [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest request, ILogger log)
+        {
+            string requestBody = await new StreamReader(request.Body).ReadToEndAsync();
+            dynamic data = JsonConvert.DeserializeObject(requestBody);
+
+            // A compliant solution would be to read and update state data in a central storage.
+            var storageClient = new HttpClient();
+            HttpResponseMessage readResponse = await storageClient.GetAsync("api/numOfRequests");
+            var numOfRequests = (await readResponse.Content.ReadAsAsync<int>()) + 1;
+            await storageClient.PostAsJsonAsync("api/numOfRequestst", numOfRequests);
+
+            log.LogInformation($"Number of POST requests is {numOfRequests}.");
+
+            string responseMessage = $"Requests on port {port}: {data}";
+
+            return new OkObjectResult(responseMessage);
+        }
+    }
+----
+
+== See
+
+* https://docs.microsoft.com/en-us/azure/azure-functions/performance-reliability#write-functions-to-be-stateless[Azure Functions Microsoft Docs] - Improve the performance and reliability of Azure Functions
+* https://docs.microsoft.com/en-us/azure/azure-functions/durable/durable-functions-overview?tabs=csharp[Microsoft Docs] - Durable Functions
