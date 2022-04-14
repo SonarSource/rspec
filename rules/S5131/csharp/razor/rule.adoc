@@ -14,7 +14,7 @@ include::../../common/fix/intro.adoc[]
 
 include::../../common/fix/data_encoding.adoc[]
 
-==== In an MVC or MVVM context
+==== In C# code
 
 To prevent cross-site scripting directly from code, two concepts are worth mentioning:
 
@@ -23,7 +23,7 @@ First, that the compiler considers `IHtmlContent` to be a developer-defined HTML
 * Razor does not HTML-encode it at runtime to avoid double-encoding.
 * Any data that is not programmatically HTML encoded before being sent to Razor is unsafe.
 
-Second, the HTML, JavaScript and URL encoders are available to the C# code in two ways:
+Second, the HTML and JavaScript encoders are available to the C# code in two ways:
 
 * Via dependency injection
 * Via the `System.Text.Encodings.Web` namespace
@@ -54,14 +54,14 @@ public class ViewModel
 
     public ViewModel(string thirdPartyData, HtmlEncoder htmlEncoder)
     {
-        thirdPartyData             = htmlEncoder(thirdPartyData);
+        thirdPartyData             = htmlEncoder.Encode(thirdPartyData);
         this.CleanThirdPartyString = thirdPartyData;
         this.CleanThirdPartyHtml   = new HtmlString(thirdPartyData);
     }
 }
 ----
 
-==== In the Razor View
+==== HTML Encoding in the Razor View
 
 To prevent cross-site scripting from a Razor view, it is especially important to identify what types of input are being sent from the underlying C# code:
 
@@ -145,13 +145,75 @@ Finally, if `IHtmlContent` actually needs to be used by the Razor view, the `@Ht
 @thirdPartyString 
 ----
 
-==== Special Cases
+==== JavaScript Encoding In The Razor View
 
-Note: Including third-party data in special Razor form tags is considered safe
-for some of them:
+Using the `@Html.Raw` function to embed third party input in Javascript is
+discouraged, even though StackOverflow contributions suggest it. It could be
+used so that automatic HTML encoding does not mess up the logic of the code,
+but actually makes the code vulnerable to injection vulnerabilities.
 
-* The `asp-route-{value}` attribute is automatically encoded by the runtime, with the `BeginWriteTagHelperAttribute()` function.
-* HTML Attributes are automatically encoded by the runtime, with the `AddHtmlAttributeValue()` function.
+To quickly and safely use a variable from C# code in JS logic, put the value in
+a data attribute of an HTML tag. Other options include injecting services into
+views or using encoders directly in Razor code, but these methods require more
+code.
+
+When you insert a value into an HTML tag attribute, Razor automatically encodes
+the value and protects the code from any web-based injection.
+
+After that, this data is accessible to normal native JavaScript functions. The
+JavaScript functions `GetElementById` and `GetAttribute` retrieve the data
+without having to decode it in the meantime.
+
+If third-party data retrieved using JS needs to be inserted into the HTML code, use:
+
+* `element.innerText`
+* `element.textContent`
+* `document.createTextNode`
+
+Because these functions interpret data as `text` and not as `code`.
+
+Do not use the following methods and attributes. Because they interpret data as
+`code` and not as `text`, they are therefore vulnerable to security
+vulnerabilities:
+
+* `document.write()`
+* `document.writeln()`
+* `document.domain`
+* `element.innerHTML`
+* `element.outerHTML`
+* `element.insertAdjacentHTML`
+* `element.onevent`
+
+Note: Including third party data in special Razor form tags is considered safe for some of them:
+
+* The `asp-route-{value}` attribute is automatically encoded by the runtime with the `BeginWriteTagHelperAttribute()` function.
+* HTML attributes are automatically encoded by the runtime with the `AddHtmlAttributeValue()` function.
+
+[source,html]
+----
+<script>
+    var thirdPartyData = "@Html.Raw(thirdPartyData)"; // Noncompliant
+</script>
+----
+
+[source,html]
+----
+<div id="thirdPartyData"
+     data-thirdPartyData="@thirdPartyData" />
+
+<div id="cleanThirdPartyData" />
+
+<script>
+    var thirdPartyData = document.getElementById("thirdPartyData");
+    var cleanThirdPartyData = thirdPartyData.getAttribute("data-thirdPartyData");
+
+    // Alternative
+    var cleanJsEncodedData = "@System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(untrustedInput)";
+
+    // If this data needs to be added back into HTML
+    document.getElementById("cleanThirdPartyData").innerText += cleanThirdPartyData;
+</script>
+----
 
 
 === Pitfalls
@@ -190,6 +252,7 @@ include::../../common/resources/articles.adoc[]
 
 * https://vcsjones.dev/content-security-policy-nonces-in-asp-net-and-owin/[vcsjones.dev, Content-Security-Policy Nonces in ASP.NET and OWIN]
 * http://owin.org/[owin.org, OWIN - Open Web Interface for .NET]
+* https://portswigger.net/web-security/cross-site-scripting/dom-based[PortSwigger, DOM-Based XSS]
 
 include::../../common/resources/presentations.adoc[]
 
