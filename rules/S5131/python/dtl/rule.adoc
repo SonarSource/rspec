@@ -10,26 +10,113 @@ include::../../threats.adoc[]
 
 == How to fix it?
 
-[source,python]
-----
-
-----
+The following code is vulnerable to Cross-Site Scripting because Jinja auto-escaping of special HTML characters has been disabled.
 
 [source,python]
 ----
+from django.shortcuts import render
 
+def hello(request):
+        name = request.GET.get("name")
+        return render(request, 'hello.html', {'hello': hello})
+----
+
+[source,html]
+----
+<!doctype html>
+{% autoescape false %} 
+{{ hello }} <!-- Noncompliant -->
+{% endautoescape %}
+----
+
+Stop disabling auto-escaping by moving the dynamic HTML content to the template engine.
+
+[[source,python]
+----
+from django.shortcuts import render
+
+def hello(request):
+        name = request.GET.get("name")
+        return render(request, 'hello.html', {'name': name})
+----
+[source,html]
+----
+<!doctype html>
+<h1>Hello {{ name }}</h1>
 ----
 
 === How does this work?
 
+Template engines are used by web applications to build HTML content. Template files contain static HTML as well as template language instruction. These instructions allow, for example, to insert dynamic values in the document as the template is rendered. Template engines can auto-escape HTML special characters of dynamic values in order to prevent XSS vulnerabilities.
+
+In Django applications, the engine's auto-escaping feature is enabled by default. XSS vulnerabilities arise when an untrusted value is injected in the template and that auto-escaping is disabled using ``++{% autoescape false %}++`` or ``++|safe++`` filter. This is often the case when a piece of dynamic HTML is generated from the Python code and used in a template variable.
+
 === Pitfalls
 
-=== Going the extra mile
+Although auto-escaping drastically decreases the chance of introducing Cross-Site Scripting vulnerabilities, there are still specific cases where vulnerabilities can occur.
 
+==== Unquoted variables in attributes
+
+If ``++color++`` is untrusted, JavaScript code can be injected by adding event-handler attributes like ``++onload++``.
+
+[source,html]
+----
+<!doctype html>
+<span style={{color}}>...</span>
+----
+
+Surround the attribute with double or single quotes to prevent arbitrary HTML tags from being added.
+
+[source,html]
+----
+<!doctype html>
+<span style="{{color}}">...</span>
+----
+
+==== Variables in ``++href++`` attributes
+
+If ``++url++`` is untrusted, JavaScript code can be injected by using an attributes value that starts with ``++javascript:++``.
+
+[source,html]
+----
+<!doctype html>
+<a href="{{url}}">...</a>
+----
+
+Use functions like ``++{% url %}++`` tag to generate URLs used in ``++href++`` attributes
+
+[source,html]
+----
+<!doctype html>
+<a href="{% url 'index' %}">...</a>
+----
+
+==== Variables in a script blocks
+
+If ``++name++`` is untrusted, JavaScript code can be injected.
+
+[source,html]
+----
+<!doctype html>
+<script> var name = {{ name }}</script>
+----
+
+The ``++tojson++`` filter can be used to insert a data structure in the JavaScript code at render time.
+
+[source,html]
+----
+<!doctype html>
+{{ name|json_script:"name-data" }}
+<script> var name = JSON.parse(document.getElementById('name-data').textContent)</script>
+----
+
+=== Going the extra mile
 
 == Resources
 
 === Documentation
+
+* https://docs.djangoproject.com/en/4.0/ref/templates/builtins[Django, Built-in template tags and filters]
 
 include::../../common/resources/articles.adoc[]
 
