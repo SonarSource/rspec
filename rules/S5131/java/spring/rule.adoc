@@ -12,20 +12,111 @@ include::../../threats.adoc[]
 
 include::../../common/fix/intro.adoc[]
 
+//=== Data Encoding Section
 include::../../common/fix/data_encoding.adoc[]
 
-==== In Spring
+Encoding with owasp
 
 [source,java]
 ----
-
+@RestController
+public class ApiController
+{
+    @GetMapping(value = "/endpoint")
+    public String endpoint(@RequestParam("thirdPartyData") thirdPartyData)
+    {
+        return thirdPartyData; // Noncompliant
+    }
+}
 ----
 
 [source,java]
 ----
+@RestController
+public class ApiController
+{
+    @GetMapping(value = "/endpoint")
+    public String endpoint(@RequestParam("thirdPartyData") thirdPartyData)
+    {
+        // todo
+    }
+----
+
+//==== Content-Type Section
+include::../../common/fix/content_type_header.adoc[]
+
+:httpmessageconver: https://ladoc
+
+In Spring MVC, @ResponseBody and ResponseEntity methods are at risk, because
+they can render different content types.
+See content negociation: https://www.springcloud.io/post/2022-02/understand-spring-httpmessageconverter/#how-does-spring-content-negotiation-work
+
+Possible to make different content types according to HTTP Message converters
+See: https://community.sonarsource.com/t/s5131-endpoints-security-and-xss-attacks/51881/12?u=loris_sierra
+See the links of the post
+
+
+You can declare a shared produces attribute at the class level. Unlike most
+other request-mapping attributes, however, when used at the class level, a
+method-level produces attribute overrides rather than extends the class-level
+declaration.
+
+Warning: Be careful when negotiating content!
+
+
+Becareful if XML lib in dependencies! https://howtodoinjava.com/spring-rest/spring-rest-hello-world-xml-example/ 
+
+Remember that @ResponseBody is part of @RestController annotation, so we do not need to apply it explicitly. Read more for a detailed discussion. 
+
+----
+@Configuration
+@EnableWebMvc
+public class WebConfig extends WebMvcConfigurerAdapter {
+
+    @Override
+    public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
+        configurer.favorPathExtension(false)
+        .mediaType("xml", MediaType.APPLICATION_XML)
+        .mediaType("json", MediaType.APPLICATION_JSON)
+        .favorParameter(true)
+        .defaultContentType(MediaType.APPLICATION_XML) <---- Important ! Set to JSON !
+        .ignoreAcceptHeader(true)
+    }
+}
 
 ----
 
+Note: If a custom {httpmessageconver}[HTTP Message converter] has been set, it should
+not send back third party data with the following Content-Types:
+*
+
+[source,java]
+----
+@RestController
+public class ApiController
+{
+    @GetMapping(value = "/endpoint")
+    public String endpoint(@RequestParam("thirdPartyData") thirdPartyData)
+    {
+        return thirdPartyData; // Noncompliant
+    }
+}
+----
+
+[source,java]
+----
+@RestController
+public class ApiController
+{
+    @GetMapping(value = "/endpoint", produces = "application/json")
+    public String endpoint(@RequestParam("thirdPartyData") thirdPartyData)
+    {
+        return thirdPartyData;
+    }
+}
+----
+
+See the links of the post
 === How does this work?
 
 === Pitfalls
@@ -36,9 +127,21 @@ include::../../common/pitfalls/deny-lists.adoc[]
 
 include::../../common/extra-mile/csp.adoc[]
 
+:csp-baeldung: https://www.baeldung.com/thymeleaf-in-spring-mvc
+:csp-blog:     https://techblog.bozho.net/content-security-policy-nonce-with-spring-security/
+
+The application can easily benefit from CSP thanks to a
+{csp-baeldung}[WebSecurityConfigurerAdapter bean]. +
+To take full advantage of CSP, cryptographic primitives (nonces) are likely to
+be used. You can read more about this {csp-blog}[here].
+
 include::../../common/resources/docs.adoc[]
 
 include::../../common/resources/articles.adoc[]
+
+* {csp-baeldung}[Baeldung.com, Prevent Cross-Site Scripting (XSS) in a Spring Application]
+* {csp-blog}[techblog.bozho.net, Content-Security-Policy Nonce with Spring Security]
+* https://www.baeldung.com/spring-security-csp
 
 include::../../common/resources/presentations.adoc[]
 
