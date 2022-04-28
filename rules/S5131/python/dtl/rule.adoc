@@ -10,9 +10,7 @@ include::../../threats.adoc[]
 
 == How to fix it?
 
-The following code is vulnerable to Cross-Site Scripting because Jinja auto-escaping of special HTML characters has been disabled.
-Enable auto-escaping by moving the dynamic HTML content to the template engine.
-
+The following code is vulnerable to Cross-Site Scripting because auto-escaping of special HTML characters has been disabled. The recommended way to fix this code is to move the HTML content to the template and to only inject the dynamic value. Therefore, no need to disable auto-escaping. 
 
 [cols="a,a"]
 |===
@@ -55,9 +53,13 @@ def hello(request):
 
 === How does this work?
 
-Template engines are used by web applications to build HTML content. Template files contain static HTML as well as template language instruction. These instructions allow, for example, to insert dynamic values in the document as the template is rendered. Template engines can auto-escape HTML special characters of dynamic values in order to prevent XSS vulnerabilities.
+Template engines are used by web applications to build HTML content. Template files contain static HTML as well as template language instructions. These instructions allow, for example, to insert dynamic values in the document as the template is rendered. Template engines can auto-escape HTML special characters of dynamic values in order to prevent XSS vulnerabilities.
 
-In Django applications, the engine's auto-escaping feature is enabled by default. XSS vulnerabilities arise when an untrusted value is injected in the template and that auto-escaping is disabled using ``++{% autoescape false %}++`` or ``++|safe++`` filter. This is often the case when a piece of dynamic HTML is generated from the Python code and used in a template variable.
+In Django applications, the engine's auto-escaping feature is enabled by default. XSS vulnerabilities arise when an untrusted value is injected in the template and auto-escaping is disabled using ``++{% autoescape false %}++`` or ``++|safe++`` filter. This is often the case when a piece of dynamic HTML is generated from the code and used in a template variable.
+
+include::../../common/fix/data_encoding.adoc[]
+
+Django templates auto-escaping only takes care of HTML entity endcoding. It will not protect from XSS if a variable is injected in an unquoted attribute or direcly in a script block.
 
 Auto-escaping may be disabled at application level causing XSS vulnerabilities even if ``++{% autoescape false %}++`` or ``++|safe++`` are not being used.
 
@@ -94,69 +96,14 @@ TEMPLATES = [
 
 |===
 
-
-
-
-
-
-When HTML templates are rendered, this option should be set to ``++True++``
-
 === Pitfalls
 
 Although auto-escaping drastically decreases the chance of introducing Cross-Site Scripting vulnerabilities, there are still specific cases where vulnerabilities can occur.
 
-==== Unquoted variables in attributes
-
-If ``++color++`` is untrusted, JavaScript code can be injected by adding event-handler attributes like ``++onmouseover++``.
-
-Surround the attribute with double or single quotes to prevent arbitrary attributes from being added.
-
-[cols="a,a"]
-|===
-|
-[source,html]
-----
-<!doctype html>
-<span style={{color}}>...</span>
-----
-|
-[source,html]
-----
-<!doctype html>
-<span style="{{color}}">...</span>
-----
-|===
-
-==== Variables in ``++href++`` attributes
-
-If ``++url++`` is untrusted, JavaScript code can be injected by using an attributes value that starts with ``++javascript:++``.
-
-
-Use functions like ``++{% url %}++`` tag to generate URLs used in ``++href++`` attributes
-
-
-[cols="a,a"]
-|===
-|
-[source,html]
-----
-<!doctype html>
-<a href="{{url}}">...</a>
-----
-|
-[source,html]
-----
-<!doctype html>
-<a href="{% url 'index' %}">...</a>
-----
-|===
-
-
 ==== Variables in script blocks
 
-If ``++name++`` is untrusted, JavaScript code can be injected.
-
-The ``++tojson++`` filter can be used to insert a data structure in the JavaScript code at render time.
+As mentionned above, injecting user-contoled value inside a ``++script++`` is dangerous and the best practice, in such a case, is to add the value to an attribute.
+Another option is to use ``++json_script++`` filter to insert a data structure that can then be accessed from the JavaScript code.
 
 [cols="a,a"]
 |===
@@ -174,6 +121,8 @@ The ``++tojson++`` filter can be used to insert a data structure in the JavaScri
 <script> var name = JSON.parse(document.getElementById('name-data').textContent);</script>
 ----
 |===
+
+include::../../common/pitfalls/validation.adoc[]
 
 === Going the extra mile
 
