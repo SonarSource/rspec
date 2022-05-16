@@ -83,19 +83,47 @@ class RuleCreator:
     return branch_name
 
   def _fill_in_the_blanks_in_the_template(self, rule_dir: Path, rule_number: int):
+    WINDOWS_LINE_ENDING = b'\r\n'
+    UNIX_LINE_ENDING = b'\n'
     for rule_item in rule_dir.glob('**/*'):
       if rule_item.is_file():
         template_content = rule_item.read_text()
         final_content = template_content.replace('${RSPEC_ID}', str(rule_number))
         rule_item.write_text(final_content)
 
+        with open(rule_item, 'rb') as open_file:
+          content = open_file.read()
+
+        # Windows ➡ Unix
+        content = content.replace(WINDOWS_LINE_ENDING, UNIX_LINE_ENDING)
+
+        # Unix ➡ Windows
+        # content = content.replace(UNIX_LINE_ENDING, WINDOWS_LINE_ENDING)
+
+        with open(rule_item, 'wb') as open_file:
+          open_file.write(content)
+
   def _fill_language_name_in_the_template(self, lang_dir: Path, language: str):
+    WINDOWS_LINE_ENDING = b'\r\n'
+    UNIX_LINE_ENDING = b'\n'
     for rule_item in lang_dir.glob('*.adoc'):
       if rule_item.is_file():
         template_content = rule_item.read_text()
         lang = LANG_TO_SOURCE[language]
         final_content = template_content.replace('[source,text]', f'[source,{lang}]')
         rule_item.write_text(final_content)
+
+        with open(rule_item, 'rb') as open_file:
+          content = open_file.read()
+
+        # Windows ➡ Unix
+        content = content.replace(WINDOWS_LINE_ENDING, UNIX_LINE_ENDING)
+
+        # Unix ➡ Windows
+        # content = content.replace(UNIX_LINE_ENDING, WINDOWS_LINE_ENDING)
+
+        with open(rule_item, 'wb') as open_file:
+          open_file.write(content)
 
   def _fill_multi_lang_template_files(self, rule_dir: Path, rule_number: int, languages: Iterable[str]):
     common_template = self.TEMPLATE_PATH / 'multi_language' / 'common'
