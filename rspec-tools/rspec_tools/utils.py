@@ -39,6 +39,7 @@ LANG_TO_LABEL = {'abap': 'abap',
                  'vbnet': 'dotnet',
                  'cloudformation': 'iac',
                  'terraform': 'iac',
+                 'kubernetes': 'iac',
                  'xml': 'xml',
 }
 
