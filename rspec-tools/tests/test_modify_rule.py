@@ -110,8 +110,9 @@ def test_update_quickfix_status_pull_request(rule_editor: RuleEditor):
     mock_repo.create_pull.return_value.add_to_labels.assert_called_with('label-fraicheur')
 
 
+@patch('rspec_tools.modify_rule.tmp_rspec_repo')
 @patch('rspec_tools.modify_rule.RuleEditor')
-def test_update_rule_quickfix_status(mockRuleEditor):
+def test_update_rule_quickfix_status(mockRuleEditor, mock_tmp_rspec_repo):
   '''Test update_rule_quickfix_status uses the expected implementation.'''
   prMock = mockRuleEditor.return_value.update_quickfix_status_pull_request
   update_rule_quickfix_status('cfamily', 'S100', 'covered', 'my token', 'testuser')

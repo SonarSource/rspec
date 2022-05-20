@@ -120,17 +120,17 @@ def check_description(d, rules):
 
 
 @cli.command()
+@click.option('--rulesdir', required=True)
 @click.option('--repository', required=False)
 @click.option('--version', required=False)
-def update_coverage(repository: Optional[str], version: Optional[str]):
+def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[str]):
   '''Update rule coverage by adding rules implemented in the {version} of {repository}.'''
   if repository is None:
-      update_coverage_for_all_repos()
+      update_coverage_for_all_repos(Path(rulesdir))
   elif version is None:
-      update_coverage_for_repo(repository)
+      update_coverage_for_repo(repository, Path(rulesdir))
   else:
-      update_coverage_for_repo_version(repository, version)
-
+      update_coverage_for_repo_version(repository, version, Path(rulesdir))
 
 @cli.command()
 @click.option('--message', required=True)
