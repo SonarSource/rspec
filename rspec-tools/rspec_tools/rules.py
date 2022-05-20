@@ -1,5 +1,6 @@
 
 import json
+from . import utils
 from pathlib import Path
 from typing import Final, Generator, Iterable, Optional
 from bs4 import BeautifulSoup
@@ -63,7 +64,8 @@ class GenericRule:
 
   @property
   def specializations(self) -> Generator[LanguageSpecificRule, None, None]:
-    return (LanguageSpecificRule(child, self) for child in self.rule_path.iterdir() if child.is_dir())
+    return (LanguageSpecificRule(child, self) for child in self.rule_path.iterdir() if
+            child.is_dir() and child.name in utils.load_valid_languages())
   
   def get_language(self, language: str) -> LanguageSpecificRule:
     return LanguageSpecificRule(self.rule_path.joinpath(language), self)
