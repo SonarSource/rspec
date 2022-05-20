@@ -63,7 +63,7 @@ class GenericRule:
 
   @property
   def specializations(self) -> Generator[LanguageSpecificRule, None, None]:
-    return (LanguageSpecificRule(child, self) for child in self.rule_path.iterdir() if child.is_dir())
+    return (LanguageSpecificRule(child, self) for child in self.rule_path.iterdir() if child.is_dir() and child.name != 'common')
   
   def get_language(self, language: str) -> LanguageSpecificRule:
     return LanguageSpecificRule(self.rule_path.joinpath(language), self)

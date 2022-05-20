@@ -59,21 +59,25 @@ do
     for language in $dir/*/
     do
       language=${language%*/}
-      if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
+      if [[ "$language" == *"common"* ]]; then
+        echo $language
+        echo "common is not a language"
+      elif [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
         echo "ERROR: ${language##*/} is not a supported language"
         exit_code=1
-      fi
-      RULE="$language/rule.adoc"
-      if test -f "$RULE"; then
-        # We build this filename that describes the path to workaround the fact that asciidoctor will not tell
-        # us the path of the file in case of error.
-        # We can remove it if https://github.com/asciidoctor/asciidoctor/issues/3414 is fixed.
-        TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
-        echo "== Description" > "$TMP_ADOC"
-        cat "$RULE" >> "$TMP_ADOC"
       else
-        echo "ERROR: no asciidoc file $RULE"
-        exit_code=1
+        RULE="$language/rule.adoc"
+        if test -f "$RULE"; then
+          # We build this filename that describes the path to workaround the fact that asciidoctor will not tell
+          # us the path of the file in case of error.
+          # We can remove it if https://github.com/asciidoctor/asciidoctor/issues/3414 is fixed.
+          TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
+          echo "== Description" > "$TMP_ADOC"
+          cat "$RULE" >> "$TMP_ADOC"
+        else
+          echo "ERROR: no asciidoc file $RULE"
+          exit_code=1
+        fi
       fi
     done
 
