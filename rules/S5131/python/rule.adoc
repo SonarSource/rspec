@@ -1,61 +1,95 @@
-include::../description.adoc[]
+include::../summary.adoc[]
 
-== Noncompliant Code Example
+== Why is this an issue?
 
+include::../rationale.adoc[]
+
+include::../impact.adoc[]
+
+include::../threats.adoc[]
+
+== How to fix it?
+
+The following code is vulnerable to cross-site scripting because it returns an HTML response that contains user input.
+
+If you do not intend to send HTML code to clients, the vulnerability can be fixed by specifying the type of data returned in the response.
+For example, you can use the `JsonResponse` class to return JSON messages securely.
+
+[cols="a,a"]
+|===
+|
 [source,python]
 ----
-templates/xss_shared.html
+from django.http import HttpResponse
+import json
 
-<!doctype html>
-<title>Hello from Flask</title>
-{% if name %}
-  <h1>Hello {{ name }}!</h1>
-{% else %}
-  <h1>Hello, World!</h1>
-{% endif %}
-
-xss.py
-from flask import request, make_response
-
-@xss.route('/insecure/no_template_engine_replace', methods =['GET'])
-def no_template_engine_replace():
-    param = request.args.get('param', 'not set')
-
-    html = open('templates/xss_shared.html').read()
-    response = make_response(html.replace('{{ name }}', param)) # Noncompliant: param is not sanitized
-    return response
+def index(request):
+    json = json.dumps({ "data": request.GET.get("input") })
+    return HttpResponse(json) # Noncompliant
 ----
-
-== Compliant Solution
-
+|
 [source,python]
 ----
-templates/xss_shared.html
+from django.http import JsonResponse
 
-<!doctype html>
-<title>Hello from Flask</title>
-{% if name %}
-  <h1>Hello {{ name }}!</h1>
-{% else %}
-  <h1>Hello, World!</h1>
-{% endif %}
-
-xss.py
-from flask import request, make_response
-from markuptsafe import Markup
-
-@xss.route('/secure/no_template_engine_sanitized_Markup_escape', methods =['GET'])
-def no_template_engine_sanitized_Markup_escape():
-    param = request.args.get('param', 'not set')
-
-    param = Markup.escape(param)
-
-    html = open('templates/xss_shared.html').read()
-    response = make_response(html.replace('{{ name }}', param )) # Compliant: 'param' is sanitized by Markup.escape
-    return response
+def index(request):
+    json = { "data": request.GET.get("input") }
+    return JsonResponse(json)
 ----
+|===
 
-include::../see.adoc[]
+It is also possible to set the content-type manually with the `content_type` parameter when creating an `HttpResponse` object.
+
+[cols="a,a"]
+|===
+|
+[source,python]
+----
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse(request.GET.get("input")) # Noncompliant
+----
+|
+[source,python]
+----
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse(request.GET.get("input"), content_type="text/plain")
+----
+|===
+
+=== How does this work?
+
+If the HTTP response consists of HTML code, it is highly recommended to use a template engine like https://docs.djangoproject.com/en/4.0/topics/templates/[Django's template system] to generate it.
+The Django template engine separates the view from the business logic and automatically encodes the output of variables, drastically reducing the risk of cross-site scripting vulnerabilities.
+
+If you do not intend to send HTML code to clients, the vulnerability can be fixed by telling them what data they are receiving with the `content-type` HTTP header.
+This header tells the browser that the response does not contain HTML code and should not be parsed and interpreted as HTML.
+Thus, the response is not vulnerable to reflected cross-site scripting.
+
+For example, setting the Content-Type HTTP header to `text/plain` allows to safely reflect user input, because browsers will not try to parse and execute the response.
+
+=== Pitfalls
+
+include::../common/pitfalls/content-types.adoc[]
+
+include::../common/pitfalls/validation.adoc[]
+
+=== Going the extra mile
+
+== Resources
+
+include::../common/resources/docs.adoc[]
+
+* https://docs.djangoproject.com/en/4.0/ref/request-response/[Django Project, Request and response objects (Django 4.0)]
+
+include::../common/resources/articles.adoc[]
+
+include::../common/resources/presentations.adoc[]
+
+include::../common/resources/standards.adoc[]
 
 ifdef::env-github,rspecator-view[]
 
