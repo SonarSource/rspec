@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import os
 import pytest
 from rspec_tools.rules import RulesRepository
 from rspec_tools.errors import RuleNotFoundError
@@ -13,8 +13,13 @@ def test_list_rules(mockrules: Path):
 def test_list_languages(mockrules: Path):
   '''Check that languages are all listed.'''
   rule = RulesRepository(rules_path=mockrules).get_rule('S120')
+
   languages = {lang.language for lang in rule.specializations}
   assert languages == {'flex', 'java', 'plsql'}
+
+  rulePath = os.path.join(mockrules, 'S120')
+  ruleSubDirs = [subDir for subDir in os.listdir(rulePath) if os.path.isdir(os.path.join(rulePath, subDir))]
+  assert sorted(ruleSubDirs) == ['common', 'flex', 'java', 'plsql']
 
 
 def test_get_metadata(mockrules: Path):
