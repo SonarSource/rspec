@@ -54,6 +54,7 @@ LANG_TO_SOURCE = {
     'java': 'java',
     'javascript': 'javascript',
     'kotlin': 'kotlin',
+    'kubernetes': 'yaml',
     'php': 'php',
     'plsql': 'sql',
     'python': 'python',
