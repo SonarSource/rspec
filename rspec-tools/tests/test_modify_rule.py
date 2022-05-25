@@ -40,7 +40,7 @@ def test_update_quickfix_status_branch1(rule_editor: RuleEditor, mock_git_rspec_
 
   # Ensure only one file is modified.
   modified_files = mock_git_rspec_repo.git.diff('master', '--name-only').strip()
-  assert modified_files == str(sub_path)
+  assert modified_files == str(sub_path).replace('\\', '/')
 
 
 def test_update_quickfix_status_branch2(rule_editor: RuleEditor, mock_git_rspec_repo: Repo):
@@ -69,7 +69,7 @@ def test_update_quickfix_status_branch2(rule_editor: RuleEditor, mock_git_rspec_
 
   # Ensure only one file is modified.
   modified_files = mock_git_rspec_repo.git.diff('master', '--name-only').strip()
-  assert modified_files == str(sub_path)
+  assert modified_files == str(sub_path).replace('\\', '/')
 
 
 def test_update_quickfix_status_branch3(rule_editor: RuleEditor, mock_git_rspec_repo: Repo):
