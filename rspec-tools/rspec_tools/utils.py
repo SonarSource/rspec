@@ -39,6 +39,7 @@ LANG_TO_LABEL = {'abap': 'abap',
                  'vbnet': 'dotnet',
                  'cloudformation': 'iac',
                  'terraform': 'iac',
+                 'kubernetes': 'iac',
                  'xml': 'xml',
 }
 
@@ -53,6 +54,7 @@ LANG_TO_SOURCE = {
     'java': 'java',
     'javascript': 'javascript',
     'kotlin': 'kotlin',
+    'kubernetes': 'yaml',
     'php': 'php',
     'plsql': 'sql',
     'python': 'python',

@@ -166,6 +166,7 @@ const languageToJiraProject = new Map(Object.entries({
   'XML': 'SONARXML',
   'CLOUDFORMATION': 'SONARIAC',
   'TERRAFORM': 'SONARIAC',
+  'KUBERNETES': 'SONARIAC',
   'TEXT': 'SONARTEXT',
 }));
 
@@ -197,6 +198,7 @@ const languageToGithubProject = new Map(Object.entries({
   'XML': 'sonar-xml',
   'CLOUDFORMATION': 'sonar-iac',
   'TERRAFORM': 'sonar-iac',
+  'KUBERNETES': 'sonar-iac',
   'SECRETS': 'sonar-secrets',
   'TEXT': 'sonar-text',
 }));
