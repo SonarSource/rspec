@@ -143,7 +143,7 @@ def test_rule_with_invalid_format_for_security_standard_items_fails_validation(r
     'ASVS 4': ['A.1.2', ' 1.1.1', 'Not covered', '']
   }
 
-  for security_standard in   invalid_security_standards_items:
+  for security_standard in invalid_security_standards_items:
     for item in invalid_security_standards_items[security_standard]:
       invalid_metadata = deepcopy(rule_language.metadata)
       invalid_metadata['securityStandards'] = { security_standard: [item] }
