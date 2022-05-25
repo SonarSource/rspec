@@ -128,3 +128,26 @@ def test_rule_with_complete_list_of_security_standard_passes_validation(rule_lan
   with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
     mock.return_value = metadata
     validate_rule_specialization_metadata(rule_language)
+
+def test_rule_with_invalid_format_for_security_standard_items_fails_validation(rule_language: LanguageSpecificRule):
+  invalid_security_standards_items = {
+    'OWASP': ['B1', 'AAA123', 'A0', ' A1', 'Not covered', ''],
+    'OWASP Top 10 2021': ['B1', 'AAA123', 'A0',  ' A1', 'Not covered', ''],
+    'OWASP Mobile': ['B1', 'MMM123', 'M0', ' M1', 'Not covered', ''],
+    'PCI DSS 3.2': ['2.1.A', '2.1.1 ', 'Not covered', ''],
+    'PCI DSS 4.0': ['2.1.A', '2.1.1 ', 'Not covered', ''],
+    'CIS': ['2.1.A', '"2.1.1 ', 'Not covered', ''],
+    'HIPAA': ['Not covered', ''],
+    'CERT': ['MSC13-C', 'MSC13-C. ', 'Not covered', ''],
+    'MASVS': ['MSTG-CRYPTO-A', 'MSTG-CRYPTO-6 ', 'Not covered', ''],
+    'ASVS 4': ['A.1.2', ' 1.1.1', 'Not covered', '']
+  }
+
+  for security_standard in   invalid_security_standards_items:
+    for item in invalid_security_standards_items[security_standard]:
+      invalid_metadata = deepcopy(rule_language.metadata)
+      invalid_metadata['securityStandards'] = { security_standard: [item] }
+      with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata in 0: \'{item}\' does not match'):
+        with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
+          mock.return_value = invalid_metadata
+          validate_rule_specialization_metadata(rule_language)
