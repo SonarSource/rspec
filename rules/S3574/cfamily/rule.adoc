@@ -1,12 +1,18 @@
-It is a best practice to make lambda return types implicit. First and foremost, doing so avoids implicit conversions which could result in data or precision loss. Second, omitting the return type helps future-proof the code.
+It is a best practice to make lambda return types implicit whenever possible.
+First and foremost, doing so avoids implicit conversions, which could result in data or precision loss.
+Second, omitting the return type often helps future-proof the code.
+
+The issue is raised when explicit return types are used.
 
 
 == Noncompliant Code Example
 
 [source,cpp]
 ----
-[](int i) -> int // Noncompliant
-{ return i + 42; } 
+// Noncompliant: the explicit return types are redundant.
+[](int i) -> int { return i + 42; }
+[]() -> auto { return foo(); }
+[](int x) -> std::vector<int> { return std::vector<int>{ x }; }
 ----
 
 
@@ -14,19 +20,118 @@ It is a best practice to make lambda return types implicit. First and foremost, 
 
 [source,cpp]
 ----
-[](int i) 
-{ return i + 42; } 
+// Compliant: no explicit return type.
+[](int i) { return i + 42; }
+[]() { return foo(); }
+[](int x) { return std::vector<int>{ x }; }
 ----
 
 
-ifdef::env-github,rspecator-view[]
+== Exceptions
 
-'''
-== Implementation Specification
-(visible only on this page)
+There are a few exceptions to this rule.
 
-include::message.adoc[]
+First, no issue is raised when the compiler is not deducing the same type by itself.
+This can happens when a conversion is requested.
 
-include::highlighting.adoc[]
+[source,cpp]
+----
+// Compliant: the compiler would deduce a different return type.
+[](int x) -> double { return x; }
+[](float x) -> int { return x; } // Precision loss, see S5276.
+----
 
-endif::env-github,rspecator-view[]
+The compiler also deduces a different type when there are no `return` statements and the explicit return type is not `void`.
+
+[source,cpp]
+----
+// Compliant: removing these explicit return types would result in a different signature.
+[](int x) -> int { throw std::runtime_error("No more eggs"); }
+[](int x) -> int { std::terminate(); }
+----
+
+Another similar situation is when references are involved: instead, the compiler deduces a value without an explicit return type.
+This can have an impact on both correctness and performance.
+
+[source,cpp]
+----
+// Compliant: removing the explicit return type would return a copy.
+[](std::vector<int>& data) -> auto& {
+    std::sort(data.begin(), data.end());
+    return data;
+}
+----
+
+Additionally, no issues are raised when the deduction of the return type is not available.
+This is the case with C++20 coroutines in their lambda form.
+
+[source,cpp]
+----
+// Compliant: coroutine lambdas cannot rely on type deduction.
+[]() -> Task { co_await std::suspend_always{}; }
+----
+
+In some other cases, removing the explicit return type would result in ill-formed programs.
+This is the case when using initializer lists or aggregate initializations.
+
+[source,cpp]
+----
+// Compliant: type deduction wouldn't work.
+[](int x) -> std::vector<int> { return { x }; }
+[]() -> std::array<int, 4> { return { 1, 2, 3, 4 }; }
+----
+
+Removing the explicit return type when a lambda has multiple `return` statements of different types would also result in ill-formed programs.
+Here are two examples where the explicit return type introduces useful implicit conversions.
+
+[source,cpp]
+----
+// Compliant: omitting the return type would result in a compilation error.
+[](Base* ptr) -> Derived* {
+    if (auto* derived = dynamic_cast<Derived*>(ptr)) {
+        actOnDerived(derived);
+        return derived;
+    }
+
+    // "nullptr_t" mismatches the previous return type "Derived*".
+    return nullptr;
+}
+
+// Compliant: omitting the return type would result in a compilation error.
+[](std::string_view request) -> std::variant<Error, Data> {
+    if (!isRequestValid(request)) {
+        return Error{ "invalid request" };
+    }
+
+    auto reader = readRequest(request);
+    // "Data" mismatches the previous return type "Error".
+    return Data{ reader.data(), reader.size() };
+}
+----
+
+Finally, this rule does not trigger on explicit template-dependent or constrained return types since they can have a use of their own, help readability or improve maintainability.
+
+[source,cpp]
+----
+// Compliant: enforce "process()" returns a reference.
+[](auto x) -> auto& { return process(x); }
+
+// Compliant: ensure the lambda returns a reference when "f()" does.
+[f](auto arg) -> decltype(f(arg)) { return f(arg); }
+
+// Compliant: the return type restricts possible input types.
+[](auto x) -> std::enable_if_t<std::is_integral_v<decltype(x)>> { process(x); }
+
+template <typename T>
+T getGlobalProperty(std::string_view name, T defaultValue) { /* ... */ }
+
+// Compliant: the return type is constrained (C++20) and can help maintainability.
+auto getProperty = [](std::string_view name) -> std::totally_ordered auto {
+    return getGlobalProperty(name, 0);
+}
+----
+
+
+== See
+
+* S5276: Implicit casts should not lower precision

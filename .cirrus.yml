@@ -1,4 +1,4 @@
-gcp_credentials: ENCRYPTED[!17c59813193e86cc337bce848b358412b90f50bc5fe1b8b39d363cdf14a41ebe76cfba0482e7f81d076994b9f6dbfb4c!]
+gcp_credentials: ENCRYPTED[!149d4005ecdba4cdd78bb5ba22756ebb98bf8e3367ee2e9ab08c5a1608c0d3e3b501904b67a1d67c0b63085e469d7dde!]
  
 env:
   GITHUB_TOKEN: ENCRYPTED[!f458126aa9ed2ac526f220c5acb51dd9cc255726b34761a56fc78d4294c11089502a882888cef0ca7dd4085e72e611a5!]
@@ -11,13 +11,15 @@ env:
   CIRRUS_CLONE_DEPTH: 0
   # Use bash (instead of sh on linux or cmd.exe on windows)
   CIRRUS_SHELL: bash
+  BASE_BRANCH: ${CIRRUS_BASE_BRANCH}
+  DEFAULT_BRANCH: ${CIRRUS_DEFAULT_BRANCH}
 
 
 container_definition: &CONTAINER_DEFINITION
-  builder_image_project: language-team
-  builder_image_name: docker-builder-lt-v1
-  cluster_name: cirrus-ci-lt-cluster
-  zone: us-central1-a
+  builder_image_project: release-engineering-ci-prod
+  builder_image_name: family/docker-builder
+  cluster_name: cirrus-ci
+  zone: europe-west4-b
   namespace: default
   use_in_memory_disk: true
 
@@ -40,6 +42,7 @@ tooling_tests_task:
     - pipenv install
     - pipenv run pip install pytest pytest-cov
   tests_script:
+    - bash ci/fetch_branches.sh
     - cd rspec-tools
     - pipenv run pytest --cov=rspec_tools --cov-report=xml
   <<: *SETUP_SONAR_SCANNER
@@ -65,6 +68,7 @@ frontend_tests_task:
       - cd frontend
       - npm install
   tests_script:
+    - bash ci/fetch_branches.sh
     - cd frontend
     - npm run build
     - npm test -- --detectOpenHandles --coverage .
@@ -105,4 +109,18 @@ validate_links_task:
     - bash ci/cirrus-cache.sh download ${LINK_CACHE_NAME} ${LINK_CACHE_PATH}
     - ./ci/validate_links.sh ${LINK_CACHE_PATH}
     - bash ci/cirrus-cache.sh upload ${LINK_CACHE_NAME} ${LINK_CACHE_PATH}
+
+all_required_checks_task:
+  depends_on:
+    - tooling_tests
+    - frontend_tests
+    - validate_metadata
+    - validate_asciidoc
+  gke_container:
+    <<: *CONTAINER_DEFINITION
+    dockerfile: ci/Dockerfile
+    cpu: 1
+    memory: 1G
+  print_message_script:
+    - echo 'All required checks have passed'
 

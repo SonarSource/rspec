@@ -7,10 +7,16 @@ base="$(git merge-base FETCH_HEAD HEAD)"
 echo "Comparing against the merge-base: ${base}"
 if ! git diff --name-only --exit-code "${base}" -- rspec-tools/
 then
-  # Revalidate all rules
   basename --multiple rules/* | mapfile -t affected_rules
+  echo "Change in the tools, revalidating all rules"
 else
-  git diff --name-only "${base}" -- rules/ | sed -Ee 's#rules/(S[0-9]+)/.*#\1#' | sort -u | mapfile -t affected_rules
+  git diff --name-only "${base}" -- rules/ | # Get all the changes in rules
+    sed -Ee 's#(rules/S[0-9]+)/.*#\1#' | # extract the rule directories
+    sort -u | # deduplicate
+    while IFS= read -r rule; do [[ -d "$rule" ]] && echo "$rule" || true; done |  # filter non-deleted rules
+    sed 's#rules/##' | # get rule ids
+    mapfile -t affected_rules # store them in the `affected_rules` array
+  echo "Validating ${affected_rules[@]}"
 fi
 
 # Validate metadata
@@ -19,4 +25,6 @@ then
   cd rspec-tools
   pipenv install
   pipenv run rspec-tools validate-rules-metadata "${affected_rules[@]}"
+else
+  echo "No rule changed or added"
 fi

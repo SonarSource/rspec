@@ -49,6 +49,7 @@ function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: 
     }
     allKeys.add(metadata.sqKey);
     allKeys.add(metadata.ruleSpecification);
+    metadata.extra?.legacyKeys?.forEach((legacyKey: string) => allKeys.add(legacyKey));
     titles.add(metadata.title);
     types.add(metadata.type);
     severities.add(metadata.defaultSeverity as Severity);
