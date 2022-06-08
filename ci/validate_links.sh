@@ -10,18 +10,19 @@ ls -al $CACHE_PATH
 
 ./ci/generate_html.sh
 
-exit 1
-
 # validate the links in asciidoc
 cd rspec-tools
 pipenv install
 if pipenv run rspec-tools check-links --d ../out ; then
+    echo "There were errors"
     EXIT_CODE=1
 else
+    echo "All is fine"
     EXIT_CODE=0
 fi
 cd ..
 
 cp ./rspec-tools/link_probes.history "$CACHE_PATH/"
 
+echo "Exiting with $EXIT_CODE"
 exit $EXIT_CODE
