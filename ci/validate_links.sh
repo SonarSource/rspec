@@ -10,6 +10,8 @@ ls -al $CACHE_PATH
 
 ./ci/generate_html.sh
 
+exit 1
+
 # validate the links in asciidoc
 cd rspec-tools
 pipenv install
