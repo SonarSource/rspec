@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -euxo pipefail
 
 CACHE_PATH=$1
 echo "CACHE_PATH: $CACHE_PATH"
@@ -22,7 +22,9 @@ else
     EXIT_CODE=0
 fi
 echo "Finish testing"
+echo "Hello!!!!"
 cd ..
+echo "Well, hello...."
 
 cp ./rspec-tools/link_probes.history "$CACHE_PATH/"
 
