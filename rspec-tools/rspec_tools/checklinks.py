@@ -191,5 +191,6 @@ def check_html_links(dir):
   if exit_code == 0:
     print(f"All {len(urls)} links are good")
   save_url_probing_history()
+  print(f"exiting with: {exit_code}")
   exit(exit_code)
 
