@@ -16,7 +16,11 @@ link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
-              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall',
+              # FIXME: RULEAPI-763 - investigate why these live links respond with 403
+              'https://medium.com/@cowtowncoder/on-jackson-cves-dont-panic-here-is-what-you-need-to-know-54cd0d6e8062',
+              'https://medium.com/@nyomanpradipta120/ssti-in-flask-jinja2-20b068fdaeee',
+              'https://elizarov.medium.com/coroutine-context-and-scope-c8b255d59055']
 
 def show_files(filenames):
   for filename in filenames:
