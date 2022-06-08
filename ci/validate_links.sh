@@ -14,7 +14,8 @@ ls -al $CACHE_PATH
 cd rspec-tools
 echo "start testing"
 EXIT_CODE=2
-if pipenv install && pipenv run rspec-tools check-links --d ../out ; then
+if pipenv install && pipenv run rspec-tools check-links --d ../out
+then
     echo "The testing resulted in an error"
     EXIT_CODE=1
 else
