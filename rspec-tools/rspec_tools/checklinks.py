@@ -181,12 +181,15 @@ def check_html_links(dir):
   load_url_probing_history()
   urls = get_all_links_from_htmls(dir)
   errors = probe_links(urls)
+  exit_code = 0
   if errors:
     confirmed_errors = confirm_errors(errors, urls)
     if confirmed_errors:
       report_errors(confirmed_errors, urls)
-      print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see the list and related files before")
-      exit(1)
-  print(f"All {len(urls)} links are good")
+      print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files")
+      exit_code = 1
+  if exit_code == 0:
+    print(f"All {len(urls)} links are good")
   save_url_probing_history()
+  exit(exit_code)
 
