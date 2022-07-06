@@ -6,6 +6,8 @@ from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
 from rspec_tools.utils import LANG_TO_SOURCE
 
+import re
+
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
 # in the migrated RSPECs.
@@ -14,12 +16,40 @@ from rspec_tools.utils import LANG_TO_SOURCE
 SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath('docs/section_names.adoc')
 SECTION_NAMES_FILE = SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
 ACCEPTED_SECTION_NAMES: Final[list[str]] = [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
+# The list of all the framework names currently accepted by the script.
+FRAMEWORK_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath('docs/allowed_framework_names.adoc')
+FRAMEWORK_NAMES_FILE = FRAMEWORK_NAMES_PATH.read_text(encoding='utf-8').split('\n')
+ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = [s.replace('* ', '').strip() for s in FRAMEWORK_NAMES_FILE if s.strip()]
+
 def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   for h2 in descr.find_all('h2'):
     name = h2.text.strip()
     if name not in ACCEPTED_SECTION_NAMES:
       raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{name}"')
+
+def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  frameworks_counter = 0
+
+  for h3 in descr.find_all('h3'):
+    name = h3.text.strip()
+    # It is important that the Regex here matches the one used by the analyzers when loading the rules content
+    result = re.search('How to fix it in (?:(?:a|an|the)\\s)?(.*)', name)
+    if result is not None:
+      if result.group(1) not in ACCEPTED_FRAMEWORK_NAMES:
+        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
+      else:
+        frameworks_counter += 1
+
+  how_to_fix_it_section = descr.find('h2', string='How to fix it?')
+  if how_to_fix_it_section is not None:
+    if frameworks_counter == 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section but is missing subsections related to frameworks')
+    if frameworks_counter > 6:
+      raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
+  elif frameworks_counter > 0:
+    raise RuleValidationError(f'Rule {rule_language.id} has "How to fix it" subsections for frameworks outside a defined "How to fix it?" section')
 
 def validate_section_levels(rule_language: LanguageSpecificRule):
   h1 = rule_language.description.find('h1')
