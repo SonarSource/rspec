@@ -7,7 +7,7 @@ from rspec_tools.errors import RuleNotFoundError
 def test_list_rules(mockrules: Path):
   '''Check that rules are all listed.'''
   rules = {rule.id for rule in RulesRepository(rules_path=mockrules).rules}
-  assert rules == {'S100', 'S120', 'S4727', 'S1033'}
+  assert rules == {'S100', 'S101', 'S120', 'S4727', 'S1033'}
 
 
 def test_list_languages(mockrules: Path):

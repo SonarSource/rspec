@@ -217,7 +217,7 @@ def test_add_language_the_rule_is_already_defined_for(rule_creator: RuleCreator)
 def test_add_language_to_nonexistent_rule(rule_creator: RuleCreator):
   '''Test add_language_branch correctly fails when invoked for a non-existent rule.'''
   with pytest.raises(InvalidArgumentError):
-    rule_creator.add_language_branch(101, 'cfamily')
+    rule_creator.add_language_branch(105, 'cfamily')
 
 
 def test_add_language_new_pull_request(rule_creator: RuleCreator):
