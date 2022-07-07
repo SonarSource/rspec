@@ -1,13 +1,12 @@
+import re
 from pathlib import Path
 
-from unittest.mock import patch, PropertyMock
 import pytest
-import re
 from rspec_tools.errors import RuleValidationError
-from copy import deepcopy
+from rspec_tools.rules import RulesRepository
+from rspec_tools.validation.description import validate_how_to_fix_it_subsections, validate_section_names, \
+  validate_section_levels, validate_parameters, validate_source_language
 
-from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.description import validate_section_names, validate_section_levels, validate_parameters, validate_source_language
 
 @pytest.fixture
 def rule_language(mockrules: Path):
@@ -87,3 +86,32 @@ def test_wrong_source_language_fails_validation(invalid_rule):
   rule = invalid_rule('S100', 'csharp')
   with pytest.raises(RuleValidationError, match=re.escape(f'Rule {rule.id} has unknown language "unknown" in code example in section "Noncompliant Code Example".\nAre you looking for "csharp"?')):
     validate_source_language(rule)
+
+def test_unsupported_framework_name_in_how_to_fix_it_subsection_validation(invalid_rule):
+  '''Check that having "How to fix it" subsections using framework names that are not inside the "allowed_framework_names.adoc" file breaks validation'''
+  rule = invalid_rule('S101', 'csharp')
+  with pytest.raises(RuleValidationError, match=f'Rule csharp:S101 has a "How to fix it" section for an unsupported framework: "Foo Bar Framework"'):
+    validate_how_to_fix_it_subsections(rule)
+
+def test_missing_subsections_in_how_to_fix_it_validation(invalid_rule):
+  '''Check that having a "How to fix it?" section without any subsection breaks validation'''
+  rule = invalid_rule('S101', 'java')
+  with pytest.raises(RuleValidationError, match=f'Rule java:S101 has a "How to fix it" section but is missing subsections related to frameworks'):
+    validate_how_to_fix_it_subsections(rule)
+
+def test_too_many_subsections_in_how_to_fix_it_validation(invalid_rule):
+  '''Check that having more than the current hard limit (6) "How to fix it" subsections breaks validation'''
+  rule = invalid_rule('S101', 'javascript')
+  with pytest.raises(RuleValidationError, match=f'Rule javascript:S101 has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams'):
+    validate_how_to_fix_it_subsections(rule)
+
+def test_subsections_without_parent_section_in_how_to_fix_it_validation(invalid_rule):
+  '''Check that having "How to fix it" subsections without the parent "How to fix it?" section breaks validation'''
+  rule = invalid_rule('S101', 'python')
+  with pytest.raises(RuleValidationError, match=f'Rule python:S101 has "How to fix it" subsections for frameworks outside a defined "How to fix it\\?" section'):
+    validate_how_to_fix_it_subsections(rule)
+
+def test_valid_how_to_fix_it_subsections_validation(rule_language):
+  '''Check that expected format is considered valid'''
+  rule = rule_language('S101', 'csharp')
+  validate_how_to_fix_it_subsections(rule)
