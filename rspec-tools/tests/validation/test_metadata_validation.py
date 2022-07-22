@@ -115,7 +115,7 @@ def test_deprecated_rule_with_replacement_passes_validation(rule_language: Langu
 def test_rule_with_incomplete_list_of_security_standard_fails_validation(rule_language: LanguageSpecificRule):
   invalid_metadata = deepcopy(rule_language.metadata)
   # "OWASP Top 10 2021", defined in the generic metadata is missing
-  invalid_metadata['securityStandards'] = {'ASVS 4': [], 'OWASP': [], 'CERT': []}
+  invalid_metadata['securityStandards'] = {'ASVS 4.0': [], 'OWASP': [], 'CERT': []}
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule_language.id} has invalid metadata: securityStandard'):
     with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
       mock.return_value = invalid_metadata
@@ -124,7 +124,7 @@ def test_rule_with_incomplete_list_of_security_standard_fails_validation(rule_la
 
 def test_rule_with_complete_list_of_security_standard_passes_validation(rule_language: LanguageSpecificRule):
   metadata = deepcopy(rule_language.metadata)
-  metadata['securityStandards'] = {'ASVS 4': [], 'OWASP': [], "OWASP Top 10 2021": []}
+  metadata['securityStandards'] = {'ASVS 4.0': [], 'OWASP': [], "OWASP Top 10 2021": []}
   with patch.object(LanguageSpecificRule, 'metadata', new_callable=PropertyMock) as mock:
     mock.return_value = metadata
     validate_rule_specialization_metadata(rule_language)
@@ -140,7 +140,7 @@ def test_rule_with_invalid_format_for_security_standard_items_fails_validation(r
     'HIPAA': ['Not covered', ''],
     'CERT': ['MSC13-C', 'MSC13-C. ', 'Not covered', ''],
     'MASVS': ['MSTG-CRYPTO-A', 'MSTG-CRYPTO-6 ', 'Not covered', ''],
-    'ASVS 4': ['A.1.2', ' 1.1.1', 'Not covered', '']
+    'ASVS 4.0': ['A.1.2', ' 1.1.1', 'Not covered', '']
   }
 
   for security_standard in invalid_security_standards_items:
