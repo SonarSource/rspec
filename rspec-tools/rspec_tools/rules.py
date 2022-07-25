@@ -33,9 +33,19 @@ class LanguageSpecificRule:
       return self.__metadata
     metadata_path = self.language_path.joinpath(METADATA_FILE_NAME)
     try:
-      lang_metadata = json.loads(metadata_path.read_text(encoding='ascii'))
+      # Make sure the metadata file contains only ASCII.
+      # Even though python is fine with Unicode, it might
+      # break other tools such as the TypeScript deployment script.
+      metadata_contents = metadata_path.read_text(encoding='ascii')
     except:
-      print('Failed to parse ', metadata_path)
+      print('ERROR: Non-ASCII characters in ', metadata_path)
+      print('The metadata files must contain only ASCII characters.\n\n')
+      raise
+
+    try:
+      lang_metadata = json.loads(metadata_contents)
+    except:
+      print('ERROR: Failed to parse ', metadata_path)
       raise
 
     self.__metadata = self.rule.generic_metadata | lang_metadata
