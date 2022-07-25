@@ -61,6 +61,10 @@ def test_rule_with_invalid_language(invalid_rules: RulesRepository):
   with pytest.raises(RuleValidationError, match=fr'^Rule S502 failed validation for these reasons:\n - Rule scala:S502 has invalid metadata'):
     validate_rule_metadata(s502)
 
+def test_rule_with_unicode_in_metadata(invalid_rules: RulesRepository):
+  s4225 = invalid_rules.get_rule('S4225')
+  with pytest.raises(UnicodeDecodeError, match=fr'ascii'):
+    validate_rule_metadata(s4225)
 
 def test_rule_that_is_fully_valid(mockrules: Path):
   valid_rule = RulesRepository(rules_path=mockrules).get_rule('S120')

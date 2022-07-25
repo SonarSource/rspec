@@ -117,7 +117,12 @@ function getRuleMetadata(srcDir: string, language?: string) {
     }
     const languageFile = path.join(srcDir, language, 'metadata.json');
     if (fs.existsSync(languageFile)) {
-      return JSON.parse(fs.readFileSync(languageFile, 'utf8'));
+      try {
+        return JSON.parse(fs.readFileSync(languageFile, 'utf8'));
+      } catch (error) {
+        console.error('When parsing the JSON file ' + languageFile);
+        throw error;
+      }
     }
     return {};
   })();
