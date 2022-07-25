@@ -33,7 +33,7 @@ class LanguageSpecificRule:
       return self.__metadata
     metadata_path = self.language_path.joinpath(METADATA_FILE_NAME)
     try:
-      lang_metadata = json.loads(metadata_path.read_bytes())
+      lang_metadata = json.loads(metadata_path.read_text(encoding='ascii'))
     except:
       print('Failed to parse ', metadata_path)
       raise
