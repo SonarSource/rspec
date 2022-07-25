@@ -120,7 +120,7 @@ function getRuleMetadata(srcDir: string, language?: string) {
       try {
         return JSON.parse(fs.readFileSync(languageFile, 'utf8'));
       } catch (error) {
-        console.error("When parsing the JSON file " + languageFile);
+        console.error('When parsing the JSON file ' + languageFile);
         throw error;
       }
     }
