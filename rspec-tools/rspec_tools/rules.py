@@ -9,6 +9,18 @@ from rspec_tools.errors import RuleNotFoundError
 METADATA_FILE_NAME: Final[str] = 'metadata.json'
 DESCRIPTION_FILE_NAME: Final[str] = 'rule.html'
 
+def load_metadata_contents(metadata_path):
+  try:
+    # Make sure the metadata file contains only ASCII.
+    # Even though python is fine with Unicode, it might
+    # break other tools such as the TypeScript deployment script.
+    return metadata_path.read_text(encoding='ascii')
+  except:
+    print('ERROR: Non-ASCII characters in ', metadata_path)
+    print('The metadata files must contain only ASCII characters.\n\n')
+    raise
+
+
 class LanguageSpecificRule:
   language_path: Final[Path]
   rule: 'GenericRule'
@@ -32,16 +44,7 @@ class LanguageSpecificRule:
     if self.__metadata is not None:
       return self.__metadata
     metadata_path = self.language_path.joinpath(METADATA_FILE_NAME)
-    try:
-      # Make sure the metadata file contains only ASCII.
-      # Even though python is fine with Unicode, it might
-      # break other tools such as the TypeScript deployment script.
-      metadata_contents = metadata_path.read_text(encoding='ascii')
-    except:
-      print('ERROR: Non-ASCII characters in ', metadata_path)
-      print('The metadata files must contain only ASCII characters.\n\n')
-      raise
-
+    metadata_contents = load_metadata_contents(metadata_path)
     try:
       lang_metadata = json.loads(metadata_contents)
     except:
@@ -83,7 +86,8 @@ class GenericRule:
     if self.__generic_metadata is not None:
       return self.__generic_metadata
     metadata_path = self.rule_path.joinpath(METADATA_FILE_NAME)
-    self.__generic_metadata = json.loads(metadata_path.read_bytes())
+    metadata_contents = load_metadata_contents(metadata_path)
+    self.__generic_metadata = json.loads(metadata_contents)
     return self.__generic_metadata
 
 
