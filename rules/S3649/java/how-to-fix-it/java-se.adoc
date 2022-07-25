@@ -11,21 +11,24 @@ h| Non-compliant code example
 @RestController
 public class ApiController
 {
+    @Autowired
+    Connection connection;
+
     @GetMapping(value = "/authenticate")
     @ResponseBody
     public ResponseEntity<String> authenticate(
         @RequestParam("user") String user,
-        @RequestParam("pass") String pass)
+        @RequestParam("pass") String pass) throws SQLException
     {
         String query = "SELECT * FROM users WHERE user = '" + user + "' AND pass = '" + pass + "'";
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(query); // Noncompliant
+        try (Statement statement = connection.createStatement()) {
 
-        try {
-            String queryResult = resultSet.next();
-        } catch (Exception e) {
-            return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+          ResultSet resultSet = statement.executeQuery(query); // Noncompliant
+
+          if (!resultSet.next()) {
+              return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+          }
         }
 
         return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
@@ -39,24 +42,26 @@ h| Compliant solution
 @RestController
 public class ApiController
 {
+    @Autowired
+    Connection connection;
+
     @GetMapping(value = "/authenticate")
     @ResponseBody
     public ResponseEntity<String> authenticate(
         @RequestParam("user") String user,
-        @RequestParam("pass") String pass)
+        @RequestParam("pass") String pass) throws SQLException
     {
         String query = "SELECT * FROM users WHERE user = ? AND pass = ?";
 
-        PreparedStatement statement = connection.prepareStatement(query);
-        statement.setString(1, user);
-        statement.setString(2, pass);
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, user);
+            statement.setString(2, pass);
 
-        ResultSet resultSet = statement.executeQuery(query);
+            ResultSet resultSet = statement.executeQuery(query);
 
-        try {
-            String queryResult = resultSet.next();
-        } catch (Exception e) {
-            return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+            if (!resultSet.next()) {
+                return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+            }
         }
 
         return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
