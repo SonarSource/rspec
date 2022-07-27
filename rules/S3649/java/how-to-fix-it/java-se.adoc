@@ -1,0 +1,76 @@
+=== How to fix it in Java SE
+
+include::../../common/fix/code-rationale.adoc[]
+
+[cols="a"]
+|===
+h| Non-compliant code example
+|
+[source,java]
+----
+@RestController
+public class ApiController
+{
+    @Autowired
+    Connection connection;
+
+    @GetMapping(value = "/authenticate")
+    @ResponseBody
+    public ResponseEntity<String> authenticate(
+        @RequestParam("user") String user,
+        @RequestParam("pass") String pass) throws SQLException
+    {
+        String query = "SELECT * FROM users WHERE user = '" + user + "' AND pass = '" + pass + "'";
+
+        try (Statement statement = connection.createStatement()) {
+
+          ResultSet resultSet = statement.executeQuery(query); // Noncompliant
+
+          if (!resultSet.next()) {
+              return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+          }
+        }
+
+        return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
+    }
+}
+----
+h| Compliant solution
+|
+[source,java]
+----
+@RestController
+public class ApiController
+{
+    @Autowired
+    Connection connection;
+
+    @GetMapping(value = "/authenticate")
+    @ResponseBody
+    public ResponseEntity<String> authenticate(
+        @RequestParam("user") String user,
+        @RequestParam("pass") String pass) throws SQLException
+    {
+        String query = "SELECT * FROM users WHERE user = ? AND pass = ?";
+
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, user);
+            statement.setString(2, pass);
+
+            ResultSet resultSet = statement.executeQuery(query);
+
+            if (!resultSet.next()) {
+                return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+            }
+        }
+
+        return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
+    }
+}
+----
+|===
+
+=== How does this work?
+
+include::../../common/fix/prepared-statements.adoc[]
+
