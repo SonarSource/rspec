@@ -1,0 +1,65 @@
+=== How to fix it in .NET
+
+The following code uses the `find` command and expects the user to enter the
+name of a file to find on the system.
+
+It is vulnerable to argument injection because user-controlled data is inserted
+directly into the arguments of a process call without sanitization. +
+The application assumes that incoming data always consists of a specific range
+of characters and ignores that some characters might force the `find` command
+to start a shell.
+
+In this particular case, an attacker may exploit the query with the following string:
+
+-----
+-exec /bin/sh \; -quit
+----
+
+[cols="a"]
+|===
+h| Non-compliant code example
+|
+[source,csharp]
+----
+public class ExampleController : Controller
+{
+    public void Run(string args)
+    {
+        Process p             = new Process();
+        p.StartInfo.FileName  = "/usr/bin/find";
+        p.StartInfo.Arguments = "/some/folder -iname " + args; // Noncompliant
+        p.Start();
+    }
+}
+----
+h| Compliant solution
+|
+[source,csharp]
+----
+public class ExampleController : Controller
+{
+    public void Run(string args)
+    {
+        Process p            = new Process();
+        p.StartInfo.FileName = "/usr/bin/find";
+        p.StartInfo.ArgumentList.Add("/some/folder");
+        p.StartInfo.ArgumentList.Add("-iname");
+        p.StartInfo.ArgumentList.Add(arg);
+        p.Start();
+    }
+}
+----
+|===
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+:sanitizationLib: ArgumentList.Add()
+include::../../common/fix/sanitize-meta-characters.adoc[]
+
+Here `ArgumentList` takes care of escaping the passed arguments and internally
+creates a single string given to the operating system when `Process.Start()` is
+called.
+
+
