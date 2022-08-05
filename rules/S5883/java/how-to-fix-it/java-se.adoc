@@ -1,0 +1,59 @@
+=== How to fix it in Java SE
+
+The following code uses the `find` command and expects the user to enter the
+name of a file to find on the system.
+
+It is vulnerable to arguments injection because untrusted data is inserted
+directly into the arguments of a process call without sanitization. +
+The application assumes that incoming data always consists of a specific range
+of characters and ignores that some characters might force the `find` command
+to start a shell.
+
+In this particular case, an attacker may remove files in `/some/folder` with the following string:
+
+----
+'*' -exec rm -rf {} \; 
+----
+
+[cols="a"]
+|===
+h| Non-compliant code example
+|
+[source,java]
+----
+@Controller
+public class ExampleController
+{
+    @GetMapping(value = "/find")
+    public void find(@RequestParam("filename") String filename) throws IOException {
+
+        Runtime.getRuntime().exec("/usr/bin/find . -iname " + filename); // Noncompliant
+    }
+}
+----
+h| Compliant solution
+|
+[source,java]
+----
+@Controller
+public class ExampleController
+{
+    @GetMapping(value = "/find")
+    public void find(@RequestParam("filename") String filename) throws IOException {
+
+        String cmd1[] = new String[] {"/usr/bin/find", ".", "-iname", filename};
+        Process proc = Runtime.getRuntime().exec(cmd1); // Compliant
+    }
+}
+----
+|===
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+:sanitizationLib: java.lang.Runtime.exec(String[] cmdarray)
+include::../../common/fix/sanitize-meta-characters.adoc[]
+
+Here `java.lang.Runtime.exec(String[] cmdarray)` takes care of escaping the passed arguments and internally
+creates a single string given to the operating system to be executed.
