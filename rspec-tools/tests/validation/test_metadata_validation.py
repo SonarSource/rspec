@@ -2,6 +2,7 @@ from pathlib import Path
 
 from unittest.mock import patch, PropertyMock
 import pytest
+import re
 from rspec_tools.errors import RuleValidationError
 from copy import deepcopy
 
@@ -61,6 +62,15 @@ def test_rule_with_invalid_language(invalid_rules: RulesRepository):
   with pytest.raises(RuleValidationError, match=fr'^Rule S502 failed validation for these reasons:\n - Rule scala:S502 has invalid metadata'):
     validate_rule_metadata(s502)
 
+def test_rule_with_invalid_education_principles(invalid_rules: RulesRepository):
+  s503 = invalid_rules.get_rule('S503')
+  with pytest.raises(RuleValidationError, match=re.escape("Rule S503 failed validation for these reasons:\n - Rule scala:S503 has invalid metadata in 0: 'invalid' is not one of ['defense_in_depth', 'never_trust_user_input']")):
+    validate_rule_metadata(s503)
+
+def test_rule_with_unicode_in_metadata(invalid_rules: RulesRepository):
+  s4225 = invalid_rules.get_rule('S4225')
+  with pytest.raises(UnicodeDecodeError, match=fr'ascii'):
+    validate_rule_metadata(s4225)
 
 def test_rule_that_is_fully_valid(mockrules: Path):
   valid_rule = RulesRepository(rules_path=mockrules).get_rule('S120')
