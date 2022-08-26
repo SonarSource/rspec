@@ -1,0 +1,71 @@
+=== How to fix it in .NET
+
+The following code is vulnerable to arbitrary code execution because it compiles
+and runs HTTP data.
+
+[cols="a"]
+|===
+h| Non-compliant code example
+|
+[source,csharp]
+----
+using System.CodeDom.Compiler;
+
+public class ExampleController : Controller
+{
+    public void Run(string message)
+    {
+        string code = @"
+            using System;
+			public class MyClass
+			{
+                public void MyMethod()
+                {
+                    Console.WriteLine(""" + message + @""");
+                }
+            }
+        ";
+
+        var provider = CodeDomProvider.CreateProvider("CSharp");
+        var compilerParameters = new CompilerParameters { ReferencedAssemblies = { "System.dll", "System.Runtime.dll" } };
+        var compilerResults = provider.CompileAssemblyFromSource(compilerParameters, code); // Noncompliant
+        object myInstance = compilerResults.CompiledAssembly.CreateInstance("MyClass");
+        myInstance.GetType().GetMethod("MyMethod").Invoke(myInstance, new object[0]);
+    }
+}
+----
+h| Compliant solution
+|
+[source,csharp]
+----
+using System.CodeDom.Compiler;
+
+public class ExampleController : Controller
+{
+    public void Run(string message)
+    {
+        const string code = @"
+            using System;
+			public class MyClass
+			{
+                public void MyMethod(string input)
+                {
+                    Console.WriteLine(input);
+                }
+            }
+        ";
+
+        var provider = CodeDomProvider.CreateProvider("CSharp");
+        var compilerParameters = new CompilerParameters { ReferencedAssemblies = { "System.dll", "System.Runtime.dll" } };
+        var compilerResults = provider.CompileAssemblyFromSource(compilerParameters, code);
+        object myInstance = compilerResults.CompiledAssembly.CreateInstance("MyClass");
+        myInstance.GetType().GetMethod("MyMethod").Invoke(myInstance, new object[]{ message }); // Pass message to dynamic method
+    }
+}
+----
+|===
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
