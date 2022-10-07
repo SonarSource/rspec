@@ -1,22 +1,170 @@
-FIXME: add a description
+include::../description.adoc[]
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+include::../ask-yourself.adoc[]
 
-== Noncompliant Code Example
+include::../recommended.adoc[]
 
+== Sensitive Code Example
+
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.Instance.html[aws-cdk-lib.aws_ec2.Instance] and similar constructs:
 [source,javascript]
 ----
-FIXME
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new ec2.Instance(this, "vpcSubnetPublic", {
+    instanceType: nanoT2,
+    machineImage: ec2.MachineImage.latestAmazonLinux(),
+    vpc: vpc,
+    vpcSubnets: {subnetType: ec2.SubnetType.PUBLIC} // Sensitive
+})
+----
+
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.CfnInstance.html[aws-cdk-lib.aws_ec2.CfnInstance]:
+[source,javascript]
+----
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new ec2.CfnInstance(this, "cfnPublicExposed", {
+    instanceType: "t2.micro",
+    imageId: "ami-0ea0f26a6d50850c5",
+    networkInterfaces: [
+        {
+            deviceIndex: "0",
+            associatePublicIpAddress: true, // Sensitive
+            deleteOnTermination: true,
+            subnetId: vpc.selectSubnets({subnetType: ec2.SubnetType.PUBLIC}).subnetIds[0]
+        }
+    ]
+})
+----
+
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_dms.CfnReplicationInstance.html[aws-cdk-lib.aws_dms.CfnReplicationInstance]:
+[source,javascript]
+----
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new dms.CfnReplicationInstance(
+    this, "explicitPublic", {
+    replicationInstanceClass: "dms.t2.micro",
+    allocatedStorage: 5,
+    publiclyAccessible: true, // Sensitive
+    replicationSubnetGroupIdentifier: subnetGroup.replicationSubnetGroupIdentifier,
+    vpcSecurityGroupIds: [vpc.vpcDefaultSecurityGroup]
+})
+----
+
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_rds.CfnDBInstance.html[aws-cdk-lib.aws_rds.CfnDBInstance]:
+[source,javascript]
+----
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+const rdsSubnetGroupPublic = new rds.CfnDBSubnetGroup(this, "publicSubnet", {
+    dbSubnetGroupDescription: "Subnets",
+    dbSubnetGroupName: "publicSn",
+    subnetIds: vpc.selectSubnets({
+        subnetType: ec2.SubnetType.PUBLIC
+    }).subnetIds
+})
+
+new rds.CfnDBInstance(this, "public-public-subnet", {
+    engine: "postgres",
+    masterUsername: "foobar",
+    masterUserPassword: "12345678",
+    dbInstanceClass: "db.r5.large",
+    allocatedStorage: "200",
+    iops: 1000,
+    dbSubnetGroupName: rdsSubnetGroupPublic.ref,
+    publiclyAccessible: true, // Sensitive
+    vpcSecurityGroups: [sg.securityGroupId]
+})
 ----
 
 == Compliant Solution
 
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.Instance.html[aws-cdk-lib.aws_ec2.Instance] and similar constructs:
 [source,javascript]
 ----
-FIXME
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new ec2.Instance(
+    this,
+    "vpcSubnetPrivate", {
+    instanceType: nanoT2,
+    machineImage: ec2.MachineImage.latestAmazonLinux(),
+    vpc: vpc,
+    vpcSubnets: {subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS}
+})
 ----
 
-== See
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.CfnInstance.html[aws-cdk-lib.aws_ec2.CfnInstance]:
+[source,javascript]
+----
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
 
-FIXME: A list of links
+new ec2.CfnInstance(this, "cfnPrivate", {
+    instanceType: "t2.micro",
+    imageId: "ami-0ea0f26a6d50850c5",
+    networkInterfaces: [
+        {
+            deviceIndex: "0",
+            associatePublicIpAddress: false,
+            deleteOnTermination: true,
+            subnetId: vpc.selectSubnets({subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS}).subnetIds[0]
+        }
+    ]
+})
+----
+
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_dms.CfnReplicationInstance.html[aws-cdk-lib.aws_dms.CfnReplicationInstance]:
+[source,javascript]
+----
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new dms.CfnReplicationInstance(
+    this, "explicitPrivate", {
+    replicationInstanceClass: "dms.t2.micro",
+    allocatedStorage: 5,
+    publiclyAccessible: false, // Compliant
+    replicationSubnetGroupIdentifier: subnetGroup.replicationSubnetGroupIdentifier,
+    vpcSecurityGroupIds: [vpc.vpcDefaultSecurityGroup]
+})
+----
+
+For https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_rds.CfnDBInstance.html[aws-cdk-lib.aws_rds.CfnDBInstance]:
+[source,javascript]
+----
+import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+const rdsSubnetGroupPrivate = new rds.CfnDBSubnetGroup(this, "privateSubnet",{
+    dbSubnetGroupDescription: "Subnets",
+    dbSubnetGroupName: "privateSn",
+    subnetIds: vpc.selectSubnets({
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS
+    }).subnetIds
+})
+
+new rds.CfnDBInstance(this, "private-private-subnet", {
+    engine: "postgres",
+    masterUsername: "foobar",
+    masterUserPassword: "12345678",
+    dbInstanceClass: "db.r5.large",
+    allocatedStorage: "200",
+    iops: 1000,
+    dbSubnetGroupName: rdsSubnetGroupPrivate.ref,
+    publiclyAccessible: false, // Compliant
+    vpcSecurityGroups: [sg.securityGroupId]
+})
+----
+
+include::../see.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::message.adoc[]
+include::highlight.adoc[]
+
+endif::env-github,rspecator-view[]
