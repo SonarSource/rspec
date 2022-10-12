@@ -1,0 +1,74 @@
+=== How to fix it in Node.js
+
+:canonicalization_function: `fs.realPath`
+include::../../common/fix/code-rationale.adoc[]
+
+==== Non-compliant code example
+
+[source,javascript,diff-id=1,diff-type=noncompliant]
+----
+const fs = require('fs');
+
+function (req, res) {
+  const userFilename = __dirname + req.query.filename;
+
+  let data = fs.readFileSync(userFilename, { encoding: 'utf8', flag: 'r' }); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+const fs = require('fs');
+
+function (req, res) {
+  const userFilename = fs.realPath(__dirname + req.query.filename);
+
+  const targetDirectory = __dirname + '/notsecret/';
+  if (!realPath.startsWith(targetDirectory)) {
+    res.status(401).send();
+  }
+
+  let data = fs.readFileSync(userFilename, { encoding: 'utf8', flag: 'r' });
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/how-does-this-work.adoc[]
+
+=== Pitfalls
+
+include::../../common/pitfalls/partial-path-traversal.adoc[]
+
+For example, the following code is vulnerable to partial path injection. Note
+that the string `targetDirectory` does not end with a path separator:
+
+
+[source, javascript]
+----
+const fs = require('fs');
+
+function (req, res) {
+  const userFilename = fs.realPath(__dirname + req.query.filename);
+
+  const targetDirectory = __dirname + '/User/John';
+  if (!realPath.startsWith(targetDirectory)) {
+    res.status(401).send();
+  }
+
+  let data = fs.readFileSync(userFilename);
+}
+----
+
+This check can be bypassed because `"/Users/Johnny".startsWith("/Users/John")`
+returns `true`. Thus, for validation, `"/Users/John"` should actually be
+`"/Users/John/"`.
+
+**Warning**: Some functions remove the terminating path separator in their
+return value. +
+The validation code should be tested to ensure that it cannot be impacted by
+this issue.
+
+https://github.com/aws/aws-sdk-java/security/advisories/GHSA-c28r-hw5m-5gv3[Here is a real-life example of this vulnerability.]
