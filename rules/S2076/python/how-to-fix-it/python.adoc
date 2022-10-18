@@ -1,0 +1,49 @@
+=== How to fix it in Python
+
+include::../../common/fix/code-rationale.adoc[]
+
+Especially, in this example, if the *host* request parameter contains system
+shell control characters, the expected `ping` command behavior will be changed.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+def ping():
+    cmd = "ping -c 1 %s" % request.args.get("host", "www.google.com")
+    status = os.system(cmd)
+    return str(status == 0)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+def safe_ping():
+    host = request.args.get("host", "www.google.com")
+    status = subprocess.run(["ping", "-c", "1", "--", host]).returncode
+    return str(status == 0)
+----
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+include::../../common/fix/pre-approved-list.adoc[]
+
+:sanitizationLib: subprocess
+include::../../common/fix/sanitize-meta-characters.adoc[]
+
+Here, using the `subprocess.run` function helps to escape the passed arguments.
+It ensures that, if users have control over a single command argument, they
+won't be able to inject new ones or break out of the command with special shell
+characters.
+
+Moreover, adding a `--`` argument to the list of command arguments ensures the
+user-controlled parameter will not be treated as a command option. This
+prevents dangerous options abuse.
+
+To finish, using the `subprocess` module's functions is generally preferable
+over older alternative as the `os` or `popen` modules. Indeed, `subprocess`,
+while still a dangerous library, offers safer defaults than its counterparts.
+For example, it disables system shell's syntax interpretation.
