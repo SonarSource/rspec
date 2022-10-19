@@ -4,35 +4,31 @@ include::../../common/fix/code-rationale.adoc[]
 
 ==== Non-compliant code example
 
-[source,csharp,diff-id=1,diff-type=noncompliant]
+[source,php,diff-id=1,diff-type=noncompliant]
 ----
-public class ExampleController : Controller
+public function unsafe(Request $request): JsonResponse
 {
-    public void Run(string binary)
-    {
-        Process p = new Process();
-        p.StartInfo.FileName = binary;
-        p.Start();
-    }
+    $process = Process::fromShellCommandline($request->query->get("cmd"));
+    $process->run();
+    $code = $process->wait();
+    return $this->json($code == 0);
 }
 ----
 
 ==== Compliant solution
 
-[source,csharp,diff-id=1,diff-type=compliant]
+[source,php,diff-id=1,diff-type=compliant]
 ----
-public class ExampleController : Controller
+public function safe(Request $request): JsonResponse
 {
-    public void Run(string binary)
-    {
-        if (binary.Equals("/usr/bin/ls") || binary.Equals("/usr/bin/cat"))
-        {
-            // only ls and cat commands are authorized
-            Process p = new Process();
-            p.StartInfo.FileName = binary;
-            p.Start();
-        }
-    }
+    $DIAG_CMD = [["/bin/ping","-c","1","--"],["/usr/bin/host","--"]];
+    $cmd = $DIAG_CMD[$request->query->get("cmdId")];
+    $cmd[] = $request->query->get("host");
+
+    $process = new Process($cmd);
+    $process->run();
+    $code = $process->wait();
+    return $this->json($code == 0);
 }
 ----
 
@@ -42,9 +38,22 @@ include::../../common/fix/introduction.adoc[]
 
 include::../../common/fix/pre-approved-list.adoc[]
 
-:sanitizationLib: System.Diagnostics.ProcessStartInfo
+:sanitizationLib: Symfony\Component\Process\Process
 include::../../common/fix/sanitize-meta-characters.adoc[]
 
-Here, using the `ProcessStartInfo` structure helps escaping the passed
-arguments and internally creates a single string given to the operating system
-when `System.Diagnostics.Process.Start()` is called.
+Here, the compliant solution includes multiple layers of security.
+
+First, a static list of allowed commands is used. Users are only allowed to
+choose a command to run from the list of trusted ones. This prevents arbitrary
+programs from being run.
+
+Then, the `Process` constructor is used in place of the less safe
+`fromShellCommandline` function. Directly using `Process` disables shell
+integration for the command being run. This prevents any unexpected escaping
+from the trusted static commands. Also, as the user-submitted parameter is
+included as an element of the parameter array, the `Process` constructor will
+perform an appropriate encoding of it. This will ensure no additional parameter
+can be injected into the trusted static commands.
+
+To finish, the trusted static commands include a `--` argument. This will
+ensure the user-controlled parameter is not interpreted as a command option.
