@@ -1,0 +1,52 @@
+=== How to fix it in .NET
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Non-compliant code example
+
+[source,php,diff-id=1,diff-type=noncompliant]
+----
+$command = $_GET['cmd'];
+exec($command, $output, $ret);
+
+echo ($ret == 0 ? "OK" : "KO");
+----
+
+==== Compliant solution
+
+[source,php,diff-id=1,diff-type=compliant]
+----
+$DIAG_CMD = [["/bin/ping","-c","1","--"],["/usr/bin/host","--"]];
+$cmd = $DIAG_CMD[$_GET["cmdId"]];
+$cmd[] = $_GET["host"];
+
+$process = proc_open($cmd, [], $pipes);
+$ret = proc_close($process);
+
+echo ($ret == 0 ? "OK" : "KO");
+----
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+include::../../common/fix/pre-approved-list.adoc[]
+
+:sanitizationLib: proc_open
+include::../../common/fix/sanitize-meta-characters.adoc[]
+
+Here, the compliant solution includes multiple layers of security.
+
+First, a static list of allowed commands is used. Users are only allowed to
+choose a command to run from the list of trusted ones. This prevents arbitrary
+programs from being run.
+
+Then, the `proc_open` function is used in place of the less safe `exec`
+alternative. Moreover, the `command` parameter of this function is set to an
+array. Using an array `command` parameter disables shell
+integration for the command being run. This prevents any unexpected escaping
+from the trusted static commands. Also, as the user-submitted parameter is
+included as an element of the parameter array, the `proc_open` function will
+perform an appropriate encoding of it. This will ensure no additional parameter
+can be injected in the trusted static commands.
+
