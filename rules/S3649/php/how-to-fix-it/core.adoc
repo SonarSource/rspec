@@ -2,34 +2,28 @@
 
 include::../../common/fix/code-rationale.adoc[]
 
-==== Non-compliant code example
+==== Noncompliant code example
 
 [source,php,diff-id=1,diff-type=noncompliant]
 ----
-@RestController
-public class ApiController
-{
-    @Autowired
-    QueryProducer queryProducer;
+class AuthenticationHandler {
 
-    @GetMapping(value = "/authenticate")
-    @ResponseBody
-    public ResponseEntity<String> authenticate(
-        @RequestParam("user") String user,
-        @RequestParam("pass") String pass)
-    {
-        String query = "SELECT * FROM users WHERE user = '" + user + "' AND pass = '" + pass + "'";
+    public mysqli $conn;
 
-        try {
-          queryProducer
-            .createNativeQuery(query)
-            .getSingleResult();
+    function authenticate() {
+        $user = $_POST['user'];
+        $pass = $_POST['pass'];
+        $authenticated = false;
 
-        } catch (Exception e) {
-            return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+        $query = "SELECT * FROM users WHERE user = '" . $user . "' AND pass = '" . $pass . "'";
+
+        $stmt = $conn->query($query); // Noncompliant
+
+        if ($stmt->num_rows == 1) {
+          $authenticated = true;
         }
 
-        return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
+        return $authenticated;
     }
 }
 ----
@@ -38,32 +32,29 @@ public class ApiController
 
 [source,php,diff-id=1,diff-type=compliant]
 ----
-@RestController
-public class ApiController
-{
-    @Autowired
-    QueryProducer queryProducer;
+class AuthenticationHandler {
 
-    @GetMapping(value = "/authenticate")
-    @ResponseBody
-    public ResponseEntity<String> authenticate(
-        @RequestParam("user") String user,
-        @RequestParam("pass") String pass)
-    {
-        String query = "SELECT * FROM users WHERE user = :user AND pass = :pass";
+    public mysqli $conn;
 
-        try {
-          queryProducer
-            .createNativeQuery(query)
-            .setParameter("user", user)
-            .setParameter("pass", pass)
-            .getSingleResult();
+    function authenticate() {
+        $user = $_POST['user'];
+        $pass = $_POST['pass'];
+        $authenticated = false;
 
-        } catch (Exception e) {
-            return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+        $query = "SELECT * FROM users WHERE user = :user AND pass = :pass";
+
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param(":user", $user);
+        $stmt->bind_param(":pass", $pass);
+        $stmt->execute();
+
+        $stmt->store_result();
+
+        if ( $stmt->num_rows == 1) {
+          $authenticated = true;
         }
 
-        return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
+        return $authenticated;
     }
 }
 ----

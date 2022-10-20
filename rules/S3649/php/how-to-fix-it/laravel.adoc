@@ -2,34 +2,32 @@
 
 include::../../common/fix/code-rationale.adoc[]
 
-==== Non-compliant code example
+==== Noncompliant code example
 
 [source,php,diff-id=1,diff-type=noncompliant]
 ----
-@RestController
-public class ApiController
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class UserController extends Controller
 {
-    @Autowired
-    QueryProducer queryProducer;
-
-    @GetMapping(value = "/authenticate")
-    @ResponseBody
-    public ResponseEntity<String> authenticate(
-        @RequestParam("user") String user,
-        @RequestParam("pass") String pass)
+    public function authenticate(Request $request)
     {
-        String query = "SELECT * FROM users WHERE user = '" + user + "' AND pass = '" + pass + "'";
+        $user = $request->input('user');
+        $pass = $request->input('pass');
 
-        try {
-          queryProducer
-            .createNativeQuery(query)
-            .getSingleResult();
+        $query = "SELECT * FROM users WHERE user = '" . $user . "' AND pass = '" . $pass . "'";
 
-        } catch (Exception e) {
-            return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+        $users = DB::select($query); // Noncompliant
+
+        if (count($users) != 1)
+        {
+            abort(401);
         }
 
-        return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
+        return view('authenticated.index');
     }
 }
 ----
@@ -38,37 +36,35 @@ public class ApiController
 
 [source,php,diff-id=1,diff-type=compliant]
 ----
-@RestController
-public class ApiController
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class UserController extends Controller
 {
-    @Autowired
-    QueryProducer queryProducer;
-
-    @GetMapping(value = "/authenticate")
-    @ResponseBody
-    public ResponseEntity<String> authenticate(
-        @RequestParam("user") String user,
-        @RequestParam("pass") String pass)
+    public function authenticate(Request $request)
     {
-        String query = "SELECT * FROM users WHERE user = :user AND pass = :pass";
+        $user = $request->input('user');
+        $pass = $request->input('pass');
 
-        try {
-          queryProducer
-            .createNativeQuery(query)
-            .setParameter("user", user)
-            .setParameter("pass", pass)
-            .getSingleResult();
+        $user_exists = DB::table('users')
+                        ->where('user', $user)
+                        ->where('pass', $pass)
+                        ->exists();
 
-        } catch (Exception e) {
-            return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
+        if ( !$user_exists )
+        {
+            abort(401);
         }
 
-        return new ResponseEntity<>("Authentication Success", HttpStatus.OK);
+        return view('authenticated.index');
     }
 }
 ----
 
 === How does this work?
 
-include::../../common/fix/prepared-statements.adoc[]
+:secure_feature: Illuminate
+include::../../common/fix/secure-by-design.adoc[]
 
