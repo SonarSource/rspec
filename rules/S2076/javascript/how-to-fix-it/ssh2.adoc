@@ -1,0 +1,72 @@
+=== How to fix it in SSH2
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,javascript,diff-id=1,diff-type=noncompliant]
+----
+const { Client } = require('ssh2');
+
+const conn = new Client();
+    
+conn.on('ready', () => {
+    conn.exec(req.query.cmd, (err, stream) => {}) // Noncompliant
+})
+
+conn.connect({
+    host: 'example.org',
+    username: 'user',
+    password: 'password'
+});
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+const { Client } = require('ssh2');
+const shell = require('shell-escape-tag')
+
+const cmdId = parseInt(req.query.cmdId)
+let host = req.query.host
+host = typeof host === "string"? host : "example.org"
+host = shell.escape(host)
+
+const DIAG_CMD = ["/bin/ping -c 1 --", "/bin/host --"]
+const cmd = `${DIAG_CMD[cmdId]} ${host}`
+
+const conn = new Client()
+
+conn.on('ready', () => {
+    conn.exec(cmd, (err, stream) => {})
+})
+
+conn.connect({
+    host: 'example.org',
+    username: 'user',
+    password: 'password'
+});
+----
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+include::../../common/fix/pre-approved-list.adoc[]
+
+Here, a static list of trusted commands is used. Users are only allowed to
+submit an index in this array in place of a full command name.
+
+:sanitizationLib: shell-escape-tag
+include::../../common/fix/sanitize-meta-characters.adoc[]
+
+Here, the `escape` function from the `shell-escape-tag` is used to properly
+escape the user-supplied command argument. It can then safely be used in the
+trusted command template.
+
+**Important note**: Because JavaScript is a loosely typed language, extra care
+should be taken when accepting user-controlled parameters. Here, the `escape`
+function accepts both single arguments and argument arrays as input. Ensuring
+that the `host` parameter is a single `string` is mandatory to prevent
+multiple command line arguments from being added.
