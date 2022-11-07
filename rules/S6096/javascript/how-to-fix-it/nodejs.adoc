@@ -10,17 +10,18 @@ include::../../common/fix/code-rationale.adoc[]
 [source,javascript,diff-id=1,diff-type=noncompliant]
 ----
 const AdmZip = require("adm-zip");
+const upload = require('multer')({
+    dest: '/path/to/uploads/'
+});
 
 const targetDirectory = "/example/directory/";
 
-app.get('/example', (req, res) => {
-    const path = targetDirectory + req.query.filename;
-
-    const zip = new AdmZip(path); // Noncompliant
+app.get('/example', upload.single('file'), (req, res) => {
+    const zip = new AdmZip(req.file.path);
     const zipEntries = zip.getEntries();
 
     zipEntries.forEach(function (zipEntry) {
-        var writer = fs.createWriteStream(zipEntry.entryName);
+        var writer = fs.createWriteStream(zipEntry.entryName); // Noncompliant
         writer.write(zipEntry.getData().toString("utf8"));
     });
 });
@@ -31,21 +32,23 @@ app.get('/example', (req, res) => {
 [source,javascript,diff-id=1,diff-type=compliant]
 ----
 const AdmZip = require("adm-zip");
+const upload = require('multer')({
+    dest: '/path/to/uploads/'
+});
 
-const targetDirectory = "/example/directory/";
+const unzipTargetDir = "/example/directory/";
 
-app.get('/example', (req, res) => {
-    const canonicalPath = path.normalize(targetDirectory + req.query.filename);
+app.get('/example', upload.single('file'), (req, res) => {
+    const zip = new AdmZip(req.file.path);
+    const zipEntries = zip.getEntries();
 
-    if (canonicalPath.startsWith(targetDirectory)) {
-        const zip = new AdmZip(canonicalPath);
-	    const zipEntries = zip.getEntries();
-
-    	zipEntries.forEach(function (zipEntry) {
-            var writer = fs.createWriteStream(zipEntry.entryName);
+    zipEntries.forEach(function (zipEntry) {
+        const canonicalPath = path.normalize(unzipTargetDir + zipEntry.entryName);
+        if (canonicalPath.startsWith(unzipTargetDir)) {
+            let writer = fs.createWriteStream(canonicalPath);
             writer.write(zipEntry.getData().toString("utf8"));
-	    });
-    }
+        }
+    });
 });
 ----
 
