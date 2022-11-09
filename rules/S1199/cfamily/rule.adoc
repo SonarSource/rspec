@@ -1,32 +1,36 @@
-include::../description.adoc[]
+Nested code blocks can be used to create a new scope: variables declared within that block cannot be accessed from the outside, and their lifetime end at the end of the block.
+
+While this might seem convenient, using this feature in a function often indicates that it has too many responsibilities and should be refactored into smaller functions.
+
+A nested code block is acceptable when it surrounds all the statements inside an alternative of a `switch` (a `case xxx:` or a `default:`) because it prevents variable declarations from polluting other `cases`.
 
 == Noncompliant Code Example
 
 [source,cpp]
 ----
-enum class OP{
-    ADD
-    /* ... */
-};
 
-class Stack{
-    public:
-    int pop();
-    void push(int i);
-    /* ... */
-};
-
-void evaluate(OP op, Stack& stack) {
-  switch (op) {
-    /* ... */
-    case OP::ADD: { // Noncompliant - nested code block '{' ... '}'
-      int a = stack.pop();
-      int b = stack.pop();
-      int result = a + b;
-      stack.push(result);
-      break;
+void f(Cache &c, int data) {
+  int value;
+  { // Noncompliant
+    std::scoped_lock l(c.getMutex());
+    if (c.hasKey(data)) {
+      value = c.get(data);
+    } else {
+      value = compute(data);
+      c.set(data, value);
     }
-    /* ... */
+  } // Releases the mutex
+
+  switch(value) {
+    case 1: 
+    { // Noncompliant, some statements are outside of the block
+       int result = compute(value);
+       save(result);
+    }
+    log();
+    break;
+    case 2:
+    // ...
   }
 }
 ----
@@ -35,34 +39,31 @@ void evaluate(OP op, Stack& stack) {
 
 [source,cpp]
 ----
-enum class OP{
-    ADD
-    /* ... */
-};
-
-class Stack{
-    public:
-    int pop();
-    void push(int i);
-    /* ... */
-};
-
-static void evaluateAdd(Stack& stack) { 
-  int a = stack.pop();
-  int b = stack.pop();
-  int result = a + b;
-  stack.push(result); 
-}
-
-void evaluate(OP op, Stack& stack) {
-  switch (op) {
-    /* ... */
-    case OP::ADD: // Compliant
-      evaluateAdd(stack);
-      break;
-    /* ... */
+int getValue(Cache &c, int data) {
+  std::scoped_lock l(c.getMutex());
+  if (c.hasKey(data)) {
+    return c.get(data);
+  } else {
+    value = compute(data);
+    c.set(data, value);
+    return value;
   }
 }
+
+void f(Cache &c, int data) {
+  int value = getValue(c, data);
+
+  switch(value) {
+    case 1: 
+    { // Compliant, limits the scope of "result"
+       int result = compute(value);
+       save(result);
+       log();
+    }
+    break;
+    case 2:
+    // ...
+  }
 ----
 
 ifdef::env-github,rspecator-view[]
