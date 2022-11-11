@@ -1,0 +1,72 @@
+=== How to fix it in Boto3 DynamoDB
+
+The following code is vulnerable to NoSQL injection because untrusted data is
+concatenated to the `FilterExpression` value. This expression determines which items within
+the results should be returned. A malicious HTTP request containing the following
+query parameter values `username=admin&password=size(password) or
+size(password)=size(password)` would allow an attacker to bypass authentication.
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+@app.route('/login')
+def login():
+    sandbox = boto3.session.Session(config=AWS_CONFIG)
+    dynamodb = sandbox.client('dynamodb')
+    
+    username = request.args["username"]
+    password = request.args["password"]
+
+    response = dynamodb.scan(
+        FilterExpression= "username = " + username + " and password = " + password,
+        TableName="users",
+        ProjectionExpression="username"
+    ) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+@app.route('/login')
+def login():
+    session = boto3.session.Session(config=AWS_CONFIG)
+    dynamodb = session.client('dynamodb')
+    
+    username = request.args["username"]
+    password = request.args["password"]
+
+    response = dynamodb.query(
+        KeyConditionExpression= "username = :u",
+        FilterExpression= "password = :p",
+        ExpressionAttributeValues={
+            ":u": { 'S': username },
+            ":p": { 'S': password }
+        },
+        TableName="users",
+        ProjectionExpression="username"
+    )
+----
+
+=== How does this work?
+
+As a rule of thumb, the approach to protect against injection vulnerabilities is to ensure that untrusted data cannot break out of the initially intended logic.
+
+When using DynamoDB with Boto3, the best way to do so is by using the expression placeholders (`:placeholder`) which take the value defined in `ExpressionAttributeValues`, as seen in the compliant solution above.
+
+When possible, using the method `query` over `scan` optimizes speed, costs and reduces the attack surface; for example, in case an injection occurs in `KeyConditionExpression`, the operator `OR` is disallowed.
+
+This logic applies both when using the Client and the Resource class, though the syntax differs for the latter, and the `ExpressionAttributeValues` would look like the following:
+
+[source,python]
+----
+ExpressionAttributeValues={
+    ":u": username,
+    ":p": password
+}
+----
+
+Although injection can occur on all the query or scan `Expression` attributes, its most severe impact occurs in the `FilterExpression`.
+
+**Note:** Do not use the deprecated https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/LegacyConditionalParameters.html[Legacy Conditional Parameters].
