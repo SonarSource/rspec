@@ -146,6 +146,7 @@ const languageToJiraProject = new Map(Object.entries({
   'PYTHON': 'SONARPY',
   'ABAP': 'SONARABAP',
   'CFAMILY': 'CPP',
+  'DOCKER': 'SONARIAC',
   'JAVA': 'SONARJAVA',
   'COBOL': 'SONARCOBOL',
   'FLEX': 'SONARFLEX',
@@ -173,6 +174,7 @@ const languageToJiraProject = new Map(Object.entries({
 const languageToGithubProject = new Map(Object.entries({
   'ABAP': 'sonar-abap',
   'CSHARP': 'sonar-dotnet',
+  'DOCKER': 'sonar-iac',
   'VBNET': 'sonar-dotnet',
   'JAVASCRIPT': 'SonarJS',
   'TYPESCRIPT': 'SonarJS',
