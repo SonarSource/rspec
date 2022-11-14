@@ -34,6 +34,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'cloudformation': ['CLOUDFORMATION'],
   'terraform': ['TERRAFORM'],
   'kubernetes': ['KUBERNETES'],
+  'dockerfile': ['DOCKERFILE'],
   'text': ['TEXT']
 }));
 
