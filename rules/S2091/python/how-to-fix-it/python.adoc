@@ -1,0 +1,42 @@
+=== How to fix it in the Python Standard Library
+
+The following noncompliant code is vulnerable to XPath injections because untrusted data is
+concatenated to an XPath query without prior validation. Although `xml.etree.ElementTree` only
+supports a subset of XPath syntax, exploitation can still be possible.
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from xml.etree import ElementTree
+
+def authenticate(tree: ElementTree, username: str, password: str) -> bool:
+    expression = "./users/user[@name='" + username + "'][@pass='" + password + "']"
+
+    return tree.find(expression) is not None
+----
+
+////
+The above example would be exploitable by using e.g. `username=”admin][.!=”` and `password=”][.!='XXXXX”`
+This creates the following query: `./users/user[@name='admin][.!='][@pass='][.!='XXXXX']`,
+where `[.!='][@pass=']` and `[.!='XXXXX']` should match on everything, resulting in authentication as admin.
+////
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from lxml.etree import ElementTree
+
+def authenticate(tree: ElementTree, username: str, password: str) -> bool:
+    expression = "./users/user[@name='$username' and @pass='$password']"
+
+    return tree.xpath(expression, username=username, password=password) is not None
+----
+
+=== How does this work?
+
+include::../../common/fix/validation.adoc[]
+
+The Python standard library does not offer a method to create parameterized queries. In the example, the compliant solution instead uses
+the `ElementTree.xpath()` method defined by the https://pypi.org/project/lxml/[lxml library] to create a parameterized query, which prevents injection.
