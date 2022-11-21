@@ -1,22 +1,165 @@
-FIXME: add a description
+Downloading data without authenticity and integrity check exposes multiple
+infrastructures to attacks. +
+Depending on the organization inner structure, there would be at least two
+targets:
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+* Its supply chain pipelines, where Dockerfiles get built into container images
+* Its production environments, where the container images get ran.
 
-== Noncompliant Code Example
+In general, any environment running the container image is at risk, be it a
+testing environment, UAT, pre-production, production or a developper machine.
+
+A malicious user or cybergroup can exploit this vector attacks with various points of view.
+
+The first alternative is to attack and penetrate the remote website in order to
+replace the required artifacts with either fully malicious artifacts, or
+trojanized artifacts: Malicious code would be added, but the main function
+would be fully or partially kept. +
+This way, the attack stays inconspicuous.
+
+The second attack alternative involves attacking the supply chain that is going
+to build the Dockerfile. The goal of this attack is to replace the content of
+the website that is hardcoded into the Dockerfile with another content. +
+This can happen by attacking supply chain DNS, for example. +
+Thus, the command `curl https://example.com/get-example.sh | sh` could end up
+installing something unexpected and infect the build process and the runtime
+environment, by trojanizing the binary expected to be launched at runtime.
+
+Unfortunately, using `https` instead of `http` is not a deterrent anymore, as
+attackers started to use it themselves.
+
+== Ask Yourself Whether
+
+* The downloaded artifact is expected to be code, and executed.
+* The downloaded artifact is going to get used by code, to determine settings.
+
+There is a risk if you answered yes to this question.
+
+== Recommended Secure Coding Practices
+
+Use PGP to verify the remote artifact's integrity **and** authenticity:
+
+* Hardcode the GPG key ID(s) into the Dockerfile
+** Else, it can also be compromised
+* Import Keys corresponding to the key ID(s) where the artifact supplier stores them
+** For example: `hkps://keys.openpgp.org`
+* Download the remote file, and its corresponding signature file
+** Signature files typically end with `.asc`.
+* Verify this remote file with `gpg` and ensure that a failed verification stops the build
+
+In case the artifact supplier do not provide signatures or anything PGP-related,
+the workaround includes only verifying the artifact's integrity.
+
+* Hardcode the remote artifact SHA256 hash into the Dockerfile
+* Download the remote file
+* Verify that the remote file's SHA256 hash matches the one that has been originally hardcoded.
+
+This solution makes sure that the remote artifact does not change, because
+SHA256 hashes **cannot be forged yet**. However, it does not guarantee the
+authenticity of who built it.
+
+*Note: Use the SHA256 fix along with version pinning: Avoid tags such as
+"latest" or equivalent, to avoid breaking container builds when the remote
+artifact version changes.*
+
+== Sensitive Code Example
+
+For Linux-based images:
 
 [source,docker]
 ----
-FIXME
+FROM debian
+
+# Direct curl bashing
+RUN curl https://example.com/installer.sh | bash # Sensitive
+
+# Indirect code execution
+RUN curl https://example.com/installer.py -o installer.py; \
+    python3 installer.py # Sensitive
+----
+
+For Windows-based images:
+
+[source,docker]
+----
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+
+# Direct download and launch
+RUN Invoke-Expression ((new-object net.webclient).DownloadString('https://example.com/installer.ps1')) # Sensitive
+
+# Indirect code execution
+RUN Invoke-WebRequest 'https://example.com/installer.py' -OutFile 'installer.py' -UseBasicParsing ; \
+    python script.py; # Sensitive
 ----
 
 == Compliant Solution
 
+GPG solution for Linux-based images:
+
 [source,docker]
 ----
-FIXME
+FROM debian
+
+ENV GPG_KEY_SERVER hkps://keys.openpgp.org
+ENV GPG_KEY_ID     A035C8C19219BA821ECEA86B64E628F8D684696D
+
+RUN set -eux; \
+    \
+    wget -O installer.tar.xz "https://example.com/installer.tar.xz"; \
+    wget -O installer.tar.xz.asc "https://example.com/installer.tar.xz.asc"; \
+    \
+    GNUPGHOME="$(mktemp -d)"; export GNUPGHOME; \
+    gpg --batch --keyserver ${GPG_KEY_SERVER} --recv-keys "${GPG_KEY_ID}"; \
+    gpg --batch --verify installer.tar.xz.asc installer.tar.xz; \
+    \
+    command -v gpgconf > /dev/null && gpgconf --kill all || :; \
+    rm -rf "$GNUPGHOME" installer.tar.xz.asc;
+
+----
+
+SHA256 solution for Linux-based images:
+[source,docker]
+----
+FROM debian
+----
+
+PGP solution for Windows-based images:
+
+[source,docker]
+----
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+----
+
+Authenticode solution for Windows-based images:
+[source,docker]
+----
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+----
+
+SHA256 solution for Linux-based images:
+[source,docker]
+
+----
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
 ----
 
 == See
 
-FIXME: A list of links
+* https://cwe.mitre.org/data/definitions/384.html[MITRE, CWE-345] -  Insufficient Verification of Data Authenticity
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Set in https://sonarsource.atlassian.net/browse/SONARIAC-478[SONARIAC-478].
+
+=== Highlighting
+
+Set in https://sonarsource.atlassian.net/browse/SONARIAC-478[SONARIAC-478].
+
+endif::env-github,rspecator-view[]
+
