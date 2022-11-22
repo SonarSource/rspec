@@ -1,5 +1,5 @@
-Downloading data without authenticity and integrity checks exposes various
-infrastructures to attacks. +
+Downloading data without enhanced authenticity and integrity checks exposes
+various infrastructures to attacks. +
 Depending on the organization`s internal infrastructure, there are at least two
 targets:
 
@@ -10,66 +10,72 @@ Generally, any environment where the container image is running is at risk,
 whether it is a test environment, UAT, pre-production, production, or
 development machine.
 
-A malicious user or attacker group can exploit this attack vector through
-various indirect attack surfaces.
+The core of this issue is to understand the implied **Trust Model** of this
+Dockerfile. +
 
-The first would be to attack and penetrate the remote site to replace the
-required artifacts with either entirely malicious artifacts or Trojanized
-artifacts: Malicious code would be added, but all or part of the main function
-would be preserved.
+For example: By using `http` to download an artifact, the code trusts everything:
 
-A second alternative would be to attack intermediaries such as DNS or
-certificate infrastructures (Certificate Authorities).
+* It trusts the remote website to be the one it is expected to be.
+* It trusts the network route to be free from eavesdropping and tampering with.
+** The route being the Internet, the remote website, and the application's internal network.
 
-For example, the command `curl \https://example.com/get-example.sh | sh` could
-cause something unexpected to be installed and infect the build process and
-runtime environment by Trojanizing the binary to be executed at runtime.
+By using `https`, the code trust model evolves:
 
-In the end, this is all a matter of trust:
-* If you trust PGP and nothing else, you trust the **Web of Trust**.
-* If you trust Authenticode (Windows signing tools), you trust Microsoft's Trust Architecture
+* It trusts the Certificate Authority (CA) that verified the remote website's certificate.
+* It trusts its own storage to store only verified CA public keys.
+* It trusts the HTTPS connection to be free from eavesdropping and tampering with.
+* It does not trust the network route to the remote artifact, including its own internal network.
+** HTTPS allows to protect the remote artifact during its route from a host toward another.
 
-If you trust \https://example.com and do not verify their software, you trust
-your network, the Internet's network intermediaries, the remote artifact and
-the remote infrastructure supporting that remote artifact.
+In practical terms, trusting HTTPS connections to be free from eavesdropping
+can actually be an attack vector, because legitimate software such as corporate
+proxy, anti-viruses include HTTPS interception to filter and inspect packets at
+the operating system level. +
+And these products also suffer from vulnerabilities.
 
-TODO: it's all a matter of trust modeling.
+Furthermore, malicious software can also perform packet inspection by
+penetrating network internals of operating systems or trusted certificate
+storage. +
+This raises the question of how much is the server protected and trusted, and
+it is out-of-scope for this rule.
 
+Applying a second verification method on top of the HTTPS checks allows to add
+defense-in-depths and get reassured regarding "what ifs", such as:
+
+* What if Certificate Authorities get breached and their data tampered with?
+* What if my certificate store is compromised?
+** Because either systems that generated it got compromised
+** Because my own system might be compromised
+** Because the system where my code runs is managed by a third-party and might be compromised
+* What if the system where my code runs performs packet inspection?
+* What if DNS services are breached and cancels the authenticity and integrity checks made thanks to HTTPS?
 
 == Ask Yourself Whether
 
 * The downloaded artifact is expected to be code, and executed.
 * The downloaded artifact is going to get used as a configuration file.
+* The infrastructure network route to this remote artifact involves a lot of various systems.
 
 There is a risk if you answered yes to any of these questions.
 
 == Recommended Secure Coding Practices
 
-Use PGP to verify the integrity **and** authenticity of the remote artifact:
+Use `https` in conjuction with another method to perform authenticity and integrity checks.
 
-* Write the GPG key ID (s) in the Dockerfile
-** Otherwise, it can also be compromised.
-* Import the keys corresponding to the ID (s) key to where the artifact provider stores them
-** For example: `hkps://keys.openpgp.org`.
-* Download the remote file and the corresponding signature file
-** Signature files usually end with `.asc`.
-* Check this remote file with `gpg` and make sure that a failed check stops the build.
+For example, PGP (GPG), and Microsoft's Authenticode service are two viable options.
 
-If the artifact supplier does not provide signatures or anything PGP-related,
-the workaround is to check the artifact`s integrity:
+The former relies on a decentralized approach called **Web of trust**, and the
+latter on a mix of certificate and reputation.
 
-* Write the SHA256 hash of the remote artifact to the Dockerfile
-* Download the remote file
-* Verify that the SHA256 hash of the remote file matches the original hardcoded hash.
+If it is not possible to use a method involving authenticity **and** integrity
+checks, one workaround is to perform only an integrity check by determining the
+hash of the software that needs to be used, or its installer file, and to
+compare it to the remote artifact's hash once downloaded. +
+It should be a robust ghash, such as SHA256.
 
-This solution ensures that the remote artifact does not change because
-SHA256 hashes **still cannot be forged**. However, it does not guarantee the
-authenticity of the person who created it.
-
-*Note: Use SHA256 correction together with version pinning: avoid tags like
+*Note: Use the SHA256 fix together with version pinning: avoid tags like
 "latest" or similar to avoid breaking container builds when the version of the
 remote artifact changes.*
-
 
 == Sensitive Code Example
 
@@ -109,8 +115,8 @@ GPG solution for Linux-based images:
 ----
 FROM debian
 
-ENV GPG_KEY_SERVER hkps://keys.openpgp.org
-ENV GPG_KEY_ID     A035C8C19219BA821ECEA86B64E628F8D684696D
+ENV GPG_KEY_SERVER "hkps://keys.openpgp.org"
+ENV GPG_KEY_ID     "A035C8C19219BA821ECEA86B64E628F8D684696D"
 
 RUN set -eux; \
     \
@@ -141,8 +147,8 @@ Here is an example of using GPG to verify a software on Windows:
 ----
 FROM mcr.microsoft.com/windows/servercore:ltsc2019
 
-ENV GPG4WIN_VERSION      2.3.4
-ENV GPG4WIN_AUTHENTICODE DE16D5972F0B7395F7D91EDC1F219B0FFE89FAB3
+ENV GPG4WIN_VERSION      "2.3.4"
+ENV GPG4WIN_AUTHENTICODE "DE16D5972F0B7395F7D91EDC1F219B0FFE89FAB3"
 
 # Download and verify gpg4win - Using Authenticode
 RUN Invoke-WebRequest \
@@ -158,10 +164,10 @@ RUN Invoke-WebRequest \
     \
     Start-Process .\gpg4win.exe -ArgumentList '/S' -NoNewWindow -Wait
 
-ENV SOFTWARE_VERSION                 3.10.8
-ENV SOFTWARE_AUTHENTICODE_THUMBPRINT 36168EE17C1A240517388540C903BB6717DD2563
-ENV SOFTWARE_GPG_KEYSERVER           hkps://keys.openpgp.org
-ENV SOFTWARE_GPG_KEY_ID              A035C8C19219BA821ECEA86B64E628F8D684696D
+ENV SOFTWARE_VERSION                 "3.10.8"
+ENV SOFTWARE_AUTHENTICODE_THUMBPRINT "36168EE17C1A240517388540C903BB6717DD2563"
+ENV SOFTWARE_GPG_KEYSERVER           "hkps://keys.openpgp.org"
+ENV SOFTWARE_GPG_KEY_ID              "A035C8C19219BA821ECEA86B64E628F8D684696D"
 
 # Download and verify software - Using gpg4win
 # You can use gpg4win and Authenticode.
@@ -185,7 +191,7 @@ SHA256 solution for Linux-based images:
 ----
 FROM debian
 
-ENV ARTIFACT_SHA256 f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+ENV ARTIFACT_SHA256 "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2"
 
 # Here, trust is transferred to the distribution's own package management trust model.
 RUN set -eux; \
@@ -200,7 +206,7 @@ SHA256 solution for Windows-based images:
 ----
 FROM mcr.microsoft.com/windows/servercore:ltsc2019
 
-ENV SOFTWARE_SHA256 f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+ENV SOFTWARE_SHA256 "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2"
 
 RUN Invoke-WebRequest 'https://example.com/software.exe' -OutFile 'software.exe' -UseBasicParsing ; \
     $fileHash = Get-FileHash 'software.exe' -Algorithm sha256; \
