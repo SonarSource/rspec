@@ -1,66 +1,73 @@
-Downloading data without authenticity and integrity check exposes multiple
+Downloading data without authenticity and integrity checks exposes various
 infrastructures to attacks. +
-Depending on the organization inner structure, there would be at least two
+Depending on the organization`s internal infrastructure, there are at least two
 targets:
 
-* Its supply chain pipelines, where Dockerfiles get built into container images
-* Its production environments, where the container images get ran.
+* Its supply chain pipelines, where Dockerfiles are assembled into container images
+* Its production environments, where the container images are executed.
 
-In general, any environment running the container image is at risk, be it a
-testing environment, UAT, pre-production, production or a developper machine.
+Generally, any environment where the container image is running is at risk,
+whether it is a test environment, UAT, pre-production, production, or
+development machine.
 
-A malicious user or cybergroup can exploit this vector attacks with various points of view.
+A malicious user or attacker group can exploit this attack vector through
+various indirect attack surfaces.
 
-The first alternative is to attack and penetrate the remote website in order to
-replace the required artifacts with either fully malicious artifacts, or
-trojanized artifacts: Malicious code would be added, but the main function
-would be fully or partially kept. +
-This way, the attack stays inconspicuous.
+The first would be to attack and penetrate the remote site to replace the
+required artifacts with either entirely malicious artifacts or Trojanized
+artifacts: Malicious code would be added, but all or part of the main function
+would be preserved.
 
-The second attack alternative involves attacking the supply chain that is going
-to build the Dockerfile. The goal of this attack is to replace the content of
-the website that is hardcoded into the Dockerfile with another content. +
-This can happen by attacking supply chain DNS, for example. +
-Thus, the command `curl https://example.com/get-example.sh | sh` could end up
-installing something unexpected and infect the build process and the runtime
-environment, by trojanizing the binary expected to be launched at runtime.
+A second alternative would be to attack intermediaries such as DNS or
+certificate infrastructures (Certificate Authorities).
 
-Unfortunately, using `https` instead of `http` is not a deterrent anymore, as
-attackers started to use it themselves.
+For example, the command `curl \https://example.com/get-example.sh | sh` could
+cause something unexpected to be installed and infect the build process and
+runtime environment by Trojanizing the binary to be executed at runtime.
+
+In the end, this is all a matter of trust:
+* If you trust PGP and nothing else, you trust the **Web of Trust**.
+* If you trust Authenticode (Windows signing tools), you trust Microsoft's Trust Architecture
+
+If you trust \https://example.com and do not verify their software, you trust
+your network, the Internet's network intermediaries, the remote artifact and
+the remote infrastructure supporting that remote artifact.
+
 
 == Ask Yourself Whether
 
 * The downloaded artifact is expected to be code, and executed.
-* The downloaded artifact is going to get used by code, to determine settings.
+* The downloaded artifact is going to get used as a configuration file.
 
-There is a risk if you answered yes to this question.
+There is a risk if you answered yes to any of these questions.
 
 == Recommended Secure Coding Practices
 
-Use PGP to verify the remote artifact's integrity **and** authenticity:
+Use PGP to verify the integrity **and** authenticity of the remote artifact:
 
-* Hardcode the GPG key ID(s) into the Dockerfile
-** Else, it can also be compromised
-* Import Keys corresponding to the key ID(s) where the artifact supplier stores them
-** For example: `hkps://keys.openpgp.org`
-* Download the remote file, and its corresponding signature file
-** Signature files typically end with `.asc`.
-* Verify this remote file with `gpg` and ensure that a failed verification stops the build
+* Write the GPG key ID (s) in the Dockerfile
+** Otherwise, it can also be compromised.
+* Import the keys corresponding to the ID (s) key to where the artifact provider stores them
+** For example: `hkps://keys.openpgp.org`.
+* Download the remote file and the corresponding signature file
+** Signature files usually end with `.asc`.
+* Check this remote file with `gpg` and make sure that a failed check stops the build.
 
-In case the artifact supplier do not provide signatures or anything PGP-related,
-the workaround includes only verifying the artifact's integrity.
+If the artifact supplier does not provide signatures or anything PGP-related,
+the workaround is to check the artifact`s integrity:
 
-* Hardcode the remote artifact SHA256 hash into the Dockerfile
+* Write the SHA256 hash of the remote artifact to the Dockerfile
 * Download the remote file
-* Verify that the remote file's SHA256 hash matches the one that has been originally hardcoded.
+* Verify that the SHA256 hash of the remote file matches the original hardcoded hash.
 
-This solution makes sure that the remote artifact does not change, because
-SHA256 hashes **cannot be forged yet**. However, it does not guarantee the
-authenticity of who built it.
+This solution ensures that the remote artifact does not change because
+SHA256 hashes **still cannot be forged**. However, it does not guarantee the
+authenticity of the person who created it.
 
-*Note: Use the SHA256 fix along with version pinning: Avoid tags such as
-"latest" or equivalent, to avoid breaking container builds when the remote
-artifact version changes.*
+*Note: Use SHA256 correction together with version pinning: avoid tags like
+"latest" or similar to avoid breaking container builds when the version of the
+remote artifact changes.*
+
 
 == Sensitive Code Example
 
@@ -117,30 +124,87 @@ RUN set -eux; \
 
 ----
 
+For Windows-based images, GPG is not available by default, so it needs to be
+prealably downloaded. This poses a problem of trust transfer to `gpg4win.org`. +
+To verify `GPG4Win`, we can chose to transfer our trust to Microsoft's trust
+infrastructure, and use Authenticode.
+
+It is recommended to avoid using a software to verify itself. Doing this makes
+it vulnerable to trojanized versions of itself, that will always return that
+they trust themselves.
+
+Here is an example of using GPG to verify a software on Windows:
+
+[source,docker]
+----
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+
+ENV GPG4WIN_VERSION      2.3.4
+ENV GPG4WIN_AUTHENTICODE DE16D5972F0B7395F7D91EDC1F219B0FFE89FAB3
+
+# Download and verify gpg4win - Using Authenticode
+RUN Invoke-WebRequest \
+        -Uri 'http://files.gpg4win.org/gpg4win-vanilla-${GPG4WIN_VERSION}.exe' \
+        -OutFile 'gpg4win.exe' \
+        -UseBasicParsing; \
+    \
+    $authenticode = Get-AuthenticodeSignature 'gpg4win.exe'; \
+    if ( $authenticode.Status -ne 'Valid' ) \
+        { Write-Error 'Authenticode check failed.'; }; \
+    if ( $authenticode.SignerCertificate.Thumbprint -ne '${GPG4WIN_AUTHENTICODE}' ) \
+        { Write-Error 'Authenticode signer check failed.'; }; \
+    \
+    Start-Process .\gpg4win.exe -ArgumentList '/S' -NoNewWindow -Wait
+
+ENV SOFTWARE_VERSION                 3.10.8
+ENV SOFTWARE_AUTHENTICODE_THUMBPRINT 36168EE17C1A240517388540C903BB6717DD2563
+ENV SOFTWARE_GPG_KEYSERVER           hkps://keys.openpgp.org
+ENV SOFTWARE_GPG_KEY_ID              A035C8C19219BA821ECEA86B64E628F8D684696D
+
+# Download and verify software - Using gpg4win
+# You can use gpg4win and Authenticode.
+RUN $url = ('https://example.com/software-${SOFTWARE_VERSION}.exe'); \
+    \
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \
+    Invoke-WebRequest -Uri $url     -OutFile 'software.exe'; \
+    Invoke-WebRequest -Uri $url.asc -OutFile 'software.exe.asc'; \
+    \
+    if ( (Get-AuthenticodeSignature 'software.exe').Status -ne 'Valid' ) \
+        { Write-Error 'Authenticode check failed.' } ; \
+    if ( (Get-AuthenticodeSignature "software.exe").SignerCertificate.Thumbprint -ne '${GPG_SIGNER}' ) \
+        { Write-Error 'Authenticode signer check failed.'; }; \
+    \
+    gpg --batch --keyserver "${SOFTWARE_GPG_KEYSERVER}" --recv-keys "${SOFTWARE_GPG_KEY_ID}"; \
+    gpg --batch --verify software.exe.asc software.exe;
+----
+
 SHA256 solution for Linux-based images:
 [source,docker]
 ----
 FROM debian
+
+ENV ARTIFACT_SHA256 f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+
+# Here, trust is transferred to the distribution's own package management trust model.
+RUN set -eux; \
+    \
+    wget -O installer.py "https://example.com/installer.py"; \
+    echo "$ARTIFACT_SHA256 *installer.py" | sha256sum -c -; \
 ----
 
-PGP solution for Windows-based images:
+SHA256 solution for Windows-based images:
 
 [source,docker]
 ----
 FROM mcr.microsoft.com/windows/servercore:ltsc2019
-----
 
-Authenticode solution for Windows-based images:
-[source,docker]
-----
-FROM mcr.microsoft.com/windows/servercore:ltsc2019
-----
+ENV SOFTWARE_SHA256 f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
 
-SHA256 solution for Linux-based images:
-[source,docker]
-
-----
-FROM mcr.microsoft.com/windows/servercore:ltsc2019
+RUN Invoke-WebRequest 'https://example.com/software.exe' -OutFile 'software.exe' -UseBasicParsing ; \
+    $fileHash = Get-FileHash 'software.exe' -Algorithm sha256; \
+    if ( $fileHash.Hash -ne '${SOFTWARE_SHA256}' ) \
+        { Write-Error 'Integrity checki failed.'; };
+    Start-Process .\software.exe;
 ----
 
 == See
