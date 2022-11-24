@@ -52,7 +52,6 @@ more in-depth defense and reliance on "what-if" cases, such as:
 
 * The downloaded artifact is executed as code.
 * The downloaded artifact is used as a configuration file.
-* The infrastructure network path to this remote artifact is across many different systems.
 
 There is a risk if you answered yes to any of these questions.
 
@@ -66,11 +65,11 @@ For example, PGP (GPG) and Microsoft`s Authenticode service are two viable optio
 The former is based on a decentralized approach called **Web of trust**, the
 latter on a mixture of certificate and reputation.
 
-If it is not possible to use a method that includes authenticity **and**
+If it is not possible to use a method that includes both authenticity **and**
 integrity checks, one option is to perform only an integrity check by
-determining the hash of the software to be used or its installation file and
+determining the hash of the software to be used or of its installation files and
 comparing it to the hash of the downloaded remote artifact. +
-It should be performed using a robust hash algorithm such as SHA256.
+This should be performed using a robust hash algorithm such as SHA256.
 
 *Note: Use the SHA256 fix together with version binding: avoid using tags like
 "latest" or similar so that container builds are not broken when the version of
@@ -84,7 +83,6 @@ For Linux-based images:
 ----
 FROM debian
 
-# Direct curl bashing
 RUN curl https://example.com/installer.sh | bash # Sensitive
 
 # Indirect code execution
@@ -124,21 +122,16 @@ RUN set -eux; \
     \
     GNUPGHOME="$(mktemp -d)"; export GNUPGHOME; \
     gpg --batch --keyserver ${GPG_KEY_SERVER} --recv-keys "${GPG_KEY_ID}"; \
-    gpg --batch --verify installer.tar.xz.asc installer.tar.xz; \
-    \
-    command -v gpgconf > /dev/null && gpgconf --kill all || :; \
-    rm -rf "$GNUPGHOME" installer.tar.xz.asc;
+    gpg --batch --verify installer.tar.xz.asc installer.tar.xz
 
 ----
 
 For Windows-based images, GPG is not available by default, so it needs to be
-prealably downloaded. This poses a problem of trust transfer to `gpg4win.org`. +
-To verify `GPG4Win`, we can chose to transfer our trust to Microsoft's trust
+downloaded beforehand. This poses a problem of trust transfer to `gpg4win.org`. +
+To verify `GPG4Win`, we can choose to transfer our trust to Microsoft's trust
 infrastructure, and use Authenticode.
 
-It is recommended to avoid using a software to verify itself. Doing this makes
-it vulnerable to trojanized versions of itself, that will always return that
-they trust themselves.
+It is recommended to avoid using software to verify itself. Compromised verification software might always validate itself.
 
 Here is an example of using GPG to verify a software on Windows:
 
@@ -192,7 +185,6 @@ FROM debian
 
 ENV ARTIFACT_SHA256 "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2"
 
-# Here, trust is transferred to the distribution's own package management trust model.
 RUN set -eux; \
     \
     wget -O installer.py "https://example.com/installer.py"; \
@@ -217,7 +209,8 @@ RUN Invoke-WebRequest 'https://example.com/software.exe' -OutFile 'software.exe'
 == See
 
 * https://cwe.mitre.org/data/definitions/384.html[MITRE, CWE-345] -  Insufficient Verification of Data Authenticity
-
+* https://learn.microsoft.com/en-us/windows-hardware/drivers/install/authenticode[Microsoft, Authenticode Digital Signatures]
+* https://www.linux.com/training-tutorials/pgp-web-trust-core-concepts-behind-trusted-communication/[Linux.com, PGP Web of Trust: Core Concepts Behind Trusted Communication]
 ifdef::env-github,rspecator-view[]
 
 '''
@@ -226,11 +219,15 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Set in https://sonarsource.atlassian.net/browse/SONARIAC-478[SONARIAC-478].
+* "Standard stream piping" detection: Downloading from this location without authenticity and integrity checks expose the container to network attacks. Make sure it is safe here.
+* Invoke-Expression: Running code without authenticity and integrity checks expose the container to network attacks. Make sure it is safe here.
+* File downloaded and used without checks: The authenticity and integrity of this artifact are not checked and expose the container to network attacks. Make sure it is safe here.
 
 === Highlighting
 
-Set in https://sonarsource.atlassian.net/browse/SONARIAC-478[SONARIAC-478].
+* "Standard stream piping" detection: The downloading command.
+* Invoke-Expression: the full instruction
+* File downloaded and used without checks: The URL
 
 endif::env-github,rspecator-view[]
 
