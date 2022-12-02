@@ -16,7 +16,11 @@ link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https',
-              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall']
+              'https://blogs.oracle.com/oraclemagazine/oracle-10g-adds-more-to-forall',
+              # FIXME: RULEAPI-763 - investigate why these live links respond with 403
+              'https://medium.com/@cowtowncoder/on-jackson-cves-dont-panic-here-is-what-you-need-to-know-54cd0d6e8062',
+              'https://medium.com/@nyomanpradipta120/ssti-in-flask-jinja2-20b068fdaeee',
+              'https://elizarov.medium.com/coroutine-context-and-scope-c8b255d59055']
 
 def show_files(filenames):
   for filename in filenames:
@@ -66,7 +70,7 @@ def live_url(url: str, timeout=5):
                                                   'sec-ch-ua-mobile': '?0',
                                                   'Upgrade-Insecure-Requests': '1',
                                                   'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36',
-                                                  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3,q=0.9',
+                                                  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
                                                   'Sec-Fetch-Site':'none',
                                                   'Sec-Fetch-Mode':'navigate',
                                                   'Sec-Fetch-User':'?1',
@@ -181,12 +185,15 @@ def check_html_links(dir):
   load_url_probing_history()
   urls = get_all_links_from_htmls(dir)
   errors = probe_links(urls)
+  exit_code = 0
   if errors:
     confirmed_errors = confirm_errors(errors, urls)
     if confirmed_errors:
       report_errors(confirmed_errors, urls)
-      print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see the list and related files before")
-      exit(1)
-  print(f"All {len(urls)} links are good")
+      print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files")
+      exit_code = 1
+  if exit_code == 0:
+    print(f"All {len(urls)} links are good")
   save_url_probing_history()
+  exit(exit_code)
 
