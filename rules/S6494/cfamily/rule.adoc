@@ -1,22 +1,75 @@
-FIXME: add a description
+{cpp}20 introduces a new text formatting API with the ``<format>`` header,
+joining the ``printf`` family of functions -- inherited from C -- and ``iostreams``.
+``std::format`` combines the convenience of ``printf``, separating formatting and
+arguments, with the type-safety of ``iostreams``.
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+Before {cpp}20, if we wanted to write a text representation of
+a user-defined type, we had to overload the ``<<`` operator for that type.
+Since {cpp}20, in order to use the new ``std::format`` we need to specialize
+``std::formatter``.
+
+This rule raises an issue when there is an overloaded ``<<`` operator for a user-defined
+type, but there is no specialization of ``std::formatter`` available. This rule is
+intended to ease the transition into {cpp}20.
+
 
 == Noncompliant Code Example
 
 [source,cpp]
 ----
-FIXME
+struct Point {
+  float x;
+  float y;
+};
+
+// Noncompliant, the operator << is overloaded and std::formatter is not specialized.
+std::ostream& operator<< (std::ostream& out, Point const point) {
+    out << '(' << point.x << ", " << point.y << ')';
+    return out;
+}
 ----
 
 == Compliant Solution
 
 [source,cpp]
 ----
-FIXME
+struct Point {
+  float x;
+  float y;
+};
+
+template<class CharT>
+struct std::formatter<Point, CharT> {
+  using ParseContext = std::basic_format_parse_context<CharT>;
+
+  constexpr auto parse(ParseContext &parse_context) {
+    // We can implement custom format options.
+    // The parsing of the format options fails if the returned iterator does
+    // not point to the end of the format specification.
+    return parse_context.begin();
+  }
+
+  template<class FormatContext>
+  auto format(Point const &p, FormatContext &context) const {
+    return std::format_to(context.out(), "({:.2f}, {:.2f})", p.x, p.y);
+  }
+};
+
+// Compliant, there is an specialization of std::formatter
+std::ostream &operator<<(std::ostream &out, Point const point) {
+  return out << std::format("{}", point);
+}
+
+int main() {
+  Point p{10.3f, 20.5f};
+
+  // OK
+  std::cout << std::format("{}", p) << std::endl;
+
+  // OK
+  std::cout << p << std::endl;
+
+  // Compile-time error because we have not added support for any format option.
+  // std::cout << std::format("{:b}", p) << std::endl;
+}
 ----
-
-== See
-
-FIXME: A list of links
