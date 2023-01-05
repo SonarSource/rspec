@@ -1,48 +1,42 @@
-Objects of small sizes, i.e., up to `2 * sizeof(void*)` bytes, whose types are trivially copyable, trivially copy-constructible and trivially destructible should be passed by value.
+Objects of small sizes, i.e., up to `2 * sizeof(void*)` bytes, whose types are trivially copy-constructible and destructible should be passed by value.
+Copy constructor and destructor are trivial, if they are not user-provided, the respective type does not declare virtual function members, and these properties hold recursively for all its members and its base class.
 
 
-In most cases, passing small objects by value is more efficient than passing them by reference and comes with the following benefits:
+Passing small objects by value comes with the following benefits:
 
 . Aliasing in the call target is eliminated
 +
-Aliasing describes the situation in which the same piece of memory can be accessed using different pointer or reference typed variables---so-called _access paths_.
+Aliasing describes the situation in which the same piece of memory can be accessed via different pointer or reference variables.
 Internally, the compiler treats references like pointers.
 Aliasing, however, oftentimes hinders the compiler to produce efficient code.
 Consider the following code example:
 +
 [source,cpp]
 ----
-int add(int& x, int &y) {
-  x = 9001;
-  y = 1000;
-  return x + y;
+int add(int& x, const int& y) {
+  if (y == 42) {
+    x = 9001; // can potentially change y's value, if x and y alias
+  }
+  return x + y; // need to load y again
 }
 ----
-Depending on the alias information at the compiler's disposal, the compiler may not be able to verify whether the variables `x` and `y` do *not* alias.
-In this case, it must conservatively assume that they do alias, and has to load the value of `x` a second time to safely perform the addition.
-This is because the integer value accessible through `x` would have been changed by the store to variable `y`, if these reference typed variables alias.
-Computing precise alias (and points-to) information is an undecidable problem.
-Thus, in most cases the compiler's alias information is not precise enough to mitigate such additional, potentially unnecessary instructions.
+Parameters passed by value cannot alias.
 
 . No extra indirection required to access from the callee
 +
 Passing a reference typed variable is like passing a pointer typed variable, since the compiler treats references like pointers.
-To access memory using a pointer (or reference) hence requires two loads: One load for the pointer and a second load for the memory that resides at the address carried by the pointer typed variable.
+To access memory using a reference (or pointer) hence requires two loads: One load for the pointer and a second load for the memory that resides at the address carried by the pointer typed variable.
+Objects passed by value may not even be stored in memory at all and can be passed via registers, instead or they are not passed at all, if the object is empty. 
+Small objects of non-scalar types (as identified by this rule) enable many compilers to apply Scalar Replacement of Aggregates (SRA).
+By artificially creating scalar variables for objects of aggregate types, the compiler opens up optimizations that are usually only applicable to scalar variables.
+Among others, this often eliminates unnecessary memory accesses.
 
 . No additional function-call overhead
 +
 Analogously to reference parameters, creating a copy of a trivially copy-constructible object does not require a call to a constructor (i.e., functional call).
 
-. Objects may be passed using registers (Scalar Replacement of Aggregates) or may not be passed at all (e.g. for objects of empty types)
-+
-Passing objects of scalar types using registers avoids loads and stores the other, much slower types of memory. 
-Small objects of non-scalar types (as identified by this rule) enable many compilers to apply Scalar Replacement of Aggregates (SRA).
-By artificially creating scalar variables for objects of aggregate types, the compiler opens up optimizations that are usually only applicable to scalar variables.
-Among others, this often eliminates unnecessary memory accesses.
-
 
 This rule raises an issue when a small object (up to `2 * sizeof(void*)` bytes) with trivial copy operations and a trivial destructor is passed by reference.
-This rule excludes objects of types that come with user-provided constructors and destructors that may get invoked, since these could potentially degrade performance.
 
 
 == Noncompliant Code Example
@@ -57,11 +51,14 @@ struct Point {
 void f1(const int& i); // Noncompliant, pass by value is more efficient
 void f2(const double& d); // Noncompliant, pass by value is more efficient
 void f3(const Point& p); // Noncompliant, pass by value is more efficient
-void foo(int& x, int &y) {
+void add(int& x, const int& y) {
   // Noncompliant, even worse: compiler has to assume that the memory referred
   // to by y can change, too, since x and y could alias and effectively refer
   // to the same memory location.
-  x = 42;
+  if (y == 42) {
+    x = 9001;
+  }
+  return x + y;
 }
 ----
 
@@ -79,6 +76,12 @@ void f2(double d);
 void f3(Point p);
 // Compliant, pass by reference to const; pass by value is potentially expensive
 void f4(const std::string &s);
+void add(int& x, int y) {
+  if (y == 42) {
+    x = 9001;
+  }
+  return x + y;
+}
 ----
 
 
