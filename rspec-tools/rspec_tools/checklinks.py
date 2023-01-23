@@ -20,7 +20,8 @@ EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,
               # FIXME: RULEAPI-763 - investigate why these live links respond with 403
               'https://medium.com/@cowtowncoder/on-jackson-cves-dont-panic-here-is-what-you-need-to-know-54cd0d6e8062',
               'https://medium.com/@nyomanpradipta120/ssti-in-flask-jinja2-20b068fdaeee',
-              'https://elizarov.medium.com/coroutine-context-and-scope-c8b255d59055']
+              'https://elizarov.medium.com/coroutine-context-and-scope-c8b255d59055',
+              'https://www.ssi.gouv.fr/uploads/2014/11/RGS_v-2-0_B1.pdf']
 
 def show_files(filenames):
   for filename in filenames:
