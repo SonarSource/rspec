@@ -1,14 +1,58 @@
-Calling methods or fields which are not initialized in constructors or destructors can lead to undefined behavior.
+When constructing an object of a derived class, the sub-object of the base class is constructed first, and only then the constructor of the derived class is called. When there are multiple levels of inheritance, the process is the same, from the most base class to the most derived class. Along this construction process, the dynamic type of the object evolves and is the type of the sub-object under construction.
+
+The destruction of the object follows the same process in reverse order.
+
+As a consequence, when calling a virtual function from a constructor or a destructor, the actual function being called is not the version from the most-derived type, as some developers may believe, but the version that matches the level under construction.
+
+[source,cpp]
+----
+struct A {
+  virtual void f();
+  virtual void g();
+  virtual void h() = 0;
+};
+
+struct B : public A {
+  B() {
+    f();
+    g();
+  }
+  void f() override;
+};
+
+struct C : public B {
+  void f() override;
+  void g() override;
+  void h() override;
+};
+----
+
+When constructing an object of type C, the following occurs:
+
+* The sub-object of type `A` is constructed.
+* The sub-object of type `B` is constructed.
+** The constructor `B::B()` is called, during this call, `*this` is considered as being of type `B`.
+** The function `B::f()` is called.
+** The function `A::g()` is called.
+* The object of type `C` is constructed.
 
 
-For example:
+This surprising behavior can be even worse: If there is no implementation for a virtual function (in the example, if the constructor attempted to call `h()` which is still a pure virtual function) the behavior is undefined.
+
+If you want to perform virtual calls during object construction that will consider the actual type of the object, the best way is probably to defer those calls right after the object is constructed, by using a factory function:
+
+[source,cpp]
+----
+std::unique_ptr<Base> createObjectOfDerivedType(parameters) {
+  auto result = ...;
+  result->callVirtualFunction();
+  return result;
+}
+----
 
 
-Calling an overridable member function from a constructor or destructor could result in unexpected behavior when instantiating a subclass which overrides the member function.
+This rule raises an issue when a virtual function is called from a constructor or a destructor, therefore avoiding all surprising behavior.
 
-* By contract, the subclass class constructor starts by calling the parent class constructor.
-* The parent class constructor calls the parent member function and not the one overridden in the child class, which is confusing for child class' developer.
-* It can produce an undefined behavior if the member function is pure ``++virtual++`` in the parent class.
 
 == Noncompliant Code Example
 
@@ -17,33 +61,26 @@ Calling an overridable member function from a constructor or destructor could re
 class Parent {
   public:
     Parent() {
-      method1();
-      method2(); // Noncompliant; confusing because Parent::method2() will always been called even if the method is overridden
+      f1();
+      f2(); // Noncompliant; confusing because Parent::f2() will always be called even if it is overridden
     }
-    Parent(int i):field(i) {}
     virtual ~Parent() {
-      method3(); // Noncompliant; undefined behavior (ex: throws a "pure virtual method called" exception)
+      f3(); // Noncompliant; undefined behavior
     }
-  protected:
-    int field;
 
-    int          method1() { /*...*/ }
-    virtual void method2() { /*...*/ }
-    virtual void method3() = 0; // pure virtual    
+  private:
+    int          f1();
+    virtual void f2();
+    virtual void f3() = 0; // pure virtual    
 };
 
 class Child : public Parent {
   public:
-    Child() { // leads to a call to Parent::method2(), not Child::method2()
-    }
-    Child() : Parent(field) {} // Noncompliant; "field" is not initialized yet
-    Child() : Parent(method1()) {} // Noncompliant; "method1" is not initialized yet
-    virtual ~Child() {
-      method3(); // Noncompliant; Child::method3() will always be called even if a child class overrides method3
+    Child() { // leads to a call to Parent::f2(), not Child::f2()
     }
   protected:
-    void method2() override { /*...*/ }
-    void method3() override { /*...*/ }
+    void f2() override;
+    void f3() override;
 };
 ----
 
@@ -54,16 +91,16 @@ class Child : public Parent {
 class Parent {
   public:
     Parent() {
-      method1();
-      Parent::method2(); // acceptable but poor design
+      f1();
+      Parent::f2(); // acceptable but poor design
     }
     virtual ~Parent() {
       // call to pure virtual function removed
     }
   protected:
-    void         method1() { /*...*/ }
-    virtual void method2() { /*...*/ }
-    virtual void method3() = 0;
+    void         f1();
+    virtual void f2();
+    virtual void f3() = 0;
 };
 
 class Child : public Parent {
@@ -71,11 +108,11 @@ class Child : public Parent {
     Child() {
     }
     virtual ~Child() {
-      method3(); // method3() is now final so this is okay
+      f3(); // f3() is now defined so this is okay
     }
   protected:
-    void method2() override { /*...*/ }
-    void method3() final    { /*...*/ } // this virtual function is "final"
+    void f2() override;
+    void f3() override;
 };
 ----
 
@@ -83,6 +120,7 @@ class Child : public Parent {
 
 * https://wiki.sei.cmu.edu/confluence/x/8zZGBQ[CERT, MET05-J.] - Ensure that constructors do not call overridable methods
 * https://wiki.sei.cmu.edu/confluence/x/6ns-BQ[CERT, OOP50-CPP.] - Do not invoke virtual functions from constructors or destructors
+* https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rc-factory[{cpp} Core Guidelines C.50] - Use a factory function if you need “virtual behavior” during initialization
 
 ifdef::env-github,rspecator-view[]
 
