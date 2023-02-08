@@ -1,87 +1,58 @@
 Pulling an image based on its `digest` can lead to avoidable risks that could
 have been remedied with image updates.
 
+A container image digest uniquely and immutably identifies a container image. 
+A tag, on the other hand, is a mutable reference to a container image.
+This tag can be updated to point to another version of the container at any point in time. +
 In general, the use of image digests instead of tags is intended to keep
 determinism stable within a system or infrastructure for reliability reasons.
 
-The problem with this is that using a digest as an image makes it immutable and
-raises several other reliability issues:
+The problem is that pulling such an image prevents the resulting container from 
+being updated or patched in order to remove vulnerabilities or significant bugs. 
 
-* Security - The lack of security updates for a dependency introduces risks that could have been avoided.
-* Maintainability - The indeterminacy of a hard-coded digest as an identifier makes it difficult to scale code.
 
-**Warning**: Specifying a tag *and* a digest provides no guarantee that 
-the tag did reference the digest at any point in time.
-
-Docker uses the digest regardless of the presence of a specified tag when it
-retrieves an image.  This means that the container below does not retrieve
-`openjdk:21-oracle`, but retrieves the image referenced by the specified digest,
-namely
-https://hub.docker.com/layers/library/openjdk/11-jre-bullseye/images/sha256-762d8d035c3b1c98d30c5385f394f4d762302ba9ee8e0da8c93344c688d160b2[`openjdk:11-jre-bullseye`].
-
-[source,docker]
-----
-FROM openjdk:21-oracle@sha256:762d8d035c3b1c98d30c5385f394f4d762302ba9ee8e0da8c93344c688d160b2
-----
 
 == Ask Yourself Whether
 
-* Image determinism cannot be provided by container orchestration systems.
-* The digest is hardcoded but updated in a timely manner
+* You expect to receive security updates of the base image.
 
-There is a risk if you answer no to any of these questions.
+There is a risk if you answer yes to this question.
 
 == Recommended Secure Coding Practices
 
-When developing a container in a Dockerfile, it is important to keep in mind the systems that are responsible for the overall **reliability** of the infrastructure.
-More specifically, the systems which are responsible for rolling back systems in the event of a disaster recovery procedure (DRP).
+Containers should get the latest security updates. If there is a need for determinism, 
+the solution is to find tags that are not as prone to change as `latest` or 
+https://github.com/docker-library/faq#whats-the-difference-between-shared-and-simple-tags[shared tags].
 
-A balance should be struck between:
-
-* The lack of reliability when using certain mutable tags, such as `latest`
-* The lack of flexibility when using immutable tags
-
-The simplest solution is to find tags that are not as prone to change as `latest` or https://github.com/docker-library/faq#whats-the-difference-between-shared-and-simple-tags[shared tags].
-
-Otherwise, there are several tools that allow you to benefit from both the stability of an immutable image and the security and maintainability of mutable images.
-
-Use these tools and create pipelines to be able to
-
-* Quickly roll back to a previously known digest version
-* Keep the image up to date by performing as frequently as possible:
-** Digest updates
-** Digest update testing to ensure that a Digest update does not damage critical systems
-
-Here is a list of tools to help you maintain this balance of reliability:
-
-* https://github.com/safe-waters/docker-lock[Docker-Lock]
-* https://cloud.google.com/kubernetes-engine/docs/archive/using-container-image-digests-in-kubernetes-manifests#recommendations[Skaffold, kpt, digester, kustomize, gke-deploy, ko, and Bazel]
+To do so, favor a more precise tag that uses https://semver.org/[semantic versioning] and target a major version, for example.
 
 
 == Sensitive Code Example
 
 [source,docker]
 ----
-FROM openjdk:21@sha256:762d8d035c3b1c98d30c5385f394f4d762302ba9ee8e0da8c93344c688d160b2 # Sensitive
+FROM mongo@sha256:8eb8f46e22f5ccf1feb7f0831d02032b187781b178cb971cd1222556a6cee9d1
 
 RUN echo ls
 ----
 
 == Compliant Solution
 
-As said, if there is a need for determinism, the solution goes further than
-just removing the `digest` from the statement `FROM`. One way would be to avoid
-as many overly ephemeral tags as possible and choose a more precise one:
+
+Here, using mongo:6.0.4 would be better than using a digest, but would prevent security updates
+made to mongo:6.0.5, for example:
 
 [source,docker]
 ----
-FROM openjdk:21-ea-8-jdk-oraclelinux8
+FROM mongo:6.0
 
 RUN echo ls
 ----
 
 == See
 
+* https://github.com/safe-waters/docker-lock[Docker-Lock]
+* https://cloud.google.com/kubernetes-engine/docs/archive/using-container-image-digests-in-kubernetes-manifests#recommendations[Skaffold, kpt, digester, kustomize, gke-deploy, ko, and Bazel]
 * https://cloud.google.com/kubernetes-engine/docs/archive/using-container-images[GKE, Using Container Image Digests]
 * https://docs.openshift.com/container-platform/3.11/architecture/core_concepts/builds_and_image_streams.html#image-streams[OpenShift, Builds and Image Streams]
 
@@ -93,13 +64,11 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-* Presence of a digest: Setting a digest poses security risks, even though it fixes a reliability issue. Make sure it is safe here.
-* Presence of digest + tag: Setting a digest poses security risks, even though it fixes a reliability issue. Make sure it is safe here. Note that the notation `\tag@digest` does not provide any warranty on the digest kind.
+Setting a digest will prevent receiving updates of the base image. Make sure it is safe here.
 
 === Highlighting
 
 * Presence of a digest: The digest
-* Presence of digest + tag: Digest + tag
 
 endif::env-github,rspecator-view[]
 
