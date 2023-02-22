@@ -1,4 +1,60 @@
-include::rule-except-see.adoc[]
+Locking on a class field synchronizes not on the field itself, but on the object assigned to it. So locking on a non-``readonly`` field makes it possible for the field's value to change while a thread is in a block locked on the old value. That would allow a second thread, locked on the new value, to enter the block at the same time.
+
+
+Locking on a ``readonly`` field of a class which is not ``private`` allows external code to lock the field, potentially interfering with synchronization of methods in that class. 
+
+
+Locking on a local variable or on a new instance undermines the synchronization: two different threads running the same method in parallel would lock on two different object instances. That would allow a second thread, locked on that new value, to enter the same block concurrently.
+
+
+Locking on a string literal is even more dangerous: depending on whether the string is interned or not, different threads may or may not synchronize on the same object instance.
+
+
+== Noncompliant Code Example
+
+[source,csharp]
+----
+private Color colorObject = new Color("red");
+private readonly colorString = "red";
+
+private void DoSomething()
+{
+  // Synchronizing access via "colorObject"
+  lock (colorObject) // Noncompliant; lock is actually on object instance "red" referred to by the color field
+  {
+    //...
+    colorObject = new Color("green"); // other threads now allowed into this block
+    // ...
+  }
+  lock (new object()) // Noncompliant; this is a no-op
+  {
+    // ...
+  }
+  lock (colorString)  // Noncompliant; strings can be interned
+  {
+    // ...
+  }
+}
+----
+
+
+== Compliant Solution
+
+[source,csharp]
+----
+private Color colorObject = new Color("red");
+private readonly object lockObj = new object();
+
+private void DoSomething()
+{
+  lock (lockObj) 
+  {
+    //...
+    color = new Color("green");
+    // ...
+  }
+}
+----
 
 include::../see.adoc[]
 
@@ -10,7 +66,7 @@ ifdef::env-github,rspecator-view[]
 
 include::message.adoc[]
 
-include::../highlighting.adoc[]
+include::highlighting.adoc[]
 
 '''
 == Comments And Links
