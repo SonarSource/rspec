@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
+from collections import Counter
 
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
@@ -18,7 +19,8 @@ def parse_names(path):
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-ACCEPTED_SECTION_NAMES: Final[list[str]] = parse_names('docs/section_names.adoc')
+ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('docs/all_section_names.adoc')
+ACCEPTED_PROGRESSIVE_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/progressive_education_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/allowed_framework_names.adoc')
 # The list of all the "How to fix it?" subsection names accepted by the script.
@@ -26,13 +28,27 @@ ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('docs/h
 # the list of all the "Resources" subsection names accepted by the script.
 ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('docs/resources_subsection_names.adoc')
 
+def intersection(lst1, lst2):
+  lst3 = [value for value in lst1 if value in lst2]
+  return lst3
+def difference(lst1, lst2):
+  return list(set(lst1) - set(lst2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
-  for h2 in descr.find_all('h2'):
-    name = h2.text.strip()
-    if name not in ACCEPTED_SECTION_NAMES:
-      raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{name}"')
+  h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
+
+  progressive_education_titles = intersection(h2_titles, ACCEPTED_PROGRESSIVE_EDUCATION_SECTION_NAMES)
+  if progressive_education_titles:
+    # we're using the progressive education format
+    missing_titles = difference(ACCEPTED_PROGRESSIVE_EDUCATION_SECTION_NAMES, progressive_education_titles)
+    if missing_titles:
+      # when using the progressive education format, we need to have all its titles
+      raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
+  else:
+    for title in h2_titles:
+      if title not in ACCEPTED_ALL_SECTION_NAMES:
+        raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{title}"')
 
 def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
   descr = rule_language.description
@@ -162,3 +178,8 @@ def validate_resources_subsections(rule_language: LanguageSpecificRule):
       if name in subsections_seen:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "Resources" subsections. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
+
+def validate_progressive_education_sections(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  resources_section = descr.find_all('h2')
+
