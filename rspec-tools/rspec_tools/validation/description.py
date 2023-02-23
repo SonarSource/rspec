@@ -21,9 +21,9 @@ def parse_names(path):
 ACCEPTED_SECTION_NAMES: Final[list[str]] = parse_names('docs/section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/allowed_framework_names.adoc')
-#
+# The list of all the "How to fix it?" subsection names accepted by the script.
 ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('docs/how_to_fix_it_subsection_names.adoc')
-
+# the list of all the "Resources" subsection names accepted by the script.
 ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('docs/resources_subsection_names.adoc')
 
 
@@ -41,8 +41,7 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
   how_to_fix_it_section = descr.find('h2', string='How to fix it?')
   if how_to_fix_it_section is not None:
     titles = collect_titles(how_to_fix_it_section, 3)
-    print(titles)
-    frameworks_counter = validate_subsection_titles(titles, rule_language)
+    frameworks_counter = validate_how_to_fix_it_subsections_titles(titles, rule_language)
     if frameworks_counter == 0:
       raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section but is missing subsections related to frameworks')
     if frameworks_counter > 6:
@@ -50,7 +49,7 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
   elif frameworks_counter > 0: # change how we check that these are below XXX
     raise RuleValidationError(f'Rule {rule_language.id} has "How to fix it" subsections for frameworks outside a defined "How to fix it?" section')
 
-def validate_subsection_titles(titles, rule_language):
+def validate_how_to_fix_it_subsections_titles(titles, rule_language):
   is_in_framework = False
   frameworks_counter = 0
   framework_subsections_seen = set()
@@ -73,21 +72,36 @@ def validate_subsection_titles(titles, rule_language):
       framework_subsections_seen.add(name)
   return frameworks_counter
 
-def dfs(collector, node, level):
-  if node.name == f'h{level}':
-    #print(f'takin {node}')
-    collector.append(node)
-  if hasattr(node, 'children'):
-    for child in node.children:
-      dfs(collector, child, level)
 
-def collect_titles(how_to_fix_it_section, level):
-  current = how_to_fix_it_section
+
+def collect_titles(node, level):
+  """Collects all the titles of a given level starting from the provided node
+
+  The goal of this function is to extract titles from the extra HTML tags
+  that are produced when the HTML file is produced from the ASCIIdoc.
+  The titles are collected in the order in which they appear.
+
+  Args:
+      node (BeautifulSoup): BeautifulSoup object
+      level (int): the level of title we are looking for
+
+  Returns:
+      list[BeautifulSoup]: List of nodes that were found.
+  """
+
+  current = node
   nodes = []
   while(current is not None):
     dfs(nodes, current, level)
     current = current.next_sibling
   return nodes
+
+def dfs(collector, node, level):
+  if node.name == f'h{level}':
+    collector.append(node)
+  if hasattr(node, 'children'):
+    for child in node.children:
+      dfs(collector, child, level)
 
 def validate_section_levels(rule_language: LanguageSpecificRule):
   h1 = rule_language.description.find('h1')
