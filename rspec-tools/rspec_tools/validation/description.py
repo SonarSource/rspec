@@ -176,8 +176,3 @@ def validate_resources_subsections(rule_language: LanguageSpecificRule):
       if name in subsections_seen:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "Resources" subsections. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
-
-def validate_progressive_education_sections(rule_language: LanguageSpecificRule):
-  descr = rule_language.description
-  resources_section = descr.find_all('h2')
-
