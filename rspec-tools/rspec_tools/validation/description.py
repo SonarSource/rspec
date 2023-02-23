@@ -8,18 +8,24 @@ from rspec_tools.utils import LANG_TO_SOURCE
 
 import re
 
+def parse_names(path):
+  SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath(path)
+  SECTION_NAMES_FILE = SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
+  return [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
+
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath('docs/section_names.adoc')
-SECTION_NAMES_FILE = SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
-ACCEPTED_SECTION_NAMES: Final[list[str]] = [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
+ACCEPTED_SECTION_NAMES: Final[list[str]] = parse_names('docs/section_names.adoc')
 # The list of all the framework names currently accepted by the script.
-FRAMEWORK_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath('docs/allowed_framework_names.adoc')
-FRAMEWORK_NAMES_FILE = FRAMEWORK_NAMES_PATH.read_text(encoding='utf-8').split('\n')
-ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = [s.replace('* ', '').strip() for s in FRAMEWORK_NAMES_FILE if s.strip()]
+ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/allowed_framework_names.adoc')
+#
+ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('docs/how_to_fix_it_subsection_names.adoc')
+
+ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('docs/resources_subsection_names.adoc')
+
 
 def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
@@ -44,12 +50,54 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
 
   how_to_fix_it_section = descr.find('h2', string='How to fix it?')
   if how_to_fix_it_section is not None:
+    titles = collect_titles(how_to_fix_it_section, 3)
+    print(titles)
+    frameworks_counter = validate_subsection_titles(titles, rule_language)
     if frameworks_counter == 0:
       raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section but is missing subsections related to frameworks')
     if frameworks_counter > 6:
       raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
-  elif frameworks_counter > 0:
+  elif frameworks_counter > 0: # change how we check that these are below XXX
     raise RuleValidationError(f'Rule {rule_language.id} has "How to fix it" subsections for frameworks outside a defined "How to fix it?" section')
+
+def validate_subsection_titles(titles, rule_language):
+  is_in_framework = False
+  frameworks_counter = 0
+  framework_subsections_seen = set()
+  for title in titles:
+    name = title.text.strip()
+    result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', name)
+    if result is not None:
+      if result.group(1) not in ACCEPTED_FRAMEWORK_NAMES:
+        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
+      is_in_framework = True
+      frameworks_counter += 1
+      framework_subsections_seen = set()
+    else:
+      if not is_in_framework:
+        raise RuleValidationError(f'Rule {rule_language.id} has subsections outside of a "How to fix it" section')
+      if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
+        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" subsection with an unallowed name')
+      if name in framework_subsections_seen:
+        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" subsections. There are 2 occurences of "{name}"')
+      framework_subsections_seen.add(name)
+  return frameworks_counter
+
+def dfs(collector, node, level):
+  if node.name == f'h{level}':
+    #print(f'takin {node}')
+    collector.append(node)
+  if hasattr(node, 'children'):
+    for child in node.children:
+      dfs(collector, child, level)
+
+def collect_titles(how_to_fix_it_section, level):
+  current = how_to_fix_it_section
+  nodes = []
+  while(current is not None):
+    dfs(nodes, current, level)
+    current = current.next_sibling
+  return nodes
 
 def validate_section_levels(rule_language: LanguageSpecificRule):
   h1 = rule_language.description.find('h1')

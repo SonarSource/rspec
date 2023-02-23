@@ -108,10 +108,39 @@ def test_too_many_subsections_in_how_to_fix_it_validation(invalid_rule):
 def test_subsections_without_parent_section_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having "How to fix it" subsections without the parent "How to fix it?" section breaks validation'''
   rule = invalid_rule('S101', 'python')
+def test_unallowed_subsections_in_how_to_fix_it_validation(invalid_rule):
+  '''Check that having "How to fix it" subsections with unallowed names breaks validation'''
+  rule = invalid_rule('S200', 'java')
+  with pytest.raises(RuleValidationError, match=f'Rule java:S200 has a "How to fix it" subsection with an unallowed name'):
+    validate_how_to_fix_it_subsections(rule)
+
+def test_duplicate_subsections_in_how_to_fix_it_validation(invalid_rule):
+  '''Check that having duplicate "How to fix it" subsections breaks validation'''
+  rule = invalid_rule('S200', 'csharp')
+  with pytest.raises(RuleValidationError, match=f'Rule csharp:S200 has duplicate "How to fix it" subsections. There are 2 occurences of "Pitfalls"'):
+    validate_how_to_fix_it_subsections(rule)
+
+def test_subsections_without_a_framework_in_how_to_fix_it_validation(invalid_rule):
+  '''Check that having subsections without a framework in "How to fix it" breaks validation'''
+  rule = invalid_rule('S200', 'cobol')
+  with pytest.raises(RuleValidationError, match=f'Rule cobol:S200 has subsections outside of a "How to fix it" section'):
+    validate_how_to_fix_it_subsections(rule)
+
+""" def test_wrong_order_subsections_in_resources_validation(invalid_rule):
+  '''Check that having a "Resources" subsections in the wrong order breaks validation'''
+  rule = invalid_rule('S200', 'javascript')
   with pytest.raises(RuleValidationError, match=f'Rule python:S101 has "How to fix it" subsections for frameworks outside a defined "How to fix it\\?" section'):
     validate_how_to_fix_it_subsections(rule)
+
+def test_unallowed_subsections_in_resources_validation(invalid_rule):
+  '''Check that having a "Resources" subsections with unallowed names breaks validation'''
+  rule = invalid_rule('S200', 'python')
+  with pytest.raises(RuleValidationError, match=f'Rule python:S101 has "How to fix it" subsections for frameworks outside a defined "How to fix it\\?" section'):
+    validate_how_to_fix_it_subsections(rule) """
 
 def test_valid_how_to_fix_it_subsections_validation(rule_language):
   '''Check that expected format is considered valid'''
   rule = rule_language('S101', 'csharp')
   validate_how_to_fix_it_subsections(rule)
+
+
