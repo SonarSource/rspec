@@ -72,8 +72,6 @@ def validate_how_to_fix_it_subsections_titles(titles, rule_language):
       framework_subsections_seen.add(name)
   return frameworks_counter
 
-
-
 def collect_titles(node, level):
   """Collects all the titles of a given level starting from the provided node
 
@@ -150,3 +148,17 @@ Use [source,{highlight_name(rule_language)}] or [source,text] before the opening
         elif not known_highlight(pre.code['data-lang']):
           raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
 Are you looking for "{highlight_name(rule_language)}"?''')
+
+def validate_resources_subsections(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  resources_section = descr.find('h2', string='Resources')
+  if resources_section is not None:
+    titles = collect_titles(resources_section, 3)
+    subsections_seen = set()
+    for title in titles:
+      name = title.text.strip()
+      if name not in ACCEPTED_RESOURCES_SUBSECTION_NAMES:
+        raise RuleValidationError(f'Rule {rule_language.id} has a "Resources" subsection with an unallowed name: "{name}"')
+      if name in subsections_seen:
+        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "Resources" subsections. There are 2 occurences of "{name}"')
+      subsections_seen.add(name)
