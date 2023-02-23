@@ -105,9 +105,6 @@ def test_too_many_subsections_in_how_to_fix_it_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule javascript:S101 has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams'):
     validate_how_to_fix_it_subsections(rule)
 
-def test_subsections_without_parent_section_in_how_to_fix_it_validation(invalid_rule):
-  '''Check that having "How to fix it" subsections without the parent "How to fix it?" section breaks validation'''
-  rule = invalid_rule('S101', 'python')
 def test_unallowed_subsections_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having "How to fix it" subsections with unallowed names breaks validation'''
   rule = invalid_rule('S200', 'java')

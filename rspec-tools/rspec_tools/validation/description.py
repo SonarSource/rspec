@@ -38,16 +38,6 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   frameworks_counter = 0
 
-  for h3 in descr.find_all('h3'):
-    name = h3.text.strip()
-    # It is important that the Regex here matches the one used by the analyzers when loading the rules content
-    result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', name)
-    if result is not None:
-      if result.group(1) not in ACCEPTED_FRAMEWORK_NAMES:
-        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
-      else:
-        frameworks_counter += 1
-
   how_to_fix_it_section = descr.find('h2', string='How to fix it?')
   if how_to_fix_it_section is not None:
     titles = collect_titles(how_to_fix_it_section, 3)
