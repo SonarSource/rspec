@@ -65,13 +65,15 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
 
 def validate_how_to_fix_it_subsections_titles(titles, rule_language):
   is_in_framework = False
+  current_framework = ''
   frameworks_counter = 0
   framework_subsections_seen = set()
   for title in titles:
     name = title.text.strip()
     result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', name)
     if result is not None:
-      if result.group(1) not in ACCEPTED_FRAMEWORK_NAMES:
+      current_framework = result.group(1)
+      if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
         raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
       is_in_framework = True
       frameworks_counter += 1
@@ -80,9 +82,9 @@ def validate_how_to_fix_it_subsections_titles(titles, rule_language):
       if not is_in_framework:
         raise RuleValidationError(f'Rule {rule_language.id} has subsections outside of a "How to fix it" section')
       if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
-        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" subsection with an unallowed name')
+        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" subsection with an unallowed name for the ${current_framework} framework')
       if name in framework_subsections_seen:
-        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" subsections. There are 2 occurences of "{name}"')
+        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" subsections for the ${current_framework} framework. There are 2 occurences of "{name}"')
       framework_subsections_seen.add(name)
   return frameworks_counter
 
