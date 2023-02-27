@@ -108,13 +108,13 @@ def test_too_many_subsections_in_how_to_fix_it_validation(invalid_rule):
 def test_unallowed_subsections_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having "How to fix it" subsections with unallowed names breaks validation'''
   rule = invalid_rule('S200', 'java')
-  with pytest.raises(RuleValidationError, match=f'Rule java:S200 has a "How to fix it" subsection with an unallowed name'):
+  with pytest.raises(RuleValidationError, match=f'Rule java:S200 has a "How to fix it" subsection with an unallowed name for the Razor framework'):
     validate_how_to_fix_it_subsections(rule)
 
 def test_duplicate_subsections_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having duplicate "How to fix it" subsections breaks validation'''
   rule = invalid_rule('S200', 'csharp')
-  with pytest.raises(RuleValidationError, match=f'Rule csharp:S200 has duplicate "How to fix it" subsections. There are 2 occurences of "Pitfalls"'):
+  with pytest.raises(RuleValidationError, match=f'Rule csharp:S200 has duplicate "How to fix it" subsections for the Razor framework. There are 2 occurences of "Pitfalls"'):
     validate_how_to_fix_it_subsections(rule)
 
 def test_subsections_without_a_framework_in_how_to_fix_it_validation(invalid_rule):

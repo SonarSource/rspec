@@ -82,9 +82,9 @@ def validate_how_to_fix_it_subsections_titles(titles, rule_language):
       if not is_in_framework:
         raise RuleValidationError(f'Rule {rule_language.id} has subsections outside of a "How to fix it" section')
       if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
-        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" subsection with an unallowed name for the ${current_framework} framework')
+        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" subsection with an unallowed name for the {current_framework} framework')
       if name in framework_subsections_seen:
-        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" subsections for the ${current_framework} framework. There are 2 occurences of "{name}"')
+        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" subsections for the {current_framework} framework. There are 2 occurences of "{name}"')
       framework_subsections_seen.add(name)
   return frameworks_counter
 
