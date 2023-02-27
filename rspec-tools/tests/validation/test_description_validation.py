@@ -145,8 +145,3 @@ def test_valid_how_to_fix_it_subsections_validation(rule_language):
   '''Check that expected format is considered valid'''
   rule = rule_language('S101', 'csharp')
   validate_how_to_fix_it_subsections(rule)
-
-def test_debug(invalid_rule):
-  # this should raise an issue but does not
-  rule = invalid_rule('S2078', 'php')
-  validate_section_names(rule)
