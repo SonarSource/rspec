@@ -132,7 +132,7 @@ def test_duplicate_subsections_in_resources_validation(invalid_rule):
 def test_education_format_missing_mandatory_sections_validation(invalid_rule):
   '''Check that not having all the required sections in the education format breaks validation'''
   rule = invalid_rule('S200', 'common')
-  with pytest.raises(RuleValidationError, match=f'Rule common:S200 is missing the "Resources" section'):
+  with pytest.raises(RuleValidationError, match=f'Rule common:S200 is missing the "How to fix it\\?" section'):
     validate_section_names(rule)
 
 def test_valid_how_to_fix_it_subsections_validation(rule_language):
@@ -144,3 +144,4 @@ def test_valid_optional_resources(rule_language):
   '''Check that the "Resources" section is optional'''
   rule = rule_language('S200', 'csharp')
   validate_resources_subsections(rule)
+  validate_section_names(rule)
