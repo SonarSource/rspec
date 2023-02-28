@@ -62,7 +62,6 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
       raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
 
 def validate_how_to_fix_it_subsections_titles(titles, rule_language):
-  is_in_framework = False
   current_framework = ''
   frameworks_counter = 0
   framework_subsections_seen = set()
@@ -73,12 +72,9 @@ def validate_how_to_fix_it_subsections_titles(titles, rule_language):
       current_framework = result.group(1)
       if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
         raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
-      is_in_framework = True
       frameworks_counter += 1
       framework_subsections_seen = set()
     else:
-      if not is_in_framework:
-        raise RuleValidationError(f'Rule {rule_language.id} has subsections outside of a "How to fix it" section')
       if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
         raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" subsection with an unallowed name for the {current_framework} framework')
       if name in framework_subsections_seen:

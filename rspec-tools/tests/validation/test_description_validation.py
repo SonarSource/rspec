@@ -111,12 +111,6 @@ def test_duplicate_subsections_in_how_to_fix_it_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule csharp:S200 has duplicate "How to fix it" subsections for the Razor framework. There are 2 occurences of "Pitfalls"'):
     validate_how_to_fix_it_subsections(rule)
 
-def test_subsections_without_a_framework_in_how_to_fix_it_validation(invalid_rule):
-  '''Check that having subsections without a framework in "How to fix it" breaks validation'''
-  rule = invalid_rule('S200', 'cobol')
-  with pytest.raises(RuleValidationError, match=f'Rule cobol:S200 has subsections outside of a "How to fix it" section'):
-    validate_how_to_fix_it_subsections(rule)
-
 def test_unallowed_subsections_in_resources_validation(invalid_rule):
   '''Check that having "Resources" subsections with unallowed names breaks validation'''
   rule = invalid_rule('S200', 'cpp')
@@ -145,3 +139,8 @@ def test_valid_optional_resources(rule_language):
   rule = rule_language('S200', 'csharp')
   validate_resources_subsections(rule)
   validate_section_names(rule)
+
+def test_subsections_without_a_framework_in_how_to_fix_it_validation(rule_language):
+  '''Check that having subsections without a framework in "How to fix it" is considered valid'''
+  rule = rule_language('S200', 'cobol')
+  validate_how_to_fix_it_subsections(rule)
