@@ -58,8 +58,6 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
   if how_to_fix_it_section is not None:
     titles = collect_titles(how_to_fix_it_section, 3)
     frameworks_counter = validate_how_to_fix_it_subsections_titles(titles, rule_language)
-    if frameworks_counter == 0:
-      raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section but is missing subsections related to frameworks')
     if frameworks_counter > 6:
       raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
 

@@ -93,12 +93,6 @@ def test_unsupported_framework_name_in_how_to_fix_it_subsection_validation(inval
   with pytest.raises(RuleValidationError, match=f'Rule csharp:S101 has a "How to fix it" section for an unsupported framework: "Foo Bar Framework"'):
     validate_how_to_fix_it_subsections(rule)
 
-def test_missing_subsections_in_how_to_fix_it_validation(invalid_rule):
-  '''Check that having a "How to fix it?" section without any subsection breaks validation'''
-  rule = invalid_rule('S101', 'java')
-  with pytest.raises(RuleValidationError, match=f'Rule java:S101 has a "How to fix it" section but is missing subsections related to frameworks'):
-    validate_how_to_fix_it_subsections(rule)
-
 def test_too_many_subsections_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having more than the current hard limit (6) "How to fix it" subsections breaks validation'''
   rule = invalid_rule('S101', 'javascript')
