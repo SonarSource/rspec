@@ -20,7 +20,7 @@ def parse_names(path):
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
 ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/all_section_names.adoc')
-ACCEPTED_PROGRESSIVE_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/progressive_education_section_names.adoc')
+ACCEPTED_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/education_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/allowed_framework_names.adoc')
 # The list of all the "How to fix it?" subsection names accepted by the script.
@@ -38,10 +38,10 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-  progressive_education_titles = intersection(h2_titles, ACCEPTED_PROGRESSIVE_EDUCATION_SECTION_NAMES)
-  if progressive_education_titles:
+  education_titles = intersection(h2_titles, ACCEPTED_EDUCATION_SECTION_NAMES)
+  if education_titles:
     # we're using the progressive education format
-    missing_titles = difference(ACCEPTED_PROGRESSIVE_EDUCATION_SECTION_NAMES, progressive_education_titles)
+    missing_titles = difference(ACCEPTED_EDUCATION_SECTION_NAMES, education_titles)
     if missing_titles:
       # when using the progressive education format, we need to have all its titles
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
