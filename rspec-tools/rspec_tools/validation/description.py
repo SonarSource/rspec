@@ -19,15 +19,15 @@ def parse_names(path):
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/all_section_names.adoc')
-ACCEPTED_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/education_section_names.adoc')
-OPTIONAL_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/optional_education_section_names.adoc')
+ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/all_section_names.adoc')
+ACCEPTED_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/education_section_names.adoc')
+OPTIONAL_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/optional_education_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
-ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/allowed_framework_names.adoc')
+ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 # The list of all the "How to fix it?" subsection names accepted by the script.
-ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/how_to_fix_it_subsection_names.adoc')
+ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('docs/header_names/how_to_fix_it_subsection_names.adoc')
 # the list of all the "Resources" subsection names accepted by the script.
-ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('rspec-tools/rspec_tools/validation/names/resources_subsection_names.adoc')
+ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/resources_subsection_names.adoc')
 
 def intersection(lst1, lst2):
   lst3 = [value for value in lst1 if value in lst2]
