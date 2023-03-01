@@ -1,4 +1,64 @@
-include::../rule.adoc[]
+Locking on a class field synchronizes not on the field itself, but on the object assigned to it. Thus, there are some good practices to follow to avoid bugs related to thread synchronization.
+
+1. Locking on a non-`readonly` field makes it possible for the field's value to change while a thread is in the code block locked on the old value. This allows another thread to lock on the new value and access the same block concurrently.
+
+2. Locking on a local variable or a new instance of an object can undermine synchronization because two different threads running the same method in parallel will potentially lock on different instances of the same object, allowing them to access the synchronized block at the same time.
+
+3. Locking on a string literal is also dangerous since, depending on whether the string is interned or not, different threads may or may not synchronize on the same object instance.
+
+
+== Noncompliant Code Example
+
+[source,csharp]
+----
+private Color color = new Color("red");
+private readonly string colorString = "red";
+
+private void DoSomething()
+{
+  // Synchronizing access via "color"
+  lock (color) // Noncompliant; lock is actually on object instance "red" referred to by the "color" field
+  {
+    //...
+    color = new Color("green"); // other threads now allowed into this block
+    // ...
+  }
+  lock (new object()) // Noncompliant; this is a no-op
+  {
+    // ...
+  }
+  lock (colorString)  // Noncompliant; strings can be interned
+  {
+    // ...
+  }
+}
+----
+
+
+== Compliant Solution
+
+[source,csharp]
+----
+private Color color = new Color("red");
+private readonly object lockObj = new object();
+
+private void DoSomething()
+{
+  lock (lockObj) 
+  {
+    //...
+    color = new Color("green");
+    // ...
+  }
+}
+----
+
+== See
+
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock[Lock Statement] - lock statement - ensure exclusive access to a shared resource
+* https://learn.microsoft.com/en-us/dotnet/api/system.string.intern[String.Intern] - `String.Intern(String)` Method
+* https://cwe.mitre.org/data/definitions/412[MITRE, CWE-412] - Unrestricted Externally Accessible Lock
+* https://cwe.mitre.org/data/definitions/413[MITRE, CWE-413] - Improper Resource Locking
 
 ifdef::env-github,rspecator-view[]
 
@@ -6,9 +66,9 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::../message.adoc[]
+include::message.adoc[]
 
-include::../highlighting.adoc[]
+include::highlighting.adoc[]
 
 '''
 == Comments And Links
