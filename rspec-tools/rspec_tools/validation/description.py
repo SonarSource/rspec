@@ -43,7 +43,7 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   if education_titles:
     # we're using the progressive education format
     missing_titles = difference(ACCEPTED_EDUCATION_SECTION_NAMES, education_titles)
-    if missing_titles and missing_titles != OPTIONAL_EDUCATION_SECTION_NAMES:
+    if difference(missing_titles, OPTIONAL_EDUCATION_SECTION_NAMES):
       # when using the progressive education format, we need to have all its mandatory titles
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
   for title in h2_titles:
