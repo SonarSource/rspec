@@ -100,16 +100,10 @@ def collect_titles(node, level):
   current = node
   nodes = []
   while(current is not None):
-    dfs(nodes, current, level)
+    if hasattr(current, 'find_all'):
+      nodes = nodes + current.find_all(f'h{level}')
     current = current.next_sibling
   return nodes
-
-def dfs(collector, node, level):
-  if node.name == f'h{level}':
-    collector.append(node)
-  if hasattr(node, 'children'):
-    for child in node.children:
-      dfs(collector, child, level)
 
 def validate_section_levels(rule_language: LanguageSpecificRule):
   h1 = rule_language.description.find('h1')
