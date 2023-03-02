@@ -65,20 +65,13 @@ def parse_education_section_names(path):
 ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/all_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
-#print(f'parsed {parse_education_section_names("docs/header_names/education_format_example.adoc")}')
+
 [
   ACCEPTED_EDUCATION_SECTION_NAMES,
   OPTIONAL_EDUCATION_SECTION_NAMES,
   ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES,
   ACCEPTED_RESOURCES_SUBSECTION_NAMES
   ] = parse_education_section_names('docs/header_names/education_format_example.adoc')
-#ACCEPTED_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/education_format_example.adoc')
-#OPTIONAL_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/optional_education_section_names.adoc')
-
-# The list of all the "How to fix it?" subsection names accepted by the script.
-#ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('docs/header_names/how_to_fix_it_subsection_names.adoc')
-# the list of all the "Resources" subsection names accepted by the script.
-#ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/resources_subsection_names.adoc')
 
 def intersection(lst1, lst2):
   lst3 = [value for value in lst1 if value in lst2]
