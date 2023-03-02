@@ -9,10 +9,53 @@ from rspec_tools.utils import LANG_TO_SOURCE
 
 import re
 
-def parse_names(path):
+
+def read_file(path):
   SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath(path)
-  SECTION_NAMES_FILE = SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
+  return SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
+
+def parse_names(path):
+  SECTION_NAMES_FILE = read_file(path)
   return [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
+
+def parse_education_section_names(path):
+  EDUCATION_FORMAT_FILE = read_file(path)
+  sections = []
+  optional_sections = []
+  how_to_fix_it_subsections = []
+  resources_subsections = []
+  is_in_how_to_fix = False
+  is_in_resources = False
+  how_to_fix_it_count = 0
+  for line in EDUCATION_FORMAT_FILE:
+    if line.startswith('== '):
+      section = line.replace('== ', '').strip()
+      if section.endswith('(optional)'):
+        section = section.replace(' (optional)', '')
+        optional_sections.append(section)
+      sections.append(section)
+      if section == 'How to fix it?':
+        is_in_how_to_fix = True
+      if section == 'Resources':
+        is_in_resources = True
+    if line.startswith('=== '):
+      if is_in_how_to_fix:
+        section = line.replace('=== ', '').strip()
+        if section.startswith('How to fix'):
+          continue
+        how_to_fix_it_subsections.append(section)
+        how_to_fix_it_count += 1
+        if how_to_fix_it_count >= 3:
+          is_in_how_to_fix = False
+      if is_in_resources:
+        section = line.replace('=== ', '').strip()
+        resources_subsections.append(section)
+  return [
+    sections,
+    optional_sections,
+    how_to_fix_it_subsections,
+    resources_subsections
+  ]
 
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
@@ -20,14 +63,22 @@ def parse_names(path):
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
 ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/all_section_names.adoc')
-ACCEPTED_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/education_section_names.adoc')
-OPTIONAL_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/optional_education_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
+#print(f'parsed {parse_education_section_names("docs/header_names/education_format_example.adoc")}')
+[
+  ACCEPTED_EDUCATION_SECTION_NAMES,
+  OPTIONAL_EDUCATION_SECTION_NAMES,
+  ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES,
+  ACCEPTED_RESOURCES_SUBSECTION_NAMES
+  ] = parse_education_section_names('docs/header_names/education_format_example.adoc')
+#ACCEPTED_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/education_format_example.adoc')
+#OPTIONAL_EDUCATION_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/optional_education_section_names.adoc')
+
 # The list of all the "How to fix it?" subsection names accepted by the script.
-ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('docs/header_names/how_to_fix_it_subsection_names.adoc')
+#ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES: Final[list[str]] = parse_names('docs/header_names/how_to_fix_it_subsection_names.adoc')
 # the list of all the "Resources" subsection names accepted by the script.
-ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/resources_subsection_names.adoc')
+#ACCEPTED_RESOURCES_SUBSECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/resources_subsection_names.adoc')
 
 def intersection(lst1, lst2):
   lst3 = [value for value in lst1 if value in lst2]
@@ -36,6 +87,7 @@ def difference(lst1, lst2):
   return list(set(lst1) - set(lst2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
+  print(f'parsed {parse_education_section_names("docs/header_names/education_format_example.adoc")}')
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
