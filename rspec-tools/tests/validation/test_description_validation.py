@@ -138,7 +138,13 @@ def test_duplicate_subsections_in_resources_validation(invalid_rule):
 def test_education_format_missing_mandatory_sections_validation(invalid_rule):
   '''Check that not having all the required sections in the education format breaks validation'''
   rule = invalid_rule('S200', 'common')
-  with pytest.raises(RuleValidationError, match=f'Rule common:S200 is missing a "How to fix it" section'):
+  with pytest.raises(RuleValidationError, match=f'Rule common:S200 is missing the "Why is this an issue\\?" section'):
+    validate_section_names(rule)
+
+def test_education_missing_how_to_fix_it_validation(invalid_rule):
+  '''Check that missing the "How to fix it" in the education format breaks validation'''
+  rule = invalid_rule('S200', 'php')
+  with pytest.raises(RuleValidationError, match=f'Rule php:S200 is missing a "How to fix it" section'):
     validate_section_names(rule)
 
 def test_valid_how_to_fix_it_subsections_validation(rule_language):
