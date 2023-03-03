@@ -20,36 +20,32 @@ def parse_names(path):
 
 def parse_education_section_names(path):
   EDUCATION_FORMAT_FILE = read_file(path)
-  sections = []
-  optional_sections = []
-  how_to_fix_it_subsections = []
-  resources_subsections = []
+  sections = set()
+  optional_sections = set()
+  how_to_fix_it_subsections = set()
+  resources_subsections = set()
   is_in_how_to_fix = False
   is_in_resources = False
-  how_to_fix_it_count = 0
   for line in EDUCATION_FORMAT_FILE:
     if line.startswith('== '):
       section = line.replace('== ', '').strip()
       if section.endswith('(optional)'):
         section = section.replace(' (optional)', '')
-        optional_sections.append(section)
-      sections.append(section)
-      if section == 'How to fix it?':
+        optional_sections.add(section)
+      if not section.startswith('How to fix it'):
+        sections.add(section)
+      if section.startswith('How to fix it'):
         is_in_how_to_fix = True
       if section == 'Resources':
+        is_in_how_to_fix = False
         is_in_resources = True
     if line.startswith('=== '):
       if is_in_how_to_fix:
         section = line.replace('=== ', '').strip()
-        if section.startswith('How to fix'):
-          continue
-        how_to_fix_it_subsections.append(section)
-        how_to_fix_it_count += 1
-        if how_to_fix_it_count >= 3:
-          is_in_how_to_fix = False
+        how_to_fix_it_subsections.add(section)
       if is_in_resources:
         section = line.replace('=== ', '').strip()
-        resources_subsections.append(section)
+        resources_subsections.add(section)
   return [
     sections,
     optional_sections,
@@ -80,13 +76,15 @@ def difference(lst1, lst2):
   return list(set(lst1) - set(lst2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
-  print(f'parsed {parse_education_section_names("docs/header_names/education_format_example.adoc")}')
+  """Validates all h2-level section names BUT "How to fix it..." ones
+  """
+
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
   education_titles = intersection(h2_titles, ACCEPTED_EDUCATION_SECTION_NAMES)
   if education_titles:
-    # we're using the progressive education format
+    # we're using the education format
     missing_titles = difference(ACCEPTED_EDUCATION_SECTION_NAMES, education_titles)
     if difference(missing_titles, OPTIONAL_EDUCATION_SECTION_NAMES):
       # when using the progressive education format, we need to have all its mandatory titles
@@ -95,37 +93,45 @@ def validate_section_names(rule_language: LanguageSpecificRule):
     if title not in ACCEPTED_ALL_SECTION_NAMES:
       raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{title}"')
 
-def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
+
+def validate_how_to_fix_it(rule_language: LanguageSpecificRule):
   descr = rule_language.description
-  frameworks_counter = 0
 
-  how_to_fix_it_section = descr.find('h2', string='How to fix it?')
-  if how_to_fix_it_section is not None:
-    titles = collect_titles(how_to_fix_it_section, 3)
-    frameworks_counter = validate_how_to_fix_it_subsections_titles(titles, rule_language)
-    if frameworks_counter > 6:
-      raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
+  how_to_fix_it_sections = descr.find_all('h2', string=re.compile('How to fix it'))
+  if len(how_to_fix_it_sections) > 6:
+    raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
+  if not how_to_fix_it_sections:
+    raise RuleValidationError(f'Rule {rule_language.id} is missing a "How to fix it" section')
+  framework_sections_seen = set()
+  for section in how_to_fix_it_sections:
+    section_name = section.text.strip()
+    validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen)
+    titles = collect_titles(section, 3)
+    validate_how_to_fix_it_subsections(section_name, titles, rule_language)
 
-def validate_how_to_fix_it_subsections_titles(titles, rule_language):
-  current_framework = ''
-  frameworks_counter = 0
-  framework_subsections_seen = set()
+def validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen):
+  result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', section_name)
+  if result is not None:
+    current_framework = result.group(1)
+    if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
+      raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
+    if section_name in framework_sections_seen:
+      raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" sections for the {current_framework} framework. There are 2 occurences of "{section_name}"')
+    framework_sections_seen.add(section_name)
+  elif section_name == 'How to fix it?':
+    framework_sections_seen.add(section_name)
+  else:
+    raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format {section_name}. Either use "How to fix it?" or "How to fix it FRAMEWORK NAME"')
+
+def validate_how_to_fix_it_subsections(section_name, titles, rule_language):
+  subsections_seen = set()
   for title in titles:
     name = title.text.strip()
-    result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', name)
-    if result is not None:
-      current_framework = result.group(1)
-      if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
-        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
-      frameworks_counter += 1
-      framework_subsections_seen = set()
-    else:
-      if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
-        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" subsection with an unallowed name for the {current_framework} framework')
-      if name in framework_subsections_seen:
-        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" subsections for the {current_framework} framework. There are 2 occurences of "{name}"')
-      framework_subsections_seen.add(name)
-  return frameworks_counter
+    if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
+      raise RuleValidationError(f'Rule {rule_language.id} has a subsection with an unallowed name in the "{section_name}" section: "{name}"')
+    if name in subsections_seen:
+      raise RuleValidationError(f'Rule {rule_language.id} has duplicate subsections in the "{section_name}" section. There are 2 occurences of "{name}"')
+    subsections_seen.add(name)
 
 def collect_titles(node, level):
   """Collects all the titles of a given level starting from the provided node
@@ -142,7 +148,7 @@ def collect_titles(node, level):
       list[BeautifulSoup]: List of nodes that were found.
   """
 
-  current = node
+  current = node.next_sibling
   nodes = []
   while(current is not None):
     if hasattr(current, 'find_all'):

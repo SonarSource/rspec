@@ -13,7 +13,7 @@ from rspec_tools.coverage import (update_coverage_for_all_repos,
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
-from rspec_tools.validation.description import (validate_how_to_fix_it_subsections,
+from rspec_tools.validation.description import (validate_how_to_fix_it,
                                                 validate_resources_subsections,
                                                 validate_parameters,
                                                 validate_section_levels,
@@ -88,7 +88,7 @@ def validate_rules_metadata(rules):
     _fatal_error(f"Validation failed due to {error_counter} errors out of {len(rules)} analyzed rules")
 
 
-VALIDATORS = [validate_how_to_fix_it_subsections,
+VALIDATORS = [validate_how_to_fix_it,
               validate_resources_subsections,
               validate_section_names,
               validate_section_levels,
