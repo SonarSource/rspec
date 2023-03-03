@@ -141,8 +141,8 @@ describe('index store generation', () => {
     const [_, aggregates] = buildIndexStore(rulesPath);
     expect(aggregates.langs).toEqual({"cfamily": 4,
                                       "csharp": 1,
-                                      "default": 4,
-                                      "java": 1,
+                                      "default": 5,
+                                      "java": 2,
                                       "python": 1});
   });
 
@@ -159,7 +159,7 @@ describe('index store generation', () => {
     const [_, aggregates] = buildIndexStore(rulesPath);
     expect(aggregates.qualityProfiles).toEqual({
       "MISRA C++ 2008 recommended": 2,
-      "Sonar way": 2});
+      "Sonar way": 3});
   });
 });
 
@@ -232,7 +232,7 @@ describe('search index enables search by tags, quality profiles and languages', 
   test('searches in rule quality profiles', () => {
     const searchIndex = createIndex();
     const searchesSonarWay = findRulesByProfile(searchIndex, 'sonar way');
-    expect(searchesSonarWay).toEqual(['S1000', 'S3457']);
+    expect(searchesSonarWay).toEqual(['S3649', 'S1000', 'S3457']);
 
     const filtersAll = findRulesByProfile(searchIndex, 'non-existent');
     expect(filtersAll).toEqual([]);

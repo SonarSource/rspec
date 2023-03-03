@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { generateRulesDescription } from '../description';
+import { generateOneRuleDescription, generateRulesDescription  } from '../description';
 import { withTestDir, createFiles } from '../testutils';
 
 describe('description generation', () => {
@@ -198,7 +198,7 @@ See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
     return withTestDir(async (dstPath) => {
       generateRulesDescription(path.join(__dirname, 'resources', 'rules'), dstPath);
       const rules = fs.readdirSync(dstPath);
-      expect(rules.length).toEqual(4);
+      expect(rules.length).toEqual(5);
       let treated = 0;
       rules.forEach(ruleDir => {
         const languages = fs.readdirSync(`${dstPath}/${ruleDir}`);
@@ -210,7 +210,17 @@ See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
           treated++;
         });
       });
-      expect(treated).toBe(11);
+      expect(treated).toBe(13);
     });
   });
+  test('Generate one rule description for a rule with a "common" directory', () => {
+      return withTestDir(async (dstPath) => {
+        generateOneRuleDescription(path.join(__dirname, 'resources', 'rules', 'S3649'), dstPath);
+        const s3649Java = path.join(dstPath, 'java-description.html');
+        expect(fs.existsSync(s3649Java)).toBeTruthy();
+        const actual = fs.readFileSync(s3649Java).toString();
+        const expectedPath = path.join(__dirname, 'resources', 'metadata', 'S3649', 'java-description.html');
+        expect(actual).toBeSameAsFile(expectedPath);
+      });
+    })
 });
