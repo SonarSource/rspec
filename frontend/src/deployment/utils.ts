@@ -32,6 +32,7 @@ export function getRulesDirectories(srcPath: string, dstPath: string, rules?: st
  */
 export function listSupportedLanguages(ruleDirectory: string): string[] {
   return fs.readdirSync(ruleDirectory)
-    .filter(fileName => fs.lstatSync(path.join(ruleDirectory, fileName)).isDirectory() && !ALLOWED_UTILITY_DIRECTORY_NAMES.includes(fileName))
+    .filter(fileName => fs.lstatSync(path.join(ruleDirectory, fileName)).isDirectory()
+      && !ALLOWED_UTILITY_DIRECTORY_NAMES.includes(fileName))
     .sort();
 }
