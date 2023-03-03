@@ -9,7 +9,6 @@ from rspec_tools.utils import LANG_TO_SOURCE
 
 import re
 
-
 def read_file(path):
   SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath(path)
   return SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
@@ -104,6 +103,8 @@ def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h
     raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" sections. Please ensure this limit can be increased with PM/UX teams')
   if not how_to_fix_it_sections:
     raise RuleValidationError(f'Rule {rule_language.id} is missing a "How to fix it" section')
+  if f'{HOW_TO_FIX_IT}?' in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
+    raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}?" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "How to fix it?" or one or more "How to fix it in FRAMEWORK"')
   framework_sections_seen = set()
   for section_name in how_to_fix_it_sections:
     validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen)
