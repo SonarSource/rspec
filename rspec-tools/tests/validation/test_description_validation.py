@@ -105,6 +105,12 @@ def test_duplicate_frameworks_in_how_to_fix_it_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule javascript:S200 has duplicate "How to fix it" sections for the Razor framework. There are 2 occurences of "How to fix it in Razor"'):
     validate_section_names(rule)
 
+def test_wrong_format_how_to_fix_it_section_validation(invalid_rule):
+  '''Check that "How to fix it" sections with a weird format breaks validation'''
+  rule = invalid_rule('S200', 'typescript')
+  with pytest.raises(RuleValidationError, match=f'Rule typescript:S200 has a "How to fix it" section with an unsupported format: "How to fix it wrong format". Either use "How to fix it\\?" or "How to fix it in FRAMEWORK NAME"'):
+    validate_section_names(rule)
+
 def test_unallowed_subsections_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having "How to fix it" subsections with unallowed names breaks validation'''
   rule = invalid_rule('S200', 'java')

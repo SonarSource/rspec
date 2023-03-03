@@ -136,7 +136,7 @@ def validate_how_to_fix_it_framework(section_name, rule_language, framework_sect
   elif section_name == 'How to fix it?':
     framework_sections_seen.add(section_name)
   else:
-    raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format {section_name}. Either use "How to fix it?" or "How to fix it FRAMEWORK NAME"')
+    raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format: "{section_name}". Either use "How to fix it?" or "How to fix it in FRAMEWORK NAME"')
 
 def collect_titles(node, level):
   """Collects all the titles of a given level starting from the provided node
