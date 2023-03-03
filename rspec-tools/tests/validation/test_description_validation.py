@@ -28,7 +28,7 @@ def test_valid_sections_passes_validation(rule_language):
 
 def test_unexpected_section_fails_validation(invalid_rule):
   rule = invalid_rule('S100', 'cfamily')
-  with pytest.raises(RuleValidationError, match=fr'^Rule {rule.id} has unconventional header "Invalid header"'):
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule.id} has an unconventional header "Invalid header"'):
     validate_section_names(rule)
 
 def test_valid_section_levels_passes_validation(rule_language):

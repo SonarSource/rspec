@@ -18,6 +18,9 @@ def parse_names(path):
   SECTION_NAMES_FILE = read_file(path)
   return [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
 
+HOW_TO_FIX_IT = 'How to fix it'
+HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
+
 def parse_education_section_names(path):
   EDUCATION_FORMAT_FILE = read_file(path)
   sections = set()
@@ -32,9 +35,9 @@ def parse_education_section_names(path):
       if section.endswith('(optional)'):
         section = section.replace(' (optional)', '')
         optional_sections.add(section)
-      if not section.startswith('How to fix it'):
+      if not section.startswith(HOW_TO_FIX_IT):
         sections.add(section)
-      if section.startswith('How to fix it'):
+      if section.startswith(HOW_TO_FIX_IT):
         is_in_how_to_fix = True
       if section == 'Resources':
         is_in_how_to_fix = False
@@ -69,8 +72,6 @@ ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allo
   ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES,
   ACCEPTED_RESOURCES_SUBSECTION_NAMES
   ] = parse_education_section_names('docs/header_names/education_format_example.adoc')
-
-HOW_TO_FIX_IT_REGEX = re.compile('How to fix it')
 
 def intersection(lst1, lst2):
   lst3 = [value for value in lst1 if value in lst2]
