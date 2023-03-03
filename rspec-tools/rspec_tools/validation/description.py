@@ -63,11 +63,14 @@ ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/al
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
 [
+  # all but the "how to fix it" ones which are dynamic
   ACCEPTED_EDUCATION_SECTION_NAMES,
   OPTIONAL_EDUCATION_SECTION_NAMES,
   ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES,
   ACCEPTED_RESOURCES_SUBSECTION_NAMES
   ] = parse_education_section_names('docs/header_names/education_format_example.adoc')
+
+HOW_TO_FIX_IT_REGEX = re.compile('How to fix it')
 
 def intersection(lst1, lst2):
   lst3 = [value for value in lst1 if value in lst2]
@@ -85,6 +88,7 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   education_titles = intersection(h2_titles, ACCEPTED_EDUCATION_SECTION_NAMES)
   if education_titles:
     # we're using the education format
+    validate_how_to_fix_it_sections_names(rule_language, h2_titles)
     missing_titles = difference(ACCEPTED_EDUCATION_SECTION_NAMES, education_titles)
     if difference(missing_titles, OPTIONAL_EDUCATION_SECTION_NAMES):
       # when using the progressive education format, we need to have all its mandatory titles
@@ -93,21 +97,31 @@ def validate_section_names(rule_language: LanguageSpecificRule):
     if title not in ACCEPTED_ALL_SECTION_NAMES:
       raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{title}"')
 
-
-def validate_how_to_fix_it(rule_language: LanguageSpecificRule):
-  descr = rule_language.description
-
-  how_to_fix_it_sections = descr.find_all('h2', string=re.compile('How to fix it'))
+def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h2_titles: list[str]):
+  how_to_fix_it_sections = [ s for s in h2_titles if HOW_TO_FIX_IT_REGEX.match(s) ]
   if len(how_to_fix_it_sections) > 6:
-    raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
+    raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" sections. Please ensure this limit can be increased with PM/UX teams')
   if not how_to_fix_it_sections:
     raise RuleValidationError(f'Rule {rule_language.id} is missing a "How to fix it" section')
   framework_sections_seen = set()
+  for section_name in how_to_fix_it_sections:
+    validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen)
+
+def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+
+  how_to_fix_it_sections = descr.find_all('h2', string=HOW_TO_FIX_IT_REGEX)
   for section in how_to_fix_it_sections:
     section_name = section.text.strip()
-    validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen)
     titles = collect_titles(section, 3)
-    validate_how_to_fix_it_subsections(section_name, titles, rule_language)
+    subsections_seen = set()
+    for title in titles:
+      name = title.text.strip()
+      if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
+        raise RuleValidationError(f'Rule {rule_language.id} has a subsection with an unallowed name in the "{section_name}" section: "{name}"')
+      if name in subsections_seen:
+        raise RuleValidationError(f'Rule {rule_language.id} has duplicate subsections in the "{section_name}" section. There are 2 occurences of "{name}"')
+      subsections_seen.add(name)
 
 def validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen):
   result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', section_name)
@@ -122,16 +136,6 @@ def validate_how_to_fix_it_framework(section_name, rule_language, framework_sect
     framework_sections_seen.add(section_name)
   else:
     raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format {section_name}. Either use "How to fix it?" or "How to fix it FRAMEWORK NAME"')
-
-def validate_how_to_fix_it_subsections(section_name, titles, rule_language):
-  subsections_seen = set()
-  for title in titles:
-    name = title.text.strip()
-    if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
-      raise RuleValidationError(f'Rule {rule_language.id} has a subsection with an unallowed name in the "{section_name}" section: "{name}"')
-    if name in subsections_seen:
-      raise RuleValidationError(f'Rule {rule_language.id} has duplicate subsections in the "{section_name}" section. There are 2 occurences of "{name}"')
-    subsections_seen.add(name)
 
 def collect_titles(node, level):
   """Collects all the titles of a given level starting from the provided node
