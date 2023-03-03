@@ -94,7 +94,7 @@ def validate_section_names(rule_language: LanguageSpecificRule):
       # when using the progressive education format, we need to have all its mandatory titles
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
   for title in h2_titles:
-    if title not in ACCEPTED_ALL_SECTION_NAMES:
+    if title not in ACCEPTED_ALL_SECTION_NAMES and not HOW_TO_FIX_IT_REGEX.match(title):
       raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{title}"')
 
 def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h2_titles: list[str]):
