@@ -95,7 +95,7 @@ def validate_section_names(rule_language: LanguageSpecificRule):
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
   for title in h2_titles:
     if title not in ACCEPTED_ALL_SECTION_NAMES and not HOW_TO_FIX_IT_REGEX.match(title):
-      raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{title}"')
+      raise RuleValidationError(f'Rule {rule_language.id} has an unconventional header "{title}"')
 
 def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h2_titles: list[str]):
   how_to_fix_it_sections = [ s for s in h2_titles if HOW_TO_FIX_IT_REGEX.match(s) ]
