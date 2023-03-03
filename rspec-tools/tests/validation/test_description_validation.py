@@ -99,6 +99,12 @@ def test_too_many_frameworks_in_how_to_fix_it_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule javascript:S101 has more than 6 "How to fix it" sections. Please ensure this limit can be increased with PM/UX teams'):
     validate_section_names(rule)
 
+def test_duplicate_frameworks_in_how_to_fix_it_validation(invalid_rule):
+  '''Check that duplicate "How to fix it" subsections for the same framework breaks validation'''
+  rule = invalid_rule('S200', 'javascript')
+  with pytest.raises(RuleValidationError, match=f'Rule javascript:S200 has duplicate "How to fix it" sections for the Razor framework. There are 2 occurences of "How to fix it in Razor"'):
+    validate_section_names(rule)
+
 def test_unallowed_subsections_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having "How to fix it" subsections with unallowed names breaks validation'''
   rule = invalid_rule('S200', 'java')
