@@ -175,7 +175,7 @@ describe('metadata generation', () => {
     return withTestDir(async (dstPath) => {
       generateRulesMetadata(path.join(__dirname, 'resources', 'rules'), dstPath);
       const rules = fs.readdirSync(dstPath);
-      expect(rules.length).toEqual(4);
+      expect(rules.length).toEqual(5);
       let treated = 0;
       rules.forEach(ruleDir => {
         const languages = fs.readdirSync(`${dstPath}/${ruleDir}`);
@@ -188,7 +188,7 @@ describe('metadata generation', () => {
           treated++;
         })
       });
-      expect(treated).toBe(11);
+      expect(treated).toBe(13);
     });
   });
 

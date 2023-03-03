@@ -53,7 +53,7 @@ async function renderDefaultSearchPage() {
     const { renderResult } = await renderDefaultSearchPageWithHistory();
 
     expect(renderResult.queryByTestId('search-hit-S1000')).not.toBeNull();
-    expect(renderResult.queryByText(/rules found: 4/i)).not.toBeNull();
+    expect(renderResult.queryByText(/rules found: 5/i)).not.toBeNull();
     return renderResult;
 }
 
@@ -200,7 +200,7 @@ test('narrows search by language', async () => {
 
     // Select the java language: should keep only S3457
     fireEvent.click(listbox.getByTestId('rule-language-java'));
-    expect(queryByText(/rules found: 1/i)).not.toBeNull();
+    expect(queryByText(/rules found: 2/i)).not.toBeNull();
     expect(queryByTestId('search-hit-S987')).toBeNull();
     expect(queryByTestId('search-hit-S1000')).toBeNull();
     expect(queryByTestId('search-hit-S3457')).not.toBeNull();
