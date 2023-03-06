@@ -14,7 +14,7 @@ from rspec_tools.errors import RuleValidationError
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (validate_how_to_fix_it_subsections,
-                                                validate_resources_subsections,
+                                                validate_optional_subsections,
                                                 validate_parameters,
                                                 validate_section_levels,
                                                 validate_section_names,
@@ -89,7 +89,7 @@ def validate_rules_metadata(rules):
 
 
 VALIDATORS = [validate_how_to_fix_it_subsections,
-              validate_resources_subsections,
+              validate_optional_subsections,
               validate_section_names,
               validate_section_levels,
               validate_parameters,

@@ -5,7 +5,7 @@ import pytest
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import RulesRepository
 from rspec_tools.validation.description import validate_how_to_fix_it_subsections, validate_section_names, \
-  validate_section_levels, validate_parameters, validate_source_language, validate_resources_subsections
+  validate_section_levels, validate_parameters, validate_source_language, validate_optional_subsections
 
 
 @pytest.fixture
@@ -133,13 +133,13 @@ def test_unallowed_subsections_in_resources_validation(invalid_rule):
   '''Check that having "Resources" subsections with unallowed names breaks validation'''
   rule = invalid_rule('S200', 'cpp')
   with pytest.raises(RuleValidationError, match=f'Rule cpp:S200 has a "Resources" subsection with an unallowed name: "Yolo"'):
-    validate_resources_subsections(rule)
+    validate_optional_subsections(rule)
 
 def test_duplicate_subsections_in_resources_validation(invalid_rule):
   '''Check that having duplicate "Resources" subsections breaks validation'''
   rule = invalid_rule('S200', 'scala')
   with pytest.raises(RuleValidationError, match=f'Rule scala:S200 has duplicate "Resources" subsections. There are 2 occurences of "Documentation"'):
-    validate_resources_subsections(rule)
+    validate_optional_subsections(rule)
 
 def test_education_format_missing_mandatory_sections_validation(invalid_rule):
   '''Check that not having all the required sections in the education format breaks validation'''
@@ -161,7 +161,7 @@ def test_valid_how_to_fix_it_subsections_validation(rule_language):
 def test_valid_optional_resources(rule_language):
   '''Check that the "Resources" section is optional'''
   rule = rule_language('S200', 'csharp')
-  validate_resources_subsections(rule)
+  validate_optional_subsections(rule)
   validate_section_names(rule)
 
 def test_subsections_without_a_framework_in_how_to_fix_it_validation(rule_language):

@@ -204,16 +204,17 @@ Use [source,{highlight_name(rule_language)}] or [source,text] before the opening
           raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
 Are you looking for "{highlight_name(rule_language)}"?''')
 
-def validate_resources_subsections(rule_language: LanguageSpecificRule):
+def validate_optional_subsections(rule_language: LanguageSpecificRule):
   descr = rule_language.description
-  resources_section = descr.find('h2', string='Resources')
-  if resources_section is not None:
-    titles = collect_titles(resources_section, 3)
-    subsections_seen = set()
-    for title in titles:
-      name = title.text.strip()
-      if name not in OPTIONAL_SECTIONS['Resources']:
-        raise RuleValidationError(f'Rule {rule_language.id} has a "Resources" subsection with an unallowed name: "{name}"')
-      if name in subsections_seen:
-        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "Resources" subsections. There are 2 occurences of "{name}"')
-      subsections_seen.add(name)
+  for optional_section in list(OPTIONAL_SECTIONS.keys()):
+    resources_section = descr.find('h2', string=optional_section)
+    if resources_section is not None:
+      titles = collect_titles(resources_section, 3)
+      subsections_seen = set()
+      for title in titles:
+        name = title.text.strip()
+        if name not in OPTIONAL_SECTIONS[optional_section]:
+          raise RuleValidationError(f'Rule {rule_language.id} has a "{optional_section}" subsection with an unallowed name: "{name}"')
+        if name in subsections_seen:
+          raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{optional_section}" subsections. There are 2 occurences of "{name}"')
+        subsections_seen.add(name)
