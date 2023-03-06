@@ -21,7 +21,7 @@ HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
 
 def parse_education_section_names(path):
-  EDUCATION_FORMAT_FILE = read_file(path)
+  education_format_file = read_file(path)
   sections = set()
   optional_sections = set()
   how_to_fix_it_subsections = set()
