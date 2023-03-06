@@ -35,10 +35,11 @@ def parse_education_section_names(path):
       else:
         current_map = sections
       if HOW_TO_FIX_IT_REGEX.match(section):
-        current_map[HOW_TO_FIX_IT] = set()
-        current_section_name = HOW_TO_FIX_IT
-      else:
-        current_section_name = section
+        # we store "How to fix it" and "How to fix it in ..." together
+        section = HOW_TO_FIX_IT
+      current_section_name = section
+      if section not in current_map:
+        # If a section appears multiple times in the doc, we don't overwrite its subsections
         current_map[section] = set()
     if line.startswith('=== '):
       section = line.replace('=== ', '').strip()
