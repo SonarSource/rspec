@@ -22,37 +22,30 @@ HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
 
 def parse_education_section_names(path):
   education_format_file = read_file(path)
-  sections = set()
-  optional_sections = set()
-  how_to_fix_it_subsections = set()
-  resources_subsections = set()
-  is_in_how_to_fix = False
-  is_in_resources = False
+  sections = {}
+  optional_sections = {}
+  current_map = sections
+  current_section_name = ''
   for line in education_format_file:
     if line.startswith('== '):
       section = line.replace('== ', '').strip()
       if section.endswith('(optional)'):
         section = section.replace(' (optional)', '')
-        optional_sections.add(section)
-      if section.startswith(HOW_TO_FIX_IT):
-        is_in_how_to_fix = True
+        current_map = optional_sections
       else:
-        is_in_how_to_fix = False
-        sections.add(section)
-      if section == 'Resources':
-        is_in_resources = True
+        current_map = sections
+      if HOW_TO_FIX_IT_REGEX.match(section):
+        current_map[HOW_TO_FIX_IT] = []
+        current_section_name = HOW_TO_FIX_IT
+      else:
+        current_section_name = section
+        current_map[section] = []
     if line.startswith('=== '):
-      if is_in_how_to_fix:
-        section = line.replace('=== ', '').strip()
-        how_to_fix_it_subsections.add(section)
-      if is_in_resources:
-        section = line.replace('=== ', '').strip()
-        resources_subsections.add(section)
+      section = line.replace('=== ', '').strip()
+      current_map[current_section_name].append(section)
   return [
     sections,
     optional_sections,
-    how_to_fix_it_subsections,
-    resources_subsections
   ]
 
 # The list of all the sections currently accepted by the script.
@@ -65,12 +58,11 @@ LEGACY_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/legacy_s
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
 [
-  # all but the "how to fix it" ones which are dynamic
-  ACCEPTED_EDUCATION_SECTION_NAMES,
-  OPTIONAL_EDUCATION_SECTION_NAMES,
-  ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES,
-  ACCEPTED_RESOURCES_SUBSECTION_NAMES
+  SECTIONS,
+  OPTIONAL_SECTIONS
   ] = parse_education_section_names('docs/header_names/education_format_names.adoc')
+
+
 
 def intersection(lst1, lst2):
   lst3 = [value for value in lst1 if value in lst2]
@@ -84,12 +76,14 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-  education_titles = intersection(h2_titles, ACCEPTED_EDUCATION_SECTION_NAMES)
+  education_titles = intersection(h2_titles, list(SECTIONS.keys()) + list(OPTIONAL_SECTIONS.keys()))
   if education_titles:
     # we're using the education format
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
-    missing_titles = difference(ACCEPTED_EDUCATION_SECTION_NAMES, education_titles)
-    if difference(missing_titles, OPTIONAL_EDUCATION_SECTION_NAMES):
+    missing_titles = difference(list(SECTIONS.keys()), education_titles)
+    its_only_one_of_the_how_to_fix_its = len(missing_titles) == 1 and HOW_TO_FIX_IT_REGEX.match(missing_titles[0])
+    if missing_titles and not its_only_one_of_the_how_to_fix_its:
+      missing_titles = [ s for s in missing_titles if not HOW_TO_FIX_IT_REGEX.match(s)]
       # when using the progressive education format, we need to have all its mandatory titles
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
   else:
@@ -134,7 +128,7 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
-      if name not in ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES:
+      if name not in SECTIONS[HOW_TO_FIX_IT]:
         raise RuleValidationError(f'Rule {rule_language.id} has a subsection with an unallowed name in the "{section_name}" section: "{name}"')
       if name in subsections_seen:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate subsections in the "{section_name}" section. There are 2 occurences of "{name}"')
@@ -219,7 +213,7 @@ def validate_resources_subsections(rule_language: LanguageSpecificRule):
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
-      if name not in ACCEPTED_RESOURCES_SUBSECTION_NAMES:
+      if name not in OPTIONAL_SECTIONS['Resources']:
         raise RuleValidationError(f'Rule {rule_language.id} has a "Resources" subsection with an unallowed name: "{name}"')
       if name in subsections_seen:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "Resources" subsections. There are 2 occurences of "{name}"')
