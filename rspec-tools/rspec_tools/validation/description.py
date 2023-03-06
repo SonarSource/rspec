@@ -113,9 +113,7 @@ def validate_how_to_fix_it_framework(section_name, rule_language, framework_sect
     if section_name in framework_sections_seen:
       raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{HOW_TO_FIX_IT}" sections for the {current_framework} framework. There are 2 occurences of "{section_name}"')
     framework_sections_seen.add(section_name)
-  elif section_name == HOW_TO_FIX_IT:
-    framework_sections_seen.add(section_name)
-  else:
+  elif section_name != HOW_TO_FIX_IT:
     raise RuleValidationError(f'Rule {rule_language.id} has a "{HOW_TO_FIX_IT}" section with an unsupported format: "{section_name}". Either use "{HOW_TO_FIX_IT}" or "How to fix it in FRAMEWORK NAME"')
 
 def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
