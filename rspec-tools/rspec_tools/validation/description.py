@@ -117,22 +117,6 @@ def validate_how_to_fix_it_framework(section_name, rule_language, framework_sect
   elif section_name != HOW_TO_FIX_IT:
     raise RuleValidationError(f'Rule {rule_language.id} has a "{HOW_TO_FIX_IT}" section with an unsupported format: "{section_name}". Either use "{HOW_TO_FIX_IT}" or "How to fix it in FRAMEWORK NAME"')
 
-def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
-  descr = rule_language.description
-
-  how_to_fix_it_sections = descr.find_all('h2', string=HOW_TO_FIX_IT_REGEX)
-  for section in how_to_fix_it_sections:
-    section_name = section.text.strip()
-    titles = collect_titles(section, 3)
-    subsections_seen = set()
-    for title in titles:
-      name = title.text.strip()
-      if name not in SECTIONS[HOW_TO_FIX_IT]:
-        raise RuleValidationError(f'Rule {rule_language.id} has a subsection with an unallowed name in the "{section_name}" section: "{name}"')
-      if name in subsections_seen:
-        raise RuleValidationError(f'Rule {rule_language.id} has duplicate subsections in the "{section_name}" section. There are 2 occurences of "{name}"')
-      subsections_seen.add(name)
-
 def collect_titles(node, level):
   """Collects all the titles of a given level starting from the provided node
 
@@ -204,17 +188,27 @@ Use [source,{highlight_name(rule_language)}] or [source,text] before the opening
           raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
 Are you looking for "{highlight_name(rule_language)}"?''')
 
-def validate_optional_subsections(rule_language: LanguageSpecificRule):
-  descr = rule_language.description
+def validate_subsections(rule_language: LanguageSpecificRule):
   for optional_section in list(OPTIONAL_SECTIONS.keys()):
-    resources_section = descr.find('h2', string=optional_section)
-    if resources_section is not None:
-      titles = collect_titles(resources_section, 3)
-      subsections_seen = set()
-      for title in titles:
-        name = title.text.strip()
-        if name not in OPTIONAL_SECTIONS[optional_section]:
-          raise RuleValidationError(f'Rule {rule_language.id} has a "{optional_section}" subsection with an unallowed name: "{name}"')
-        if name in subsections_seen:
-          raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{optional_section}" subsections. There are 2 occurences of "{name}"')
-        subsections_seen.add(name)
+    validate_subsections_for_map(rule_language, optional_section, OPTIONAL_SECTIONS)
+  for mandatory_section in list(SECTIONS.keys()):
+    if mandatory_section == HOW_TO_FIX_IT:
+      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS, HOW_TO_FIX_IT_REGEX)
+    else:
+      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS)
+
+def validate_subsections_for_map(rule_language: LanguageSpecificRule, section_name: str, map, section_regex = None):
+  if not section_regex:
+    section_regex = section_name
+  descr = rule_language.description
+  resources_section = descr.find('h2', string=section_regex)
+  if resources_section is not None:
+    titles = collect_titles(resources_section, 3)
+    subsections_seen = set()
+    for title in titles:
+      name = title.text.strip()
+      if name not in map[section_name]:
+        raise RuleValidationError(f'Rule {rule_language.id} has a "{section_name}" subsection with an unallowed name: "{name}"')
+      if name in subsections_seen:
+        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
+      subsections_seen.add(name)
