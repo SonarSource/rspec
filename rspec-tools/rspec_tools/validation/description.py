@@ -34,12 +34,12 @@ def parse_education_section_names(path):
       if section.endswith('(optional)'):
         section = section.replace(' (optional)', '')
         optional_sections.add(section)
-      if not section.startswith(HOW_TO_FIX_IT):
-        sections.add(section)
       if section.startswith(HOW_TO_FIX_IT):
         is_in_how_to_fix = True
-      if section == 'Resources':
+      else:
         is_in_how_to_fix = False
+        sections.add(section)
+      if section == 'Resources':
         is_in_resources = True
     if line.startswith('=== '):
       if is_in_how_to_fix:
