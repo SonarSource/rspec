@@ -109,6 +109,20 @@ def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h
   for section_name in how_to_fix_it_sections:
     validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen)
 
+def validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen):
+  result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', section_name)
+  if result is not None:
+    current_framework = result.group(1)
+    if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
+      raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
+    if section_name in framework_sections_seen:
+      raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" sections for the {current_framework} framework. There are 2 occurences of "{section_name}"')
+    framework_sections_seen.add(section_name)
+  elif section_name == 'How to fix it?':
+    framework_sections_seen.add(section_name)
+  else:
+    raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format: "{section_name}". Either use "How to fix it?" or "How to fix it in FRAMEWORK NAME"')
+
 def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
   descr = rule_language.description
 
@@ -124,20 +138,6 @@ def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
       if name in subsections_seen:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate subsections in the "{section_name}" section. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
-
-def validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen):
-  result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', section_name)
-  if result is not None:
-    current_framework = result.group(1)
-    if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
-      raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
-    if section_name in framework_sections_seen:
-      raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" sections for the {current_framework} framework. There are 2 occurences of "{section_name}"')
-    framework_sections_seen.add(section_name)
-  elif section_name == 'How to fix it?':
-    framework_sections_seen.add(section_name)
-  else:
-    raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format: "{section_name}". Either use "How to fix it?" or "How to fix it in FRAMEWORK NAME"')
 
 def collect_titles(node, level):
   """Collects all the titles of a given level starting from the provided node
