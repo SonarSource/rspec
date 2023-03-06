@@ -81,11 +81,11 @@ def validate_section_names(rule_language: LanguageSpecificRule):
     # we're using the education format
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
     missing_titles = difference(list(SECTIONS.keys()), education_titles)
-    its_only_one_of_the_how_to_fix_its = len(missing_titles) == 1 and HOW_TO_FIX_IT_REGEX.match(missing_titles[0])
-    if missing_titles and not its_only_one_of_the_how_to_fix_its:
-      missing_titles = [ s for s in missing_titles if not HOW_TO_FIX_IT_REGEX.match(s)]
+    # we handled "how to fix it" sections above
+    missing_titles_without_how_to_fix_its = [ s for s in missing_titles if not HOW_TO_FIX_IT_REGEX.match(s)]
+    if missing_titles_without_how_to_fix_its:
       # when using the progressive education format, we need to have all its mandatory titles
-      raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
+      raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles_without_how_to_fix_its[0]}" section')
   else:
     # we're using the legacy format
     for title in h2_titles:
