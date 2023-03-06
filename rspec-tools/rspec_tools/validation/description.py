@@ -34,7 +34,7 @@ def parse_education_section_names(path):
         current_map = optional_sections
       else:
         current_map = sections
-      if HOW_TO_FIX_IT_REGEX.match(section):
+      if section.starts_with(HOW_TO_FIX_IT):
         # we store "How to fix it" and "How to fix it in ..." together
         section = HOW_TO_FIX_IT
       current_section_name = section
