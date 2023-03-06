@@ -35,14 +35,14 @@ def parse_education_section_names(path):
       else:
         current_map = sections
       if HOW_TO_FIX_IT_REGEX.match(section):
-        current_map[HOW_TO_FIX_IT] = []
+        current_map[HOW_TO_FIX_IT] = set()
         current_section_name = HOW_TO_FIX_IT
       else:
         current_section_name = section
-        current_map[section] = []
+        current_map[section] = set()
     if line.startswith('=== '):
       section = line.replace('=== ', '').strip()
-      current_map[current_section_name].append(section)
+      current_map[current_section_name].add(section)
   return [
     sections,
     optional_sections,
