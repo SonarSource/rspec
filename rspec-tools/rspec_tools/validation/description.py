@@ -76,7 +76,7 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-  education_titles = intersection(h2_titles, SECTIONS.keys() + OPTIONAL_SECTIONS.keys())
+  education_titles = intersection(h2_titles, list(SECTIONS.keys()) + list(OPTIONAL_SECTIONS.keys()))
   if education_titles:
     # we're using the education format
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
