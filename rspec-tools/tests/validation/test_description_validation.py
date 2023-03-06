@@ -100,7 +100,7 @@ def test_too_many_frameworks_in_how_to_fix_it_validation(invalid_rule):
     validate_section_names(rule)
 
 def test_single_how_to_fix_it_allowed_validation(invalid_rule):
-  '''Check that mixing "How to fix it?" and "How to fix it in FRAMEWORK" sections breaks validation'''
+  '''Check that mixing "How to fix it" and "How to fix it in FRAMEWORK" sections breaks validation'''
   rule = invalid_rule('S200', 'abap')
   with pytest.raises(RuleValidationError, match=f'Rule abap:S200 is mixing "How to fix it\\?" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "How to fix it\\?" or one or more "How to fix it in FRAMEWORK"'):
     validate_section_names(rule)

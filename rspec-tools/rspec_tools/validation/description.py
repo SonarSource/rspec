@@ -98,8 +98,8 @@ def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h
     raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" sections. Please ensure this limit can be increased with PM/UX teams')
   if not how_to_fix_it_sections:
     raise RuleValidationError(f'Rule {rule_language.id} is missing a "How to fix it" section')
-  if f'{HOW_TO_FIX_IT}?' in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
-    raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}?" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "How to fix it?" or one or more "How to fix it in FRAMEWORK"')
+  if HOW_TO_FIX_IT in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
+    raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "How to fix it" or one or more "How to fix it in FRAMEWORK"')
   framework_sections_seen = set()
   for section_name in how_to_fix_it_sections:
     validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen)
@@ -113,10 +113,10 @@ def validate_how_to_fix_it_framework(section_name, rule_language, framework_sect
     if section_name in framework_sections_seen:
       raise RuleValidationError(f'Rule {rule_language.id} has duplicate "How to fix it" sections for the {current_framework} framework. There are 2 occurences of "{section_name}"')
     framework_sections_seen.add(section_name)
-  elif section_name == 'How to fix it?':
+  elif section_name == 'How to fix it':
     framework_sections_seen.add(section_name)
   else:
-    raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format: "{section_name}". Either use "How to fix it?" or "How to fix it in FRAMEWORK NAME"')
+    raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section with an unsupported format: "{section_name}". Either use "How to fix it" or "How to fix it in FRAMEWORK NAME"')
 
 def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
   descr = rule_language.description
