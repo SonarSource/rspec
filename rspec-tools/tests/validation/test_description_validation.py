@@ -102,7 +102,7 @@ def test_too_many_frameworks_in_how_to_fix_it_validation(invalid_rule):
 def test_single_how_to_fix_it_allowed_validation(invalid_rule):
   '''Check that mixing "How to fix it" and "How to fix it in FRAMEWORK" sections breaks validation'''
   rule = invalid_rule('S200', 'abap')
-  with pytest.raises(RuleValidationError, match=f'Rule abap:S200 is mixing "How to fix it\\?" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "How to fix it\\?" or one or more "How to fix it in FRAMEWORK"'):
+  with pytest.raises(RuleValidationError, match=f'Rule abap:S200 is mixing "How to fix it" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "How to fix it" or one or more "How to fix it in FRAMEWORK"'):
     validate_section_names(rule)
 
 def test_duplicate_frameworks_in_how_to_fix_it_validation(invalid_rule):
@@ -114,7 +114,7 @@ def test_duplicate_frameworks_in_how_to_fix_it_validation(invalid_rule):
 def test_wrong_format_how_to_fix_it_section_validation(invalid_rule):
   '''Check that "How to fix it" sections with a weird format breaks validation'''
   rule = invalid_rule('S200', 'typescript')
-  with pytest.raises(RuleValidationError, match=f'Rule typescript:S200 has a "How to fix it" section with an unsupported format: "How to fix it wrong format". Either use "How to fix it\\?" or "How to fix it in FRAMEWORK NAME"'):
+  with pytest.raises(RuleValidationError, match=f'Rule typescript:S200 has a "How to fix it" section with an unsupported format: "How to fix it wrong format". Either use "How to fix it" or "How to fix it in FRAMEWORK NAME"'):
     validate_section_names(rule)
 
 def test_unallowed_subsections_in_how_to_fix_it_validation(invalid_rule):
