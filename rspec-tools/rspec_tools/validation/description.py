@@ -70,7 +70,7 @@ ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allo
   OPTIONAL_EDUCATION_SECTION_NAMES,
   ACCEPTED_HOW_TO_FIX_IT_SUBSECTIONS_NAMES,
   ACCEPTED_RESOURCES_SUBSECTION_NAMES
-  ] = parse_education_section_names('docs/header_names/education_format_example.adoc')
+  ] = parse_education_section_names('docs/header_names/education_format_names.adoc')
 
 def intersection(lst1, lst2):
   lst3 = [value for value in lst1 if value in lst2]
