@@ -79,8 +79,7 @@ def difference(lst1, lst2):
   return list(set(lst1) - set(lst2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
-  """Validates all h2-level section names BUT "How to fix it..." ones
-  """
+  """Validates all h2-level section names"""
 
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
