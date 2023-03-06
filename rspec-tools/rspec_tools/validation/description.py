@@ -66,8 +66,7 @@ ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allo
 
 
 def intersection(lst1, lst2):
-  lst3 = [value for value in lst1 if value in lst2]
-  return lst3
+  return list(set(lst1).intersection(lst2))
 def difference(lst1, lst2):
   return list(set(lst1) - set(lst2))
 
