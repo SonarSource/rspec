@@ -10,12 +10,12 @@ from rspec_tools.utils import LANG_TO_SOURCE
 import re
 
 def read_file(path):
-  SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath(path)
-  return SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
+  section_names_path = Path(__file__).parent.parent.parent.parent.joinpath(path)
+  return section_names_path.read_text(encoding='utf-8').split('\n')
 
 def parse_names(path):
-  SECTION_NAMES_FILE = read_file(path)
-  return [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
+  section_names_path = read_file(path)
+  return [s.replace('* ', '').strip() for s in section_names_path if s.strip()]
 
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
@@ -28,7 +28,7 @@ def parse_education_section_names(path):
   resources_subsections = set()
   is_in_how_to_fix = False
   is_in_resources = False
-  for line in EDUCATION_FORMAT_FILE:
+  for line in education_format_file:
     if line.startswith('== '):
       section = line.replace('== ', '').strip()
       if section.endswith('(optional)'):
@@ -60,7 +60,7 @@ def parse_education_section_names(path):
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-ACCEPTED_ALL_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/all_section_names.adoc')
+LEGACY_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/legacy_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
@@ -92,9 +92,10 @@ def validate_section_names(rule_language: LanguageSpecificRule):
     if difference(missing_titles, OPTIONAL_EDUCATION_SECTION_NAMES):
       # when using the progressive education format, we need to have all its mandatory titles
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
-  for title in h2_titles:
-    if title not in ACCEPTED_ALL_SECTION_NAMES and not HOW_TO_FIX_IT_REGEX.match(title):
-      raise RuleValidationError(f'Rule {rule_language.id} has an unconventional header "{title}"')
+  else:
+    for title in h2_titles:
+      if title not in LEGACY_SECTION_NAMES and not HOW_TO_FIX_IT_REGEX.match(title):
+        raise RuleValidationError(f'Rule {rule_language.id} has an unconventional header "{title}"')
 
 def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h2_titles: list[str]):
   how_to_fix_it_sections = [ s for s in h2_titles if HOW_TO_FIX_IT_REGEX.match(s) ]
