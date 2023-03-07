@@ -167,18 +167,22 @@ def validate_subsections(rule_language: LanguageSpecificRule):
     validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
   for mandatory_section in list(SECTIONS.keys()):
     if mandatory_section == HOW_TO_FIX_IT:
-      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section], 3, HOW_TO_FIX_IT_REGEX)
+      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section], section_regex=HOW_TO_FIX_IT_REGEX)
     else:
       validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
     if subsection_with_sub_subsection == 'Code examples':
-      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4, None, True)
+      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4, is_duplicate_allowed=True)
     else:
-      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4)
+      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4)
 
-def validate_subsections_for_section(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], level = 3, section_regex = None, is_duplicate_allowed = False):
-  if not section_regex:
-    section_regex = section_name
+def validate_subsections_for_section(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], **options):
+
+  # Handle options
+  level = options['level'] if 'level' in options else 3
+  section_regex = options['section_regex'] if 'section_regex' in options else section_name
+  is_duplicate_allowed = options['is_duplicate_allowed'] if 'is_duplicate_allowed' in options else False
+
   descr = rule_language.description
   top_level_section = descr.find(f'h{level-1}', string=section_regex)
   if top_level_section is not None:
