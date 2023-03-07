@@ -38,7 +38,7 @@ OPTIONAL_SECTIONS = {
   'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards']
 }
 SUBSECTIONS = {
-  'Code examples': ['Noncompliant code example"', 'Compliant solution']
+  'Code examples': ['Noncompliant code example', 'Compliant solution']
 }
 
 def intersection(lst1, lst2):
