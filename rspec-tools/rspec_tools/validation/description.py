@@ -100,19 +100,18 @@ def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h
     raise RuleValidationError(f'Rule {rule_language.id} is missing a "{HOW_TO_FIX_IT}" section')
   if HOW_TO_FIX_IT in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
     raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "{HOW_TO_FIX_IT}" or one or more "How to fix it in FRAMEWORK"')
-  framework_sections_seen = set()
+  duplicate_names = [x for x in how_to_fix_it_sections if how_to_fix_it_sections.count(x) > 1] # O(n*n) is fine, given n <= 6
+  if 0 < len(duplicate_names):
+    raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{HOW_TO_FIX_IT}" sections {set(duplicate_names)}')
   for section_name in how_to_fix_it_sections:
-    validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen)
+    validate_how_to_fix_it_framework(section_name, rule_language)
 
-def validate_how_to_fix_it_framework(section_name, rule_language, framework_sections_seen):
+def validate_how_to_fix_it_framework(section_name, rule_language):
   result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', section_name)
   if result is not None:
     current_framework = result.group(1)
     if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
       raise RuleValidationError(f'Rule {rule_language.id} has a "{HOW_TO_FIX_IT}" section for an unsupported framework: "{result.group(1)}"')
-    if section_name in framework_sections_seen:
-      raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{HOW_TO_FIX_IT}" sections for the {current_framework} framework. There are 2 occurences of "{section_name}"')
-    framework_sections_seen.add(section_name)
   elif section_name != HOW_TO_FIX_IT:
     raise RuleValidationError(f'Rule {rule_language.id} has a "{HOW_TO_FIX_IT}" section with an unsupported format: "{section_name}". Either use "{HOW_TO_FIX_IT}" or "How to fix it in FRAMEWORK NAME"')
 
