@@ -29,6 +29,7 @@ LEGACY_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/legacy_s
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
+# This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#3-progressive-education)
 SECTIONS = {
   'Why is this an issue?': ['What is the potential impact?'],
   # Also covers 'How to fix it in {Framework Display Name}'
