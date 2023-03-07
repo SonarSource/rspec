@@ -171,9 +171,12 @@ def validate_subsections(rule_language: LanguageSpecificRule):
     else:
       validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
-    validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4)
+    if subsection_with_sub_subsection == 'Code examples':
+      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4, True)
+    else:
+      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4)
 
-def validate_subsections_for_section(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], level = 3, section_regex = None):
+def validate_subsections_for_section(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], level = 3, section_regex = None, is_duplicate_allowed = False):
   if not section_regex:
     section_regex = section_name
   descr = rule_language.description
@@ -185,6 +188,6 @@ def validate_subsections_for_section(rule_language: LanguageSpecificRule, sectio
       name = title.text.strip()
       if name not in allowed_subsections:
         raise RuleValidationError(f'Rule {rule_language.id} has a "{section_name}" subsection with an unallowed name: "{name}"')
-      if name in subsections_seen:
+      if name in subsections_seen and not is_duplicate_allowed:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
