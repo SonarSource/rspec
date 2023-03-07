@@ -189,14 +189,14 @@ Are you looking for "{highlight_name(rule_language)}"?''')
 
 def validate_subsections(rule_language: LanguageSpecificRule):
   for optional_section in list(OPTIONAL_SECTIONS.keys()):
-    validate_subsections_for_map(rule_language, optional_section, OPTIONAL_SECTIONS)
+    validate_subsections_for_map(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
   for mandatory_section in list(SECTIONS.keys()):
     if mandatory_section == HOW_TO_FIX_IT:
-      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS, HOW_TO_FIX_IT_REGEX)
+      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS[mandatory_section], HOW_TO_FIX_IT_REGEX)
     else:
-      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS)
+      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS[mandatory_section])
 
-def validate_subsections_for_map(rule_language: LanguageSpecificRule, section_name: str, map, section_regex = None):
+def validate_subsections_for_map(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], section_regex = None):
   if not section_regex:
     section_regex = section_name
   descr = rule_language.description
@@ -206,7 +206,7 @@ def validate_subsections_for_map(rule_language: LanguageSpecificRule, section_na
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
-      if name not in map[section_name]:
+      if name not in allowed_subsections:
         raise RuleValidationError(f'Rule {rule_language.id} has a "{section_name}" subsection with an unallowed name: "{name}"')
       if name in subsections_seen:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
