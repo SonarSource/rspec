@@ -26,6 +26,8 @@ def parse_education_section_names(path):
   optional_sections = {}
   current_map = sections
   current_section_name = ''
+  subsections = {}
+  current_subsection_name = ''
   for line in education_format_file:
     if line.startswith('== '):
       section = line.replace('== ', '').strip()
@@ -43,11 +45,18 @@ def parse_education_section_names(path):
       current_section_name = section
       current_map[section] = set()
     if line.startswith('=== '):
-      section = line.replace('=== ', '').strip()
-      current_map[current_section_name].add(section)
+      subsection = line.replace('=== ', '').strip()
+      current_map[current_section_name].add(subsection)
+      current_subsection_name = subsection
+    if line.startswith('==== '):
+      sub_subsection_name = line.replace('=== ', '').strip()
+      if not current_subsection_name in subsections:
+        subsections[current_subsection_name] = set()
+      subsections[current_subsection_name].add(sub_subsection_name)
   return [
     sections,
     optional_sections,
+    subsections,
   ]
 
 # The list of all the sections currently accepted by the script.
@@ -61,7 +70,8 @@ ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allo
 
 [
   SECTIONS,
-  OPTIONAL_SECTIONS
+  OPTIONAL_SECTIONS,
+  SUBSECTIONS,
   ] = parse_education_section_names('docs/header_names/education_format_names.adoc')
 
 
@@ -189,20 +199,22 @@ Are you looking for "{highlight_name(rule_language)}"?''')
 
 def validate_subsections(rule_language: LanguageSpecificRule):
   for optional_section in list(OPTIONAL_SECTIONS.keys()):
-    validate_subsections_for_map(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
+    validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
   for mandatory_section in list(SECTIONS.keys()):
     if mandatory_section == HOW_TO_FIX_IT:
-      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS[mandatory_section], HOW_TO_FIX_IT_REGEX)
+      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section], 3, HOW_TO_FIX_IT_REGEX)
     else:
-      validate_subsections_for_map(rule_language, mandatory_section, SECTIONS[mandatory_section])
+      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
+  for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
+    validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4)
 
-def validate_subsections_for_map(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], section_regex = None):
+def validate_subsections_for_section(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], level = 3, section_regex = None):
   if not section_regex:
     section_regex = section_name
   descr = rule_language.description
-  top_level_section = descr.find('h2', string=section_regex)
+  top_level_section = descr.find(f'h{level-1}', string=section_regex)
   if top_level_section is not None:
-    titles = collect_titles(top_level_section, 3)
+    titles = collect_titles(top_level_section, level)
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
