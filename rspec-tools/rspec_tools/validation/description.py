@@ -200,9 +200,9 @@ def validate_subsections_for_map(rule_language: LanguageSpecificRule, section_na
   if not section_regex:
     section_regex = section_name
   descr = rule_language.description
-  resources_section = descr.find('h2', string=section_regex)
-  if resources_section is not None:
-    titles = collect_titles(resources_section, 3)
+  top_level_section = descr.find('h2', string=section_regex)
+  if top_level_section is not None:
+    titles = collect_titles(top_level_section, 3)
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
