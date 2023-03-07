@@ -20,45 +20,6 @@ def parse_names(path):
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
 
-def parse_education_section_names(path):
-  education_format_file = read_file(path)
-  sections = {}
-  optional_sections = {}
-  current_map = sections
-  current_section_name = ''
-  subsections = {}
-  current_subsection_name = ''
-  for line in education_format_file:
-    if line.startswith('== '):
-      section = line.replace('== ', '').strip()
-      if section.endswith('(optional)'):
-        section = section.replace(' (optional)', '')
-        current_map = optional_sections
-      else:
-        current_map = sections
-      if section.startswith(HOW_TO_FIX_IT):
-        # we store "How to fix it" and "How to fix it in ..." together
-        section = HOW_TO_FIX_IT
-      else:
-        if section in current_map:
-          raise RuleValidationError(f'Section {section} is mentionned more than once in the specification file')
-      current_section_name = section
-      current_map[section] = set()
-    if line.startswith('=== '):
-      subsection = line.replace('=== ', '').strip()
-      current_map[current_section_name].add(subsection)
-      current_subsection_name = subsection
-    if line.startswith('==== '):
-      sub_subsection_name = line.replace('=== ', '').strip()
-      if current_subsection_name not in subsections:
-        subsections[current_subsection_name] = set()
-      subsections[current_subsection_name].add(sub_subsection_name)
-  return [
-    sections,
-    optional_sections,
-    subsections,
-  ]
-
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
 # in the migrated RSPECs.
@@ -68,13 +29,17 @@ LEGACY_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/legacy_s
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
-[
-  SECTIONS,
-  OPTIONAL_SECTIONS,
-  SUBSECTIONS,
-  ] = parse_education_section_names('docs/header_names/education_format_names.adoc')
-
-
+SECTIONS = {
+  'Why is this an issue?': ['What is the potential impact?'],
+  # Also covers 'How to fix it in {Framework Display Name}'
+  'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
+}
+OPTIONAL_SECTIONS = {
+  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards']
+}
+SUBSECTIONS = {
+  'Code examples': ['Non-compliant examples', 'Compliant solution']
+}
 
 def intersection(lst1, lst2):
   return list(set(lst1).intersection(lst2))
