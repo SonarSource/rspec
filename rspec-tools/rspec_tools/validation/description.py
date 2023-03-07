@@ -50,7 +50,7 @@ def parse_education_section_names(path):
       current_subsection_name = subsection
     if line.startswith('==== '):
       sub_subsection_name = line.replace('=== ', '').strip()
-      if not current_subsection_name in subsections:
+      if current_subsection_name not in subsections:
         subsections[current_subsection_name] = set()
       subsections[current_subsection_name].add(sub_subsection_name)
   return [
