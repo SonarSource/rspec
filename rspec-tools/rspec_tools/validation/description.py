@@ -172,7 +172,7 @@ def validate_subsections(rule_language: LanguageSpecificRule):
       validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
     if subsection_with_sub_subsection == 'Code examples':
-      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4, True)
+      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4, None, True)
     else:
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], 4)
 
