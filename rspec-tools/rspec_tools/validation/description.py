@@ -37,10 +37,11 @@ def parse_education_section_names(path):
       if section.startswith(HOW_TO_FIX_IT):
         # we store "How to fix it" and "How to fix it in ..." together
         section = HOW_TO_FIX_IT
+      else:
+        if section in current_map:
+          raise RuleValidationError(f'Section {section} is mentionned more than once in the specification file')
       current_section_name = section
-      if section not in current_map:
-        # If a section appears multiple times in the doc, we don't overwrite its subsections
-        current_map[section] = set()
+      current_map[section] = set()
     if line.startswith('=== '):
       section = line.replace('=== ', '').strip()
       current_map[current_section_name].add(section)
