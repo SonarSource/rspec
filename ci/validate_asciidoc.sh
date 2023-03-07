@@ -99,7 +99,7 @@ ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
 if (( ADOC_COUNT > 0 )); then
   if asciidoctor --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
       if asciidoctor -a rspecator-view --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
-          echo "${ADOC_COUNT} documents checked with succes"
+          echo "${ADOC_COUNT} documents checked with success"
       else
           echo "ERROR: malformed asciidoc files in rspecator-view"
           exit_code=1

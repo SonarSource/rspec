@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
+from collections import Counter
 
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
@@ -8,48 +9,111 @@ from rspec_tools.utils import LANG_TO_SOURCE
 
 import re
 
+def read_file(path):
+  section_names_path = Path(__file__).parent.parent.parent.parent.joinpath(path)
+  return section_names_path.read_text(encoding='utf-8').split('\n')
+
+def parse_names(path):
+  section_names_path = read_file(path)
+  return [s.replace('* ', '').strip() for s in section_names_path if s.strip()]
+
+HOW_TO_FIX_IT = 'How to fix it'
+HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
+
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-SECTION_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath('docs/section_names.adoc')
-SECTION_NAMES_FILE = SECTION_NAMES_PATH.read_text(encoding='utf-8').split('\n')
-ACCEPTED_SECTION_NAMES: Final[list[str]] = [s.replace('* ', '').strip() for s in SECTION_NAMES_FILE if s.strip()]
+LEGACY_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/legacy_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
-FRAMEWORK_NAMES_PATH = Path(__file__).parent.parent.parent.parent.joinpath('docs/allowed_framework_names.adoc')
-FRAMEWORK_NAMES_FILE = FRAMEWORK_NAMES_PATH.read_text(encoding='utf-8').split('\n')
-ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = [s.replace('* ', '').strip() for s in FRAMEWORK_NAMES_FILE if s.strip()]
+ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
+
+# This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#3-progressive-education)
+SECTIONS = {
+  'Why is this an issue?': ['What is the potential impact?'],
+  # Also covers 'How to fix it in {Framework Display Name}'
+  'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
+}
+OPTIONAL_SECTIONS = {
+  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards']
+}
+SUBSECTIONS = {
+  'Code examples': ['Noncompliant code example', 'Compliant solution']
+}
+
+def intersection(lst1, lst2):
+  return list(set(lst1).intersection(lst2))
+def difference(lst1, lst2):
+  return list(set(lst1) - set(lst2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
+  """Validates all h2-level section names"""
+
   descr = rule_language.description
-  for h2 in descr.find_all('h2'):
-    name = h2.text.strip()
-    if name not in ACCEPTED_SECTION_NAMES:
-      raise RuleValidationError(f'Rule {rule_language.id} has unconventional header "{name}"')
+  h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-def validate_how_to_fix_it_subsections(rule_language: LanguageSpecificRule):
-  descr = rule_language.description
-  frameworks_counter = 0
+  education_titles = intersection(h2_titles, list(SECTIONS.keys()) + list(OPTIONAL_SECTIONS.keys()))
+  if education_titles:
+    # we're using the education format
+    validate_how_to_fix_it_sections_names(rule_language, h2_titles)
+    missing_titles = difference(list(SECTIONS.keys()), education_titles)
+    # we handled "how to fix it" sections above
+    missing_titles_without_how_to_fix_its = [ s for s in missing_titles if not HOW_TO_FIX_IT_REGEX.match(s)]
+    if missing_titles_without_how_to_fix_its:
+      # when using the progressive education format, we need to have all its mandatory titles
+      raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles_without_how_to_fix_its[0]}" section')
+  else:
+    # we're using the legacy format
+    for title in h2_titles:
+      if title not in LEGACY_SECTION_NAMES:
+        raise RuleValidationError(f'Rule {rule_language.id} has an unconventional header "{title}"')
 
-  for h3 in descr.find_all('h3'):
-    name = h3.text.strip()
-    # It is important that the Regex here matches the one used by the analyzers when loading the rules content
-    result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', name)
-    if result is not None:
-      if result.group(1) not in ACCEPTED_FRAMEWORK_NAMES:
-        raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section for an unsupported framework: "{result.group(1)}"')
-      else:
-        frameworks_counter += 1
+def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h2_titles: list[str]):
+  how_to_fix_it_sections = [ s for s in h2_titles if HOW_TO_FIX_IT_REGEX.match(s) ]
+  if len(how_to_fix_it_sections) > 6:
+    raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "{HOW_TO_FIX_IT}" sections. Please ensure this limit can be increased with PM/UX teams')
+  if not how_to_fix_it_sections:
+    raise RuleValidationError(f'Rule {rule_language.id} is missing a "{HOW_TO_FIX_IT}" section')
+  if HOW_TO_FIX_IT in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
+    raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "{HOW_TO_FIX_IT}" or one or more "How to fix it in FRAMEWORK"')
+  duplicate_names = [x for x in how_to_fix_it_sections if how_to_fix_it_sections.count(x) > 1] # O(n*n) is fine, given n <= 6
+  if 0 < len(duplicate_names):
+    raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{HOW_TO_FIX_IT}" sections {set(duplicate_names)}')
+  for section_name in how_to_fix_it_sections:
+    validate_how_to_fix_it_framework(section_name, rule_language)
 
-  how_to_fix_it_section = descr.find('h2', string='How to fix it?')
-  if how_to_fix_it_section is not None:
-    if frameworks_counter == 0:
-      raise RuleValidationError(f'Rule {rule_language.id} has a "How to fix it" section but is missing subsections related to frameworks')
-    if frameworks_counter > 6:
-      raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "How to fix it" subsections. Please ensure this limit can be increased with PM/UX teams')
-  elif frameworks_counter > 0:
-    raise RuleValidationError(f'Rule {rule_language.id} has "How to fix it" subsections for frameworks outside a defined "How to fix it?" section')
+def validate_how_to_fix_it_framework(section_name, rule_language):
+  result = re.search('How to fix it in (?:(?:an|a|the)\\s)?(.*)', section_name)
+  if result is not None:
+    current_framework = result.group(1)
+    if current_framework not in ACCEPTED_FRAMEWORK_NAMES:
+      raise RuleValidationError(f'Rule {rule_language.id} has a "{HOW_TO_FIX_IT}" section for an unsupported framework: "{result.group(1)}"')
+  elif section_name != HOW_TO_FIX_IT:
+    raise RuleValidationError(f'Rule {rule_language.id} has a "{HOW_TO_FIX_IT}" section with an unsupported format: "{section_name}". Either use "{HOW_TO_FIX_IT}" or "How to fix it in FRAMEWORK NAME"')
+
+def collect_titles(node, level):
+  """Collects all the titles of a given level starting from the provided node
+
+  The goal of this function is to extract titles from the extra HTML tags
+  that are produced when the HTML file is produced from the ASCIIdoc.
+  The titles are collected in the order in which they appear.
+
+  Args:
+      node (BeautifulSoup): BeautifulSoup object
+      level (int): the level of title we are looking for
+
+  Returns:
+      list[BeautifulSoup]: List of nodes that were found.
+  """
+
+  current = node.next_sibling
+  nodes = []
+  while(current is not None):
+    if hasattr(current, 'find_all'):
+      nodes = nodes + current.find_all(f'h{level}')
+    current = current.next_sibling
+  return nodes
 
 def validate_section_levels(rule_language: LanguageSpecificRule):
   h1 = rule_language.description.find('h1')
@@ -98,3 +162,37 @@ Use [source,{highlight_name(rule_language)}] or [source,text] before the opening
         elif not known_highlight(pre.code['data-lang']):
           raise RuleValidationError(f'''Rule {rule_language.id} has unknown language "{pre.code['data-lang']}" in code example in section "{name}".
 Are you looking for "{highlight_name(rule_language)}"?''')
+
+def validate_subsections(rule_language: LanguageSpecificRule):
+  for optional_section in list(OPTIONAL_SECTIONS.keys()):
+    validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
+  for mandatory_section in list(SECTIONS.keys()):
+    if mandatory_section == HOW_TO_FIX_IT:
+      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section], section_regex=HOW_TO_FIX_IT_REGEX)
+    else:
+      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
+  for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
+    if subsection_with_sub_subsection == 'Code examples':
+      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4, is_duplicate_allowed=True)
+    else:
+      validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4)
+
+def validate_subsections_for_section(rule_language: LanguageSpecificRule, section_name: str, allowed_subsections: set[str], **options):
+
+  # Handle options
+  level = options['level'] if 'level' in options else 3
+  section_regex = options['section_regex'] if 'section_regex' in options else section_name
+  is_duplicate_allowed = options['is_duplicate_allowed'] if 'is_duplicate_allowed' in options else False
+
+  descr = rule_language.description
+  top_level_section = descr.find(f'h{level-1}', string=section_regex)
+  if top_level_section is not None:
+    titles = collect_titles(top_level_section, level)
+    subsections_seen = set()
+    for title in titles:
+      name = title.text.strip()
+      if name not in allowed_subsections:
+        raise RuleValidationError(f'Rule {rule_language.id} has a "{section_name}" subsection with an unallowed name: "{name}"')
+      if name in subsections_seen and not is_duplicate_allowed:
+        raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
+      subsections_seen.add(name)

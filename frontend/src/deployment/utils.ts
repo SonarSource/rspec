@@ -2,6 +2,9 @@
 import fs from 'fs';
 import path from 'path';
 
+// List of allowed non-language directories used for utility purposes in a rule folder.
+const ALLOWED_UTILITY_DIRECTORY_NAMES = ['common'];
+
 /**
  * Get the list of source and destination directories for each rule.
  * Destination directories will be created if they don't already exist.
@@ -24,11 +27,12 @@ export function getRulesDirectories(srcPath: string, dstPath: string, rules?: st
 }
 
 /**
- * List every language for which a rule has a specialization, i.e. a sub-directory.
+ * List every language for which a rule has a specialization, i.e. a sub-directory, except the 'common' directory.
  * @param ruleDirectory the rule's source directory
  */
 export function listSupportedLanguages(ruleDirectory: string): string[] {
   return fs.readdirSync(ruleDirectory)
-    .filter(fileName => fs.lstatSync(path.join(ruleDirectory, fileName)).isDirectory())
+    .filter(fileName => fs.lstatSync(path.join(ruleDirectory, fileName)).isDirectory()
+      && !ALLOWED_UTILITY_DIRECTORY_NAMES.includes(fileName))
     .sort();
 }
