@@ -1,14 +1,10 @@
-Prefer ``++make_unique++`` and ``++make_shared++`` over explicitly calling the constructor of ``++unique_ptr++`` and ``++shared_ptr++``, they are more concise since they don't require specifying the type multiple times and they eliminate the need to use new!
+`make_unique` and `make_shared` are more concise than explicitly calling the constructor of `unique_ptr` and `shared_ptr` since they don't require specifying the type multiple times and eliminate the need to use `new`.
 
+`make_unique` and `make_shared` should also be preferred for exception-safety and performance reasons.
 
 *Exception-Safety*
 
-
-While ``++make_unique++`` and ``++make_shared++`` are exception-safe, complex construction of ``++unique_ptr++`` and ``++shared_ptr++`` might not be.
-
-
-This is because {cpp} allows arbitrary order of evaluation of subexpressions.
-
+While `make_unique` and `make_shared` are exception-safe, complex constructions of `unique_ptr` and `shared_ptr` might not be because {cpp} allows arbitrary order of evaluation of subexpressions (until {cpp}17).
 
 Consider this example:
 
@@ -16,24 +12,20 @@ Consider this example:
 f(unique_ptr<Lhs>(new Lhs()), throwingFunction());
 ----
 
-This scenario can happen:
+The following scenario can happen:
 
+. Memory allocation for `Lhs`
+. Construction of the `Lhs` object
+. Call to `throwingFunction` (before the `unique_ptr` construction)
+. `throwingFunction` throws an exception
+. The constructed `Lhs` object is leaked since the `unique_ptr` isn't constructed yet
 
-. Memory is allocated for ``++Lhs++``
-. ``++Lhs++`` object is constructed
-. ``++throwingFunction++`` is called before the ``++unique_ptr++`` construction
-. ``++throwingFunction++`` throws an exception.
-. The constructed ``++Lhs++`` object is leaked since the ``++unique_ptr++`` isn't constructed yet
-
-Note: This scenario can only happen before ``{cpp}17``. the new standard states that each argument needs to be fully evaluated before the evaluation of the other arguments. In this case, the explicit construction of ``++unique_ptr++`` and ``++shared_ptr++`` is exception-safe.
-
+Note: This scenario can only happen before {cpp}17. From {cpp}17, the standard states that each argument needs to be thoroughly evaluated before evaluating the other arguments. So the explicit construction of `unique_ptr` and `shared_ptr` become exception-safe.
 
 *Performance*
 
-
-While ``++make_uniqe()++`` doesn't have an impact on performance, ``++make_shared()++`` does.
-
-``++make_shared()++`` performs one heap-allocation. While constructing ``++shared_ptr()++`` explicitly will require two: one for the object being managed and the other for the control block that stores data about the ref-counts and the ``++shared_ptr()++`` deleter.
+Constructing `shared_ptr()` explicitly requires two heap allocations: one for the managed object and the other for the control block that stores data about the ref-counts and the `shared_ptr()` deleter. `make_shared()` still impacts performances, but it performs only one heap allocation. +
+`make_unique()`, on the other hand, doesn't impact performances.
 
 
 == Noncompliant Code Example
@@ -53,18 +45,21 @@ auto uniqueP = std::make_unique<MyClass>(42);
 auto sharedP = std::make_shared<MyClass>(42);
 std::unique_ptr<std::FILE, std::function<void(std::FILE*)>> file(
   fopen("example.txt", "r"),
-  [](FILE* inFile) { fclose(inFile); }); // compliant: custom deleter is specified
+  [](FILE* inFile) { fclose(inFile); }); // Compliant: custom deleter is specified
 ----
 
 
 == Exceptions
 
-This rule ignores code that uses features not supported by `make_shared` or `make_unique`:
+This rule ignores code that uses features not supported by `make_shared` and `make_unique`:
 
-* `make_shared` and `make_unique`: using custom deleters,
-* `make_shared` and `make_unique`: calling placement-new, i.e. version of ``new`` with arguments, like `new(std::nothrow)`
-* `make_shared` only: using operator `new` provided by class
-* `make_shared` before {cpp}20: allocating arrays
+* custom deleters
+* calling placement-new, i.e., version of `new` with arguments, like `new(std::nothrow)`
+
+In addition, `make_shared` does not support the following:
+
+* custom operator `new`
+* allocating arrays (before {cpp}20)
 
 == See
 
