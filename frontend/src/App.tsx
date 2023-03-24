@@ -9,7 +9,7 @@ import {
 } from "react-router-dom";
 import {RulePage} from "./RulePage";
 import {SearchPage} from "./SearchPage";
-import TopBar from "./TopBar";
+import {TopBar, LangRuleTopBar} from "./TopBar";
 
 
 function App() {
@@ -17,9 +17,16 @@ function App() {
   return (
     <CssBaseline>
     <div className={classes.root}>
-      <TopBar/>
-      <Box>
         <Router basename="/rspec">
+      <Switch>
+        <Route path="/:ruleid/:language" component={LangRuleTopBar}/>
+        <Route>
+          <TopBar/>
+        </Route>
+      </Switch>
+        </Router>
+      <Box>
+          <Router basename="/rspec">
           <Switch>
             <Route path="/:ruleid/:language?" component={RulePage} />
             <Route>
