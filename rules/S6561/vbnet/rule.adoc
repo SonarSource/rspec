@@ -1,42 +1,107 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+There are various reasons why developers may call multiple times DateTime.Now, DateTimeOffset.Now, 
+DateTime.UtcNow or DateTimeOffset.UtcNow inside the same block:
 
-//=== What is the potential impact?
+1) The purpose may be simply to store the results, perhaps even expecting the value of the calls to be or not to be the same. 
+However, these properties change their value every time they are called (depending on the system clock resolution), and, calling them repeatedly can be an expensive operation. 
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+[source,vbnet]
+----
+account1.updatedAt = DateTime.UtcNow ' First call, might be N ticks
+account2.updatedAt = DateTime.UtcNow ' Second call, this one could be N + 1 ticks, but also N.
+Console.WriteLine($"The accounts have been updated at {DateTime.UtcNow}") ' Third call, this can also be N, N + 1 or N + 2 ticks
+----
+
+2) The purpose may be to time how long something takes.
+However, using repeated calls to DateTime.Now or DateTime.UtcNow to measure elapsed time is not recommended because it's dependent on the system clock, which may have low resolution on older systems (as low as 15 milliseconds). Moreover, DateTime.Now and DateTimeOffset.Now are subject to Daylight Savings Time (DST), which can cause issues if a DST transition occurs during the benchmark session.
+
+[source,vbnet]
+----
+Private start = DateTime.Now ' First call
+' Do stuff
+Private elapsed = CInt((DateTime.Now - start).TotalMilliseconds) // Second call
+----
+
+== How to fix it in CSharp
+
+1) To avoid these issues and improve the performance of the application, it's recommended to declare a local variable to store a single DateTime or DateTimeOffset value and use it throughout the code block.
+
+2) Instead of DateTime or DateTimeOffset, it's recommended to use *Stopwatch*, which automatically checks for the existence of high-precision timers, it’s lightweight and computationally faster, and it’s not affected by DST.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,vbnet]
+[source,vbnet,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+account1.updatedAt = DateTime.UtcNow ' Noncompliant
+account2.updatedAt = DateTime.UtcNow ' Secondary
+Console.WriteLine($"The accounts have been updated at {DateTime.UtcNow}") ' Secondary
 ----
 
 ==== Compliant solution
 
-[source,vbnet]
+[source,vbnet,diff-id=1,diff-type=compliant]
 ----
-FIXME
+Dim now = DateTime.UtcNow ' Compliant
+account1.updatedAt = now
+account2.updatedAt = now
+Console.WriteLine($"The accounts have been updated at {now}")
 ----
 
-//=== How does this work?
+==== Noncompliant code example
 
-//=== Pitfalls
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+If (DateTime.UtcNow - latest).TotalMillisecond > 100 Then ' Noncompliant
+    latest = DateTime.UtcNow ' Secondary
+End If
+----
 
-//=== Going the extra mile
+==== Compliant solution
 
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Dim utcNow = DateTime.UtcNow ' Compliant
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
+If (utcNow - latest).TotalMillisecond > 100 Then ' Compliant
+    latest = utcNow
+End If
+----
+
+or
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Dim stopWatch = Stopwatch.StartNew() ' Compliant
+
+If stopWatch.ElapsedMilliseconds > 100 Then
+    stopWatch.Restart()
+End If
+----
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+Dim start = DateTime.Now ' Noncompliant
+' Method to be benchmarked
+Console.WriteLine($"{CInt((DateTime.Now - start).TotalMilliseconds)} ms") ' Secondary
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Dim stopWatch = Stopwatch.StartNew() ' Compliant
+' Method to be benchmarked
+stopWatch.Stop()
+Console.WriteLine($"{stopWatch.ElapsedMilliseconds} ms")
+----
+
+== Resources
+
+=== Documentation
+
+* https://learn.microsoft.com/en-us/dotnet/api/system.datetime?view=net-7.0#datetime-resolution
