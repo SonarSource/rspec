@@ -1,6 +1,9 @@
 Promises need to be resolved or awaited to return the expected value, otherwise, they return the promise object.
 
-This rule forbids providing promises in conditionals.
+This rule forbids returning promises where another type is expected such as in:
+- conditionals
+- void returns
+- spread operators
 
 // If you want to factorize the description uncomment the following line and create the file.
 //include::../description.adoc[]
@@ -12,11 +15,17 @@ Forgetting to await a promise is a frequent mistake. There are places where it m
 === What is the potential impact?
 
 Using a promise instead of its resolved values can have unexpected results leading to bugs.
+
 In conditionals, it will always return a truthy value.
+
+In places where the expected type is void, returning a promise is often a mistake.
+
+Using the spread operator on a promise will raise an exception.
 
 == How to fix it
 
-Await the promise so the value gets resolved correctly.
+If you mistook the promise with its resolved value, await the promise so it gets resolved correctly.
+Otherwise, you might need to adapt your code accordingly.
 
 //== How to fix it in FRAMEWORK NAME
 
@@ -26,7 +35,10 @@ Await the promise so the value gets resolved correctly.
 
 [source,javascript,diff-id=1,diff-type=noncompliant]
 ----
-const promise = new Promise((resolve, reject) => resolve(5));
+const promise = new Promise((resolve, reject) => {
+  // ...
+  resolve(true)
+});
 if (promise) {
   // ...
 }
@@ -36,15 +48,87 @@ if (promise) {
 
 [source,javascript,diff-id=1,diff-type=compliant]
 ----
-const promise = new Promise((resolve, reject) => resolve(5));
-if (promise) {
+const promise = new Promise((resolve, reject) => {
+  // ...
+  resolve(true)
+});
+if (await promise) {
   // ...
 }
 ----
 
-//=== How does this work?
+==== Noncompliant code example
 
-//=== Pitfalls
+[source,javascript,diff-id=2,diff-type=noncompliant]
+----
+const p = new Promise(async (resolve, reject) => {
+  doSomething('Hey, there!', function(err, res) {
+    if (err) {
+      reject(err);
+      return;
+    }
+    await saveResult(res)
+    resolve(res);
+  });
+});
+
+await p;
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=2,diff-type=compliant]
+----
+const p = new Promise(async (resolve, reject) => {
+  doSomething('Hey, there!', function(err, res) {
+    if (err) {
+      reject(err);
+      return;
+    }
+    resolve(res);
+  });
+});
+
+const res = await p;
+await saveResult(res);
+----
+
+==== Noncompliant code example
+
+[source,javascript,diff-id=3,diff-type=noncompliant]
+----
+apiCalls.forEach(async (apiCall) => {
+  await apiCall.send();
+});
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=3,diff-type=compliant]
+----
+for (const apiCall of apiCalls) {
+  await apiCall.send();
+}
+----
+
+=== How does this work?
+
+In JavaScript, a promise is a mechanism to perform tasks asynchronously.
+To this end, the language provides the `Promise` object which represents the eventual completion or
+failure of an asynchronous operation and its resulting value.
+A promise can be created with the `Promise` constructor accepting an executor function as an argument,
+which has `resolve` and `reject` parameters that are invoked when the promise completes or fails.
+
+The logic of the promise is executed when it is called, however its result is obtained only when the promise is resolved or awaited.
+
+=== Pitfalls
+
+==== Executor function of a promise is async
+
+The executor function of a promise can also be an async function. However, this usually denotes a mistake:
+
+- If an async executor function throws an error, the error won't cause the created Promise to reject and will be lost therefore. This could make it difficult to debug and handle runtime errors.
+- If a Promise executor function is using `await`, this means that it's not necessary to use the Promise constructor, or the scope of the Promise constructor can be reduced.
 
 //=== Going the extra mile
 
@@ -52,8 +136,9 @@ if (promise) {
 == Resources
 
 === Documentation
-* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function[MDN async/await]
-* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises[MDN using promises]
+* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise[MDN Promise]
+* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises[MDN Using promises]
+* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function[MDN Async function]
 
 //=== Articles & blog posts
 //=== Conference presentations
