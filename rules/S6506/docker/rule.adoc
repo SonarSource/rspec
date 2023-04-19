@@ -5,11 +5,15 @@ include::../ask-yourself.adoc[]
 include::../recommended.adoc[]
 
 == Noncompliant Code Example
-In this example, an install script is downloaded using curl and then executed.
+In the examples below, an install script is downloaded using `curl` and then executed.
 
-Several options are set to ensure secure execution of the HTTP request using curl. However, as the option `-L` is set, `\https://might-redirect.example.com/install.sh` might redirect curl to a location that uses HTTP. If this is the case, an attacker can change the install script that will be executed on the host system.
+While connections made using HTTPS are generally considered secure, `\https://might-redirect.example.com/install.sh`
+might redirect to a location that uses HTTP. Downloads made using HTTP are not secure and can be intercepted and
+modified. An attacker could modify the install script to run malicious code inside the container.
 
-[source,docker]
+`curl` will not follow redirects unless either `-L` or `--location` option is used.
+
+[source,docker,diff-id=1,diff-type=noncompliant]
 ----
 FROM ubuntu:22.04
 
@@ -18,14 +22,24 @@ RUN curl --tlsv1.2 -sSf -L https://might-redirect.example.com/install.sh | sh
 ----
 
 == Compliant Solution
-By adding the option `--proto "=https"` to the HTTP request, curl will only execute requests made using HTTPS.
-If a redirect goes to an insecure (HTTP) location, the request will not be executed. This ensures that no tampering can occur.
+If you expect the server to redirect the download to a new location, `curl` can use the option `--proto "=https"`
+to ensure requests are only made using HTTPS. Any attempt to redirect to a location using HTTP will result in an error.
 
-[source,docker]
+[source,docker,diff-id=1,diff-type=compliant]
 ----
 FROM ubuntu:22.04
 
 RUN curl --proto "=https" --tlsv1.2 -sSf -L https://might-redirect.example.com/install.sh | sh
+----
+
+If you expect the server to return the file without redirects, `curl` should not be instructed to follow redirects.
+Remove any `-L` or `--location` options from the command.
+
+[source,docker,diff-id=1,diff-type=compliant]
+----
+FROM ubuntu:22.04
+
+RUN curl --tlsv1.2 -sSf https://might-redirect.example.com/install.sh | sh
 ----
 
 include::../see.adoc[]
