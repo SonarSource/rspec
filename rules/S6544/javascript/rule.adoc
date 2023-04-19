@@ -1,9 +1,13 @@
 Promises need to be resolved or awaited to return the expected value, otherwise, they return the promise object.
 
 This rule forbids returning promises where another type is expected such as in:
-- conditionals
-- void returns
-- spread operators
+* conditionals
+* void returns
+* spread operators
+
+When calling a promise, it needs either to be:
+* awaited
+* resolved and error handled
 
 // If you want to factorize the description uncomment the following line and create the file.
 //include::../description.adoc[]
@@ -12,23 +16,42 @@ This rule forbids returning promises where another type is expected such as in:
 
 Forgetting to await a promise is a frequent mistake. There are places where it makes no sense to use a promise, but the developer forgets to resolve it.
 
+Promises that aren't resolved will run at an unexpected time, when they do not contain error handling and they raise an exception, the associated call stack will be wrong.
+
+=== Exceptions
+
+This rule can be ignored for promises that you know will always resolve like timers.
+
+[source,javascript]
+----
+await new Promise(resolve => time.setTimeout(1000));
+----
+
 === What is the potential impact?
 
 Using a promise instead of its resolved value can have unexpected results leading to bugs.
 
-- In conditionals, it will always return a truthy value.
-- In places where the expected type is void, returning a promise is often a mistake.
-- Using the spread operator on a promise will raise an exception.
+* In conditionals, it will always return a truthy value.
+* In places where the expected type is void, returning a promise is often a mistake.
+* Using the spread operator on a promise will raise an exception.
 
 The executor function of a promise can also be an async function. However, this usually denotes a mistake:
 
-- If an async executor function throws an error, the error won't cause the created promise to reject and will be lost. Therefore, this could make it difficult to debug and handle runtime errors.
-- If a promise executor function is using `await`, this means that it's not necessary to use the `Promise` constructor, or the scope of the Promise constructor can be reduced.
+* If an async executor function throws an error, the error won't cause the created promise to reject and will be lost. Therefore, this could make it difficult to debug and handle runtime errors.
+* If a promise executor function is using `await`, this means that it's not necessary to use the `Promise` constructor, or the scope of the Promise constructor can be reduced.
 
 == How to fix it
 
-If you mistook the promise with its resolved value, await the promise so it gets resolved correctly.
-Otherwise, you might need to adapt your code accordingly.
+If you mistook the promise with its resolved value, await or resolve the promise so it gets resolved correctly, using an IIFE if necessary:
+
+[source,javascript]
+----
+(async foo() {
+  await bar();
+})()
+----
+
+If you forgot to handle the promise rejection, you should add it either with `.catch(error => {/*...*/})` or `.then(result => {}, error => {})`.
 
 //== How to fix it in FRAMEWORK NAME
 
@@ -112,6 +135,29 @@ apiCalls.forEach(async (apiCall) => {
 for (const apiCall of apiCalls) {
   await apiCall.send();
 }
+----
+
+==== Noncompliant code example
+
+[source,javascript,diff-id=4,diff-type=noncompliant]
+----
+fetch('https://api.com/entries')
+  .then(result => {
+    // ...
+  });
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=4,diff-type=compliant]
+----
+fetch('https://api.com/entries')
+  .then(result => {
+    // ...
+  })
+  .catch(error => {
+    // ...
+  });
 ----
 
 === How does this work?
