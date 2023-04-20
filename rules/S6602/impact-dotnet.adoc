@@ -1,0 +1,58 @@
+=== What is the potential impact?
+
+We measured ~3x improvement in execution time by running the following snippet with https://github.com/dotnet/BenchmarkDotNet[BenchmarkDotNet].
+
+[source,csharp]
+----
+private List<string> data;
+private Random random = new Random();
+
+[Params(1_000)]
+public int N { get; set; }
+
+[GlobalSetup]
+public void Setup() =>
+    data = Enumerable.Range(0, N).Select(x => Guid.NewGuid().ToString()).ToList();
+
+[Benchmark(Baseline = true)]
+public void FirstOrDefault()
+{
+    for (var i = 0; i < N; i++)
+    {
+        var value = data[random.Next(N - 1)];
+        _ = data.FirstOrDefault(x => x == value);
+    }
+}
+
+[Benchmark]
+public void Find()
+{
+    for (var i = 0; i < N; i++)
+    {
+        var value = data[random.Next(N - 1)];
+        _ = data.Find(x => x == value);
+    }
+}
+----
+
+[options="header"]
+|===
+| Method | Runtime | N | Mean | Error | StdDev | Median | Ratio | RatioSD | Gen0 | Allocated | Alloc Ratio |
+| FirstOrDefault | .NET 5.0 | 1000 | 5.100 ms | 0.0313 ms | 0.0292 ms | 5.087 ms | 1.00 | 0.00 | 7.8125 | 125 KB | 1.00 |
+| Find | .NET 5.0 | 1000 | 2.035 ms | 0.0384 ms | 0.0377 ms | 2.017 ms | 0.40 | 0.01 | 3.9063 | 85.94 KB | 0.69 |
+| FirstOrDefault | .NET 6.0 | 1000 | 4.964 ms | 0.0964 ms | 0.2055 ms | 4.889 ms | 1.00 | 0.00 | 7.8125 | 125 KB | 1.00 |
+| Find | .NET 6.0 | 1000 | 1.721 ms | 0.0138 ms | 0.0115 ms | 1.724 ms | 0.34 | 0.02 | 5.8594 | 85.94 KB | 0.69 |
+| FirstOrDefault | .NET 7.0 | 1000 | 5.373 ms | 0.1049 ms | 0.1208 ms | 5.349 ms | 1.00 | 0.00 | 7.8125 | 125 KB | 1.00 |
+| Find | .NET 7.0 | 1000 | 1.691 ms | 0.0334 ms | 0.0557 ms | 1.674 ms | 0.32 | 0.01 | 5.8594 | 85.94 KB | 0.69 |
+| FirstOrDefault | .NET Framework 4.6.2 | 1000 | 5.035 ms | 0.0421 ms | 0.0351 ms | 5.042 ms | 1.00 | 0.00 | 15.6250 | 125.38 KB | 1.00 |
+| Find | .NET Framework 4.6.2 | 1000 | 1.779 ms | 0.0107 ms | 0.0095 ms | 1.782 ms | 0.35 | 0.00 | 13.6719 | 86.2 KB | 0.69 |
+|===
+
+Configuration used for running the benchmarks:
+```
+BenchmarkDotNet=v0.13.5, OS=Windows 10 (10.0.19045.2846/22H2/2022Update)
+11th Gen Intel Core i7-11850H 2.50GHz, 1 CPU, 16 logical and 8 physical cores
+  [Host]               : .NET Framework 4.8 (4.8.4614.0), X64 RyuJIT VectorSize=256
+  .NET 7.0             : .NET 7.0.5 (7.0.523.17405), X64 RyuJIT AVX2
+  .NET Framework 4.6.2 : .NET Framework 4.8 (4.8.4614.0), X64 RyuJIT VectorSize=256
+```
