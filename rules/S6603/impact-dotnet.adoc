@@ -1,0 +1,58 @@
+=== What is the potential impact?
+
+We measured ~4-5x improvement in execution time by running the following snippet with https://github.com/dotnet/BenchmarkDotNet[BenchmarkDotNet].
+
+[source,csharp]
+----
+private List<int> data;
+
+[Params(10_000)]
+public int N { get; set; }
+
+[GlobalSetup]
+public void Setup() =>
+    data = Enumerable.Range(0, N).Select(x => 42).ToList();
+
+[Benchmark(Baseline = true)]
+public void TrueForAll()
+{
+    for (var i = 0; i < N; i++)
+    {
+        _ = data.TrueForAll(x => x == 42); // forcing a full collection iteration
+    }
+}
+
+[Benchmark]
+public void All()
+{
+    for (var i = 0; i < N; i++)
+    {
+        _ = data.All(x => x == 42); // forcing a full collection iteration
+    }
+}
+----
+
+[options="header"]
+|===
+|Method | Runtime | N | Mean | Error | StdDev | Ratio | RatioSD | Allocated | Alloc Ratio
+| TrueForAll | .NET 5.0 | 10000 | 130.7 ms | 0.92 ms | 0.82 ms | 1.00 | 0.00 | 812 B | 1.00
+| All | .NET 5.0 | 10000 | 521.0 ms | 2.73 ms | 2.56 ms | 3.98 | 0.03 | 409080 B | 503.79
+| TrueForAll | .NET 6.0 | 10000 | 108.3 ms | 0.63 ms | 0.56 ms | 1.00 | 0.00 | 986 B | 1.00
+| All | .NET 6.0 | 10000 | 570.5 ms | 4.59 ms | 4.29 ms | 5.28 | 0.03 | 405288 B | 411.04
+| TrueForAll | .NET 7.0 | 10000 | 132.3 ms | 2.59 ms | 3.18 ms | 1.00 | 0.00 | 126 B | 1.00
+| All | .NET 7.0 | 10000 | 648.4 ms | 3.03 ms | 2.53 ms | 4.88 | 0.13 | 400504 B | 3,178.60
+| TrueForAll | .NET Framework 4.6.2 | 10000 | 126.7 ms | 2.28 ms | 2.14 ms | 1.00 | 0.00 | - | NA
+| All | .NET Framework 4.6.2 | 10000 | 495.9 ms | 1.37 ms | 1.22 ms | 3.91 | 0.07 | 401408 B | NA
+|===
+
+Configuration used for running the benchmarks:
+```
+BenchmarkDotNet=v0.13.5, OS=Windows 10 (10.0.19045.2846/22H2/2022Update)
+12th Gen Intel Core i7-12800H, 1 CPU, 20 logical and 14 physical cores
+.NET SDK=7.0.203
+  [Host]               : .NET 7.0.5 (7.0.523.17405), X64 RyuJIT AVX2
+  .NET 5.0             : .NET 5.0.17 (5.0.1722.21314), X64 RyuJIT AVX2
+  .NET 6.0             : .NET 6.0.16 (6.0.1623.17311), X64 RyuJIT AVX2
+  .NET 7.0             : .NET 7.0.5 (7.0.523.17405), X64 RyuJIT AVX2
+  .NET Framework 4.6.2 : .NET Framework 4.8 (4.8.4614.0), X64 RyuJIT VectorSize=256
+```
