@@ -1,0 +1,84 @@
+=== What is the potential impact?
+
+We measured at least 2x improvement in execution time by running the following snippet with https://github.com/dotnet/BenchmarkDotNet[BenchmarkDotNet].
+
+[source,csharp]
+----
+private HashSet<PointDefaultEquality> defaultEqualityData = new HashSet<PointDefaultEquality>();
+private HashSet<PointCustomEquality> customEqualityData = new HashSet<PointCustomEquality>();
+
+[Params(1_000_000)]
+public int Size { get; set; }
+
+[GlobalSetup]
+public void Setup()
+{
+    foreach (var value in Enumerable.Range(0, Size))
+    {
+        defaultEqualityData.Add(new PointDefaultEquality { X = value, Y = value % 2 });
+        customEqualityData.Add(new PointCustomEquality { X = value, Y = value % 2 });
+    }
+}
+
+[Benchmark(Baseline = true)]
+public void DefaultEquality()
+{
+    for (var i = 0; i < Size; i++)
+    {
+        _ = defaultEqualityData.Contains(new PointDefaultEquality { X = i, Y = 0 });
+    }
+}
+
+[Benchmark]
+public void CustomEquality()
+{
+    for (var i = 0; i < Size; i++)
+    {
+        _ = customEqualityData.Contains(new PointCustomEquality { X = i, Y = 0 });
+    }
+}
+
+public struct PointDefaultEquality
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+public struct PointCustomEquality
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+
+    public bool Equals(PointCustomEquality other) =>
+        X == other.X && Y == other.Y;
+
+    public override bool Equals(object obj) =>
+        obj is PointCustomEquality other && Equals(other);
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            return (X.GetHashCode() * 397) ^ Y.GetHashCode();
+        }
+    }
+}
+----
+
+[options="header"]
+|===
+|          Method |              Runtime |    Size |     Mean |    Error |   StdDev |   Median | Ratio | RatioSD |       Gen0 | Allocated | Alloc Ratio |
+| DefaultEquality |             .NET 7.0 | 1000000 | 35.80 ms | 0.710 ms | 1.186 ms | 35.80 ms |  1.00 |    0.00 |  5733.3333 |  68.66 MB |        1.00 |
+|  CustomEquality |             .NET 7.0 | 1000000 | 17.65 ms | 1.011 ms | 2.885 ms | 16.17 ms |  0.46 |    0.05 |   937.5000 |  11.44 MB |        0.17 |
+| DefaultEquality | .NET Framework 4.6.2 | 1000000 | 54.27 ms | 1.062 ms | 1.489 ms | 54.55 ms |  1.00 |    0.00 | 11400.0000 |  68.87 MB |        1.00 |
+|  CustomEquality | .NET Framework 4.6.2 | 1000000 | 20.22 ms | 0.361 ms | 0.371 ms | 20.28 ms |  0.37 |    0.02 |  1906.2500 |  11.48 MB |        0.17 |
+|===
+
+Configuration used for running the benchmarks:
+```
+BenchmarkDotNet=v0.13.5, OS=Windows 10 (10.0.19045.2846/22H2/2022Update)
+11th Gen Intel Core i7-11850H 2.50GHz, 1 CPU, 16 logical and 8 physical cores
+  [Host]               : .NET Framework 4.8 (4.8.4614.0), X64 RyuJIT VectorSize=256
+  .NET 7.0             : .NET 7.0.5 (7.0.523.17405), X64 RyuJIT AVX2
+  .NET Framework 4.6.2 : .NET Framework 4.8 (4.8.4614.0), X64 RyuJIT VectorSize=256
+```
