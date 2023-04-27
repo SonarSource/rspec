@@ -36,7 +36,7 @@ SECTIONS = {
   'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
 }
 OPTIONAL_SECTIONS = {
-  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards']
+  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'Benchmarks']
 }
 SUBSECTIONS = {
   'Code examples': ['Noncompliant code example', 'Compliant solution']
