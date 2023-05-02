@@ -147,12 +147,6 @@ def test_education_format_missing_mandatory_sections_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule common:S200 is missing the "Why is this an issue\\?" section'):
     validate_section_names(rule)
 
-def test_education_missing_how_to_fix_it_validation(invalid_rule):
-  '''Check that missing the "How to fix it" in the education format breaks validation'''
-  rule = invalid_rule('S200', 'php')
-  with pytest.raises(RuleValidationError, match=f'Rule php:S200 is missing a "How to fix it" section'):
-    validate_section_names(rule)
-
 def test_code_examples_with_typo_validation(invalid_rule):
   '''Check that the "Code examples" subsection with a typo in the education format breaks validation'''
   rule = invalid_rule('S200', 'cobol')
@@ -164,6 +158,11 @@ def test_noncompliant_examples_with_typo_validation(invalid_rule):
   rule = invalid_rule('S200', 'apex')
   with pytest.raises(RuleValidationError, match=f'Rule apex:S200 has a "Code examples" subsection with an unallowed name: "Non-compliant example"'):
     validate_subsections(rule)
+
+def test_valid_optional_how_to_fix_it_section_validation(rule_language):
+  '''Check that missing the "How to fix it" section in the education format is considered valid'''
+  rule = rule_language('S200', 'php')
+  validate_section_names(rule)
 
 def test_valid_how_to_fix_it_subsections_validation(rule_language):
   '''Check that expected format is considered valid'''
