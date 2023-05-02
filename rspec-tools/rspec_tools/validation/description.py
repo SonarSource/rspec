@@ -24,13 +24,13 @@ HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-LEGACY_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/legacy_section_names.adoc')
+HOTSPOT_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/hotspot_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
-# This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#3-progressive-education)
+# This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#2-education-format)
 SECTIONS = {
-  'Why is this an issue?': ['What is the potential impact?']
+  'Why is this an issue?': ['What is the potential impact?', 'Noncompliant code example', 'Compliant solution', 'Exceptions']
 }
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
@@ -61,9 +61,9 @@ def validate_section_names(rule_language: LanguageSpecificRule):
       # All mandatory titles have to be present in the rule description.
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
   else:
-    # we're using the legacy format
+    # Using the hotspot format.
     for title in h2_titles:
-      if title not in LEGACY_SECTION_NAMES:
+      if title not in HOTSPOT_SECTION_NAMES:
         raise RuleValidationError(f'Rule {rule_language.id} has an unconventional header "{title}"')
 
 def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h2_titles: list[str]):
