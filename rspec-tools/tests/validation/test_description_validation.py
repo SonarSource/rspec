@@ -22,9 +22,11 @@ def invalid_rule(mockinvalidrules: Path):
     return rule.get_language(language)
   return _invalid_rule
 
-def test_valid_sections_passes_validation(rule_language):
-  '''Check that description with standard sections is considered valid.'''
-  validate_section_names(rule_language('S100', 'cfamily'))
+def test_legacy_sections_fails_validation(rule_language):
+  '''Check that description with standard sections are no longer considered valid.'''
+  rule = rule_language('S100', 'cfamily')
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule.id} has an unconventional header "Noncompliant Code Example"'):
+    validate_section_names(rule)
 
 def test_unexpected_section_fails_validation(invalid_rule):
   rule = invalid_rule('S100', 'cfamily')
