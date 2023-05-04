@@ -12,6 +12,7 @@ import os
 SUPPORTED_LANGUAGES_FILENAME = '../supported_languages.adoc'
 LANG_TO_LABEL = {'abap': 'abap',
                  'apex': 'slang',
+                 'arm': 'arm',
                  'cfamily': 'cfamily',
                  'cobol': 'cobol',
                  'csharp': 'dotnet',
@@ -73,6 +74,7 @@ LANG_TO_SOURCE = {
     'vb': 'vb',
     # these languages are not supported by highlight.js as the moment:
     'apex': 'apex',
+    'arm': 'arm',
     'cloudformation': 'cloudformation',
     'cobol': 'cobol',
     'flex': 'flex',
