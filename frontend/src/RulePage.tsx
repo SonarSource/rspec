@@ -145,7 +145,7 @@ type UsedStyles = ReturnType<typeof useStyles>;
 const languageToJiraProject = new Map(Object.entries({
   'PYTHON': 'SONARPY',
   'ABAP': 'SONARABAP',
-  'ARM': 'SONARIAC',
+  'AZURERESOURCEMANAGER': 'SONARIAC',
   'CFAMILY': 'CPP',
   'DOCKER': 'SONARIAC',
   'JAVA': 'SONARJAVA',
@@ -174,7 +174,7 @@ const languageToJiraProject = new Map(Object.entries({
 
 const languageToGithubProject = new Map(Object.entries({
   'ABAP': 'sonar-abap',
-  'ARM': 'sonar-iac',
+  'AZURERESOURCEMANAGER': 'sonar-iac',
   'CSHARP': 'sonar-dotnet',
   'DOCKER': 'sonar-iac',
   'VBNET': 'sonar-dotnet',
