@@ -56,6 +56,7 @@ LANG_TO_SOURCE = {
     'html': 'html',
     'java': 'java',
     'javascript': 'javascript',
+    'json': 'json',
     'kotlin': 'kotlin',
     'kubernetes': 'yaml',
     'php': 'php',
@@ -74,7 +75,7 @@ LANG_TO_SOURCE = {
     'vb': 'vb',
     # these languages are not supported by highlight.js as the moment:
     'apex': 'apex',
-    'azureresourcemanager': 'azureresourcemanager',
+    'bicep': 'bicep',
     'cloudformation': 'cloudformation',
     'cobol': 'cobol',
     'flex': 'flex',
