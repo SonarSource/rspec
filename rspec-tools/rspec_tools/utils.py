@@ -12,7 +12,7 @@ import os
 SUPPORTED_LANGUAGES_FILENAME = '../supported_languages.adoc'
 LANG_TO_LABEL = {'abap': 'abap',
                  'apex': 'slang',
-                 'azureresourcemanager': 'azureresourcemanager',
+                 'azureresourcemanager': 'iac',
                  'cfamily': 'cfamily',
                  'cobol': 'cobol',
                  'csharp': 'dotnet',
