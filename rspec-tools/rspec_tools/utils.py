@@ -49,6 +49,7 @@ LANG_TO_SOURCE = {
     # languages with syntax coloring in highlight.js
     'abap': 'abap',
     'cfamily': 'cpp',
+    'cloudformation': 'yaml',
     'csharp': 'csharp',
     'css': 'css',
     'docker': 'docker',
@@ -56,6 +57,7 @@ LANG_TO_SOURCE = {
     'html': 'html',
     'java': 'java',
     'javascript': 'javascript',
+    'json': 'json',
     'kotlin': 'kotlin',
     'kubernetes': 'yaml',
     'php': 'php',
@@ -65,7 +67,6 @@ LANG_TO_SOURCE = {
     'rust': 'rust',
     'scala': 'scala',
     'swift': 'swift',
-    'terraform': 'terraform',
     'tsql': 'sql',
     'vbnet': 'vbnet',
     'xml': 'xml',
@@ -74,12 +75,12 @@ LANG_TO_SOURCE = {
     'vb': 'vb',
     # these languages are not supported by highlight.js as the moment:
     'apex': 'apex',
-    'azureresourcemanager': 'azureresourcemanager',
-    'cloudformation': 'cloudformation',
+    'bicep': 'bicep',
     'cobol': 'cobol',
     'flex': 'flex',
     'pli': 'pli',
     'rpg': 'rpg',
+    'terraform': 'terraform',
     'text': 'text',
     'vb6': 'vb6'
 }
