@@ -76,7 +76,6 @@ LANG_TO_SOURCE = {
     # these languages are not supported by highlight.js as the moment:
     'apex': 'apex',
     'bicep': 'bicep',
-    'cloudformation': 'cloudformation',
     'cobol': 'cobol',
     'flex': 'flex',
     'pli': 'pli',
