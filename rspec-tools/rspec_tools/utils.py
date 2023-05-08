@@ -75,7 +75,7 @@ LANG_TO_SOURCE = {
     'vb': 'vb',
     # these languages are not supported by highlight.js as the moment:
     'apex': 'apex',
-    'bicep': 'bicep',
+    'azureresourcemanager': 'bicep',
     'cobol': 'cobol',
     'flex': 'flex',
     'pli': 'pli',
