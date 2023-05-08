@@ -1,7 +1,6 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
-from collections import Counter
 
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
@@ -25,18 +24,18 @@ HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
 # in the migrated RSPECs.
 # Further work required to shorten the list by renaming the sections in some RSPECS
 # to keep only on version for each title.
-LEGACY_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/legacy_section_names.adoc')
+HOTSPOT_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/hotspot_section_names.adoc')
 # The list of all the framework names currently accepted by the script.
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
-# This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#3-progressive-education)
+# This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#2-education-format)
 SECTIONS = {
-  'Why is this an issue?': ['What is the potential impact?'],
-  # Also covers 'How to fix it in {Framework Display Name}'
-  'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
+  'Why is this an issue?': ['What is the potential impact?', 'Noncompliant code example', 'Compliant solution', 'Exceptions']
 }
 OPTIONAL_SECTIONS = {
-  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'Benchmarks']
+  # Also covers 'How to fix it in {Framework Display Name}'
+  'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
+  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'Benchmarks', 'Related rules']
 }
 SUBSECTIONS = {
   'Code examples': ['Noncompliant code example', 'Compliant solution']
@@ -55,26 +54,26 @@ def validate_section_names(rule_language: LanguageSpecificRule):
 
   education_titles = intersection(h2_titles, list(SECTIONS.keys()) + list(OPTIONAL_SECTIONS.keys()))
   if education_titles:
-    # we're using the education format
+    # Using the education format.
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
     missing_titles = difference(list(SECTIONS.keys()), education_titles)
-    # we handled "how to fix it" sections above
-    missing_titles_without_how_to_fix_its = [ s for s in missing_titles if not HOW_TO_FIX_IT_REGEX.match(s)]
-    if missing_titles_without_how_to_fix_its:
-      # when using the progressive education format, we need to have all its mandatory titles
-      raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles_without_how_to_fix_its[0]}" section')
+    if missing_titles:
+      # All mandatory titles have to be present in the rule description.
+      raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
   else:
-    # we're using the legacy format
+    # Using the hotspot format.
     for title in h2_titles:
-      if title not in LEGACY_SECTION_NAMES:
+      if title not in HOTSPOT_SECTION_NAMES:
         raise RuleValidationError(f'Rule {rule_language.id} has an unconventional header "{title}"')
 
 def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h2_titles: list[str]):
   how_to_fix_it_sections = [ s for s in h2_titles if HOW_TO_FIX_IT_REGEX.match(s) ]
+  if not how_to_fix_it_sections:
+    # No 'How to fix it' section for the rule.
+    return
   if len(how_to_fix_it_sections) > 6:
     raise RuleValidationError(f'Rule {rule_language.id} has more than 6 "{HOW_TO_FIX_IT}" sections. Please ensure this limit can be increased with PM/UX teams')
-  if not how_to_fix_it_sections:
-    raise RuleValidationError(f'Rule {rule_language.id} is missing a "{HOW_TO_FIX_IT}" section')
+
   if HOW_TO_FIX_IT in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
     raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "{HOW_TO_FIX_IT}" or one or more "How to fix it in FRAMEWORK"')
   duplicate_names = [x for x in how_to_fix_it_sections if how_to_fix_it_sections.count(x) > 1] # O(n*n) is fine, given n <= 6
@@ -165,12 +164,12 @@ Are you looking for "{highlight_name(rule_language)}"?''')
 
 def validate_subsections(rule_language: LanguageSpecificRule):
   for optional_section in list(OPTIONAL_SECTIONS.keys()):
-    validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
-  for mandatory_section in list(SECTIONS.keys()):
-    if mandatory_section == HOW_TO_FIX_IT:
-      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section], section_regex=HOW_TO_FIX_IT_REGEX)
+    if optional_section == HOW_TO_FIX_IT:
+      validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section], section_regex=HOW_TO_FIX_IT_REGEX)
     else:
-      validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
+      validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
+  for mandatory_section in list(SECTIONS.keys()):
+    validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
     if subsection_with_sub_subsection == 'Code examples':
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4, is_duplicate_allowed=True)

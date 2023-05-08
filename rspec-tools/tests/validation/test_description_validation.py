@@ -22,9 +22,11 @@ def invalid_rule(mockinvalidrules: Path):
     return rule.get_language(language)
   return _invalid_rule
 
-def test_valid_sections_passes_validation(rule_language):
-  '''Check that description with standard sections is considered valid.'''
-  validate_section_names(rule_language('S100', 'cfamily'))
+def test_legacy_sections_fails_validation(rule_language):
+  '''Check that description with standard sections are no longer considered valid.'''
+  rule = rule_language('S100', 'cfamily')
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule.id} has an unconventional header "Noncompliant Code Example"'):
+    validate_section_names(rule)
 
 def test_unexpected_section_fails_validation(invalid_rule):
   rule = invalid_rule('S100', 'cfamily')
@@ -147,12 +149,6 @@ def test_education_format_missing_mandatory_sections_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule common:S200 is missing the "Why is this an issue\\?" section'):
     validate_section_names(rule)
 
-def test_education_missing_how_to_fix_it_validation(invalid_rule):
-  '''Check that missing the "How to fix it" in the education format breaks validation'''
-  rule = invalid_rule('S200', 'php')
-  with pytest.raises(RuleValidationError, match=f'Rule php:S200 is missing a "How to fix it" section'):
-    validate_section_names(rule)
-
 def test_code_examples_with_typo_validation(invalid_rule):
   '''Check that the "Code examples" subsection with a typo in the education format breaks validation'''
   rule = invalid_rule('S200', 'cobol')
@@ -164,6 +160,11 @@ def test_noncompliant_examples_with_typo_validation(invalid_rule):
   rule = invalid_rule('S200', 'apex')
   with pytest.raises(RuleValidationError, match=f'Rule apex:S200 has a "Code examples" subsection with an unallowed name: "Non-compliant example"'):
     validate_subsections(rule)
+
+def test_valid_optional_how_to_fix_it_section_validation(rule_language):
+  '''Check that missing the "How to fix it" section in the education format is considered valid'''
+  rule = rule_language('S200', 'php')
+  validate_section_names(rule)
 
 def test_valid_how_to_fix_it_subsections_validation(rule_language):
   '''Check that expected format is considered valid'''

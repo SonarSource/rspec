@@ -91,7 +91,7 @@ class TestCLIValidateDescription:
     return runner.invoke(cli, arguments)
 
   def test_valid_rule(self):
-    result = self._run(['S100'])
+    result = self._run(['S3649'])
     assert result.output == ''
     assert result.exit_code == 0
 
