@@ -1,92 +1,88 @@
 == Why is this an issue?
 
-The public API of a framework, plugin, or library is the way its provider intended it to be used.
-API stability and compatibility (within the same major version number) of a library are guaranteed only for its public API.
+Custom tasks and plugins should be moved from the build script to the `buildSrc` directory
+to encapsulate custom build logic and separate it against its application in the build script.
 
-Internal APIs are mere implementation details and are prone to breaking changes as the implementation of the library changes.
-No guarantees are being made about them. Therefore, users should not use internal APIs, even when visible.
+This helps to keep the build script clean and easy to understand.
 
 === What is the potential impact?
 
-==== Code Stability
+==== Readability and Understanding
 
-If not fixed, your code might break when the library is upgraded to a new version, even if only the minor version number or the patch number changes.
+This change makes the build script easier to read and understand due to encapsulation and separation of concerns.
 
 == How to fix it
 
-Replace internal API usage with the public API designed for your use case.
-This may imply a refactoring of the affected code if no one-to-one replacement is available in the public API.
-If a specific functionality is required, copying the required parts of the implementation into your code may even be better than using the internal API.
+Move custom tasks, plugins, and configuration extensions from your `./build.gradle.kts` file
+to source files in `./buildSrc/src/main/kotlin`.
+You should apply package names and folders like for any other source code.
+Please see the attached links for details about how to write custom plugins and the proper use of the `./buildSrc` directory.
 
 === Code examples
 
 ==== Noncompliant code example
 
+**./build.gradle.kts**
 [source,kotlin,diff-id=1,diff-type=noncompliant]
 ----
-// ./build.gradle.kts:
-
-class MyCustomTask : DefaultTask() {
+open class MyCustomTask : DefaultTask() {
     // ...
 }
 
 tasks.register<MyCustomTask>("myCustom")
 
-class MyCustomExtension {
-    var flag: Boolean
+open class MyCustomExtension {
+    var flag: Boolean = false
 }
 
-extensions.create<MyCustomException>("myCustom")
+extensions.create<MyCustomExtension>("myCustomExtension")
 
-myCustom {
-    flag = false
-}
-----
+val myCustomExtension: MyCustomExtension by project
 
-[source,kotlin,diff-id=2,diff-type=noncompliant]
-----
-// ./build.gradle.kts:
-
-class MyCustomPlugin : Plugin<Project> {
-    // ...
-}
-
-plugins {
-    MyCustomPlugin
-}
-
+myCustomExtension.flag = true
 ----
 
 ==== Compliant solution
 
+
+**./buildSrc/src/main/kotlin/mypackage/MyCustomTask.kt**
 [source,kotlin,diff-id=1,diff-type=compliant]
 ----
-// ./buildSrc/src/main/kotlin/packagename
+package mypackage
 
+import org.gradle.api.DefaultTask
 
-
-class MyCustomTask : DefaultTask() {
+open class MyCustomTask : DefaultTask() {
     // ...
 }
+----
 
+**./buildSrc/src/main/kotlin/mypackage/MyCustomExtension.kt**
+[source,kotlin,diff-id=1,diff-type=compliant]
+----
+package mypackage
+
+open class MyCustomExtension {
+    var flag: Boolean = false
+}
+----
+
+**./build.gradle.kts**
+[source,kotlin,diff-id=1,diff-type=compliant]
+----
+import mypackage.MyCustomExtension
+import mypackage.MyCustomTask
 
 tasks.register<MyCustomTask>("myCustom")
+extensions.create<MyCustomExtension>("myCustomExtension")
 
-class MyCustomExtension {
-    var flag: Boolean
-}
-
-extensions.create<MyCustomException>("myCustom")
-
-// ./build.gradle.kts:
-
-myCustom {
-    flag = false
-}
+val myCustomExtension: MyCustomExtension by project
+myCustomExtension.flag = true
 ----
 
 == Resources
 
 === Documentation
 
+* https://docs.gradle.org/current/userguide/organizing_gradle_projects.html#sec:build_sources[Gradle Documentation - Use "buildSrc" to abstract imperative logic]
 * https://docs.gradle.org/current/userguide/custom_tasks.html#custom_tasks[Gradle Documentation - Developing Custom Gradle Task Types]
