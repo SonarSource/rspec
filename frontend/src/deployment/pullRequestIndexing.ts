@@ -44,6 +44,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
         return Git.Clone.clone('https://' + process.env.GITHUB_TOKEN + '@github.com/SonarSource/rspec/', tmpRepoDir);
       } else {
         return Git.Clone.clone('https://github.com/SonarSource/rspec/', tmpRepoDir);
+	logger.error(`Token is missing`);
       }
     } else {
       return Git.Repository.open(tmpRepoDir);
@@ -55,6 +56,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
   for (const pull of pulls) {
     const ref = await repo.getBranch('refs/remotes/origin/pr/' + pull.pull_id);
     await repo.checkoutRef(ref);
+    logger.error(`Processing PR ${pull.pull_id} (${pull.url}`)
     const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
     if (fs.existsSync(ruleDir)) {
       try {
