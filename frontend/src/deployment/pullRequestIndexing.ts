@@ -27,17 +27,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
   const octokit = process.env.GITHUB_TOKEN ?
     new Octokit({userAgent: 'rspec-tools', auth: process.env.GITHUB_TOKEN}):
     new Octokit({userAgent: 'rspec-tools'});
-  const { data } = await octokit.rest.pulls.list({owner:'SonarSource', repo:'rspec', state:'open'});
-  let pulls = [];
-  for (const pull of data) {
-    const found = pull.title.match('^Create rule (S[0-9]+)($|[^0-9])');
-    if (found) {
-      pulls.push({rspec_id: found[1],
-                  url: pull.html_url,
-                  branch: pull.head.ref,
-                  pull_id: pull.number});
-    }
-  }
+
   const repo = await (() => {
     if (!fs.existsSync(path.join(tmpRepoDir, '.git'))) {
       if (process.env.GITHUB_TOKEN) {
@@ -52,18 +42,42 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
   const config = await repo.config();
   await config.setString('remote.origin.fetch', '+refs/pull/*/head:refs/remotes/origin/pr/*');
   await repo.fetch('origin');
-  for (const pull of pulls) {
-    const ref = await repo.getBranch('refs/remotes/origin/pr/' + pull.pull_id);
-    await repo.checkoutRef(ref);
-    const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
-    if (fs.existsSync(ruleDir)) {
-      try {
-        callback(ruleDir, pull);
-      } catch (e) {
-        logger.error(`Failed to process PR (${pull.url}), it will be skipped (${e})`);
+
+  let page = 1;
+  const perPage = 100;
+  let fetchNext = true;
+  while (fetchNext) {
+    const { data } = await octokit.rest.pulls.list({owner:'SonarSource',
+                                                    repo:'rspec',
+                                                    state:'open',
+                                                    per_page: perPage,
+                                                    page});
+    let pulls = [];
+    for (const pull of data) {
+      const found = /^Create rule (S\d+)($|[^\d])/.exec(pull.title);
+      if (found) {
+        pulls.push({rspec_id: found[1],
+                    url: pull.html_url,
+                    branch: pull.head.ref,
+                    pull_id: pull.number});
       }
-    } else {
-      logger.error(`No rule dir rules/${pull.rspec_id} is found for the PR#${pull.pull_id}: ${pull.url}`);
     }
+    for (const pull of pulls) {
+      const ref = await repo.getBranch('refs/remotes/origin/pr/' + pull.pull_id);
+      await repo.checkoutRef(ref);
+      const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
+      if (fs.existsSync(ruleDir)) {
+        try {
+          callback(ruleDir, pull);
+        } catch (e) {
+          logger.error(`Failed to process PR (${pull.url}), it will be skipped (${e})`);
+        }
+      } else {
+        logger.error(`No rule dir rules/${pull.rspec_id} is found for the PR#${pull.pull_id}: ${pull.url}`);
+      }
+    }
+
+    ++page;
+    fetchNext = (data.length === perPage);
   }
 }
