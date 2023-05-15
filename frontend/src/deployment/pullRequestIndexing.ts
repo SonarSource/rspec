@@ -52,17 +52,17 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
                                                     state:'open',
                                                     per_page: perPage,
                                                     page});
-    let pulls = [];
-    for (const pull of data) {
-      const found = /^Create rule (S\d+)/.exec(pull.title);
-      if (found) {
-        pulls.push({rspec_id: found[1],
-                    url: pull.html_url,
-                    branch: pull.head.ref,
-                    pull_id: pull.number});
+	    
+    for (const pullData of data) {
+      const found = /^Create rule (S\d+)/.exec(pullData.title);
+      if (!found) {
+        continue;
       }
-    }
-    for (const pull of pulls) {
+
+      const pull = {rspec_id: found[1],
+                    url: pullData.html_url,
+                    branch: pullData.head.ref,
+                    pull_id: pullData.number};
       const ref = await repo.getBranch('refs/remotes/origin/pr/' + pull.pull_id);
       await repo.checkoutRef(ref);
       const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
