@@ -52,7 +52,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
                                                     state:'open',
                                                     per_page: perPage,
                                                     page});
-	    
+
     for (const pullData of data) {
       const found = /^Create rule (S\d+)/.exec(pullData.title);
       if (!found) {
