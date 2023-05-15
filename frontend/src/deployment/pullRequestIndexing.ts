@@ -54,7 +54,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
                                                     page});
     let pulls = [];
     for (const pull of data) {
-      const found = /^Create rule (S\d+)($|[^\d])/.exec(pull.title);
+      const found = /^Create rule (S\d+)/.exec(pull.title);
       if (found) {
         pulls.push({rspec_id: found[1],
                     url: pull.html_url,
