@@ -1,21 +1,50 @@
+= User-defined types should not be passed as variadic arguments.
+
+This rule relates to functions with C-style ellipsis arguments, not variadic templates using parameter packs.
+
 == Why is this an issue?
 
-Variadic arguments allow a function to accept any number of arguments (in this rule, we are not talking about variadic templates, but about functions with ellipses). But these arguments have to respect some criteria to be handled properly.
+Variadic arguments allow a function to accept any number of arguments of any type. However, when passing a class type as a variadic argument, the user most likely forgot to call a method on the object being passed (`std::string_view::data()`, for example) that would get a member of a built-in type.
 
-The standard imposes some requirements on the class types that can be passed as variadic arguments, and those requirements vary according to the C++ standard version in use:
+Several points back up this rationale:
 
-* Before C++11, the standard only allows POD types to be used as variadic arguments.
-* In C++11, the rules are relaxed such that any class type with an eligible non-trivial copy constructor, an eligible non-trivial move constructor, or a non-trivial destructor can be used in variadic arguments.
+* Using an incorrect type to access the passed parameter within the variadic function can lead to undefined behavior.
+* In {cpp}, not using a POD type (before {cpp}11) nor any class type with an eligible non-trivial copy constructor, an eligible non-trivial move constructor, or a non-trivial destructor (after {cpp}11) can trigger undefined behavior.
 
-The rule detects any violations of these requirements since they can trigger undefined behavior.
+A constructor or destructor is trivial if it is not user-provided (it is implicit or defaulted), all base classes and members also have a corresponding trivial constructor or destructor, and no virtual calls are involved.
 
-Additionally, since using an incorrect type to access the passed parameter within the variadic function can lead to undefined behavior, the rule goes a step further and reports all cases when class types are passed as variadic arguments. The rationale is that, most likely, the user forgot to call a method on the object being passed (``std::string_view::data()`` for example) that would get a member of a built-in type.
+In this context, a POD (Plain Old Data) type refers to a type with no user-defined copy-assignment operator and destructor, and none of its nonstatic members is a non-POD class, array of non-POD, or a reference.
 
-When in need to pass class types to functions that take a variable number of arguments, consider using modern type-safe alternatives like C++11 parameter packs instead of variadic functions.
+=== Exceptions
 
-=== Noncompliant code example
+The rule doesn't report an issue in the following cases:
+
+* When the called variadic function doesn't have any non-variadic parameters. This is a typical pattern when the function is used as a catch-all net for an overload set. This is also guaranteed to be safe since there is no portable to access the passed arguments.
+* When the called variadic function is known to accept a class type object as a variadic argument (e.g., the `semctl` system call).
 
 [source,cpp]
+----
+// This variadic function is used as a catch-all net to terminate the recursion
+std::size_t elementsCount(...) { return 1u; }
+
+template<typename T>
+std::size_t elementsCount(const std::vector<T>& vec) {
+  // Sum the elements of all nested vectors recursively
+  return std::accumulate(vec.begin(), vec.end(), 0u, [] (const std::size_t count, const T& element) {
+    return count + elementsCount(element); // Compliant (the callee doesn't have non-variadic arguments)
+  });
+}
+----
+
+== How to fix it
+
+When passing class types to functions that take a variable number of arguments, consider using modern type-safe alternatives like C++11 parameter packs instead of variadic functions.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 void my_log(const char* format, ...);
 
@@ -30,10 +59,9 @@ void f() {
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 void my_log(const char* format, ...);
 
@@ -48,27 +76,6 @@ void f() {
 }
 ----
 
-=== Exceptions
-
-The rule doesn't report an issue in the following cases:
-
-* When the called variadic function doesn't have any non-variadic parameters. This is a common pattern when the function is used as a catch-all net for an overload set. This is also guaranteed to be safe since there is no portable to access the passed arguments.
-* When the called variadic function is known to accept a class type object as a variadic argument (e.g. the ``semctl`` system call).
-
-[source,cpp]
-----
-// This variadic function is used as a catch-all net to terminate recursion
-std::size_t elementsCount(...) { return 1u; }
-
-template<typename T>
-std::size_t elementsCount(const std::vector<T>& vec) {
-  // Sum the elements of all nested vectors recursively
-  return std::accumulate(vec.begin(), vec.end(), 0u, [] (const std::size_t count, const T& element) {
-    return count + elementsCount(element); // Compliant (the callee doesn't have non-variadic arguments)
-  });
-}
-----
-
 == Resources
 
 * MISRA C:2004, 16.1 - Functions shall not be defined with a variable number of arguments.
@@ -77,4 +84,4 @@ std::size_t elementsCount(const std::vector<T>& vec) {
 
 === Related rules
 
-* S2275 and S3457 are rules that specialize in detecting type mismatches with format strings.
+* S2275 and S3457 specialize in detecting type mismatches with format strings.
