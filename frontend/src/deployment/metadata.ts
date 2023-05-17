@@ -7,7 +7,7 @@ import { getRulesDirectories, listSupportedLanguages } from './utils';
 /**
  * Save the given metadata to disk.
  */
-function writeRuleMetadata(dstDir: string, filename: string, metadata: any) {
+function writeRuleMetadata(dstDir: string, filename: string, metadata: {}) {
   const file = path.join(dstDir, filename);
   fs.writeFileSync(file, JSON.stringify(metadata), { encoding: 'utf8' });
 }
