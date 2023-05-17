@@ -1,8 +1,8 @@
 == Why is this an issue?
 
-_Mutexes_ are synchronization primitives that allow to manage concurrency.
+_Mutexes_ are synchronization primitives that allow managing concurrency.
 
-Their use requires following a well-defined life-cycle.
+Their use requires following a well-defined life cycle.
 
 * _Mutexes_ need to be initialized (``++pthread_mutex_init++``) before being used. Once it is initialized, a _mutex_ is in an _unlocked_ state.
 * _Mutexes_ need to be destroyed (``++pthread_mutex_destroy++``) to free the associated internal resources. Only _unlocked_ _mutexes_ can be safely destroyed.
@@ -10,18 +10,23 @@ Their use requires following a well-defined life-cycle.
 Before initialization or after destruction, a mutex is in an uninitialized state.
 
 
-About this life-cycle, the following patterns should be avoided as they result in an undefined behavior:
+About this life cycle, the following patterns should be avoided as they result in undefined behavior:
 
-* trying to initialize an initialized _mutex_
+* trying to initialize an already initialized _mutex_
 * trying to destroy an initialized _mutex_ that is in a _locked_ state
 * trying to destroy an uninitialized _mutex_
 * trying to lock an uninitialized _mutex_
 * trying to unlock an uninitialized _mutex_
 
-In {cpp}, it is recommended to wrap mutex creation/destruction in a RAII class, as well as mutex lock/unlock. Those RAII classes will perform the right operations, even in presence of exceptions.
+In {cpp}03, it is recommended to wrap mutex creation/destruction in an RAII class, as well as mutex lock/unlock. Those RAII classes will perform the right operations, even in the presence of exceptions.
 
+In {cpp}11 and higher, `std::mutex` is less error-prone and is supported by more platforms.
 
-=== Noncompliant code example
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
 
 [source,cpp]
 ----
@@ -29,61 +34,113 @@ pthread_mutex_t mtx1;
 
 void bad1(void)
 {
-  pthread_mutex_init(&mtx1);
-  pthread_mutex_init(&mtx1);
+  pthread_mutex_init(&mtx1, NULL);
+  pthread_mutex_init(&mtx1, NULL);
 }
 
 void bad2(void)
 {
-  pthread_mutex_init(&mtx1);
+  pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_lock(&mtx1);
   pthread_mutex_destroy(&mtx1);
 }
 
 void bad3(void)
 {
-  pthread_mutex_init(&mtx1);
+  pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
   pthread_mutex_destroy(&mtx1);
 }
 
 void bad4(void)
 {
-  pthread_mutex_init(&mtx1);
+  pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
   pthread_mutex_lock(&mtx1);
 }
 
 void bad5(void)
 {
-  pthread_mutex_init(&mtx1);
+  pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
   pthread_mutex_unlock(&mtx1);
 }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+C solution:
+
+[source,c]
 ----
 pthread_mutex_t mtx1;
 
 void ok1(void)
 {
-  pthread_mutex_init(&mtx1);
+  pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
 }
 
 void ok2(void)
 {
-  pthread_mutex_init(&mtx1);
+  pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_lock(&mtx1);
   pthread_mutex_unlock(&mtx1);
   pthread_mutex_destroy(&mtx1);
 }
 ----
 
+{cpp}03 solution:
+
+[source,cpp]
+----
+pthread_mutex_t mtx1;
+
+struct Mutex {
+  Mutex(pthread_mutex_t* mtx) : pmtx(mtx) {
+    pthread_mutex_init(pmtx, NULL);
+  }
+  ~Mutex() {
+    pthread_mutex_destroy(pmtx);
+  }
+  pthread_mutex_t* pmtx;
+};
+
+struct Lock {
+  Lock(Mutex m) : mtx(m) {
+    pthread_mutex_lock(mtx.pmtx);
+  }
+  ~Lock() {
+    pthread_mutex_unlock(mtx.pmtx);
+  }
+  Mutex mtx;
+}
+
+void ok1()
+{
+  Mutex m(&mtx1);
+}
+
+void ok2()
+{
+  Mutex m(&mtx1);
+  Lock lock(m);
+  // mutex will unlock automatically at the end of the scope
+}
+----
+
+{cpp}11 and higher solution:
+
+[source,cpp]
+----
+std::mutex mtx1;
+
+void ok() {
+  std::lock_guard<std::mutex> lock(mtx1);
+  // mutex will unlock automatically at the end of the scope
+}
+----
 
 == Resources
 
