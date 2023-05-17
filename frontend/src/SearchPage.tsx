@@ -84,7 +84,7 @@ export const SearchPage = () => {
   if (loading) {
     resultsDisplay = 'Searching';
   } else if (results.length > 0) {
-    let resultsBoxes: JSX.Element[] = [];
+    const resultsBoxes: JSX.Element[] = [];
 
     // making the exact match to appear first in the search results
     correctResultsOrder(results, query).forEach(indexedRule => {
@@ -119,7 +119,7 @@ export const SearchPage = () => {
   function handleKeyup(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       const query = (event.target as HTMLTextAreaElement).value;
-      if (query.match(/^(S|RSPEC-?)?[0-9]{3,}$/i)) {
+      if (/^(S|RSPEC-?)?\d{3,}$/i.exec(query)) {
         if (0 < results.length) {
           history.push(correctResultsOrder(results, query)[0].id);
         }
@@ -242,7 +242,8 @@ export const SearchPage = () => {
                 data-testid="rule-default-quality-profile"
               >
                 {allQualityProfiles.map((qualityProfile) => (
-                  <MenuItem key={qualityProfile} value={qualityProfile} data-testid={`rule-qual-profile-${qualityProfile}`}>
+                  <MenuItem key={qualityProfile} value={qualityProfile}
+                            data-testid={`rule-qual-profile-${qualityProfile}`}>
                     {qualityProfile}
                   </MenuItem>
                 ))}

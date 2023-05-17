@@ -4,12 +4,10 @@ import path from 'path';
 import { LanguageSupport } from '../types/RuleMetadata';
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 
-type Metadata = any;
-
 /**
  * Save the given metadata to disk.
  */
-function writeRuleMetadata(dstDir: string, filename: string, metadata: Metadata) {
+function writeRuleMetadata(dstDir: string, filename: string, metadata: any) {
   const file = path.join(dstDir, filename);
   fs.writeFileSync(file, JSON.stringify(metadata), { encoding: 'utf8' });
 }
