@@ -1,55 +1,119 @@
 == Why is this an issue?
 
-_Mutexes_ are synchronization primitives that allow to manage concurrency. It is a common situation to have to use multiple _mutexes_ to protect multiple resources with different access patterns.
+_Mutexes_ are synchronization primitives that allow the managing of concurrency. It is a common situation to have to use multiple _mutexes_ to protect multiple resources with different access patterns.
 
 
-In such a situation, it is crucial to define an order on the set of all _mutexes_.
+In such a situation, it is crucial to define an order on the set of all _mutexes_:
 
-This order should be strictly followed when _locking_ _mutexes_.
-
-The reverse order should be strictly followed when _unlocking_ _mutexes_.
-
-
-Failure in doing so can lead to _deadlocks_.
+* This order should be strictly followed when _locking_ _mutexes_.
+* The reverse order should be strictly followed when _unlocking_ _mutexes_.
 
 
-In {cpp}, an easy way to make sure the unlocks are called in reverse order from the lock is to wrap the lock/unlock operations in a RAII class (since destructors of local variables are called in reverse order of their creation).
+Failure to do so can lead to _deadlocks_. i.e., situations where two or more threads are blocked forever, each holding one mutex and waiting for one held by the other(s).
+
+
+In {cpp}, an easy way to make sure the unlocks are called in reverse order from the lock is to wrap the lock/unlock operations in an RAII class (since destructors of local variables are called in reverse order of their creation).
 
 
 If instead of ``++pthread_mutex_t++`` you are using ``++std::mutex++``, there are other mechanisms that allow you to avoid deadlocks in that case, see S5524.
 
+== How to fix it
 
-=== Noncompliant code example
+Reorder locking and unlocking operations to always lock in the same order and unlock in the reverse order.
 
-[source,cpp]
+=== Code examples
+
+==== Noncompliant code example
+
+[source,c]
 ----
-pthread_mutex_t mtx1,mtx2;
+pthread_mutex_t mtx1;
+pthread_mutex_t mtx2;
 
-void bad(void)
-{
+void thread_safe_operation(void) {
   pthread_mutex_lock(&mtx1);
   pthread_mutex_lock(&mtx2);
-  pthread_mutex_unlock(&mtx1);
+  use_resources();
+  pthread_mutex_unlock(&mtx1); // Noncompliant
   pthread_mutex_unlock(&mtx2);
 }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+C solution:
+
+[source,c]
 ----
-pthread_mutex_t mtx1, mtx2; // if both have to be locked, mtx1 should always be locked before mtx2
+pthread_mutex_t mtx1;
+pthread_mutex_t mtx2;
 
-void good(void)
-{
+void thread_safe_operation(void) {
   pthread_mutex_lock(&mtx1);
   pthread_mutex_lock(&mtx2);
+  use_resources();
   pthread_mutex_unlock(&mtx2);
   pthread_mutex_unlock(&mtx1);
 }
 ----
 
+{cpp}03 solution:
+
+[source,cpp]
+----
+pthread_mutex_t mtx1;
+pthread_mutex_t mtx2;
+
+struct MutexLocker {
+  MutexLocker(pthread_mutex_t* mtx) : mtx(mtx) {
+    pthread_mutex_lock(mtx);
+  }
+  ~MutexLocker() {
+    pthread_mutex_unlock(mtx);
+  }
+  pthread_mutex_t* mtx;
+};
+
+struct ResourcesLocker {
+  ResourcesLocker() : m1(&mtx1), m2(&mtx2) {}
+  MutexLocker m1;
+  MutexLocker m2;
+};
+
+void thread_safe_operation(void) {
+  ResourcesLocker locker;
+  use_resources();
+}
+----
+
+{cpp}11 and {cpp}14 solution:
+
+[source,cpp]
+----
+std::mutex m1;
+std::mutex m2;
+
+void thread_safe_operation(void) {
+  std::lock(m1, m2);
+  std::lock_guard<std::mutex> lck1(m1, std::adopt_lock);
+  std::lock_guard<std::mutex> lck2(m2, std::adopt_lock);
+  use_resources();
+}
+----
+
+{cpp}17 and after:
+
+[source,cpp]
+----
+std::mutex m1;
+std::mutex m2;
+
+void thread_safe_operation(void) {
+  std::scoped_lock<std::mutex, std::mutex> lck1(m1, m2);
+  use_resources();
+}
+----
 
 
 ifdef::env-github,rspecator-view[]
