@@ -1,22 +1,27 @@
+The function ``++memcmp++`` only returns meaningful results for objects of trivially copyable types without padding. This includes scalar types, arrays, and trivially copyable classes.
+
 == Why is this an issue?
 
-The function ``++memcmp++`` can only be used for objects of trivially copyable types. This includes scalar types, arrays, and trivially copyable classes. 
-
+`memcmp` compares the raw memory representation of two objects (what the standard calls their _object representation_). When objects are not trivially copyable or contain padding, they could have different raw memory representations even though they store identical values. So the result of `memcmp` is not meaningful.
 
 A class type is trivially copyable if:
 
 * One or more of the following methods is trivial and the rest are deleted: copy constructor, move constructor, copy assignment operator, and move assignment operator,
 * It has a trivial, non-deleted destructor.
 
-Additionally, if the type contains padding, some of its bits might be non-representative, and a strict comparison of raw memory contents might lead to the mistaken belief that two identical objects are actually different.
+An operator/constructor/destructor is trivial if it is not user-provided (it is implicit or defaulted), all base classes and members also have a corresponding trivial operator/constructor/destructor and there are no virtual calls involved.
 
+Padding is the addition of extra bits to a storage unit to address memory alignment. If the type contains padding, some of its bits might be non-representative.
 
-=== Noncompliant code example
+== How to fix it
 
-[source,cpp]
+=== Code examples
+
+==== Noncompliant code example
+
+[source,c,diff-id=1,diff-type=noncompliant]
 ----
-class Shape { // Trivially copyable, but will contain padding after the bool on most architectures
-public:
+struct Shape { // Trivially copyable, but will contain padding after the bool on most architectures
   bool visible;
   int x;
   int y;
@@ -24,32 +29,61 @@ public:
 
 bool isSame(Shape *s1, Shape *s2)
 {
-    return memcmp(s1, s2, sizeof Shape) == 0; // Noncompliant
+    return memcmp(s1, s2, sizeof(Shape)) == 0; // Noncompliant
 }
 ----
 
-
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=2,diff-type=noncompliant]
 ----
-class Shape {
+class Resource { // Not trivially copyable
 public:
+  Ptr* ptr;
+  ~Resource();
+};
+
+bool isSame(Resource *r1, Resource *r2)
+{
+    return memcmp(r1, r2, sizeof(Resource)) == 0; // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,c,diff-id=1,diff-type=compliant]
+----
+struct Shape { // Trivially copyable, but will contain padding after the bool on most architectures
   bool visible;
   int x;
   int y;
 };
 
-bool operator==(Shape const &s1, Shape const &s2) {
-  return s1.visible == s2.visible && s1.x == s2.x && s1.y == s2.y;
-}
-
 bool isSame(Shape *s1, Shape *s2)
 {
-    return (*s1) == (*s2);
+  return s1->visible == s2->visible && s1->x == s2->x && s1->y == s2->y;
 }
 ----
 
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class Resource { // Not trivially copyable
+public:
+  Ptr* ptr;
+  ~Resource();
+};
+
+bool operator==(Resource const &r1, Resource const &r2) {
+  return r1.ptr == r2.ptr;
+}
+
+bool isSame(Resource *r1, Resource *r2)
+{
+    return (*r1) == (*r2);
+}
+----
+
+== Resources
+
+https://en.cppreference.com/w/cpp/language/classes#Trivially_copyable_class[Definition of a trivially copyable class].
 
 
 ifdef::env-github,rspecator-view[]
