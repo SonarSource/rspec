@@ -18,9 +18,9 @@ About this life cycle, the following patterns should be avoided as they result i
 * trying to lock an uninitialized _mutex_
 * trying to unlock an uninitialized _mutex_
 
-In {cpp}03, it is recommended to wrap mutex creation/destruction in an RAII class, as well as mutex lock/unlock. Those RAII classes will perform the right operations, even in the presence of exceptions.
-
 In {cpp}11 and higher, `std::mutex` is less error-prone and is supported by more platforms.
+
+In {cpp}03, it is recommended to wrap mutex creation/destruction in an RAII class, as well as mutex lock/unlock. Those RAII classes will perform the right operations, even in the presence of exceptions.
 
 == How to fix it
 
@@ -32,38 +32,38 @@ In {cpp}11 and higher, `std::mutex` is less error-prone and is supported by more
 ----
 pthread_mutex_t mtx1;
 
-void bad1(void)
+void double_initialization(void)
 {
   pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_init(&mtx1, NULL);
+  pthread_mutex_init(&mtx1, NULL); // Noncompliant
 }
 
-void bad2(void)
+void destroy_locked(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_lock(&mtx1);
-  pthread_mutex_destroy(&mtx1);
+  pthread_mutex_destroy(&mtx1); // Noncompliant
 }
 
-void bad3(void)
+void double_destruction(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
-  pthread_mutex_destroy(&mtx1);
+  pthread_mutex_destroy(&mtx1); // Noncompliant
 }
 
-void bad4(void)
+void lock_destroyed(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
-  pthread_mutex_lock(&mtx1);
+  pthread_mutex_lock(&mtx1); // Noncompliant
 }
 
-void bad5(void)
+void unlock_destroyed(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
-  pthread_mutex_unlock(&mtx1);
+  pthread_mutex_unlock(&mtx1); // Noncompliant
 }
 ----
 
@@ -107,14 +107,14 @@ struct Mutex {
   pthread_mutex_t* pmtx;
 };
 
-struct Lock {
-  Lock(Mutex m) : mtx(m) {
+struct LockGuard {
+  LockGuard(Mutex &m) : mtx(m) {
     pthread_mutex_lock(mtx.pmtx);
   }
-  ~Lock() {
+  ~LockGuard() {
     pthread_mutex_unlock(mtx.pmtx);
   }
-  Mutex mtx;
+  Mutex &mtx;
 }
 
 void ok1()
@@ -125,7 +125,7 @@ void ok1()
 void ok2()
 {
   Mutex m(&mtx1);
-  Lock lock(m);
+  LockGuard lock(m);
   // mutex will unlock automatically at the end of the scope
 }
 ----
