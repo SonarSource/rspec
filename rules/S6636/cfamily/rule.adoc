@@ -1,0 +1,57 @@
+== Why is this an issue?
+
+When a regular function throws an exception, stack unwinding occurs.
+This applies to exceptions thrown within the function body or from an inner function call.
+
+
+{cpp}20 introduced coroutines, a stackless method to invoke functions that can be suspended and resumed.
+As coroutines have no stack, exceptions behave differently across a coroutine boundary.
+
+
+The _Promise object_ of any coroutine is required to have an `unhandled_exception` function.
+If an exception escapes the coroutine function body, the `unhandled_exception` function is called, and the coroutine reaches the final-suspend point.
+Resuming the coroutine after this point is undefined behavior.
+
+
+The `unhandled_exception` method is used to define such behavior.
+The exception can be obtained with `std::current_exception` and can be logged, rethrown, or stored:
+
+- If rethrown, the exception will be received in any thread that resumes the coroutine.
+- If stored, it can be propagated through the _Promise object_ to the awaiter.
+- If no exceptions were expected from the coroutine, the program can be terminated.
+
+Choosing an approach depends on the coroutine use-case.
+Also, keep in mind the following:
+
+- Rethrowing in `unhandled_exception` will cause the coroutine to reach the final-suspend point without calling `final_suspend` first.
+- A `noexcept` specified coroutine will only terminate the program if an exception is thrown from the _Promise type_'s construction.
+This happens because the coroutine internal mechanisms wrap the coroutine body in a `try-catch` block.
+To enforce `noexcept` on a coroutine, the program should be terminated in the promise_type `unhandled_exception` function.
+
+
+
+=== Noncompliant code example
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+struct Task {
+  struct promise_type {
+    /* ... */
+    void unhandled_exception() {}
+  };
+};
+----
+
+=== Compliant solution
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+struct Task {
+  struct promise_type {
+    void unhandled_exception() {
+      /* ... */
+      except = std::current_exception(); // store exception
+    }
+
+    std::exception_ptr except; // awaiter can check and obtain it via promise()
+  };
+};
+----
