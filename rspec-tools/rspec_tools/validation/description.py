@@ -29,9 +29,7 @@ HOTSPOT_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/hotspot
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
 # This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#2-education-format)
-SECTIONS = {
-  'Why is this an issue?': ['What is the potential impact?', 'Noncompliant code example', 'Compliant solution', 'Exceptions']
-}
+MANDATORY_SECTIONS = ['Why is this an issue?']
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
   'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
@@ -52,11 +50,11 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-  education_titles = intersection(h2_titles, list(SECTIONS.keys()) + list(OPTIONAL_SECTIONS.keys()))
+  education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()))
   if education_titles:
     # Using the education format.
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
-    missing_titles = difference(list(SECTIONS.keys()), education_titles)
+    missing_titles = difference(list(MANDATORY_SECTIONS), education_titles)
     if missing_titles:
       # All mandatory titles have to be present in the rule description.
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
@@ -168,8 +166,6 @@ def validate_subsections(rule_language: LanguageSpecificRule):
       validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section], section_regex=HOW_TO_FIX_IT_REGEX)
     else:
       validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
-  for mandatory_section in list(SECTIONS.keys()):
-    validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
     if subsection_with_sub_subsection == 'Code examples':
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4, is_duplicate_allowed=True)
