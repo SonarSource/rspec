@@ -1,0 +1,27 @@
+== Recommended Secure Coding Practices
+
+To avoid ``++catastrophic backtracking++`` situations, make sure that none of the following conditions apply to your regular expression.
+
+
+In all of the following cases, catastrophic backtracking can only happen if the problematic part of the regex is followed by a pattern that can fail, causing the backtracking to actually happen. Note that when performing a full match (e.g. using ``++re.fullmatch++``), the end of the regex counts as a pattern that can fail because it will only succeed when the end of the string is reached.
+
+
+* If you have a non-possessive repetition ``++r*++`` or ``++r*?++``, such that the regex ``++r++`` could produce different possible matches (of possibly different lengths) on the same input, the worst case matching time can be exponential. This can be the case if ``++r++`` contains optional parts, alternations or additional repetitions (but not if the repetition is written in such a way that there's only one way to match it).
+
+* If you have multiple non-possessive repetitions that can match the same contents and are consecutive or are only separated by an optional separator or a separator that can be matched by both of the repetitions, the worst case matching time can be polynomial (O(n^c) where c is the number of problematic repetitions). For example ``++a*b*++`` is not a problem because ``++a*++`` and ``++b*++`` match different things and ``++a*_a*++`` is not a problem because the repetitions are separated by a ``++'_'++`` and can't match that ``++'_'++``. However, ``++a*a*++`` and ``++.*_.*++`` have quadratic runtime.
+* If you're performing a partial match (such as by using ``++re.search++``, ``++re.split++``, ``++re.findall++`` etc.) and the regex is not anchored to the beginning of the string, quadratic runtime is especially hard to avoid because whenever a match fails, the regex engine will try again starting at the next index. This means that any unbounded repetition (even a possessive one), if it's followed by a pattern that can fail, can cause quadratic runtime on some inputs. For example ``++re.split(r"\s*,", my_str)++`` will run in quadratic time on strings that consist entirely of spaces (or at least contain large sequences of spaces, not followed by a comma).
+
+In order to rewrite your regular expression without these patterns, consider the following strategies:
+
+
+* If applicable, define a maximum number of expected repetitions using the bounded quantifiers, like ``++{1,5}++`` instead of ``+`` for instance.
+* Refactor ``++nested quantifiers++`` to limit the number of way the inner group can be matched by the outer quantifier, for instance this nested quantifier situation ``++(ba+)+++`` doesn't cause performance issues, indeed, the inner group can be matched only if there exists exactly one ``++b++`` char per repetition of the group.
+* Optimize regular expressions with ``++possessive quantifiers++`` and ``++atomic grouping++`` (available since Python 3.11).
+* Use negated character classes instead of ``++.++`` to exclude separators where applicable. For example the quadratic regex ``++.*_.*++`` can be made linear by changing it to ``++[^_]*_.*++``
+
+Sometimes it's not possible to rewrite the regex to be linear while still matching what you want it to match. Especially when using partial matches, for which it is quite hard to avoid quadratic runtimes. In those cases consider the following approaches:
+
+
+* Solve the problem without regular expressions
+* Use an alternative non-backtracking regex implementations such as Google's https://github.com/google/re2[RE2].
+* Use multiple passes. This could mean pre- and/or post-processing the string manually before/after applying the regular expression to it or using multiple regular expressions. One example of this would be to replace ``++re.split("\s*,\s*", my_str)++`` with ``++re.split(",", my_str)++`` and then trimming the spaces from the strings as a second step.
