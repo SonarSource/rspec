@@ -181,3 +181,8 @@ def test_subsections_without_a_framework_in_how_to_fix_it_validation(rule_langua
   '''Check that having subsections without a framework in "How to fix it" is considered valid'''
   rule = rule_language('S200', 'cobol')
   validate_subsections(rule)
+
+def test_valid_why_is_this_an_issue_subsections_validation(rule_language):
+  '''Check that any substitle is considered valid in the "why is this an issue?" section'''
+  rule = rule_language('S200', 'java')
+  validate_subsections(rule)
