@@ -1,59 +1,125 @@
 == Why is this an issue?
 
-Non-termination occurs when control enters a loop that lacks an exit condition. 
-It can arise from one of the following scenarios:
+When execution enters a loop that lacks an exit condition, the program will be looping indefinitely.
+This can happen in multiple scenarios:
 
-1. a method invoking itself
-2. a group of methods mutually invoking each other
-3. `while` and `for` loops
-4. `goto` statements 
+* `while` and `for` loops
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public int Sum(List<int> items)
+{
+    var i = 0;
+    var result = 0;
+    while (true) // forgot to check i < items.Count
+    {
+        result += items[i];
+        i++;
+    }
+    return result;
+}
+----
 
-=== What is the potential impact?
+* `goto` statements 
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+public int Sum(List<int> items)
+{
+    var result = 0;
+    var i = 0;
+iteration: 
+    // forgot to check i < items.Count
+    result += items[i];
+    i++;
+    goto iteration;
+    return result;
+}
+----
 
-The program will either be looping indefinitely or the stack will reach its limit and the program will crash due to a stack overflow error.
+This concept does noy only apply to loops, but also to recursion.
+Recursion is a technique used in computer science to define a problem in terms of the problem itself, usually in terms of a simpler version of the problem itself. For a set of problems, it can have a lot of benefits:
+
+* Simplified code: Recursion can often lead to more concise and elegant code by breaking down complex problems into smaller, more manageable parts.
+* Problem-solving flexibility: Recursive functions can handle problems that have a naturally recursive structure, making it easier to design algorithms for those types of problems.
+* Improved code readability: Recursive solutions can sometimes be easier to understand and reason about compared to iterative solutions, especially for problems with recursive definitions or patterns.
+
+However, there are some dangers, if used without caution:
+
+* Stack overflow: Recursive functions can lead to stack overflow errors if there is excessive recursion or if the recursion depth is too deep, potentially causing the program to crash.
+* Performance overhead: Recursive function calls can incur additional overhead due to the need to push and pop stack frames, making them slower than iterative solutions in certain cases.
+* Difficulty in debugging: Debugging recursive code can be challenging, as multiple recursive calls can make it harder to track the flow of execution and identify logical errors.
+* Space complexity: Recursive algorithms may require more memory compared to iterative approaches, as each recursive call adds a new stack frame to the call stack.
+* Lack of control: Recursion can sometimes lead to infinite loops or unexpected behavior if not properly implemented or terminated, making it crucial to have proper base cases and termination conditions.
+
+When execution enters recursion that lacks an exit condition, the https://en.wikipedia.org/wiki/Call_stack[call stack] will reach its limit and the program will crash due to a stack overflow error.
+This can happen in multiple scenarios:
+
+* a method invoking itself
+[source,csharp,diff-id=3,diff-type=noncompliant]
+----
+int Pow(int num, int exponent)
+{
+  return num * Pow(num, exponent - 1); // no condition under which Pow isn't re-called
+}
+----
+
+* a group of methods mutually invoking each other
+[source,csharp,diff-id=4,diff-type=noncompliant]
+----
+int Foo(int n) 
+{
+  Console.WriteLine("foo");
+  Bar(n-1); // always calls Bar
+}
+
+int Bar(int n) 
+{
+  Console.WriteLine("bar");
+  Foo(n-1); // always calls Foo
+}
+----
 
 == How to fix it
 
 The program's logic should incorporate a mechanism to break out of the loop.
 Here are some ways to achieve that:
 
-1. self-invoking should happen under a condition that eventually evaluates to `false`
-2. introduce a condition that breaks the invocation cycle of the group of methods
-3. `while` and `for` condition should eventually evaluates to `false` 
-4. prefer `while` or `for` or recursion to `goto` statements
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,csharp,diff-id=1,diff-type=noncompliant]
-----
-int Pow(int num, int exponent)  // Noncompliant: no condition under which Pow isn't re-called
-{
-  num = num * Pow(num, exponent - 1);
-  return num;  // this is never reached
-}
-----
-
-[source,csharp,diff-id=2,diff-type=noncompliant]
-----
-void WhileLoop()  // Noncompliant: no condition under which while-loop would exit
-{
-  while (true)
-  {
-    var line = Console.ReadLine();
-    Console.WriteLine(line);
-  }
-}
-----
-
-==== Compliant solution
-
+* `while` and `for` condition should eventually evaluates to `false` 
 [source,csharp,diff-id=1,diff-type=compliant]
+----
+public int Sum(List<int> items)
+{
+    var i = 0;
+    var result = 0;
+    while (i < items.Count)
+    {
+        result += items[i];
+        i++;
+    }
+    return result;
+}
+----
+* prefer `while` or `for` or recursion to `goto` statements
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+public int Sum(List<int> items)
+{
+    var i = 0;
+    var result = 0;
+    while (i < items.Count)
+    {
+        result += items[i];
+        i++;
+    }
+    return result;
+}
+----
+
+* self-invoking should happen under a condition that eventually evaluates to `false`
+[source,csharp,diff-id=3,diff-type=compliant]
 ----
 int Pow(int num, int exponent) 
 {
-  if (exponent > 1) // recursion now conditional and stop-able
+  if (exponent > 1) // recursion is now conditional and stop-able
   {  
     num = num * Pow(num, exponent - 1);
   }
@@ -61,15 +127,22 @@ int Pow(int num, int exponent)
 }
 ----
 
-[source,csharp,diff-id=2,diff-type=compliant]
+* introduce a condition that breaks the invocation cycle of the group of methods
+[source,csharp,diff-id=4,diff-type=compliant]
 ----
-void WhileLoop()
+int Foo(int n) 
 {
-  string line;
-  while ((line = Console.ReadLine()) != null) // loop has clear exit condition
+  if (n > 0) // conditionally calls Bar
   {
-    Console.WriteLine(line);
+    Console.WriteLine("foo");
+    Bar(n-1); 
   }
+}
+
+int Bar(int n) 
+{
+  Console.WriteLine("bar");
+  Foo(n-1);
 }
 ----
 
