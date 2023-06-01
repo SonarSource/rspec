@@ -1,0 +1,98 @@
+== Why is this an issue?
+
+Using `Thread.Sleep` in a test might introduce unpredictable and incosistent results depending on the environment. Furthermore, it will block the https://en.wikipedia.org/wiki/Thread_(computing)[thread], which means the system's resources are not being fully used.
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+<TestMethod>
+Public Sub SomeTest()
+    Threading.Thread.Sleep(500) ' Noncompliant
+    ' assertions...
+End Sub
+----
+
+An alternative is a task-based asynchronous approach, using https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/[async and await].
+
+More specifically the https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.delay?view=net-7.0[Task.Delay] method should be used, because of the following advantages:
+
+* It is asynchronous. This means that the thread will not be blocked, but instead will be reused by other operations.
+* It is more precise than `Thread.Sleep`.
+* It can be cancelled and continued, which gives more flexibility and control in the timing of your code.
+
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+<TestMethod>
+Public Async Function SomeTest() As Task
+    Await Task.Delay(500)
+    ' assertions...
+End Function
+----
+
+Another scenario is when some data might need to be mocked using https://github.com/moq/moq4[Moq], and a delay needs to be introduced.
+
+[source,vbnet,diff-id=2,diff-type=noncompliant]
+----
+<TestMethod>
+Public Sub UserService_Test()
+    Dim userService = New Mock(Of UserService)()
+    Dim expected = New User()
+    userService.Setup(Function(m) m.GetUserById(42)).Returns(
+        Function()
+            Threading.Thread.Sleep(500) ' Noncompliant
+            Return Task.FromResult(expected)
+        End Function)
+    ' assertions...
+End Sub
+----
+
+An alternative is to use `ReturnsAsync` and pass the delay amount there:
+
+[source,vbnet,diff-id=2,diff-type=compliant]
+----
+<TestMethod>
+Public Sub UserService_Test()
+    Dim userService = New Mock(Of UserService)()
+    Dim expected = New User()
+    userService.Setup(Function(m) m.GetUserById(42)).ReturnsAsync(expected, TimeSpan.FromMilliseconds(500))
+    ' assertions...
+End Sub
+----
+
+include::../resources-dotnet.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Remove this use of "Thread.sleep()".
+
+
+'''
+== Comments And Links
+(visible only on this page)
+
+=== on 12 May 2015, 14:52:51 David Gageot wrote:
+lgtm
+
+=== on 20 May 2015, 15:08:39 Nicolas Peru wrote:
+Ok.
+
+=== on 21 Aug 2015, 09:21:47 Michael Gumowski wrote:
+WDYT about changes [~duarte.meneses]?
+
+=== on 21 Aug 2015, 09:29:58 Duarte Meneses wrote:
+Looks good.
+
+Only suggestion I have is to put the timeout in the solution longer (2/3s?), otherwise it wouldn't fix the problem of dependency on the environment.
+
+With awaitility we can use larger timeouts but still proceed quickly as soon as the polling conditions is satisfied.
+
+=== on 21 Aug 2015, 09:35:55 Michael Gumowski wrote:
+Ok, updated. Thanks for your feedback! Feels free to modify it directly next time!
+
+endif::env-github,rspecator-view[]
