@@ -1,63 +1,60 @@
 == Why is this an issue?
 
-Making blocking calls to ``++async++`` methods transforms code that was intended to be asynchronous into a blocking operation. Doing so inside an Azure Function can lead to thread exhaustion.
+Making https://en.wikipedia.org/wiki/Blocking_(computing)[blocking calls] to `async` methods transforms the code into a synchronous operation. Doing so inside an Azure Function can lead to thread pool exhaustion.
+
+Thread pool exhaustion refers to a situation where all available threads in a thread pool are occupied, and new tasks or work items cannot be scheduled for execution due to the lack of available threads. This can lead to delayed execution and degraded performance.
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+class RequestParser
+{
+	[FunctionName(nameof(ParseRequest))]
+	public static async Task<IActionResult> ParseRequest([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req)
+	{
+		// This can lead to thread exhaustion
+		string requestBody = new StreamReader(req.Body).ReadToEndAsync().Result;
+		// do stuff...
+	}
+}
+----
+
+Instead, https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/[asynchronous] mechanisms should be used:
+
+[source,csharp, diff-id=1,diff-type=compliant]
+----
+class RequestParser
+{
+	[FunctionName(nameof(ParseRequest))]
+	public static async Task<IActionResult> ParseRequest([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req)
+	{
+		// Non-blocking, asynchronous operation
+		string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+		// do stuff...
+	}
+}
+----
+
+This applies to multiple methods that are available when working with tasks:
 
 [frame=all]
 [cols="^1,^1,^1"]
 |===
-|To Do This …|Instead of This …|Use This
+|Goal | Blocking | Asynchronous
 
-|Retrieve the result of a background task|``++Task.Wait++``, ``++Task.Result++`` or ``++Task.GetAwaiter.GetResult++``|``++await++``
-|Wait for any task to complete|``++Task.WaitAny++``|``++await Task.WhenAny++``
-|Retrieve the results of multiple tasks|``++Task.WaitAll++``|``++await Task.WhenAll++``
-|Wait a period of time|``++Thread.Sleep++``|``++await Task.Delay++``
+|Wait for the result of a task|`Task.Wait`, `Task.Result` or `Task.GetAwaiter.GetResult`|`await`
+|Wait for any of many task to complete|`Task.WaitAny`|`await Task.WhenAny`
+|Wait for all of many tasks to complete|`Task.WaitAll`|`await Task.WhenAll`
+|Wait a period of time|`Thread.Sleep`|`await Task.Delay`
 |===
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
-=== Noncompliant code example
-
-[source,csharp]
-----
-
-public static class AvoidBlockingCalls
-{
-	[FunctionName("Foo")]
-	public static async Task<IActionResult> Foo([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req)
-	{
-		// This can lead to thread exhaustion
-		string requestBody = new StreamReader(req.Body).ReadToEndAsync().Result;
-
-		// do stuff...
-	}
-}
-
-----
-
-=== Compliant solution
-
-[source,csharp]
-----
-
-public static class AvoidBlockingCalls
-{
-	[FunctionName("Foo")]
-	public static async Task<IActionResult> Foo([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req)
-	{
-		string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-
-		// do stuff...
-	}
-}
-
-----
 
 == Resources
 
+=== Documentation
+
 * https://msdn.microsoft.com/en-us/magazine/jj991977.aspx[Async/Await - Best Practices in Asynchronous Programming]
 * https://docs.microsoft.com/en-us/azure/azure-functions/performance-reliability#use-async-code-but-avoid-blocking-calls[Improve the performance and reliability of Azure Functions - Scalability best practices]
-* S4462 - a more generic rule about detecting blocking calls to ``++async++`` methods.
+* https://github.com/davidfowl/AspNetCoreDiagnosticScenarios/blob/master/AsyncGuidance.md[Async Guidance - David Fowl]
+* https://rules.sonarsource.com/csharp/RSPEC-4462[S4462 - a more general version of this rule]
 
 ifdef::env-github,rspecator-view[]
 
