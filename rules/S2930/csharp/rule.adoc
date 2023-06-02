@@ -1,45 +1,69 @@
 == Why is this an issue?
 
-When writing managed code, you don't need to worry about allocating or freeing memory: The garbage collector takes care of it. For efficiency reasons, some objects such as ``++Bitmap++`` use unmanaged memory, enabling for example the use of pointer arithmetic. Such objects have potentially huge unmanaged memory footprints, but will have tiny managed ones. Unfortunately, the garbage collector only sees the tiny managed footprint, and fails to reclaim the unmanaged memory (by calling ``++Bitmap++``'s finalizer method) in a timely fashion. 
+When writing managed code, you don't need to worry about allocating or freeing memory: The garbage collector takes care of it. For efficiency reasons, some objects such as `Bitmap` use unmanaged memory, enabling, for example, the use of pointer arithmetic. Such objects have potentially huge unmanaged memory footprints but will have tiny managed ones. Unfortunately, the garbage collector only sees the tiny managed footprint and fails to reclaim the unmanaged memory (by calling `Bitmap`'s finalizer method) promptly. 
 
+Moreover, memory is not the only system resource that needs to be managed on time: The operating system can only handle having so many file descriptors (e.g. `FileStream`) or sockets (e.g. `WebClient`) open at any given time. Therefore, it is important to `Dispose` of them as soon as they are no longer needed, rather than relying on the garbage collector to call these objects' finalizers at some nondeterministic point in the future.
 
-Moreover, memory is not the only system resource which needs to be managed in a timely fashion: The operating system can only handle having so many file descriptors (e.g. ``++FileStream++``) or sockets (e.g. ``++WebClient++``) open at any given time. Therefore, it is important to ``++Dispose++`` of them as soon as they are no longer needed, rather than relying on the garbage collector to call these objects' finalizers at some nondeterministic point in the future.
+This rule tracks `private` fields and local variables of the following `IDisposable` / `IAsyncDisposable` types, which are never disposed, closed, aliased, returned, or passed to other methods.
 
+* `System.IO` namespace
+** `System.IO.FileStream`
+** `System.IO.StreamReader`
+** `System.IO.StreamWriter`
 
-This rule tracks ``private`` fields and local variables of the following ``IDisposable`` / ``IAsyncDisposable`` types, which are never disposed, closed, aliased, returned, or passed to other methods.
+* `System.Net` namespace
+** `System.Net.WebClient`
 
+* `System.Net.Sockets` namespace
+** `System.Net.Sockets.Socket`
+** `System.Net.Sockets.TcpClient`
+** `System.Net.Sockets.UdpClient`
 
-* ``++System.IO++`` namespace
-** ``++System.IO.FileStream++``
-** ``++System.IO.StreamReader++``
-** ``++System.IO.StreamWriter++``
+* `System.Drawing` namespace
+** `System.Drawing.Image`
+** `System.Drawing.Bitmap`
 
-* ``++System.Net++`` namespace
-** ``++System.Net.WebClient++``
+which are either instantiated directly using the `new` operator, or using one of the following factory methods:
 
-* ``++System.Net.Sockets++`` namespace
-** ``++System.Net.Sockets.Socket++``
-** ``++System.Net.Sockets.TcpClient++``
-** ``++System.Net.Sockets.UdpClient++``
-
-* ``++System.Drawing++`` namespace
-** ``++System.Drawing.Image++``
-** ``++System.Drawing.Bitmap++``
-
-which are either instantiated directly using the ``++new++`` operator, or using one of the following factory methods:
-
-
-* ``++System.IO.File.Create()++``
-* ``++System.IO.File.Open()++``
-* ``++System.Drawing.Image.FromFile()++``
-* ``++System.Drawing.Image.FromStream()++``
+* `System.IO.File.Create()`
+* `System.IO.File.Open()`
+* `System.Drawing.Image.FromFile()`
+* `System.Drawing.Image.FromStream()`
 
 on both private fields and local variables.
 
+=== Exceptions
+
+`IDisposable` / `IAsyncDisposable` variables returned from a method or passed to other methods are ignored, as are local `IDisposable` / `IAsyncDisposable` objects that are initialized with other `IDisposable` / `IAsyncDisposable` objects.
+
+[source,csharp]
+----
+public Stream WriteToFile(string path, string text)
+{
+  var fs = new FileStream(path, FileMode.Open); // Compliant, because it is returned
+  var bytes = Encoding.UTF8.GetBytes(text);
+  fs.Write(bytes, 0, bytes.Length);
+  return fs;
+}
+
+public void ReadFromStream(Stream s)
+{
+  var sr = new StreamReader(s); // Compliant as it would close the underlying stream.
+  // ...
+}
+----
+
+== How to fix it
+
+It is essential to identify what kind of disposable resource variable is used to know how to fix this issue.
+
+In the case of a disposable resource store as a member (either as field or property), it should be disposed at the same time as the class. The best way to achieve this is to follow the https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/dispose-pattern[dispose pattern].
+
+When creating the disposable resource for a one-time use (cases not covered by the exceptions), it should be disposed at the end of its creation scope. The easiest to ensure your resource is disposed when reaching the end of a scope is to either use https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/using[the using statement or the using declaration]
 
 === Noncompliant code example
 
-[source,csharp]
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
 public class ResourceHolder 
 {
@@ -59,10 +83,9 @@ public class ResourceHolder
 }
 ----
 
-
 === Compliant solution
 
-[source,csharp]
+[source,csharp,diff-id=1,diff-type=compliant]
 ----
 public class ResourceHolder : IDisposable, IAsyncDisposable
 {
@@ -94,31 +117,14 @@ public class ResourceHolder : IDisposable, IAsyncDisposable
 }
 ----
 
-
-=== Exceptions
-
-``IDisposable`` / ``IAsyncDisposable`` variables returned from a method or passed to other methods are ignored, as are local ``IDisposable`` / ``IAsyncDisposable`` objects that are initialized with other ``IDisposable`` / ``IAsyncDisposable`` objects.
-
-[source,csharp]
-----
-public Stream WriteToFile(string path, string text)
-{
-  var fs = new FileStream(path, FileMode.Open); // Compliant, because it is returned
-  var bytes = Encoding.UTF8.GetBytes(text);
-  fs.Write(bytes, 0, bytes.Length);
-  return fs;
-}
-
-public void ReadFromStream(Stream s)
-{
-  var sr = new StreamReader(s); // Compliant as it would close the underlying stream.
-  // ...
-}
-----
-
-
 == Resources
 
+=== Documentation
+
+* https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/dispose-pattern[Dispose pattern]
+** https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-dispose[Implement a Dispose method]
+** https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync[Implement a DisposeAsync method]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/using[using statement and using declaration]
 * https://cwe.mitre.org/data/definitions/459[MITRE, CWE-459] - Incomplete Cleanup
 
 
@@ -144,7 +150,7 @@ Dispose "xxx" when it is no longer needed.
 === on 13 May 2015, 19:22:06 Ann Campbell wrote:
 \[~tamas.vajk] if this rule comes from R#, please provide the R# rule key.
 
-Also, there is the question of classes that ``++Dispose++`` of their ``++IDisposable++`` members, but not from their own ``++Dispose++`` methods. I.e. they call ``++Dispose++`` from some other, randomly-named method. Does this case merit coverage under this rule? A separate rule?
+Also, there is the question of classes that `Dispose` of their `IDisposable` members, but not from their own `Dispose` methods. I.e. they call `Dispose` from some other, randomly-named method. Does this case merit coverage under this rule? A separate rule?
 
 === on 13 May 2015, 19:22:15 Ann Campbell wrote:
 consulted: \http://stackoverflow.com/questions/10956140/does-a-class-need-to-implement-idisposable-when-all-members-are-explicitly-dispo
