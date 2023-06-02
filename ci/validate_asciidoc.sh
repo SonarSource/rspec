@@ -91,7 +91,7 @@ do
     # Directly included
     find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
     # Included through variable
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::{" "$1" | sed -r "s/include::\{(.*)\}\[\]/\1/" | grep -f - vars | cut -f2 | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
+    VARS_FULL_PATH=$(realpath vars) find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::{" "$1" | sed -r "s/include::\{(.*)\}\[\]/\1/" | grep -f - ${VARS_FULL_PATH} | cut -f2 | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
     find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp*.adoc' -exec sh -c 'realpath $1' shell {} \; > created
     orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
     if [[ -n "$orphans" ]]; then
