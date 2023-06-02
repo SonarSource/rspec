@@ -1,35 +1,119 @@
+This rule raises an issue when `Thread.run()` is called instead of `Thread.start()`.
+
 == Why is this an issue?
 
-The purpose of the ``++Thread.run()++`` method is to execute code in a separate, dedicated thread. Calling this method directly doesn't make sense because it causes its code to be executed in the current thread. 
+The likely intention of a user calling `Thread.run()` is to start the execution of code within a new thread.
+This, however, is not what happens when this method is called.
 
+The purpose of `Thread.run()` is to provide a method that users can overwrite to specify the code to be executed.
+The actual thread is then started by calling `Thread.start()`.
+When `Thread.run()` is called directly, it will be executed as a regular method within the current thread.
 
-To get the expected behavior, call the ``++Thread.start()++`` method instead.
+== How to fix it
 
+If you intend to execute the contents of the `Thread.run()` method within a new thread,
+call `Thread.start()` instead.
 
-=== Noncompliant code example
+If your intention is only to have a container for a method but execute this method within the current thread,
+do not use `Thread` but `Runnable` or another functional interface.
 
-[source,java]
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
 Thread myThread = new Thread(runnable);
-myThread.run(); // Noncompliant
+myThread.run(); // Noncompliant, does not start a thread
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
 Thread myThread = new Thread(runnable);
 myThread.start(); // Compliant
 ----
 
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+class ComputePrimesThread extends Thread {
+    @Override
+    public void run() {
+        // ...
+    }
+}
+new ComputePrimesThread().run(); // Noncompliant, does not start a thread
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+class ComputePrimesThread extends Thread {
+    @Override
+    public void run() {
+        // ...
+    }
+}
+new ComputePrimesThread().start(); // Compliant
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+class Button {
+
+    private Thread onClick;
+
+    Button(Thread onClick) {
+        this.onClick = onClick;
+    }
+
+    private void clicked() {
+        if (onClick != null) onClick.run(); // Noncompliant, use functional interface
+    }
+}
+
+new Button(new Thread() {
+    @Override public void run() {
+        System.out.println("clicked!");
+    }
+});
+----
+
+==== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+class Button {
+
+    private Runnable onClick;
+
+    Button(Runnable onClick) {
+        this.onClick = onClick;
+    }
+
+    private void clicked() {
+        if (onClick != null) onClick.run(); // compliant
+    }
+}
+
+new Button(() -> System.out.println("clicked!"));
+----
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/572[MITRE, CWE-572] - Call to Thread run() instead of start()
-* https://wiki.sei.cmu.edu/confluence/x/6DdGBQ[CERT THI00-J.] - Do not invoke Thread.run()
+=== Documentation
 
+* https://docs.oracle.com/javase/8/docs/api/java/lang/Thread.html#start--[Java™ Platform, Standard Edition 8 API Specification - Thread.start()]
 
+=== Articles & blog posts
+
+* https://www.javatpoint.com/what-if-we-call-java-run-method-directly[JavaTPoint - What if we call Java run() method directly instead start() method?]
 
 ifdef::env-github,rspecator-view[]
 
