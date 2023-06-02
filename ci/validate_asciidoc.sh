@@ -98,7 +98,7 @@ do
         printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
         exit_code=1
     fi
-    rm -f included created
+    rm -f included created vars
   fi
 done
 
