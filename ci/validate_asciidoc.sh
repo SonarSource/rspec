@@ -83,7 +83,15 @@ do
     done
 
     # Check that all adoc are included
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::" "$1" | grep -v "rule.adoc" | sed "s/include::\(.*\)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
+
+    # Files can be included through variables. We create a list of variables containing a path to an adoc
+    # These paths are relative to the file where they are _included_, not where they are _declared_
+    # Which is why we need to create this list and cannot do anything with the paths it contains until we find the corresponding include
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh ":\w+:\s+[A-Za-z0-9\/-]+\.adoc" "$1" | grep -v "rule.adoc" | sed -r "s/:(\w+):\s+([A-Za-z0-9\/-]+\.adoc)/\1@\2/"' shell {} \; > vars
+    # Directly included
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
+    # Included through variable
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::{" "$1" | grep -v "rule.adoc" | sed -r "s/include::\{(.*)\}\[\]/\1/" | grep -f - vars | cut -d@ -f2 | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
     find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp*.adoc' -exec sh -c 'realpath $1' shell {} \; > created
     orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
     if [[ -n "$orphans" ]]; then
