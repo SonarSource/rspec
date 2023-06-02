@@ -2,62 +2,95 @@ This rule raises an issue when an interface consists only of constant definition
 
 == Why is this an issue?
 
-An interface that consists only of constant definitions is a bad practice.
-The purpose of interfaces is to provide API, not implementation details.
+An interface that consists solely of constant definitions is a bad practice.
+The purpose of interfaces is to provide an API, not implementation details.
 That is, they should provide functions in the first place and constants only
 to assist these functions, for example, as possible arguments.
 
-If an interface contains constants only, they should either be moved to somewhere else,
-or the interface should be replaced with an _Enum_.
+If an interface contains constants only, move them either to somewhere else,
+or replace the interface with an _Enum_ or a final class with a private constructor.
 
 == How to fix it
 
-Either replace the interface with an _Enum_ or remove the interface and move the constants to one of the classes that use them.
-If the constants are only an implementation detail,
-declare the moved constants or the enum _private_ or _package protected_.
-
-=== Code examples
-
-==== Noncompliant code example
+If the concrete value of the constants is not essential, and they serve as mere identifiers,
+replace the interface with an `enum` like in the following example:
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-interface Status {                      // Noncompliant, enum should be used
-   int OPEN = 1;
-   int CLOSED = 2;
+public interface Status { // Noncompliant, enum should be used
+  int OPEN = 1;
+  int CLOSED = 2;
 }
 ----
 
-==== Compliant solution
-
 [source,java,diff-id=1,diff-type=compliant]
 ----
-public enum Status {                    // Compliant
+public enum Status {      // Compliant
   OPEN,
   CLOSED
 }
 ----
 
-==== Noncompliant code example
+In some cases, enums are not a suitable option because the concrete constant value is important.
+Then you should check whether it is appropriate to move them to a specific existing class,
+for example, if that class is the primary user of the constants:
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-interface AuxiliaryConstants {          // Noncompliant, implementation detail
-   int BIT_MASK = 0xcff7;
-   int MAX_16BIT_VAL = 0xffff;
-   int CHUNK_SIZE = 32;
+interface AuxiliaryConstants { // Noncompliant, implementation detail of WordPacker
+  int BITS_PER_WORD = 16;
+  int WORD_MASK = (1 << BITS_PER_WORD) - 1;
+  int HI_WORD_BK_MASK = ~(WORD_MASK << BITS_PER_WORD);
+}
+
+class WordPacker {
+  public static int getHiWord(int value) {
+    return (value >>> AuxiliaryConstants.BITS_PER_WORD);
+  }
+
+  public static int setHiWord(int value, int wordValue) {
+    return (value & AuxiliaryConstants.HI_WORD_BK_MASK) |
+      (wordValue << AuxiliaryConstants.BITS_PER_WORD);
+  }
 }
 ----
 
-==== Compliant solution
-
 [source,java,diff-id=1,diff-type=compliant]
 ----
-class BitFiddler {                      // Compliant
-   private final int BIT_MASK = 0xcff7;
-   private final int MAX_16BIT_VAL = 0xffff;
-   private final int CHUNK_SIZE = 32;
-   // ...
+class WordPacker { // Compliant
+  private static final int BITS_PER_WORD = 16;
+  private static final int WORD_MASK = (1 << BITS_PER_WORD) - 1;
+  private static final int HI_WORD_BK_MASK = ~(WORD_MASK << BITS_PER_WORD);
+
+  public static int getHiWord(int value) {
+      return (value >>> BITS_PER_WORD);
+  }
+
+  public static int setHiWord(int value, int wordValue) {
+    return (value & HI_WORD_BK_MASK) | (wordValue << BITS_PER_WORD);
+  }
+}
+----
+
+If this is not the case and several classes are using the constants equally,
+you should use a final class with a private constructor.
+Unlike interfaces, they can neither be inherited from nor instantiated.
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+public interface ColorTheme { // Noncomplient, final class should be used
+  int COLOR_ERROR = 0xff0000;   // red
+  int COLOR_WARNING = 0xffff00; // yellow
+  int COLOR_OK = 0x00cf00;      // green
+}
+----
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+public final class ColorTheme { // Compliant
+  public static final int COLOR_ERROR = 0xff0000;   // red
+  public static final int COLOR_WARNING = 0xffff00; // yellow
+  public static final int COLOR_OK = 0x00cf00;      // green
 }
 ----
 
