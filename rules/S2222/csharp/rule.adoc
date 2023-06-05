@@ -1,10 +1,17 @@
-== Why is this an issue?
+include::../why-dotnet.adoc[]
 
-include::../description-dotnet.adoc[]
+== How to fix it
 
-=== Noncompliant code example
+To make sure that a lock is always released correctly, you can follow one of these two methods:
 
-[source,csharp]
+* Use a https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock[`lock`] statement with your lock object.
+* Use a https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/exception-handling-statements#the-try-finally-statement[`try-finally`] statement and put the release of your lock object within the finally block.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
 class MyClass 
 {
@@ -12,19 +19,25 @@ class MyClass
 
   public void DoSomethingWithMonitor() 
   {
-    Monitor.Enter(obj); // Noncompliant
+    Monitor.Enter(obj); // Noncompliant: not all paths release the lock
     if (IsInitialized())
     {
       // ...
       Monitor.Exit(obj);
     }
   }
+}
+----
 
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+class MyClass 
+{
   private ReaderWriterLockSlim lockObj = new ReaderWriterLockSlim();
   
   public void DoSomethingWithReaderWriteLockSlim() 
   {
-    lockObj.EnterReadLock(); // Noncompliant
+    lockObj.EnterReadLock(); // Noncompliant: not all paths release the lock
     if (IsInitialized())
     {
       // ...
@@ -34,10 +47,9 @@ class MyClass
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,csharp]
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
 class MyClass 
 {
@@ -45,23 +57,31 @@ class MyClass
 
   public void DoSomethingWithMonitor() 
   {
-    lock(obj) // lock() {...} is easier to use than explicit Monitor calls
+    lock(obj) // Compliant: the lock will be release at the end of the lock block
     {
       if (IsInitialized())
       {
+        // ...
       }
     }
   }
+}
+----
 
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+class MyClass 
+{
   private ReaderWriterLockSlim lockObj = new ReaderWriterLockSlim();
 
   public void DoSomethingWithReaderWriteLockSlim() 
   {
-    lockObj.EnterReadLock();
+    lockObj.EnterReadLock(); // Compliant: the lock will be release in the finally block
     try
     {
       if (IsInitialized())
       {
+        // ...
       }
     }
     finally
@@ -72,23 +92,9 @@ class MyClass
 }
 ----
 
+include::../resources-dotnet.adoc[]
 
-include::../see.adoc[]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock[`lock` statement]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/exception-handling-statements#the-try-finally-statement[The `try-finally` statement]
 
-* https://docs.microsoft.com/en-us/dotnet/standard/threading/overview-of-synchronization-primitives#synchronization-of-access-to-a-shared-resource[Synchronization of access to a shared resource].
-
-
-ifdef::env-github,rspecator-view[]
-
-'''
-== Implementation Specification
-(visible only on this page)
-
-include::../message.adoc[]
-
-'''
-== Comments And Links
-(visible only on this page)
-
-include::../comments-and-links.adoc[]
-endif::env-github,rspecator-view[]
+include::../rspecator.adoc[]
