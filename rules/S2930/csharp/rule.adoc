@@ -1,36 +1,17 @@
 == Why is this an issue?
 
-When writing managed code, you don't need to worry about allocating or freeing memory: The garbage collector takes care of it. For efficiency reasons, some objects such as `Bitmap` use unmanaged memory, enabling, for example, the use of pointer arithmetic. Such objects have potentially huge unmanaged memory footprints but will have tiny managed ones. Unfortunately, the garbage collector only sees the tiny managed footprint and fails to reclaim the unmanaged memory (by calling `Bitmap`'s finalizer method) promptly. 
+When writing https://learn.microsoft.com/en-us/dotnet/standard/managed-code[managed code], there is no need to worry about memory allocation or deallocation as it is taken care of by the https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection[garbage collector]. However, certain objects, such as `Bitmap`, utilize unmanaged memory for specific purposes like https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/unsafe-code[pointer arithmetic]. These objects may have substantial unmanaged memory footprints while having minimal managed footprints. Unfortunately, the garbage collector only recognizes the small managed footprint and does not promptly reclaim the corresponding unmanaged memory (by invoking the finalizer method of `Bitmap`) for efficiency reasons. 
 
-Moreover, memory is not the only system resource that needs to be managed on time: The operating system can only handle having so many file descriptors (e.g. `FileStream`) or sockets (e.g. `WebClient`) open at any given time. Therefore, it is important to `Dispose` of them as soon as they are no longer needed, rather than relying on the garbage collector to call these objects' finalizers at some nondeterministic point in the future.
+In addition, it's essential to manage other system resources besides memory. The operating system has limits on the number of https://en.wikipedia.org/wiki/File_descriptor[file descriptors] (e.g., `FileStream`) or https://en.wikipedia.org/wiki/Network_socket[sockets] (e.g., `WebClient`) that can remain open simultaneously. Therefore, it's crucial to `Dispose` of these resources promptly when they are no longer required, instead of relying on the garbage collector to invoke the finalizers of these objects at an unpredictable time in the future.
 
-This rule tracks `private` fields and local variables of the following `IDisposable` / `IAsyncDisposable` types, which are never disposed, closed, aliased, returned, or passed to other methods.
+This rule keeps track of `private` fields and local variables of specific types that implement `IDisposable` or `IAsyncDisposable`. It identifies instances of these types that are not properly disposed, closed, aliased, returned, or passed to other methods. This applies to instances that are either directly created using the `new` operator or instantiated through a predefined list of factory methods.
 
-* `System.IO` namespace
-** `System.IO.FileStream`
-** `System.IO.StreamReader`
-** `System.IO.StreamWriter`
-
-* `System.Net` namespace
-** `System.Net.WebClient`
-
-* `System.Net.Sockets` namespace
-** `System.Net.Sockets.Socket`
-** `System.Net.Sockets.TcpClient`
-** `System.Net.Sockets.UdpClient`
-
-* `System.Drawing` namespace
-** `System.Drawing.Image`
-** `System.Drawing.Bitmap`
-
-which are either instantiated directly using the `new` operator, or using one of the following factory methods:
+Here is the list of predefined factory method tracked by this rule:
 
 * `System.IO.File.Create()`
 * `System.IO.File.Open()`
 * `System.Drawing.Image.FromFile()`
 * `System.Drawing.Image.FromStream()`
-
-on both private fields and local variables.
 
 === Exceptions
 
@@ -40,7 +21,7 @@ on both private fields and local variables.
 ----
 public Stream WriteToFile(string path, string text)
 {
-  var fs = new FileStream(path, FileMode.Open); // Compliant, because it is returned
+  var fs = new FileStream(path, FileMode.Open); // Compliant: it is returned
   var bytes = Encoding.UTF8.GetBytes(text);
   fs.Write(bytes, 0, bytes.Length);
   return fs;
@@ -48,7 +29,7 @@ public Stream WriteToFile(string path, string text)
 
 public void ReadFromStream(Stream s)
 {
-  var sr = new StreamReader(s); // Compliant as it would close the underlying stream.
+  var sr = new StreamReader(s); // Compliant: it would close the underlying stream.
   // ...
 }
 ----
@@ -69,7 +50,7 @@ When creating the disposable resource for a one-time use (cases not covered by t
 ----
 public class ResourceHolder 
 {
-  private FileStream fs; // Noncompliant; Dispose or Close are never called
+  private FileStream fs; // Noncompliant: dispose or close are never called
 
   public void OpenResource(string path)
   {
@@ -78,7 +59,7 @@ public class ResourceHolder
 
   public void WriteToFile(string path, string text)
   {
-    var fs = new FileStream(path, FileMode.Open); // Noncompliant
+    var fs = new FileStream(path, FileMode.Open); // Noncompliant: not disposed, returned or initialized with another disposable object
     var bytes = Encoding.UTF8.GetBytes(text);
     fs.Write(bytes, 0, bytes.Length);
   }
@@ -91,7 +72,7 @@ public class ResourceHolder
 ----
 public class ResourceHolder : IDisposable, IAsyncDisposable
 {
-  private FileStream fs;
+  private FileStream fs; // Compliant: disposed in Dispose/DisposeAsync methods
 
   public void OpenResource(string path)
   {
@@ -110,7 +91,7 @@ public class ResourceHolder : IDisposable, IAsyncDisposable
 
   public void WriteToFile(string path, string text)
   {
-    using (var fs = new FileStream(path, FileMode.Open))
+    using (var fs = new FileStream(path, FileMode.Open)) // Compliant: disposed at the end of the using block
     {
       var bytes = Encoding.UTF8.GetBytes(text);
       fs.Write(bytes, 0, bytes.Length);
@@ -123,12 +104,17 @@ public class ResourceHolder : IDisposable, IAsyncDisposable
 
 === Documentation
 
+* https://learn.microsoft.com/en-us/dotnet/standard/managed-code[What is "managed code"?]
+* https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection[Garbage collection]
+* https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/finalizers[Finalizers]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/unsafe-code[Unsafe code, pointer types, and function pointers]
+* https://en.wikipedia.org/wiki/File_descriptor[File descriptor - Wiki]
+* https://en.wikipedia.org/wiki/Network_socket[Network socket - Wiki]
 * https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/dispose-pattern[Dispose pattern]
 ** https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-dispose[Implement a Dispose method]
 ** https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync[Implement a DisposeAsync method]
 * https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/using[using statement and using declaration]
-* https://cwe.mitre.org/data/definitions/459[MITRE, CWE-459] - Incomplete Cleanup
-
+* https://cwe.mitre.org/data/definitions/459[MITRE, CWE-459 - Incomplete Cleanup]
 
 ifdef::env-github,rspecator-view[]
 
