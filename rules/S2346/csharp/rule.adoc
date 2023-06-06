@@ -1,10 +1,85 @@
 == Why is this an issue?
 
-include::../description.adoc[]
+An enumeration can be decorated with the https://learn.microsoft.com/en-us/dotnet/api/system.flagsattribute[FlagsAttribute] to indicate that it can be used as a https://en.wikipedia.org/wiki/Bit_field[bit field]: a set of flags, that can be independently set and reset.
 
-=== Noncompliant code example
+For example, the following definition of the day of the week:
 
 [source,csharp]
+----
+[Flags]
+enum Days
+{
+    Monday = 1,    // 0b00000001
+    Tuesday = 2,   // 0b00000010
+    Wednesday = 4, // 0b00000100
+    Thursday = 8,  // 0b00001000
+    Friday = 16,   // 0b00010000
+    Saturday = 32, // 0b00100000
+    Sunday = 64    // 0b01000000
+}
+----
+
+allows to define special set of days, such as `WeekDays` and `Weekend` using the `|` operator:
+
+[source,csharp]
+----
+[Flags]
+enum Days
+{
+    // ...
+    None = 0,                                                    // 0b00000000
+    Weekdays = Monday | Tuesday | Wednesday | Thursday | Friday, // 0b00011111
+    Weekend = Saturday | Sunday,                                 // 0b01100000
+    All = Weekdays | Weekend                                     // 0b01111111
+}
+----
+
+These can be used to write more expressive conditions, taking advantage of https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/bitwise-and-shift-operators[bitwise operators] and https://learn.microsoft.com/en-us/dotnet/api/system.enum.hasflag[Enum.HasFlag]:
+
+[source,csharp]
+----
+var someDays = Days.Wednesday | Days.Weekend;  // 0b01100100
+someDays.HasFlag(Days.Wednesday);              // someDays contains Wednesday
+
+var mondayAndWednesday = Days.Monday | Days.Wednesday;
+someDays.HasFlag(mondayAndWednesday);          // someDays contains Monday and Wednesday
+someDays.HasFlag(Days.Monday) || someDays.HasFlag(Days.Wednesday); // someDays contains Monday or Wednesday
+someDays & Days.Weekend != Days.None;          // someDays overlaps with the weekend
+someDays & Days.Weekdays == Days.Weekdays;     // someDays is only made of weekdays
+----
+
+Consistent use of `None` in flags enumerations indicates that all flag values are cleared. The value 0 should not be used to indicate any other state, since there is no way to check that the bit `0` is set.
+
+[source,csharp]
+----
+[Flags]
+enum Days
+{
+    Monday = 0,    // 0 is used to indicate Monday
+    Tuesday = 1,
+    Wednesday = 2,
+    Thursday = 4,
+    Friday = 8,
+    Saturday = 16,
+    Sunday = 32,
+    Weekdays = Monday | Tuesday | Wednesday | Thursday | Friday,
+    Weekend = Saturday | Sunday,
+    All = Weekdays | Weekend
+}
+
+var someDays = Days.Wednesday | Days.Thursday;
+someDays & Days.Tuesday == Days.Tuesday // False, because someDays doesn't contains Tuesday
+someDays & Days.Monday == Days.Monday   // True, even though someDays doesn't contains Monday!
+someDays.HasFlag(Days.Monday)           // Same issue as above
+----
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
 [Flags]
 enum FruitType
@@ -16,9 +91,9 @@ enum FruitType
 }
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-[source,csharp]
+[source,csharp,diff-id=1,diff-type=compliant]
 ----
 [Flags]
 enum FruitType
@@ -29,12 +104,18 @@ enum FruitType
     Strawberry = 4
 }
 ----
-ifdef::env-github,rspecator-view[]
 
-'''
-== Implementation Specification
-(visible only on this page)
+== Resources
 
-include::../message.adoc[]
+=== Documentation
 
-endif::env-github,rspecator-view[]
+* https://learn.microsoft.com/en-us/dotnet/api/system.flagsattribute[FlagsAttribute]
+* https://en.wikipedia.org/wiki/Bit_field[Bit field]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/bitwise-and-shift-operators[Bitwise and shift operators (C# reference)]
+* https://learn.microsoft.com/en-us/dotnet/api/system.enum.hasflag[Enum.HasFlag(Enum) Method]
+
+=== Articles & blog posts
+
+* https://learn.microsoft.com/en-us/previous-versions/dotnet/netframework-4.0/ms229062(v=vs.100)[Designing Flags Enumerations]
+
+include::../rspecator.adoc[]
