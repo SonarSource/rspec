@@ -130,7 +130,7 @@ class RuleCreator:
       token,
       branch_name,
       f'Create rule S{rule_number}',
-      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).\n\n{PR_TEMPLATE_PATH.read_text()}',
+      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}',
       [label],
       user
     )
@@ -143,7 +143,7 @@ class RuleCreator:
       token,
       branch_name,
       f'Create rule S{rule_number}',
-      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).\n\n{PR_TEMPLATE_PATH.read_text()}',
+      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}',
       labels,
       user
     )
