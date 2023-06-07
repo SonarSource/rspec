@@ -1,55 +1,119 @@
+This rule raises an issue when a class overrides the `Object.clone` method instead of resorting to a copy constructor or other copy mechanisms.
+
 == Why is this an issue?
 
-Many consider ``++clone++`` and ``++Cloneable++`` broken in Java, largely because the rules for overriding ``++clone++`` are tricky and difficult to get right, according to Joshua Bloch:
+The `Object.clone` / `java.lang.Cloneable` mechanism in Java should be considered broken for the following reasons and should, consequently, not be used:
 
-____
-Object's clone method is very tricky. It's based on field copies, and it's "extra-linguistic." It creates an object without calling a constructor. There are no guarantees that it preserves the invariants established by the constructors. There have been lots of bugs over the years, both in and outside Sun, stemming from the fact that if you just call super.clone repeatedly up the chain until you have cloned an object, you have a shallow copy of the object.  The clone generally shares state with the object being cloned. If that state is mutable, you don't have two independent objects. If you modify one, the other changes as well. And all of a sudden, you get random behavior.
-____
+- `Cloneable` is a _marker interface_ without API but with a contract about class behavior that the compiler cannot enforce. This is a bad practice.
+- Classes are instantiated without calling their constructor. This is a dangerous practice because possible preconditions and assumptions about object state that might normally be enforced by the constructors will not be enforced in this case. This can lead to bugs and unexpected behavior which is hard to analyze.
+- There are implementation flaws by design when overriding `Object.clone`. The implementation requires type casts and the handling of `CloneNotSupportedException` exceptions which cannot occur by behavioral contract of `Clonable`, but can occur by API contract of `Object.clone`.
 
+== How to fix it
 
-A copy constructor or copy factory should be used instead.
+A copy constructor, copy factory or a custom copy function are suitable alternatives to the `Object.clone` / `java.lang.Cloneable` mechanism.
 
+Consider the following example:
 
-This rule raises an issue when ``++clone++`` is overridden, whether or not ``++Cloneable++`` is implemented.
-
-
-=== Noncompliant code example
-
-[source,java]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-public class MyClass {
-  // ...
+class Entity implements Cloneable { // Noncompliant, using `Cloneable`
 
-  public Object clone() { // Noncompliant
-    //...
+  public int value;
+  public List<Entity> children; // deep copy wanted
+
+  Entity() {
+    EntityManager.register(this); // invariant
+  }
+
+  @Override
+  public Entity clone() {
+    try {
+      Entity copy = (Entity) super.clone(); // invariant not enforced, because no constructor is caled
+      copy.children = children.stream().map(Entity::clone).toList();
+      return copy;
+    } catch (CloneNotSupportedException e) { // this will not happen due to behavioral contract
+      throw new AssertionError();
+    }
   }
 }
 ----
 
+The `Cloneable` / `Object.clone` mechanism could easily be replaced by copy constructor:
 
-=== Compliant solution
-
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-public class MyClass {
-  // ...
+class Entity { // Compliant
 
-  MyClass (MyClass source) {
-    //...
+  public int value;
+  public List<Entity> children; // deep copy wanted
+
+  Entity() {
+    EntityManager.register(this); // invariant
+  }
+
+  Entity(Entity template) {
+    value = template.value;
+    children = template.children.stream().map(Entity::new).toList();
   }
 }
 ----
 
+Or by a factory method:
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+class Entity { // Compliant
+
+  public int value;
+  public List<Entity> children; // deep copy wanted
+
+  Entity() {
+    EntityManager.register(this); // invariant
+  }
+
+  public static Entity create(Entity template) {
+    Entity entity = new Entity();
+    entity.value = template.value;
+    entity.children = template.children.stream().map(Entity::new).toList();
+    return Entity;
+  }
+}
+----
+
+Or by a custom `copy` function:
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+class Entity { // Compliant
+
+  public int value;
+  public List<Entity> children; // deep copy wanted
+
+  Entity() {
+    EntityManager.register(this); // invariant
+  }
+
+  public Entity copy() {
+    Entity entity = new Entity();
+    entity.value = value;
+    entity.children = children.stream().map(Entity::new).toList();
+    return Entity;
+  }
+}
+----
 
 == Resources
 
-* https://www.artima.com/intv/bloch13.html[Copy Constructor versus Cloning]
+=== Documentation
+
+* https://www.artima.com/intv/bloch13.html[Joshua Bloch - Copy Constructor versus Cloning]
+* https://docs.oracle.com/javase/8/docs/api/java/lang/Cloneable.html[Interface Cloneable - Java™ Platform, Standard Edition 8 API Specification]
+* https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#clone--[Object.clone - Java™ Platform, Standard Edition 8 API Specification]
 
 === Related rules
 
-* S2157 - "Cloneables" should implement "clone"
-* S1182 - Classes that override "clone" should be "Cloneable" and call "super.clone()"
-
+* https://sonarsource.github.io/rspec/#/rspec/S2157[S2157 - "Cloneables" should implement "clone"]
+* https://sonarsource.github.io/rspec/#/rspec/S1182[S1182 - Classes that override "clone" should be "Cloneable" and call "super.clone()"]
 
 ifdef::env-github,rspecator-view[]
 
