@@ -39,6 +39,7 @@ def add_language_to_rule(language: str, rule: str, token: str, user: Optional[st
 class RuleCreator:
   '''Create a new Rule in a repository following the official Github 'rspec' repository structure.'''
   TEMPLATE_PATH: Final[Path] = Path(__file__).parent.parent.joinpath('rspec_template')
+  PR_TEMPLATE_PATH: Final[Path] = Path(__file__).parent.parent.parent.joinpath('.github/pull_request_template.md')
 
   def __init__(self, rspec_repo: RspecRepo):
     self.rspec_repo = rspec_repo
@@ -129,7 +130,7 @@ class RuleCreator:
       token,
       branch_name,
       f'Create rule S{rule_number}',
-      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).',
+      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}',
       [label],
       user
     )
@@ -142,7 +143,7 @@ class RuleCreator:
       token,
       branch_name,
       f'Create rule S{rule_number}',
-      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).',
+      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}',
       labels,
       user
     )
