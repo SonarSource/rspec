@@ -2,39 +2,63 @@
 
 Assigning a value to an import variable will cause a runtime error and will raise a compilation error in Typescript.
 
-[source,javascript]
-----
-import { readFile } from 'node:fs';
-readFile = 'hello world!';   // Noncompliant: TypeError: Assignment to constant variable.
-----
+=== Named imports
 
-The import is a live binding which is exported by another module. They are called _live bindings_ because they can be updated or reassigned by the exporting module and the imported value would also change. The importing module cannot reassign it.
-
-Moreover, this rule will raise an issue when trying to modify members of a _module namespace object_. A module namespace object is an object that describes all exports from a module. They are accessed through a namespace import:
+When using named imports, the imported identifier is a _live binding_ exported by another module. They are called _live bindings_ because they can be updated or reassigned by the exporting module, and the imported value would also change. The importing module cannot reassign it.
 
 [source,javascript]
 ----
-import * as fs from 'node:fs';
-fs.readPath = fs.readFile; // Noncompliant: TypeError: Cannot add property readPath, object is not extensible
+import { exportedObject } from 'module.js';
+exportedObject = 'hello world!';   // Noncompliant: TypeError: Assignment to constant variable.
 ----
 
-Or through the fulfillment value of a dynamic import.
+This rule will *not* raise an issue when a module mutates the imported object. Be aware that all other modules importing the same value can observe the mutated value.
 
 [source,javascript]
 ----
-import('node:fs').then(fs => {
-  fs.readPath = fs.readFile; // Noncompliant: TypeError: Cannot add property readPath, object is not extensible
+import { exportedObject } from 'module.js';
+exportedObject.newAttribute = 'hello world!';
+// exportedObject now contains newAttribute and can be seen from all other modules importing it
+----
+
+=== Namespace and dynamic imports
+
+Moreover, this rule will raise an issue when modifying members of a _module namespace object_. A module namespace object is a https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/seal[sealed object] that describes all exports from a module. Module namespace objects are accessed through these two cases:
+
+* a namespace import
+[source,javascript]
+----
+import * as module from 'module.js';
+module.newObject = module.exportedObject; // Noncompliant: TypeError: Cannot add property readPath, object is not extensible
+----
+
+* the fulfillment value of a dynamic import.
+
+[source,javascript]
+----
+import('module.js').then(module => {
+  module.newObject = module.exportedObject; // Noncompliant: TypeError: Cannot add property readPath, object is not extensible
 })
 ----
 
-This rule will not raise an issue when a module mutates the imported object. Please be aware the mutated value can be observed by all other modules importing the same value.
+=== Default imports
+
+Default imports are live bindings to the `default` export. As with named imports, the importing module cannot reassign it.
 
 [source,javascript]
 ----
-import fs from 'node:fs';
-fs.readPath = fs.readFile; // fs.default now contains readPath
+import module from 'module.js';
+module = 'hello world!';   // Noncompliant: TypeError: Assignment to constant variable.
 ----
 
+However, the object which `default` refers to is not a _live binding_ and may still be mutated by importing modules.
+
+[source,javascript]
+----
+import module from 'module.js';
+module.newAttribute = 'hello world!';
+// module.default now contains newAttribute and can be seen from all other modules importing it
+----
 
 == Resources
 * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import[MDN import]
