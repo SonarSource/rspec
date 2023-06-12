@@ -1,62 +1,118 @@
 == Why is this an issue?
 
-Non-private `static` fields that are neither `const` nor `readonly` can lead to errors and unpredictable behavior.
+Unlike instance fields, which can only be accessed by code having a hold on the instance, `static` fields can be accessed by any code having visibility of the field and its type.
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public class Math
+{
+    public static double Pi = 3.14;  // Noncompliant
+}
+
+// Somewhere else, where Math and Math.Pi are visible
+var pi = Math.Pi; // Reading the value 
+Math.Pi = 3.1416; // Mutating the value
+----
+
+Another typical scenario of the use of a non-private mutable `static` field is the following:
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+public class Shape
+{
+    public static Shape Empty = new EmptyShape();  // Noncompliant
+
+    private class EmptyShape : Shape
+    {
+    }
+}
+----
+
+Non-private `static` fields that are neither `const` nor `readonly`, like the ones in the examples above, can lead to errors and unpredictable behavior.
 
 This can happen because:
-* Any object can modify these fields and alter the global state. This makes the code more difficult to read, debug and test.
-* Correctly accessing these fields from different threads needs synchronization with `lock`. Improper synchronization may lead to unexpected results.
 
-Publicly visible static fields should only be used to store shared data that does not change.
+* Any object can modify these fields and alter the global state. This makes the code more difficult to read, debug and test.
++
+[source,csharp]
+----
+class Counters
+{
+    public static int ErrorCounter = 0;
+}
+
+class Program
+{
+    public static void Thread1()
+    {
+        // ...
+        Counters.ErrorCounter = 0; // Error counter reset
+        // ...
+    }
+
+    public static void Thread2()
+    {
+        // ...
+        if (Counters.ErrorCounter > 0)
+        {
+            Trace.TraceError($"There are {Counters.ErrorCounter} errors"); // It may print "There are 0 errors"
+        }
+        // ...
+    }
+}
+----
+
+* Correctly accessing these fields from different threads needs synchronization with `lock` or equivalent mechanisms. Improper synchronization may lead to unexpected results.
++
+[source,csharp]
+----
+class Counters
+{
+    public static volatile int ErrorCounter;
+}
+
+class Program
+{
+    public static void ImproperSynchronization()
+    {
+        Counters.ErrorCounter = 0;
+        Parallel.ForEach(Enumerable.Range(0, 1000), _ => Counters.ErrorCounter++); // Volatile is not enough
+        Console.WriteLine(Counters.ErrorCounter); // May print less than 1000
+    }
+
+    public static void ProperSynchronization()
+    {
+        Counters.ErrorCounter = 0;
+        Parallel.ForEach(Enumerable.Range(0, 1000), _ => Interlocked.Increment(ref Counters.ErrorCounter));
+        Console.WriteLine(Counters.ErrorCounter); // Always prints 1000
+    }
+}
+----
+
+Publicly visible `static` fields should only be used to store shared data that does not change.
 To enforce this intent, these fields should be marked `readonly` or converted to `const`.
 
-
-=== Noncompliant code example
-
-[source,csharp]
+[source,csharp,diff-id=1,diff-type=compliant]
 ----
 public class Math
 {
-  public static double Pi = 3.14;  // Noncompliant
+    public const double Pi = 3.14;
 }
 ----
-or
 
-[source,csharp]
+[source,csharp,diff-id=2,diff-type=compliant]
 ----
 public class Shape
 {
-  public static Shape Empty = new EmptyShape();  // Noncompliant
-
-  private class EmptyShape : Shape
-  {
-  }
+    public static readonly Shape Empty = new EmptyShape();
+  
+    private class EmptyShape : Shape
+    {
+    }
 }
 ----
 
-
-=== Compliant solution
-
-[source,csharp]
-----
-public class Math
-{
-  public const double Pi = 3.14;
-}
-----
-or
-
-[source,csharp]
-----
-public class Shape
-{
-  public static readonly Shape Empty = new EmptyShape();
-
-  private class EmptyShape : Shape
-  {
-  }
-}
-----
-
+include::../resources-dotnet.adoc[]
 
 ifdef::env-github,rspecator-view[]
 
@@ -68,41 +124,10 @@ ifdef::env-github,rspecator-view[]
 
 Change the visibility of "xxx" or make it "const" or "readonly".
 
-
 '''
 == Comments And Links
 (visible only on this page)
 
-=== relates to: S2226
-
-=== on 21 Nov 2014, 14:49:45 Freddy Mallet wrote:
-\[~ann.campbell.2] we should forget the technical difficulty to implement rules. If we really do that, this rule should become"A static field should never be updated from a thread". Because if the rule is really ""public static" fields should be "readonly"" we're going to generate a big amount of false positives
-
-=== on 21 Nov 2014, 14:51:26 Freddy Mallet wrote:
-And as soon as we're talking about multi-threading issue, the "multi-threading" tag should be used.
-
-=== on 28 May 2015, 12:00:52 Tamas Vajk wrote:
-\[~ann.campbell.2] I rewrote this rule to match the description here: \https://msdn.microsoft.com/en-us/library/ms182353.aspx
-
-
-The main idea is the same, ``++public static++`` fields should be either ``++const++`` or ``++readonly++``.
-
-=== on 28 May 2015, 14:29:44 Tamas Vajk wrote:
-\[~ann.campbell.2], could you go through the description?
-
-=== on 28 May 2015, 15:47:38 Ann Campbell wrote:
-the description looks fine [~tamas.vajk]. Could you revert the code samples too, please?
-
-=== on 29 May 2015, 07:15:30 Tamas Vajk wrote:
-\[~ann.campbell.2], the code samples were written by me, there is no need to revert them.
-
-=== on 29 May 2015, 14:51:32 Ann Campbell wrote:
-Cool. Thanks [~tamas.vajk]
-
-=== on 1 Jun 2015, 15:02:42 Tamas Vajk wrote:
-\[~ann.campbell.2] I've changed the severity to major, it shouldn't be critical IMO
-
-=== on 1 Jun 2015, 17:10:22 Ann Campbell wrote:
-that's fine [~tamas.vajk]
+include::../comments-and-links.adoc[]
 
 endif::env-github,rspecator-view[]

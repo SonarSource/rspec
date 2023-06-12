@@ -1,49 +1,72 @@
 == Why is this an issue?
 
-Even though the signatures for methods in a servlet include ``++throws IOException, ServletException++``, it's a bad idea to let such exceptions be thrown. Failure to catch exceptions in a servlet could leave a system in a vulnerable state, possibly resulting in denial-of-service attacks, or the exposure of sensitive information because when a servlet throws an exception, the servlet container typically sends debugging information back to the user. And that information could be very valuable to an attacker. 
+Servlets are components in Java web development, responsible for processing HTTP requests and generating responses.
+In this context, exceptions are used to handle and manage unexpected errors or exceptional conditions that may
+occur during the execution of a servlet.
 
+Catching exceptions within the servlet allows us to convert them into meaningful, user-friendly messages.
+Otherwise, failing to catch exceptions will propagate them to the servlet container, where the default
+error-handling mechanism may impact the overall security and stability of the server.
 
-This rule checks all exceptions in methods named "do*" are explicitly handled in servlet classes.
+Possible security problems are:
 
+1. *Vulnerability to denial-of-service attacks:*
+   Not caught exceptions can leave the servlet container in an unstable state, which can exhaust the available resources
+   and make the system unavailable in the worst cases.
 
-=== Noncompliant code example
+2. *Exposure of sensitive information:*
+   Exceptions handled by the servlet container, by default, expose detailed error messages or debugging information to
+   the user, which may contain sensitive data such as stack traces, database connection, or system configuration.
 
+Unfortunately, servlet method signatures do not force developers to handle `IOException` and `ServletException`:
 [source,java]
 ----
-public void doGet(HttpServletRequest request, HttpServletResponse response) 
-  throws IOException, ServletException {
-  String ip = request.getRemoteAddr();
-  InetAddress addr = InetAddress.getByName(ip); // Noncompliant; getByName(String) throws UnknownHostException
+public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+}
+----
+
+To prevent this risk, this rule enforces all exceptions to be caught within the "do*" methods of servlet classes.
+
+== How to fix it
+
+Surround all method calls that may throw an exception with a `try/catch` block.
+
+=== Code examples
+
+In the following example, the `getByName` method may throw an `UnknownHostException`.
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+  InetAddress addr = InetAddress.getByName(request.getRemoteAddr()); // Noncompliant
   //...
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-public void doGet(HttpServletRequest request, HttpServletResponse response) 
-  throws IOException, ServletException {
+public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
   try {
-    String ip = request.getRemoteAddr();
-    InetAddress addr = InetAddress.getByName(ip);
+    InetAddress addr = InetAddress.getByName(request.getRemoteAddr());
     //...
-  } 
-  catch (UnknownHostException uhex) {
+  }
+  catch (UnknownHostException ex) {  // Compliant
     //...
   }
 }
 ----
 
-
 == Resources
+
+=== Articles & blog posts
 
 * https://www.owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure[OWASP Top 10 2017 Category A3] - Sensitive Data Exposure
 * https://cwe.mitre.org/data/definitions/600[MITRE, CWE-600] - Uncaught Exception in Servlet
 * https://wiki.sei.cmu.edu/confluence/x/-zZGBQ[CERT, ERR01-J.] - Do not allow exceptions to expose sensitive information
-
-
 
 ifdef::env-github,rspecator-view[]
 

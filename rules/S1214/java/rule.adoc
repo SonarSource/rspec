@@ -1,54 +1,107 @@
+This rule raises an issue when an interface consists only of constant definitions without other members.
+
 == Why is this an issue?
 
-According to Joshua Bloch, author of "Effective Java":
+An interface that consists solely of constant definitions is a bad practice.
+The purpose of interfaces is to provide an API, not implementation details.
+That is, they should provide functions in the first place and constants only
+to assist these functions, for example, as possible arguments.
 
+If an interface contains constants only, move them either to somewhere else,
+or replace the interface with an _Enum_ or a final class with a private constructor.
 
-____
-The constant interface pattern is a poor use of interfaces. 
+== How to fix it
 
+If the concrete value of the constants is not essential, and they serve as mere identifiers,
+replace the interface with an `enum` like in the following example:
 
-That a class uses some constants internally is an implementation detail.
-
-Implementing a constant interface causes this implementation detail to leak into the class's exported API. It is of no consequence to the users of a class that the class implements a constant interface. In fact, it may even confuse them. Worse, it represents a commitment: if in a future release the class is modified so that it no longer needs to use the constants, it still must implement the interface to ensure binary compatibility. If a nonfinal class implements a constant interface,
-
-all of its subclasses will have their namespaces polluted by the constants in the interface.
-
-____
-
-This rule raises an issue when an interface consists solely of fields, without any other members.
-
-
-=== Noncompliant code example
-
-[source,java]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-interface Status {                      // Noncompliant
-   int OPEN = 1;
-   int CLOSED = 2;
+public interface Status { // Noncompliant, enum should be used
+  int OPEN = 1;
+  int CLOSED = 2;
 }
 ----
 
-
-=== Compliant solution
-
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-public enum Status {                    // Compliant
+public enum Status {      // Compliant
   OPEN,
-  CLOSED;
+  CLOSED
 }
 ----
 
-or
+In some cases, enums are not a suitable option because the concrete constant value is important.
+Then you should check whether it is appropriate to move them to a specific existing class,
+for example, if that class is the primary user of the constants:
 
-[source,java]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-public final class Status {             // Compliant
-   public static final int OPEN = 1;
-   public static final int CLOSED = 2;
+interface AuxiliaryConstants { // Noncompliant, implementation detail of WordPacker
+  int BITS_PER_WORD = 16;
+  int WORD_MASK = (1 << BITS_PER_WORD) - 1;
+  int HI_WORD_BK_MASK = ~(WORD_MASK << BITS_PER_WORD);
+}
+
+class WordPacker {
+  public static int getHiWord(int value) {
+    return (value >>> AuxiliaryConstants.BITS_PER_WORD);
+  }
+
+  public static int setHiWord(int value, int wordValue) {
+    return (value & AuxiliaryConstants.HI_WORD_BK_MASK) |
+      (wordValue << AuxiliaryConstants.BITS_PER_WORD);
+  }
 }
 ----
 
+[source,java,diff-id=1,diff-type=compliant]
+----
+class WordPacker { // Compliant
+  private static final int BITS_PER_WORD = 16;
+  private static final int WORD_MASK = (1 << BITS_PER_WORD) - 1;
+  private static final int HI_WORD_BK_MASK = ~(WORD_MASK << BITS_PER_WORD);
+
+  public static int getHiWord(int value) {
+      return (value >>> BITS_PER_WORD);
+  }
+
+  public static int setHiWord(int value, int wordValue) {
+    return (value & HI_WORD_BK_MASK) | (wordValue << BITS_PER_WORD);
+  }
+}
+----
+
+If this is not the case and several classes are using the constants equally,
+you should use a final class with a private constructor.
+Unlike interfaces, they can neither be inherited from nor instantiated.
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+public interface ColorTheme { // Noncomplient, final class should be used
+  int COLOR_ERROR = 0xff0000;   // red
+  int COLOR_WARNING = 0xffff00; // yellow
+  int COLOR_OK = 0x00cf00;      // green
+}
+----
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+public final class ColorTheme { // Compliant
+  public static final int COLOR_ERROR = 0xff0000;   // red
+  public static final int COLOR_WARNING = 0xffff00; // yellow
+  public static final int COLOR_OK = 0x00cf00;      // green
+
+  private ColorTheme() {}
+}
+----
+
+== Resources
+
+=== Articles & blog posts
+
+* https://dzone.com/articles/reasons-why-the-constant-interface-pattern-is-disc[Mohammad Nadeem - Why the Constant Interface Pattern Should Be Discouraged]
+* Joshua Bloch - Effective Java, ISBN 9780134686097
 
 ifdef::env-github,rspecator-view[]
 
@@ -60,10 +113,12 @@ ifdef::env-github,rspecator-view[]
 
 Move constants defined in this interface to another class or enum.
 
-
 '''
 == Comments And Links
 (visible only on this page)
+
+=== on 30 May 2023, 18:05:21 Marco Kaufmann wrote:
+Reworked into new educational format. The comments below should be obsolete due to that, because both use-cases, Enum and implementation details, are now addressed in the text and in the examples.
 
 === on 23 Aug 2013, 08:38:39 Dinesh Bolkensteyn wrote:
 Implemented by \http://jira.codehaus.org/browse/SONARJAVA-320
@@ -76,7 +131,6 @@ I question the advice we're giving here...
 
 === on 26 Aug 2013, 04:43:19 Dinesh Bolkensteyn wrote:
 hm, a utilitly class? Those aren't really nice to use - and is listed as last option (3) in Effective Java.
-
 
 But indeed he suggests to 1) add constants such as Integer.MAX_VALUE and Integer.MIN_VALUE to the Integer class directly *or* 2) to move them to an enum if applicable
 

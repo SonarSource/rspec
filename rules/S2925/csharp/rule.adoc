@@ -1,0 +1,74 @@
+== Why is this an issue?
+
+Using `Thread.Sleep` in a test might introduce unpredictable and incosistent results depending on the environment. Furthermore, it will block the https://en.wikipedia.org/wiki/Thread_(computing)[thread], which means the system resources are not being fully used.
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+[TestMethod]
+public void SomeTest()
+{
+    Thread.Sleep(500); // Noncompliant
+    // assertions...
+}
+----
+
+An alternative is a task-based asynchronous approach, using https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/[async and await].
+
+More specifically the https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.delay[Task.Delay] method should be used, because of the following advantages:
+
+* It is **asynchronous**: The thread will not be blocked, but instead will be reused by other operations
+* It is more **precise** in timing the delay than `Thread.Sleep`
+* It can be **cancelled and continued**, which gives more flexibility and control in the timing of your code
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+[TestMethod]
+public async Task SomeTest()
+{
+    await Task.Delay(500);
+    // assertions...
+}
+----
+
+Another scenario is when some data might need to be mocked using https://github.com/moq/moq4[Moq], and a delay needs to be introduced:
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+[TestMethod]
+public void UserService_Test()
+{
+    var userService = new Mock<UserService>();
+    var expected = new User();
+
+    userService
+        .Setup(m => m.GetUserById(42))
+        .Returns(() =>
+        {
+            Thread.Sleep(500); // Noncompliant
+            return Task.FromResult(expected);
+        });
+
+    // assertions...
+}
+----
+
+An alternative to `Thread.Sleep` while mocking with `Moq` is to use `ReturnsAsync` and pass the amount of time to delay there:
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+[TestMethod]
+public void UserService_Test()
+{
+    var userService = new Mock<UserService>();
+    var expected = new User();
+
+    userService
+        .Setup(m => m.GetUserById(42))
+        .ReturnsAsync(expected, TimeSpan.FromMilliseconds(500)); 
+
+    // assertions...
+}
+----
+
+include::../resources-dotnet.adoc[]
+include::../rspecator-dotnet.adoc[]
