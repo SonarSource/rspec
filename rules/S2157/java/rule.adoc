@@ -1,42 +1,107 @@
+This rule raises an issue when a class implements the interface `java.lang.Cloneable`,
+but does not override the `Object.clone()` method.
+
 == Why is this an issue?
 
-Simply implementing ``++Cloneable++``  without also overriding ``++Object.clone()++`` does not necessarily make the class cloneable. While the ``++Cloneable++`` interface does not include a ``++clone++`` method, it is required by convention, and ensures true cloneability. Otherwise the default JVM ``++clone++`` will be used, which copies primitive values and object references from the source to the target. I.e. without overriding ``++clone++``, any cloned instances will potentially share members with the source instance.
+`Cloneable` is a _marker interface_ that defines the contract of the `Object.clone` method,
+which is to create a consistent copy of the instance.
+The `clone` method is not defined by the interface though, but by class `Objects`.
 
+The general problem with marker interfaces is that their definitions cannot be enforced by the compiler because they have no own API.
+When a class implements `Cloneable`
+but does not override `Object.clone`,
+it is highly likely that it violates the contract for `Cloneable`.
 
-Removing the ``++Cloneable++`` implementation and providing a good copy constructor is another viable (some say preferable) way of allowing a class to be copied.
+== How to fix it
 
+Consider the following example:
 
-=== Noncompliant code example
-
-[source,java]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-class Team implements Cloneable {  // Noncompliant
-  private Person coach;
-  private List<Person> players;
-  public void addPlayer(Person p) {...}
-  public Person getCoach() {...}
+class Foo implements Cloneable { // Noncompliant, override `clone` method
+  public int value;
 }
 ----
 
+Override the `clone` method in class `Foo`.
+By convention, it must call `super.clone()`.
+At this point, we know that:
 
-=== Compliant solution
+- By behavioral contract, `Object.clone` will not throw a `CloneNotSupportedException`, because `Foo` implements `Cloneable`.
+- The returned object is an instance of class `Foo`
 
-[source,java]
+We can narrow down the return type of `clone` to `Foo` and handle the `CloneNotSupportedException` inside the function instead of throwing it:
+
+[source,java,diff-id=1,diff-type=compliant]
 ----
-class Team implements Cloneable {
-  private Person coach;
-  private List<Person> players;
-  public void addPlayer(Person p) { ... }
-  public Person getCoach() { ... }
+class Foo implements Cloneable { // Compliant
+
+  public int value;
 
   @Override
-  public Object clone() { 
-    Team clone = (Team) super.clone();
-    //...
+  public Foo clone() {
+    try {
+      return (Foo) super.clone();
+    } catch (CloneNotSupportedException e) {
+      throw new AssertionError();
+    }
   }
 }
 ----
 
+Be aware that `super.clone()` returns a one-by-one copy of the fields of the original instance.
+This means that in our example, the `Foo.value` field is not required to be explicitly copied
+in the overridden function.
+
+If you require another copy behavior for some or all of the fields,
+for example, deep copy or certain invariants that need to be true for a field,
+these fields must be patched after `super.clone()`:
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+class Entity implements Cloneable {
+
+  public int id; // unique per instance
+  public List<Entity> children; // deep copy wanted
+
+  @Override
+  public Entity clone() {
+    try {
+      Entity copy = (Entity) super.clone();
+      copy.id = System.identityHashCode(this);
+      copy.children = children.stream().map(Entity::clone).toList();
+      return copy;
+    } catch (CloneNotSupportedException e) {
+      throw new AssertionError();
+    }
+  }
+}
+----
+
+Be aware that the `Cloneable` / `Object.clone` approach has several drawbacks.
+You might, therefore, also consider resorting to other solutions,
+such as a custom `copy` method or a copy constructor:
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+class Entity implements Cloneable {
+
+  public int id; // unique per instance
+  public List<Entity> children; // deep copy wanted
+
+  Entity(Entity template) {
+    id = System.identityHashCode(this);
+    children = template.children.stream().map(Entity::new).toList();
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/javase/8/docs/api/java/lang/Cloneable.html[Interface Cloneable - Java™ Platform, Standard Edition 8 API Specification]
+* https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#clone--[Object.clone - Java™ Platform, Standard Edition 8 API Specification]
 
 ifdef::env-github,rspecator-view[]
 
@@ -47,7 +112,6 @@ ifdef::env-github,rspecator-view[]
 === Message
 
 Add a "clone()" method to this class.
-
 
 '''
 == Comments And Links
