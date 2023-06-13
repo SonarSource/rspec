@@ -4,7 +4,10 @@ It is important to be careful when searching for characters within a substring. 
 
 [source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-str.Substring(startIndex).IndexOf(char1); // Noncompliant: a new string is going to be created by "Substring"
+if (str.SubString(startIndex).IndexOf(char1) == -1) // Noncompliant: a new string is going to be created by "Substring"
+{
+   // ...
+}
 ----
 
 A new `string` object is created with every call to the https://learn.microsoft.com/en-us/dotnet/api/system.string.substring[`Substring`] method. When chaining it with any of the following methods, it creates a new object for one-time use only:
@@ -16,13 +19,16 @@ A new `string` object is created with every call to the https://learn.microsoft.
 
 === What is the potential impact?
 
-Creating a new object consumes significant https://en.wikipedia.org/wiki/System_resource[system resources], especially CPU and memory. When using `Substring` repeatedly, such as in a loop, it can greatly impact the overall performance of the application or program. As the size of the string increases, the slower it becomes.
+Creating a new object consumes significant https://en.wikipedia.org/wiki/System_resource[system resources], especially CPU and memory. When using `Substring` repeatedly, such as in a loop, it can greatly impact the overall performance of the application or program.
 
-To mitigate the creation of new objects while searching for a character within a substring, it is possible to utilize the overload of the mentioned methods that accepts an offset as the second parameter. Here is an example:
+To mitigate the creation of new objects while searching for characters within a substring, it is possible to use an overload of the mentioned methods with a `startIndex` parameter:
 
 [source,csharp,diff-id=1,diff-type=compliant]
 ----
-str.IndexOf(char1, startIndex) - startIndex;
+if (str.IndexOf(char1, startIndex) == -1)           // Compliant: no new instance of string is created
+{
+   // ...
+}
 ----
 
 Using these methods gives the same result while avoiding the creation of additional `string` objects.
@@ -41,19 +47,19 @@ Using these methods gives the same result while avoiding the creation of additio
 
 [options="header"]
 |========================================================================================================
-| Method               | Runtime              | StringSize | Mean      | StdDev    | Ratio | Allocated   
-| SubstringThenIndexOf | .NET 7.0             | 10         | 11.234 ms | 0.1319 ms | 1.00  | 40000008 B  
-| IndexOfOnly          | .NET 7.0             | 10         | 2.477 ms  | 0.0473 ms | 0.22  | 2 B         
-| SubstringThenIndexOf | .NET Framework 4.6.2 | 10         | 8.634 ms  | 0.4195 ms | 1.00  | 48141349 B  
-| IndexOfOnly          | .NET Framework 4.6.2 | 10         | 1.724 ms  | 0.0346 ms | 0.19  | -           
-| SubstringThenIndexOf | .NET 7.0             | 100        | 14.651 ms | 0.2977 ms | 1.00  | 176000008 B 
-| IndexOfOnly          | .NET 7.0             | 100        | 2.464 ms  | 0.0501 ms | 0.17  | 2 B         
-| SubstringThenIndexOf | .NET Framework 4.6.2 | 100        | 13.363 ms | 0.2044 ms | 1.00  | 176518761 B 
-| IndexOfOnly          | .NET Framework 4.6.2 | 100        | 1.689 ms  | 0.0290 ms | 0.13  | -           
+| Method               | Runtime              | StringSize | Mean      | StdDev    | Ratio | Allocated
+| SubstringThenIndexOf | .NET 7.0             | 10         | 11.234 ms | 0.1319 ms | 1.00  | 40000008 B
+| IndexOfOnly          | .NET 7.0             | 10         | 2.477 ms  | 0.0473 ms | 0.22  | 2 B
+| SubstringThenIndexOf | .NET Framework 4.6.2 | 10         | 8.634 ms  | 0.4195 ms | 1.00  | 48141349 B
+| IndexOfOnly          | .NET Framework 4.6.2 | 10         | 1.724 ms  | 0.0346 ms | 0.19  | -
+| SubstringThenIndexOf | .NET 7.0             | 100        | 14.651 ms | 0.2977 ms | 1.00  | 176000008 B
+| IndexOfOnly          | .NET 7.0             | 100        | 2.464 ms  | 0.0501 ms | 0.17  | 2 B
+| SubstringThenIndexOf | .NET Framework 4.6.2 | 100        | 13.363 ms | 0.2044 ms | 1.00  | 176518761 B
+| IndexOfOnly          | .NET Framework 4.6.2 | 100        | 1.689 ms  | 0.0290 ms | 0.13  | -
 | SubstringThenIndexOf | .NET 7.0             | 1000       | 78.688 ms | 2.4727 ms | 1.00  | 1528000072 B
-| IndexOfOnly          | .NET 7.0             | 1000       | 2.456 ms  | 0.0397 ms | 0.03  | 2 B         
+| IndexOfOnly          | .NET 7.0             | 1000       | 2.456 ms  | 0.0397 ms | 0.03  | 2 B
 | SubstringThenIndexOf | .NET Framework 4.6.2 | 1000       | 75.994 ms | 1.2650 ms | 1.00  | 1532637240 B
-| IndexOfOnly          | .NET Framework 4.6.2 | 1000       | 1.699 ms  | 0.0216 ms | 0.02  | -           
+| IndexOfOnly          | .NET Framework 4.6.2 | 1000       | 1.699 ms  | 0.0216 ms | 0.02  | -
 |========================================================================================================
 
 The results were generated by running the following snippet with https://github.com/dotnet/BenchmarkDotNet[BenchmarkDotNet]:
@@ -68,7 +74,7 @@ public int StringSize { get; set; }
 
 [GlobalSetup]
 public void Setup() =>
-    theString = string.Join("", Enumerable.Range(0, StringSize).Select(x => 'a'));
+    theString = new string('a', StringSize);
 
 [Benchmark(Baseline = true)]
 public void SubstringThenIndexOf()
