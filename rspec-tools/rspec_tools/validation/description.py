@@ -48,8 +48,8 @@ def validate_duplications(h2_titles, rule_language):
 
 def intersection(list1, list2):
   return list(set(list1).intersection(list2))
-def difference(lst1, lst2):
-  return list(set(lst1) - set(lst2))
+def difference(list1, list2):
+  return list(set(list1) - set(list2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
   """Validates all h2-level section names"""
