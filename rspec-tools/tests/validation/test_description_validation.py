@@ -110,7 +110,7 @@ def test_single_how_to_fix_it_allowed_validation(invalid_rule):
 def test_duplicate_frameworks_in_how_to_fix_it_validation(invalid_rule):
   '''Check that duplicate "How to fix it" subsections for the same framework breaks validation'''
   rule = invalid_rule('S200', 'javascript')
-  with pytest.raises(RuleValidationError, match='Rule javascript:S200 has duplicate "How to fix it" sections {\'How to fix it in Razor\'}'):
+  with pytest.raises(RuleValidationError, match='Rule javascript:S200 has duplicated {\'How to fix it in Razor\'} sections'):
     validate_section_names(rule)
 
 def test_wrong_format_how_to_fix_it_section_validation(invalid_rule):
