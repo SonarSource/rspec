@@ -1,14 +1,14 @@
 == Why is this an issue?
 
-`ValueTask<TResult>` was introduced in .NET Core 2.0 https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask[to optimize memory allocation] when functions return their results synchronously.
+`ValueTask<TResult>` provides a value type that wraps a https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task-1[Task<TResult>] and the corresponding `TResult`. It was introduced in .NET Core 2.0 https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask[to optimize memory allocation] when functions return their results synchronously.
 
-One should not use `ValueTask` and `ValueTask<TResult>` in the following ways as it could result in a race condition:
+Using `ValueTask` and `ValueTask<TResult>` in the following ways is discouraged as it could result in a race condition:
 
 * Calling `await` multiple times on a `ValueTask`/`ValueTask<TResult>`. The wrapped object may have been reused by another operation. This differs from `Task`/`Task<TResult>`, on which you can await multiple times and always get the same result.
 * Calling `await` concurrently on a `ValueTask`/`ValueTask<TResult>`. The underlying object is not thread safe. What's more, it has the same effect as awaiting multiple times a `ValueTask`/`ValueTask<TResult>`. This again differs from `Task`/`Task<TResult>`, which support concurrent `await`.
 * Using `.Result` or `.GetAwaiter().GetResult()` without checking if the operation is completed. `IValueTaskSource`/`IValueTaskSource<TResult>` implementations are not required to block until the operation completes. On the other hand, `Task`/`Task<TResult>` blocks the call until the task completes.
 
-It is recommended to use `ValueTask`/`ValueTask<TResult>` either by calling "await" on the function returning it, optionally calling `ConfigureAwait(false)` on it, or by calling `.AsTask()` on it.
+It is recommended to use `ValueTask`/`ValueTask<TResult>` either by calling `await` on the function returning it, optionally calling `ConfigureAwait(false)` on it, or by calling `.AsTask()` on it.
 
 This rule raises an issue when the following operations are performed on a `ValueTask`/`ValueTask<TResult>` instance unless it happens in a loop:
 
@@ -26,21 +26,21 @@ This rule raises an issue when the following operations are performed on a `Valu
 
 [source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-ValueTask<int> vt = SomeValueTaskReturningMethodAsync();
+ValueTask<int> vt = ComputeAsync();
 int result = await vt;
 result = await vt; // Noncompliant, variable is awaited multiple times
 
-int value = SomeValueTaskReturningMethodAsync().GetAwaiter().GetResult(); // Noncompliant, uses GetAwaiter().GetResult() when it's not known to be done
+int value = ComputeAsync()).GetAwaiter().GetResult(); // Noncompliant, uses GetAwaiter().GetResult() when it's not known to be done
 ----
 
 ==== Compliant solution
 
 [source,csharp,diff-id=1,diff-type=compliant]
 ----
-ValueTask<int> vt = SomeValueTaskReturningMethodAsync();
+ValueTask<int> vt = ComputeAsync();
 int result = await vt;
 
-Task<int> t = SomeValueTaskReturningMethodAsync().AsTask();
+int value = await ComputeAsync().AsTask();
 ----
 
 == Resources
