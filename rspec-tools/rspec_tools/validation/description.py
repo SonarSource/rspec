@@ -1,3 +1,4 @@
+import collections
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
@@ -39,8 +40,13 @@ SUBSECTIONS = {
   'Code examples': ['Noncompliant code example', 'Compliant solution']
 }
 
-def intersection(lst1, lst2):
-  return list(set(lst1).intersection(lst2))
+def intersection(found, authorized, rule_language):
+  as_set = set(found)
+  if len(as_set) != len(found):
+    duplicates = [item for item, count in collections.Counter(found).items() if count > 1]
+    raise RuleValidationError(f'Rule {rule_language.id} has duplicated "{str(duplicates)}" section(s)')
+  return list(set(found).intersection(authorized))
+
 def difference(lst1, lst2):
   return list(set(lst1) - set(lst2))
 
@@ -50,7 +56,7 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-  education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()))
+  education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()), rule_language)
   if education_titles:
     # Using the education format.
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
