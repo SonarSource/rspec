@@ -1,6 +1,6 @@
 == Why is this an issue?
 
-When execution enters a loop that lacks an exit condition, the program will be looping indefinitely.
+When execution enters a loop that lacks an exit condition or the exit condition is always false, the program will be looping indefinitely.
 This can happen in multiple scenarios:
 
 * `while` and `for` loops
@@ -10,7 +10,7 @@ public int Sum(List<int> items)
 {
     var i = 0;
     var result = 0;
-    while (true) // forgot to check i < items.Count
+    while (true) // Noncompliant: forgot to check i < items.Count
     {
         result += items[i];
         i++;
@@ -29,7 +29,7 @@ public int Sum(List<int> items)
     var result = 0;
     var i = 0;
 iteration: 
-    // forgot to check i < items.Count
+    // Noncompliant: forgot to check i < items.Count
     result += items[i];
     i++;
     goto iteration;
@@ -45,57 +45,41 @@ a technique used to define a problem in terms of a simpler version of the proble
 When a recursive method lacks an exit condition, the https://en.wikipedia.org/wiki/Call_stack[call stack] will reach its limit and the program will crash due to a stack overflow error.
 This can happen in multiple scenarios:
 
-* a method invoking itself
+* a method invoking itself (direct recursion)
 [source,csharp,diff-id=3,diff-type=noncompliant]
 ----
 int Pow(int num, int exponent)
 {
-  return num * Pow(num, exponent - 1); // no condition under which Pow isn't re-called
+  return num * Pow(num, exponent - 1); // Noncompliant: no condition under which Pow isn't re-called
 }
 ----
 
-In this example, `Pow` will keep calling `Pow` with `exponent-1` forever, so the program will never terminate.
+In this example, `Pow` will keep calling `Pow` with `exponent - 1` forever, until the program crashes by a https://learn.microsoft.com/en-us/dotnet/api/system.stackoverflowexception[StackOverflowException].
 
-* a group of methods mutually invoking each other
+* a group of methods mutually invoking each other (indirect recursion)
 [source,csharp,diff-id=4,diff-type=noncompliant]
 ----
 int Foo(int n) 
 {
   Console.WriteLine("foo");
-  Bar(n-1); // always calls Bar
+  Bar(n-1); // Noncompliant: always calls Bar
 }
 
 int Bar(int n) 
 {
   Console.WriteLine("bar");
-  Foo(n-1); // always calls Foo
+  Foo(n); // Noncompliant: always calls Foo
 }
 ----
 
-In this example, `Foo` will always call `Bar`, which will always call `Foo`, etc. So the program will never terminate.
+In this example, `Foo` will always call `Bar`, which will always call `Foo`, etc. Until the program eventually crashes by a StackOverflowException.
 
-=== Recursion in Depth
-
-Recursion can have a lot of benefits:
-
-* **Simplified code**: recursion can often lead to more concise and elegant code by breaking down complex problems into smaller, more manageable parts.
-* **Improved code readability**: compared to iterative solutions, recursive solutions can be easier to understand and reason about.
-
-However, recursion also presents some dangers:
-
-* **Stack overflow**: Recursive functions can lead to https://learn.microsoft.com/en-us/dotnet/api/system.stackoverflowexception[stack overflow] if the recursion is too deep, potentially causing the program to crash.
-* **Performance overhead**: Recursive function calls can lead to poor performance due to the need to push and pop https://en.citizendium.org/wiki/Stack_frame#:~:text=In%20computer%20science%2C%20a%20stack,only%20exist%20at%20run%2Dtime[stack frames], making them potentially slower than iterative solutions.
-* **Difficulty in debugging**: Debugging recursive code can be challenging, as multiple recursive calls can make it harder to track the flow of execution and identify logical errors.
-* **Space complexity**: Recursive algorithms may require more memory compared to iterative approaches, as each recursive call adds a new frame to the call stack.
-* **Lack of control**: Recursion can sometimes lead to infinite loops or unexpected behavior if not properly implemented or terminated, making it crucial to have proper base cases and exit conditions.
-
-
-== How to fix it
+'''
 
 The program's logic should incorporate a mechanism to break out of the loop.
 Here are some ways to achieve that:
 
-* `while` and `for` condition should eventually evaluates to `false` 
+* `while` or `for` condition should eventually evaluate to `false` 
 [source,csharp,diff-id=1,diff-type=compliant]
 ----
 public int Sum(List<int> items)
@@ -142,8 +126,6 @@ int Pow(int num, int exponent)
 }
 ----
 
-In this example, `Pow` will call `Pow` only if the exponent is greater than one, while passing `exponent-1` to the method, a smaller value than the one it received, `exponent`. This means that the recursion will run `exponent-1` times, until `exponent` is equal to one, and then return the result.
-
 * Introduce a condition that breaks the invocation loop of the group of methods
 [source,csharp,diff-id=4,diff-type=compliant]
 ----
@@ -159,11 +141,25 @@ int Foo(int n)
 int Bar(int n) 
 {
   Console.WriteLine("bar");
-  Foo(n-1);
+  Foo(n);
 }
 ----
 
-In this example, `Foo` is invoking `Bar` conditionally, only if `n` is a positive number. Also, both `Foo` and `Bar` are decrementing the value of `n`, which means it will always decrease, until it reaches zero and exit `Foo`, without calling `Bar` again.
+=== Recursion in Depth
+
+Recursion provides some benefits.
+
+* **Simplified code**: recursion can often lead to more concise and elegant code by breaking down complex problems into smaller, more manageable parts.
+* **Improved code readability**: compared to iterative solutions, recursive solutions can be easier to understand and reason about.
+
+However, it has some disadvantages as well.
+
+* **Stack overflow**: Recursive functions can lead to https://learn.microsoft.com/en-us/dotnet/api/system.stackoverflowexception[stack overflow] if the recursion is too deep, potentially causing the program to crash.
+* **Performance overhead**: Recursive function calls can lead to poor performance due to the need to push and pop https://en.citizendium.org/wiki/Stack_frame#:~:text=In%20computer%20science%2C%20a%20stack,only%20exist%20at%20run%2Dtime[stack frames], making them potentially slower than iterative solutions.
+* **Difficulty in debugging**: Debugging recursive code can be challenging, as multiple recursive calls can make it harder to track the flow of execution and identify logical errors.
+* **Space complexity**: Recursive algorithms may require more memory compared to iterative approaches, as each recursive call adds a new frame to the call stack.
+* **Lack of control**: Recursion can sometimes lead to infinite loops or unexpected behavior if not properly implemented or terminated, making it crucial to have proper base cases and exit conditions.
+
 
 == Resources
 
