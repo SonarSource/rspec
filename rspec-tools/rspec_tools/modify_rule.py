@@ -63,6 +63,10 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
     return generic_metadata.get('quickfix', DEFAULT)
 
   def _update_quickfix_status(self, rule_number: int, language: str, status: str):
+
+    WINDOWS_LINE_ENDING = b'\r\n'
+    UNIX_LINE_ENDING = b'\n'
+
     metadata_path = self.repo_dir / 'rules' / f'S{rule_number}' / language / 'metadata.json'
     if not metadata_path.is_file():
       raise InvalidArgumentError(f'{metadata_path} does not exist or is not a file')
@@ -76,3 +80,15 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
     # When generating the JSON, ensure forward slashes are escaped. See RULEAPI-750.
     json_string = json.dumps(metadata, indent=2).replace("/", "\\/")
     metadata_path.write_text(json_string)
+
+    with open(metadata_path, 'rb') as open_file:
+      content = open_file.read()
+
+    # Windows ➡ Unix
+    content = content.replace(WINDOWS_LINE_ENDING, UNIX_LINE_ENDING)
+
+    # Unix ➡ Windows
+    # content = content.replace(UNIX_LINE_ENDING, WINDOWS_LINE_ENDING)
+
+    with open(metadata_path, 'wb') as open_file:
+      open_file.write(content)
