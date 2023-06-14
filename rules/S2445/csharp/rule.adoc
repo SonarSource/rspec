@@ -1,21 +1,13 @@
 == Why is this an issue?
 
-Locking on a class field synchronizes not on the field itself, but on the object assigned to it. Thus, there are some good practices to follow to avoid bugs related to thread synchronization.
+Locking on a class field synchronizes not on the field itself, but on the object assigned to it. Thus, there are some good practices to follow to avoid problems related to thread synchronization.
 
-1. Locking on a non-`readonly` field makes it possible for the field's value to change while a thread is in the code block locked on the old value. This allows another thread to lock on the new value and access the same block concurrently.
+* Locking on a non-`readonly` field makes it possible for the field's value to change while a thread is in the code block locked on the old value. This allows another thread to lock on the new value and access the same block concurrently.
 
-2. Locking on a new instance of an object undermines synchronization because two different threads running the same method in parallel will lock on different instances of the same object, allowing them to access the synchronized block at the same time.
-
-3. Locking on a string literal is also dangerous since, depending on whether the string is interned or not, different threads may or may not synchronize on the same object instance.
-
-
-=== Noncompliant code example
-
++
 [source,csharp]
 ----
 private Color color = new Color("red");
-private readonly string colorString = "red";
-
 private void DoSomething()
 {
   // Synchronizing access via "color"
@@ -25,10 +17,31 @@ private void DoSomething()
     color = new Color("green"); // other threads now allowed into this block
     // ...
   }
+}
+----
+
+* Locking on a new instance of an object undermines synchronization because two different threads running the same method in parallel will lock on different instances of the same object, allowing them to access the synchronized block at the same time.
+
++
+[source,csharp]
+----
+private void DoSomething()
+{
   lock (new object()) // Noncompliant; this is a no-op
   {
     // ...
   }
+}
+----
+
+* Locking on a string literal is also dangerous since, depending on whether the string is interned or not, different threads may or may not synchronize on the same object instance.
+
++
+[source,csharp]
+----
+private readonly string colorString = "red";
+private void DoSomething()
+{
   lock (colorString)  // Noncompliant; strings can be interned
   {
     // ...
@@ -36,10 +49,30 @@ private void DoSomething()
 }
 ----
 
+== How to fix it
 
-=== Compliant solution
+=== Code examples
 
-[source,csharp]
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+private Color color = new Color("red");
+private void DoSomething()
+{
+  // Synchronizing access via "color"
+  lock (color) // Noncompliant; lock is actually on object instance "red" referred to by the "color" field
+  {
+    //...
+    color = new Color("green"); // other threads now allowed into this block
+    // ...
+  }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
 ----
 private Color color = new Color("red");
 private readonly object lockObj = new object();
@@ -76,11 +109,9 @@ Do not lock on a new instance because is a no-op, use a readonly field instead.
 
 Do not lock on strings as they can be interned, use a readonly field instead.
 
-
 === Highlighting
 
 locked object in `lock (xxx)` statement
-
 
 '''
 == Comments And Links
