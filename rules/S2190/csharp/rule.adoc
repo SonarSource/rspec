@@ -1,51 +1,139 @@
 == Why is this an issue?
 
-When execution enters a loop that lacks an exit condition or the exit condition is always false, the program will be looping indefinitely.
-This can happen in multiple scenarios:
+Having an infinite loop or recursion will lead to a program failure or a program never finishing the execution.
 
-* `while` and `for` loops
-[source,csharp,diff-id=1,diff-type=noncompliant]
+[source,csharp]
 ----
-public int Sum(List<int> items)
+public int Sum()
 {
     var i = 0;
     var result = 0;
-    while (true) // Noncompliant: forgot to check i < items.Count
+    while (true) // Noncompliant: the program will never stop
     {
-        result += items[i];
+        result += i;
         i++;
     }
     return result;
 }
 ----
 
-In this example, the `while` loop will never be exited, because the condition is always `true`.
+This can happen in multiple scenarios.
 
-* `goto` statements 
+=== Loop statements
+`while` and `for` loops with no `break` or `return` statements and with the exit condition always `false` will be indefinitely executed.
+
+=== "goto" statements
+`goto` statement with nothing that stops it from being executed over and over again will prevent the program from the completion.
+
+=== Recursion
+When a https://en.wikipedia.org/wiki/Recursion_(computer_science)[recursive] method call chain lacks an exit condition, 
+the https://en.wikipedia.org/wiki/Call_stack[call stack] will reach its limit and the program will crash due to the stack overflow exception.
+
+[source,csharp]
+----
+int Pow(int num, int exponent)
+{
+  return num * Pow(num, exponent - 1); // Noncompliant: no condition under which Pow isn't re-called
+}
+----
+
+In this example, `Pow` will keep calling `Pow` with `exponent - 1` forever, until the program crashes with a https://learn.microsoft.com/en-us/dotnet/api/system.stackoverflowexception[StackOverflowException].
+
+Recursion provides some benefits.
+
+* **Simplified code**: recursion can often lead to more concise and elegant code by breaking down complex problems into smaller, more manageable parts.
+* **Improved code readability**: compared to iterative solutions, recursive solutions can be easier to understand and reason about.
+
+However, it has disadvantages as well.
+
+* **Stack overflow**: Recursive functions can lead to https://learn.microsoft.com/en-us/dotnet/api/system.stackoverflowexception[stack overflow] if the recursion is too deep, potentially causing the program to crash.
+* **Performance overhead**: Recursive function calls can lead to poor performance due to the need to push and pop https://en.citizendium.org/wiki/Stack_frame#:~:text=In%20computer%20science%2C%20a%20stack,only%20exist%20at%20run%2Dtime[stack frames], making them potentially slower than iterative solutions.
+* **Difficulty in debugging**: Debugging recursive code can be challenging, as multiple recursive calls can make it harder to track the flow of execution and identify logical errors.
+* **Space complexity**: Recursive algorithms may require more memory compared to iterative approaches, as each recursive call adds a new frame to the call stack.
+* **Lack of control**: Recursion can sometimes lead to infinite loops or unexpected behavior if not properly implemented or terminated, making it crucial to have proper base cases and exit conditions.
+
+== How to fix it
+
+The program's logic should incorporate a mechanism to break out of the control flow loop.
+Here are some examples.
+
+=== Code examples
+
+* Use a loop condition which eventually evaluates to `false` 
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public int Sum()
+{
+    var i = 0;
+    var result = 0;
+    while (true) // Noncompliant: the program will never stop
+    {
+        result += i;
+        i++;
+    }
+    return result;
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+public int Sum()
+{
+    var i = 0;
+    var result = 0;
+    while (result < 1000)
+    {
+        result += i;
+        i++;
+    }
+    return result;
+}
+----
+
+* As https://rules.sonarsource.com/csharp/RSPEC-907[S907] generally suggests, avoid using `goto` statements. Instead, you can use a loop statement or explicit recursion.
+
+==== Noncompliant code example
+
 [source,csharp,diff-id=2,diff-type=noncompliant]
 ----
-public int Sum(List<int> items)
+public int Sum()
 {
     var result = 0;
     var i = 0;
 iteration: 
-    // Noncompliant: forgot to check i < items.Count
-    result += items[i];
+    // Noncompliant: program never ends
+    result += i;
     i++;
     goto iteration;
     return result;
 }
 ----
 
-In this example, there is nothing that stops `goto` from being executed over and over again.
+==== Compliant solution
 
-This concept does not only apply to loops, but also to https://en.wikipedia.org/wiki/Recursion_(computer_science)[recursion],
-a technique used to define a problem in terms of a simpler version of the problem itself. 
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+public int Sum()
+{
+    var i = 0;
+    var result = 0;
+    while (result < 1000)
+    {
+        result += i;
+        i++;
+    }
+    return result;
+}
+----
 
-When a recursive method lacks an exit condition, the https://en.wikipedia.org/wiki/Call_stack[call stack] will reach its limit and the program will crash due to a stack overflow error.
-This can happen in multiple scenarios:
+* For a recursion make sure there is a base case when the recursive method is not re-called.
 
-* a method invoking itself (direct recursion)
+==== Noncompliant code example
 [source,csharp,diff-id=3,diff-type=noncompliant]
 ----
 int Pow(int num, int exponent)
@@ -54,66 +142,7 @@ int Pow(int num, int exponent)
 }
 ----
 
-In this example, `Pow` will keep calling `Pow` with `exponent - 1` forever, until the program crashes by a https://learn.microsoft.com/en-us/dotnet/api/system.stackoverflowexception[StackOverflowException].
-
-* a group of methods mutually invoking each other (indirect recursion)
-[source,csharp,diff-id=4,diff-type=noncompliant]
-----
-int Foo(int n) 
-{
-  Console.WriteLine("foo");
-  Bar(n-1); // Noncompliant: always calls Bar
-}
-
-int Bar(int n) 
-{
-  Console.WriteLine("bar");
-  Foo(n); // Noncompliant: always calls Foo
-}
-----
-
-In this example, `Foo` will always call `Bar`, which will always call `Foo`, etc. Until the program eventually crashes by a StackOverflowException.
-
-'''
-
-The program's logic should incorporate a mechanism to break out of the loop.
-Here are some ways to achieve that:
-
-* `while` or `for` condition should eventually evaluate to `false` 
-[source,csharp,diff-id=1,diff-type=compliant]
-----
-public int Sum(List<int> items)
-{
-    var i = 0;
-    var result = 0;
-    while (i < items.Count)
-    {
-        result += items[i];
-        i++;
-    }
-    return result;
-}
-----
-
-In this example, the `while` loop will stop evaluating to `true` when the increment `i` will reach `items.Count - 1`, and then return the result.
-
-* As https://rules.sonarsource.com/csharp/RSPEC-907[S907] generally suggests, avoid using `goto` statements. Instead, you can use a loop statement or explicit recursion.
-[source,csharp,diff-id=2,diff-type=compliant]
-----
-public int Sum(List<int> items)
-{
-    var i = 0;
-    var result = 0;
-    while (i < items.Count)
-    {
-        result += items[i];
-        i++;
-    }
-    return result;
-}
-----
-
-* Self-invoking should happen under a condition that eventually evaluates to `false`
+==== Compliant solution
 [source,csharp,diff-id=3,diff-type=compliant]
 ----
 int Pow(int num, int exponent) 
@@ -125,41 +154,6 @@ int Pow(int num, int exponent)
   return num;
 }
 ----
-
-* Introduce a condition that breaks the invocation loop of the group of methods
-[source,csharp,diff-id=4,diff-type=compliant]
-----
-int Foo(int n) 
-{
-  if (n > 0) // conditionally calls Bar
-  {
-    Console.WriteLine("foo");
-    Bar(n-1); 
-  }
-}
-
-int Bar(int n) 
-{
-  Console.WriteLine("bar");
-  Foo(n);
-}
-----
-
-=== Recursion in Depth
-
-Recursion provides some benefits.
-
-* **Simplified code**: recursion can often lead to more concise and elegant code by breaking down complex problems into smaller, more manageable parts.
-* **Improved code readability**: compared to iterative solutions, recursive solutions can be easier to understand and reason about.
-
-However, it has some disadvantages as well.
-
-* **Stack overflow**: Recursive functions can lead to https://learn.microsoft.com/en-us/dotnet/api/system.stackoverflowexception[stack overflow] if the recursion is too deep, potentially causing the program to crash.
-* **Performance overhead**: Recursive function calls can lead to poor performance due to the need to push and pop https://en.citizendium.org/wiki/Stack_frame#:~:text=In%20computer%20science%2C%20a%20stack,only%20exist%20at%20run%2Dtime[stack frames], making them potentially slower than iterative solutions.
-* **Difficulty in debugging**: Debugging recursive code can be challenging, as multiple recursive calls can make it harder to track the flow of execution and identify logical errors.
-* **Space complexity**: Recursive algorithms may require more memory compared to iterative approaches, as each recursive call adds a new frame to the call stack.
-* **Lack of control**: Recursion can sometimes lead to infinite loops or unexpected behavior if not properly implemented or terminated, making it crucial to have proper base cases and exit conditions.
-
 
 == Resources
 
