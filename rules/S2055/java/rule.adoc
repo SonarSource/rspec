@@ -1,61 +1,207 @@
 == Why is this an issue?
 
-When a ``++Serializable++`` object has a non-serializable ancestor in its inheritance chain, object deserialization (re-instantiating the object from file) starts at the first non-serializable class, and proceeds down the chain, adding the properties of each subsequent child class, until the final object has been instantiated. 
+Java serialization is the conversion from objects to byte streams for storage or transmission.
+And later, java deserialization is the reverse conversion, it reconstructs objects from byte streams.
 
-
-In order to create the non-serializable ancestor, its no-argument constructor is called. Therefore the non-serializable ancestor of a ``++Serializable++`` class must have a no-arg constructor. Otherwise the class is ``++Serializable++`` but not deserializable.
-
-
-=== Noncompliant code example
+To make a java class serializable, this class should implement the `java.io.Serializable` interface directly or
+through its inheritance.
 
 [source,java]
 ----
-public class Fruit {
-  private Season ripe;
+import java.io.Serializable;
 
-  public Fruit (Season ripe) {...}
-  public void setRipe(Season ripe) {...}
-  public Season getRipe() {...}
+public class NonSerializableClass {
 }
 
-public class Raspberry extends Fruit 
-        implements Serializable {  // Noncompliant; nonserializable ancestor doesn't have no-arg constructor
-  private static final long serialVersionUID = 1;
+public class SerializableClass implements Serializable {
+}
 
-  private String variety;
-
-  public Raspberry(Season ripe, String variety) { ...}
-  public void setVariety(String variety) {...}
-  public String getVarity() {...}
+public class OtherSerializableClass extends SerializableClass {
+  // is also serializable because it is a subtype of Serializable
 }
 ----
 
+Given a serializable class, it is important to note that not all its superclasses are serializable.
+Eventually, its superclasses stop implementing `java.io.Serializable`.
+It could be at the end, once reaching the `java.lang.Object` class, or before.
 
-=== Compliant solution
+This is important because the serialization/deserialization runs through the class hierarchy of an object
+to decide which object fields to write or read, and applies two different logics:
+
+* When the class is serializable:
+** Serialization saves the class reference and the object fields of this class.
+** Deserialization instantiates a new object of this class without using a constructor,
+   and restores the object fields of this class.
+
+* When the class is not serializable:
+** Serialization only saves the class reference and *ignores* the object fields of this class.
+** Deserialization instantiates a new object of this class using the *no-argument constructor*
+   and does not restore the object fields of this class.
+
+So developers should pay particular attention to the non-serializable classes in the class hierarchy,
+because the presence of an implicit or explicit *no-argument constructor* is required in those classes.
+
+This is an example of mandatory no-argument constructors in the hierarchy of `SerializableClass`:
+[source,java]
+----
+public class NonSerializableClassWithoutConstructor {
+  // after deserialization, "field1" will always be set to 42
+  private int field1 = 42;
+
+  // this non-serializable class has an implicit no-argument constructor
+}
+
+public class NonSerializableClass extends NonSerializableClassWithoutConstructor {
+  // after deserialization, "field2" will always be set to 12 by the no-argument constructor
+  private int field2;
+
+  // this non-serializable class has an explicit no-argument constructor
+  public NonSerializableClass() {
+    field2 = 12;
+  }
+
+  public NonSerializableClass(int field2) {
+    this.field2 = field2;
+  }
+}
+
+public class SerializableClass extends NonSerializableClass implements Serializable {
+  // after deserialization, "field3" will have the previously serialized value.
+  private int field3;
+
+  // deserialization does not use declared constructors
+  public SerializableClass(int field3) {
+    super(field3 * 2);
+    this.field3 = field3;
+  }
+}
+----
+
+Unfortunately, there is no compilation error when a class implements `java.io.Serializable` and extends a non-serializable superclass
+without a no-argument constructor.
+This is an issue because, at runtime, deserialization will fail to find the required constructor.
+
+For example, deserialization of an instance of the following `SerializableClass` class, throws an `InvalidClassException: no valid constructor`.
+[source,java]
+----
+public class NonSerializableClass {
+  private int field;
+  // this class can not be deserialized because it does not have any implicit or explicit no-argument constructor
+  public NonSerializableClass(int field) {
+    this.field = field;
+  }
+}
+
+public class SerializableClass extends NonSerializableClass implements Serializable {
+}
+----
+
+This rule checks in the hierarchy of serializable classes and reports an issue when a non-serializable superclass does not have
+the required no-argument constructor which will produce a runtime error.
+
+== How to fix it
+
+There are two solutions to fix the missing *no-argument constructor* issue on non-serializable classes:
+
+* `Solution 1` If the fields of a non-serializable class need to be persisted,
+               add the `java.io.Serializable` interface to the class `implements` definition.
+* `Solution 2` Otherwise, add a no-argument constructor and initialize the fields with some valid default values.
+
+=== Code examples
+
+*Example #1*
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+// Noncompliant; this Raspberry's ancestor doesn't have a no-argument constructor
+// this rule raises an issue on the Raspberry class declaration
+public class Fruit {
+  private Season pickingSeason;
+  public Fruit(Season pickingSeason) {
+    this.pickingSeason = pickingSeason;
+  }
+}
+----
 
 [source,java]
 ----
-public class Fruit {
-  private Season ripe;
-
-  public Fruit () {...};  // Compliant; no-arg constructor added to ancestor
-  public Fruit (Season ripe) {...}
-  public void setRipe(Season ripe) {...}
-  public Season getRipe() {...}
-}
-
-public class Raspberry extends Fruit 
-        implements Serializable {
+public class Raspberry extends Fruit implements Serializable {
   private static final long serialVersionUID = 1;
-
   private String variety;
-
-  public Raspberry(Season ripe, String variety) {...}
-  public void setVariety(String variety) {...}
-  public String getVarity() {...}
+  public Raspberry(String variety) {
+    super(Season.SUMMER);
+    this.variety = variety;
+  }
 }
 ----
 
+==== Compliant solution
+
+`Solution 1`
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+// Compliant; this Raspberry's ancestor is serializable
+public class Fruit implements Serializable {
+  private static final long serialVersionUID = 1;
+  private Season pickingSeason;
+  public Fruit(Season pickingSeason) {
+    this.pickingSeason = pickingSeason;
+  }
+}
+----
+
+*Example #2*
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+public class Fruit {
+  // Noncompliant; this Raspberry's ancestor doesn't have a no-argument constructor
+  // this rule raises an issue on the Raspberry class declaration
+  public Fruit(String debugMessage) {
+    LOG.debug(debugMessage);
+  }
+}
+----
+
+[source,java]
+----
+public class Raspberry extends Fruit implements Serializable {
+  private static final long serialVersionUID = 1;
+  private String variety;
+  public Raspberry(String variety) {
+    super("From Raspberry constructor");
+    this.variety = variety;
+  }
+}
+----
+
+==== Compliant solution
+
+`Solution 2`
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+public class Fruit {
+  // Compliant; this Raspberry ancestor has a no-argument constructor
+  public Fruit() {
+    this("From serialization");
+  }
+  public Fruit(String debugMessage) {
+    LOG.debug(debugMessage);
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/Serializable.html[Oracle SDK - java.io.Serializable]
 
 ifdef::env-github,rspecator-view[]
 

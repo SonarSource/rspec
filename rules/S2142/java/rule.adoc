@@ -1,14 +1,13 @@
 == Why is this an issue?
 
-``++InterruptedExceptions++`` should never be ignored in the code, and simply logging the exception counts in this case as "ignoring". The throwing of the ``++InterruptedException++`` clears the interrupted state of the Thread, so if the exception is not handled properly the information that the thread was interrupted will be lost. Instead, ``++InterruptedExceptions++`` should either be rethrown - immediately or after cleaning up the method's state - or the thread should be re-interrupted by calling ``++Thread.interrupt()++`` even if this is supposed to be a single-threaded application. Any other course of action risks delaying thread shutdown and loses the information that the thread was interrupted - probably without finishing its task.
+If an `InterruptedException` or a `ThreadDeath` error is not handled properly, the information that the thread was interrupted will be lost.
+Handling this exception means either to re-throw it or manually re-interrupt the current thread by calling `Thread.interrupt()`.
+Simply logging the exception is not sufficient and counts as ignoring it.
+Between the moment the exception is caught and handled, is the right time to perform cleanup operations on the method's state, if needed.
 
+=== What is the potential impact?
 
-Similarly, the ``++ThreadDeath++`` exception should also be propagated. According to its JavaDoc:
-
-____
-If ``++ThreadDeath++`` is caught by a method, it is important that it be rethrown so that the thread actually dies.
-
-____
+Failing to interrupt the thread (or to re-throw) risks delaying the thread shutdown and losing the information that the thread was interrupted - probably without finishing its task.
 
 
 === Noncompliant code example
@@ -17,10 +16,8 @@ ____
 ----
 public void run () {
   try {
-    while (true) { 
-      // do stuff
-    }
-  }catch (InterruptedException e) { // Noncompliant; logging is not enough
+    /*...*/
+  } catch (InterruptedException e) { // Noncompliant; logging is not enough
     LOGGER.log(Level.WARN, "Interrupted!", e);
   }
 }
@@ -33,13 +30,21 @@ public void run () {
 ----
 public void run () {
   try {
-    while (true) { 
-      // do stuff
-    }
-  }catch (InterruptedException e) {
+    /* ... */
+  } catch (InterruptedException e) { // Compliant; the interrupted state is restored
     LOGGER.log(Level.WARN, "Interrupted!", e);
-    // Restore interrupted state...
+    /* Clean up whatever needs to be handled before interrupting  */
     Thread.currentThread().interrupt();
+  }
+}
+
+public void run () {
+  try {
+    /* ... */
+  } catch (ThreadDeath e) { // Compliant; the error is being re-thrown
+    LOGGER.log(Level.WARN, "Interrupted!", e);
+    /* Clean up whatever needs to be handled before re-throwing  */
+    throw e;
   }
 }
 ----
@@ -74,7 +79,7 @@ Either re-interrupt this method or rethrow the "{InterruptedException/ThreadDeat
 === is related to: S5754
 
 === on 14 Oct 2014, 21:21:47 Freddy Mallet wrote:
-@Ann, could you provide the source of this RSPEC because would like to double-check the main goal of this rule ? For sure here the code snippets are really misleading because we could have the feeling that when the execution of a Runnable class is interrupted, this exception can be caught in the ``++run++`` method which is not at all the case. 
+@Ann, could you provide the source of this RSPEC because would like to double-check the main goal of this rule ? For sure here the code snippets are really misleading because we could have the feeling that when the execution of a Runnable class is interrupted, this exception can be caught in the `run` method which is not at all the case. 
 
 === on 15 Oct 2014, 11:59:38 Ann Campbell wrote:
 \[~freddy.mallet] \https://twitter.com/aparnachaudhary/status/520952677631807488
@@ -85,10 +90,10 @@ Hi,
 
 I think the rule derived from this spec is too narrow.
 
- Many people write ``++catch (Exception e)++`` in their applications.
+ Many people write `catch (Exception e)` in their applications.
 
 
-Following this spec, IMO, that means that any ``++catch(Exception e)++`` must ALWAYS be preceded by a catch of InterruptedException like this
+Following this spec, IMO, that means that any `catch(Exception e)` must ALWAYS be preceded by a catch of InterruptedException like this
 
 ----
 catch (InterruptedException e) {

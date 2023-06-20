@@ -1,32 +1,65 @@
 == Why is this an issue?
 
-Changing an inherited member to ``++private++`` will not prevent access to the base class implementation.
-
-
-This rule raises an issue when a ``++private++`` method in an unsealed type has a signature that is identical to a ``++public++`` method declared in a base type.
-
-
-=== Noncompliant code example
+Decreasing the https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/access-modifiers[accessibility level] of an inherited method that is not https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/override[overridable] to https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/private[private] will shadow the name of the base method and can lead to confusion.
 
 [source,csharp]
 ----
-using System;
-
-namespace MyLibrary
+public class Base
 {
-  public class Foo
-  {
     public void SomeMethod(int count) { }
-  }
-  public class Bar:Foo
-  {
+}
+public class Derived : Base
+{
     private void SomeMethod(int count) { } // Noncompliant
-  }
+}
+
+class Program
+{
+    public void DoWork()
+    {
+        var derived = new Derived();
+        derived.SomeMethod(42); // Base.SomeMethod is accessed here
+    }
 }
 ----
 
+Another potential problem is the case of a class deriving from `Derived` and accessing `SomeMethod`. In this scenario, the method accessed will instead be the `Base` implementation, which might not be what was expected.
 
-=== Compliant solution
+[source,csharp]
+----
+public class Base
+{
+    public void SomeMethod(int count) { }
+}
+public class Derived : Base
+{
+    private void SomeMethod(int count) { } // Noncompliant
+}
+
+public class SecondDerived : Derived
+{
+    public void DoWork()
+    {
+        SomeMethod(42); // Base.SomeMethod is accessed here
+    }
+}
+----
+
+One way to mitigate this, is by sealing the `Derived` class by using the https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/sealed[sealed] modifier, thus preventing inheritance from this point on.
+
+[source,csharp]
+----
+public class Base
+{
+    public void SomeMethod(int count) { }
+}
+public sealed class Derived : Base
+{
+    private void SomeMethod(int count) { } // Compliant: class is marked as sealed
+}
+----
+
+Another way to mitigate this, is by having the `Derived` implementation match the https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/access-modifiers[accessibility] modifier of the `Base` implementation of `SomeMethod`. From a caller's perspective, this is closer to the expected behavior.
 
 [source,csharp]
 ----
@@ -34,47 +67,40 @@ using System;
 
 namespace MyLibrary
 {
-  public class Foo
-  {
-    public void SomeMethod(int count) { }
-  }
-  public sealed class Bar : Foo
-  {
-    private void SomeMethod(int count) { }
-  }
+    public class Base
+    {
+        public void SomeMethod(int count) { }
+    }
+    public class Derived : Base
+    {
+        public void SomeMethod(int count) { } // Compliant: same accessibility as Base.SomeMethod
+    }
+
+    public class Program
+    {
+        public void DoWork()
+        {
+            var derived = new Derived();
+            derived.SomeMethod(42); // Derived.SomeMethod is called 
+        }
+    }
 }
 ----
 
+Last but not least, consider using a different name for the `Derived` method, thus completely eliminating any confusion caused by the naming collision.
 
-ifdef::env-github,rspecator-view[]
+[source,csharp]
+----
+public class Base
+{
+    public void SomeMethod(int count) { }
+}
+public class Derived : Base
+{
+    private void SomeOtherMethod(int count) { } // Compliant 
+}
+----
 
-'''
-== Implementation Specification
-(visible only on this page)
+include::../resources.adoc[]
 
-=== Message
-
-This member hides '{0}'. Make it non-private or seal the class.
-
-
-=== Highlighting
-
-member declaration
-
-
-'''
-== Comments And Links
-(visible only on this page)
-
-=== relates to: S3434
-
-=== on 22 May 2017, 13:19:56 Ann Campbell wrote:
-\[~jeanchristophe.collet] RSPEC-2387 is already covered by C#. On the face of it, these two rules overlap nearly completely.
-
-=== on 22 May 2017, 13:59:50 Jean-Christophe Collet wrote:
-\[~ann.campbell.2] RSPEC-2387 only covers fields, this rule covers only methods without an override.
-
-=== on 22 May 2017, 15:10:29 Ann Campbell wrote:
-Okay, then RSPEC-3434 is the related RSpec, altho it's scope is different. I've added it as 'related'
-
-endif::env-github,rspecator-view[]
+include::../rspecator.adoc[]
