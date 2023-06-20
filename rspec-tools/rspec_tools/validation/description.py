@@ -1,3 +1,4 @@
+import collections
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
@@ -39,16 +40,24 @@ SUBSECTIONS = {
   'Code examples': ['Noncompliant code example', 'Compliant solution']
 }
 
-def intersection(lst1, lst2):
-  return list(set(lst1).intersection(lst2))
-def difference(lst1, lst2):
-  return list(set(lst1) - set(lst2))
+def validate_duplications(h2_titles, rule_language):
+  as_set = set(h2_titles)
+  if len(as_set) != len(h2_titles):
+    duplicates = [x for x in h2_titles if h2_titles.count(x) > 1]
+    raise RuleValidationError(f'Rule {rule_language.id} has duplicated {set(duplicates)} sections')
+
+def intersection(list1, list2):
+  return list(set(list1).intersection(list2))
+def difference(list1, list2):
+  return list(set(list1) - set(list2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
   """Validates all h2-level section names"""
 
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
+
+  validate_duplications(h2_titles, rule_language)
 
   education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()))
   if education_titles:
@@ -74,9 +83,6 @@ def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h
 
   if HOW_TO_FIX_IT in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
     raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "{HOW_TO_FIX_IT}" or one or more "How to fix it in FRAMEWORK"')
-  duplicate_names = [x for x in how_to_fix_it_sections if how_to_fix_it_sections.count(x) > 1] # O(n*n) is fine, given n <= 6
-  if 0 < len(duplicate_names):
-    raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{HOW_TO_FIX_IT}" sections {set(duplicate_names)}')
   for section_name in how_to_fix_it_sections:
     validate_how_to_fix_it_framework(section_name, rule_language)
 
