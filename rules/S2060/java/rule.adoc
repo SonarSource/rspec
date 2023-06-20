@@ -1,29 +1,87 @@
 == Why is this an issue?
 
-An ``++Externalizable++`` class is one which handles its own ``++Serialization++`` and deserialization. During deserialization, the first step in the process is a default instantiation using the class' no-argument constructor. Therefore an ``++Externalizable++`` class without a no-arg constructor cannot be deserialized.
+A class that implements `java.io.Externalizable` is a class that provides a way to customize the serialization and deserialization, allowing greater control over how the object's state is written or read.
 
+The first step of the deserialization process is to call the class' no-argument constructor before
+the `readExternal(ObjectInput in)` method.
 
-=== Noncompliant code example
+An implicit default no-argument constructor exists on a class when no constructor is explicitly defined within the class.
+But this implicit constructor does not exist when any constructor is explicitly defined, and in this case,
+we should always ensure that one of the constructors has no-argument.
 
-[source,java]
-----
-public class Tomato implements Externalizable {  // Noncompliant; no no-arg constructor
+It is an issue if the implicit or explicit no-argument constructor is missing or not public, because the deserialization
+will fail and throw an `InvalidClassException: no valid constructor.`.
 
-  public Tomato (String color, int weight) { ... }
-}
-----
+== How to fix it
 
+This issue can be fixed by:
 
-=== Compliant solution
+* Adding an explicit public no-argument constructor.
+* Or if all constructors can be removed, remove all constructors to benefit of the default implicit no-argument constructor.
 
-[source,java]
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
 public class Tomato implements Externalizable {
 
-  public Tomato() { ... }
-  public Tomato (String color, int weight) { ... }
+  public Color color;
+
+  // Noncompliant; because of this constructor there is no implicit no-argument constructor,
+  // deserialization will fail
+  public Tomato(Color color) {
+    this.color = color;
+  }
+
+  @Override
+  public void writeExternal(ObjectOutput out) throws IOException {
+    out.writeUTF(color.name());
+  }
+
+  @Override
+  public void readExternal(ObjectInput in) throws IOException {
+    color = Color.valueOf(in.readUTF());
+  }
 }
 ----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+public class Tomato implements Externalizable {
+
+  public Color color;
+
+  // Compliant; deserialization will invoke this public no-argument constructor
+  public Tomato() {
+    this.color = Color.UNKNOWN;
+  }
+
+  public Tomato(Color color) {
+    this.color = color;
+  }
+
+  @Override
+  public void writeExternal(ObjectOutput out) throws IOException {
+    out.writeUTF(color.name());
+  }
+
+  @Override
+  public void readExternal(ObjectInput in) throws IOException {
+    color = Color.valueOf(in.readUTF());
+  }
+}
+----
+
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/Externalizable.html[Oracle SDK - java.io.Externalizable]
 
 ifdef::env-github,rspecator-view[]
 

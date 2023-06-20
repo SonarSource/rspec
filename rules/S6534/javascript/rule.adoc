@@ -1,44 +1,84 @@
-
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-Numbers in JavaScript are stored as 64-bit floating-point. However, numbers that can't be represented in such a format get rounded before assigning them to a variable.
+Numbers in JavaScript are stored in https://en.wikipedia.org/wiki/Double-precision_floating-point_format[double-precision 64-bit binary format IEEE 754]. Like any other number encoding occupying a finite number of bits, it is unable to represent all numbers.
 
-=== What is the potential impact?
+The values are stored using 64 bits in the following form:
 
-When you are saving a number that is too big or contains a fraction that is not expressible in the 64-bit floating-point format, it gets rounded which will lead to unexpected behaviours when it will be used.
+* 1 bit for the sign (positive or negative)
+* 11 bits for the exponent (2^n^). -1022 &le; n &le; 1023
+* 52 bits for the significand (or mantissa)
+
+// When images can be added, add image based on to this one
+//image::IEEE_754_Double_Floating_Point_Format.svg.png[]
+
+The actual value of the stored number will be `(-1)^sign^ * (1 + significand) * 2 ^exponent^`
+
+Given this structure, there are limits in both *magnitude* and *precision*.
+
+Due to the 52 bits used for the significand, any arithmetic in need of more precision than 2^-52^ (provided by `Number.EPSILON`) is subject to rounding.
+
+In terms of magnitude, the largest number the 64 bits of the format can store is 2^1024^ - 1 (`Number.MAX_VALUE`).
+
+However, because the 52 bits of the significand, only integers between -(2^53^ - 1) (`Number.MIN_SAFE_INTEGER`) and 2^53^ - 1 (`Number.MAX_SAFE_INTEGER`) can be represented exactly and be properly compared.
+
+[source,javascript]
+----
+Number.MAX_SAFE_INTEGER + 1 === Number.MAX_SAFE_INTEGER + 2;  // true
+----
+
+JavaScript provides the `bigint` primitive to represent values which are too large to be represented by the number primitive. BigInts are created by appending `n` to the end of an integer literal, or by calling the `BigInt()` function (without the new operator), with an integer or a string.
+
+
+[source,javascript]
+----
+const myBigInt = BigInt(Number.MAX_SAFE_INTEGER);
+myBigInt + 1n === myBigInt + 2n;  // false
+----
+
 
 == How to fix it
 
-When you need to store a large number, use `BigInt()`. Pay attention that operations between `BigInt` and `Number` types raise an error, so you will have to adapt your code accordingly.
+For large numbers, JavaScript provides the helper function `Number.isSafeInteger()` to test if a number is between the safe limits.
 
-For numbers with digits after the decimal, it is recommended to use a library to ensure that calculation errors are not introduced by rounding.
+When you need to store a large number, use `BigInt`. `bigint` and `number` primitives can be compared between them as usual (e.g. `>`, `==`), but pay attention that arithmetic operations (`+` `pass:[*]` `-` `%` `pass:[**]`) between both types raise an error unless they are converted to the same type. Use the `BigInt` and `Number` functions to convert between both types:
+[source,javascript]
+----
+const myNumber = Number(myBigInt);
+const myBigInt = BigInt(myNumber);
+----
+
+Be careful converting values back and forth, however, as the precision of a `bigint` value may be lost when it is coerced to a `number` value.
 
 === Code examples
-
 ==== Noncompliant code example
 
 [source,javascript]
 ----
-const foo = 2312123211345545367
-const bar = 0.123456789123456789
+const foo = 2312123211345545367  // Noncompliant: will be stored as 2312123211345545000
+const bar = BigInt(2312123211345545367);  // Noncompliant: parameter is first parsed as an integer and thus rounded
 ----
-
 ==== Compliant solution
 
 [source,javascript]
 ----
-const foo = BigInt(2312123211345545367)
-// use a library like decimal.js for storing numbers containing decimal digits
+const foo = BigInt('2312123211345545367');
+const bar = 2312123211345545367n;
 ----
 
-=== How does this work?
+When in need of more decimal precision, it is recommended to use a dedicated library to ensure that calculation errors are not introduced by rounding.
 
-JavaScript numbers are stored in a double-precision 64-bit binary format IEEE 754. There are limits to what can be stored in this format both in huge numbers as in numbers with decimal digits.
-When attempting to store a number that can not be represented in this format into a variable, the number gets rounded before storage.
+==== Noncompliant code example
+[source,javascript]
+----
+const baz = 0.123456789123456789 // Noncompliant: will be stored as 0.12345678912345678
+----
+==== Compliant solution
+[source,javascript]
+----
+// use a library like decimal.js for storing numbers containing many decimal digits
+import { Decimal } from 'decimal.js';
+const bar = new Decimal('0.123456789123456789');
+----
 
 //=== Pitfalls
 
@@ -48,10 +88,10 @@ When attempting to store a number that can not be represented in this format int
 
 === Documentation
 
-* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number[MDN Number]
-* https://en.wikipedia.org/wiki/Double-precision_floating-point_format[Wikipedia Double-precision floating-point format]
-* https://en.wikipedia.org/wiki/IEEE_754[Wikipedia IEEE 754 Standard]
-
+* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number#number_encoding[MDN - Number encoding]
+* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt[MDN - BigInt]
+* https://en.wikipedia.org/wiki/Double-precision_floating-point_format[Wikipedia - Double-precision floating-point format]
+* https://en.wikipedia.org/wiki/IEEE_754[Wikipedia - IEEE 754 Standard]
 //=== Articles & blog posts
 //=== Conference presentations
 //=== Standards
