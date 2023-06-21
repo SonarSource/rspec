@@ -57,6 +57,19 @@ do
     fi
   else
     #validate asciidoc
+
+    # Make sure include:: clauses are always more than one line away from the previous content
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "\S\ninclude::" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; > stuck
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "include::[^\[]+\[\]\n[^\n]" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> stuck
+    if [ -s stuck ]; then
+        echo "ERROR: These adoc files contain an include that is stuck to other content."
+        echo "This may result in broken tags and other display issues."
+        echo "Make sure there is an empty line before and after each include:"
+        cat stuck
+        exit_code=1
+    fi
+    rm -f stuck
+
     supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
     for language in $dir/*/
     do
