@@ -89,7 +89,7 @@ do
     # Files can be included through variables. We create a list of variables
     # These paths are relative to the file where they are _included_, not where they are _declared_
     # Which is why we need to create this list and cannot do anything with the paths it contains until we find the corresponding include
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh ":\w+:\s+[A-Za-z0-9\/-]+" "$1" | sed -r "s/:(\w+):\s+([A-Za-z0-9\/-]+)/\1\t\2/"' shell {} \; > vars
+    find "$dir" -name "*.adoc" -execdir sed -r -n -e 's/^:(\w+):\s+([A-Za-z0-9\/._-]+)$/\1\t\2/p' {} \; > vars
     # Directly included
     find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
     # Included through variable
