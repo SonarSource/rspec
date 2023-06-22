@@ -1,0 +1,116 @@
+== How to fix it in Node.js
+
+=== Code examples
+
+==== Noncompliant code example
+
+NodeJs offers multiple ways to set weak TLS protocols. For https and tls,
+https://nodejs.org/api/tls.html#tlscreatesecurecontextoptions[these options]
+are used and are used in other third-party libraries as well.
+
+The first is `secureProtocol`:
+
+[source,javascript,diff-id=1,diff-type=noncompliant]
+----
+const https = require('node:https');
+const tls   = require('node:tls');
+
+let options = {
+ secureProtocol: 'TLSv1_method' // Noncompliant
+};
+
+let req    = https.request(options, (res) => { });
+let socket = tls.connect(443, "www.example.com", options, () => { });
+----
+
+The second is the combination of `minVersion` and `maxVerison`. Note that they
+cannot be specified along with the `secureProtocol` option:
+
+[source,javascript,diff-id=2,diff-type=noncompliant]
+----
+const https = require('node:https');
+const tls   = require('node:tls');
+
+let options = {
+  minVersion: 'TLSv1.1',  // Noncompliant
+  maxVersion: 'TLSv1.2'
+};
+
+let req    = https.request(options, (res) => { });
+let socket = tls.connect(443, "www.example.com", options, () => { });
+----
+
+And `secureOptions`, which in this example instructs the OpenSSL protocol to
+turn off some algorithms altogether. In general, this option might trigger side
+effects and should be used carefully, if used at all.
+
+[source,javascript,diff-id=3,diff-type=noncompliant]
+----
+const https     = require('node:https');
+const tls       = require('node:tls');
+const constants = require('node:crypto'):
+
+let options = {
+  secureOptions: 
+    constants.SSL_OP_NO_SSLv2 
+    | constants.SSL_OP_NO_SSLv3 
+    | constants.SSL_OP_NO_TLSv1 
+}; // Noncompliant
+
+let req    = https.request(options, (res) => { });
+let socket = tls.connect(443, "www.example.com", options, () => { });
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+const https = require('node:https');
+const tls   = require('node:tls');
+
+let options = {
+  secureProtocol: 'TLSv1_2_method'
+};
+
+let req    = https.request(options, (res) => { });
+let socket = tls.connect(443, "www.example.com", options, () => { });
+----
+
+[source,javascript,diff-id=2,diff-type=compliant]
+----
+const https = require('node:https');
+const tls   = require('node:tls');
+
+let options = {
+  minVersion: 'TLSv1.2',
+  maxVersion: 'TLSv1.2'
+};
+
+let req    = https.request(options, (res) => { });
+let socket = tls.connect(443, "www.example.com", options, () => { });
+
+----
+
+Here, the goal is to turn on only TLSv1.2 and higher, by turning off all lower
+versions:
+
+[source,javascript,diff-id=3,diff-type=compliant]
+----
+const https = require('node:https');
+const tls   = require('node:tls');
+
+let options = {
+  secureOptions: 
+    constants.SSL_OP_NO_SSLv2 
+    | constants.SSL_OP_NO_SSLv3 
+    | constants.SSL_OP_NO_TLSv1 
+    | constants.SSL_OP_NO_TLSv1_1
+};
+
+let req    = https.request(options, (res) => { });
+let socket = tls.connect(443, "www.example.com", options, () => { });
+----
+
+=== How does this work?
+
+include::../../common/fix/fix.adoc[]
