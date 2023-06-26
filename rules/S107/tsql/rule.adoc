@@ -2,12 +2,88 @@
 
 Functions or procedures with a long parameter list are difficult to use, as one must figure out the role of each parameter.
 
+[source,sql]
+----
+CREATE PROCEDURE dbo.SetCoordinates
+    @x1 INT,
+    @y1 INT,
+    @z1 INT,
+    @x2 INT,
+    @y2 INT,
+    @z2 INT
+AS
+    -- ...
+----
+
+
 The solution can be to:
 
 * Split the function or the procedure into smaller ones
-* Find a better data structure for the parameters that group data in a way that makes sense for the specific application domain
+
+[source,sql]
+----
+CREATE PROCEDURE dbo.SetOrigin
+(
+    @x INT,
+    @y INT,
+    @z INT
+)
+AS
+    SELECT @x
+GO
+
+CREATE PROCEDURE dbo.SetSize
+(
+    @width  INT,
+    @height INT,
+    @depth  INT
+)
+AS
+     SELECT @width
+GO
+----
+
+* Find a better https://learn.microsoft.com/en-us/sql/t-sql/statements/create-type-transact-sql[data structure] for the parameters that group data in a way that makes sense for the specific application domain
+
+[source,sql]
+----
+CREATE TYPE dbo.Point AS TABLE
+(
+    Id  INT IDENTITY,
+    X   INT,
+    Y   INT,
+    Z   INT
+);
+GO
+
+CREATE PROCEDURE dbo.SetCoordinates
+    @Points dbo.Point READONLY
+AS
+BEGIN
+    DECLARE @x1 AS INT, @y1 AS INT, @z1 AS INT
+    DECLARE @x2 AS INT, @y2 AS INT, @z2 AS INT
+    SELECT @x1 = X, @y1 = Y, @z1 = Z FROM @Points ORDER BY Id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
+    SELECT @x2 = X, @y2 = Y, @z2 = Z FROM @Points ORDER BY Id OFFSET 1 ROWS FETCH NEXT 1 ROWS ONLY
+END
+GO
+
+DECLARE @Points AS Point;
+INSERT INTO @Points (X, Y, Z) VALUES (0, 0, 0);
+INSERT INTO @Points (X, Y, Z) VALUES (1, 1, 1);
+
+EXEC dbo.SetCoordinates @Points;
+----
+
+The https://learn.microsoft.com/en-us/sql/t-sql/xml/xml-transact-sql[XML data type] is another alternative to pass all the required data at once.
 
 This rule raises an issue when a function or a procedure has more parameters than the provided threshold.
+
+== Resources
+
+=== Documentation
+
+* https://learn.microsoft.com/en-us/sql/t-sql/statements/create-type-transact-sql[CREATE TYPE (Transact-SQL)]
+* https://learn.microsoft.com/en-us/sql/t-sql/xml/xml-transact-sql[xml (Transact-SQL)]
 
 ifdef::env-github,rspecator-view[]
 
