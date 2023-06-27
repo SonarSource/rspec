@@ -24,6 +24,8 @@ exit_code=0
 
 ./ci/generate_html.sh
 
+PATH_WITH_VARIABLE="$(realpath ./ci/replace_variables_in_path.sh)"
+
 cd rspec-tools
 if pipenv run rspec-tools check-description --d ../out; then
     echo "rule.adoc is fine"
@@ -57,6 +59,21 @@ do
     fi
   else
     #validate asciidoc
+
+    # Make sure include:: clauses are always more than one line away from the previous content
+    # Detect includes stuck to the line before
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "\S[ \t]*\ninclude::" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; > stuck
+    # Detect includes stuck to the line after
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "include::[^\[]+\[\]\n[ \t]*[^\n]" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> stuck
+    if [ -s stuck ]; then
+        echo "ERROR: These adoc files contain an include that is stuck to other content."
+        echo "This may result in broken tags and other display issues."
+        echo "Make sure there is an empty line before and after each include:"
+        cat stuck
+        exit_code=1
+    fi
+    rm -f stuck
+
     supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
     for language in $dir/*/
     do
@@ -84,14 +101,14 @@ do
 
     # Check that all adoc are included
 
-    # Files can be included through variables. We create a list of variables containing a path to an adoc
+    # Files can be included through variables. We create a list of variables
     # These paths are relative to the file where they are _included_, not where they are _declared_
     # Which is why we need to create this list and cannot do anything with the paths it contains until we find the corresponding include
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh ":\w+:\s+[A-Za-z0-9\/-]+\.adoc" "$1" | grep -v "rule.adoc" | sed -r "s/:(\w+):\s+([A-Za-z0-9\/-]+\.adoc)/\1\t\2/"' shell {} \; > vars
+    find "$dir" -name "*.adoc" -execdir sed -r -n -e 's/^:(\w+):\s+([A-Za-z0-9\/._-]+)$/\1\t\2/p' {} \; > vars
     # Directly included
     find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
     # Included through variable
-    VARS_FULL_PATH=$(realpath vars) find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::{" "$1" | sed -r "s/include::\{(.*)\}\[\]/\1/" | grep -f - ${VARS_FULL_PATH} | cut -f2 | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
+    VARS_FULL_PATH=$(realpath vars) PATH_WITH_VARIABLE=${PATH_WITH_VARIABLE} find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::.*\{" "$1" | xargs -r -I@ $PATH_WITH_VARIABLE $VARS_FULL_PATH "@" | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
     find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp*.adoc' -exec sh -c 'realpath $1' shell {} \; > created
     orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
     if [[ -n "$orphans" ]]; then
