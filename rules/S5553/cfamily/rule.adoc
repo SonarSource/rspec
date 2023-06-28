@@ -2,12 +2,12 @@
 References and pointers to temporary objects become dangling after these objects are destroyed.
 Barring lifetime extension, this happens at the end of a full expression.
 
-Lifetime extension allows using after the end of a full expression
-the temporaries that are bound to `const` references, but only if they are bound directly.
+Lifetime extension allows even after the end of a full expression the use  of
+the temporaries that are bound to `const` references but only if they are bound directly.
 
 == Why is this an issue?
 
-C and C++ enable you to create a temporary object as part of evaluation of an expression.
+You can create a temporary object as part of evaluation of an expression.
 
 For example:
 
@@ -20,8 +20,9 @@ int getOffset(int i) {
 ----
 
 The code above contains two full expressions (declaration of `i` and `return`), each contains a temporary:
+
 - `std::vector{10, 20, 30}` is a temporary vector created in-place, and accessed directly.
-- `"15"` is implicitly converted to `std::string{"15"}` because `std::stoi` accepts `std::string const&` as an argument.
+- `"15"` is implicitly converted to temporary `std::string{"15"}` because `std::stoi` accepts `std::string const&` as an argument.
 
 A temporary object remains valid throughout the single full expression where it was created.
 It is reclaimed and destroyed (for nontrivial objects) at the end of it.
@@ -29,11 +30,11 @@ It is reclaimed and destroyed (for nontrivial objects) at the end of it.
 If after the end of a full expression some refrences or pointers still refer to a temporary object
 they immediately become dangling, unless the lifetime of the temporary object is extended (see <<Exceptions>>).
 
-Dereferencing and even copying such dangling pointer or reference causes undefined behavior.
+Dereferencing and even copying such dangling pointer or reference causes *undefined behavior*.
 
 === Exceptions [[exceptions]]
 
-A references-to-`const` bound to a temporary object directly extends lifetime of this object.
+A reference-to-`const` bound to a temporary object directly extends lifetime of this object.
 The object enjoys the same lifetime as the reference it is bound to.
 
 However, lifetime extension is not transitive.
@@ -67,15 +68,15 @@ on the heap, or as a static object.
 #include <vector>
 #include <optional>
 
-using namespace std;
-
 int f(int i) {
+  // r-value references can also be dangling
   int &&rval = *std::optional<int>(i);  // Noncompliant: rval is an immediately dangling reference
-  return rval;
+  return rval; // dereferencing a dangline reference
 }
 
 int main() {
-    // the vector is a temporary object, and binding a reference to its first element will not extend the vector lifetime
+    // the vector is a temporary object,
+    // and binding a reference to its first element will not extend the vector lifetime
     auto const &val = std::vector{1, 2, 3}[0]; // Noncompliant: val is an immediately dangling reference
     return f(val);
 }
@@ -87,8 +88,6 @@ int main() {
 ----
 #include <vector>
 #include <optional>
-
-using namespace std;
 
 int f(int i) {
   int rval = *std::optional<int>(i);  // Compliant, rval copies the temporary
@@ -122,7 +121,7 @@ Stats getStats();
 int getTotalScore() {
   int sum = 0;
   // getStats() returns a temporary the is reclaimed before the loop begins
-  // Even though internally, the range-for takes a const reference to a subobject of a temporary
+  // Even though internally the range-for takes a const reference to a subobject of a temporary,
   // it is not lifetime-extended, because the subobject reference is obtained indirectly
   for (auto score : getStats().getPlayerScores()) { // Noncompliant
     sum += score;
@@ -200,12 +199,13 @@ void f(Wrapper const& w) {
 
 ==== Compliant solution
 
-You can store the temporary as a global, static, local variable, or on the heap.
-For the completenss sake, let us keep the object on the heap:
+You can store the temporary as a global, static, or local variable, or on the heap.
+For the completeness sake, let us put the string on the heap:
 
 [source,cpp,diff-id=5,diff-type=compliant]
 ----
 #include <string>
+#include <memory>
 struct MyStrRef {
   std::string const* target;
   MyStrRef(std::string const& target):target (&target) {}
@@ -261,9 +261,10 @@ void f(Wrapper const& w) {
 
 The interface of `Wrapper::getOr` from the example above is dangerous,
 since it is bound to create subtle bugs.
-Instead of fixing every callsite, tt is better to make it more reliable.
+Instead of fixing every call, it is better to make the interface less error-prone.
 
-For example, use `std::string_view` (or its reimplementation if you can't use {cpp}17) to make this interface both safe and efficient:
+For example, use `std::string_view` (or the equivalent if you can't use {cpp}17)
+to make this interface both safe and efficient:
 
 [source,cpp]
 ----
@@ -292,19 +293,18 @@ std::cout <<c <<std::endl; // c refers to a the memory formerly occupied by temp
 
 === Documentation
 
-- https://en.cppreference.com/w/cpp/header/string_view[std::string_view]
 - https://en.cppreference.com/w/cpp/language/lifetime[Lifetime]
+- https://en.cppreference.com/w/cpp/header/string_view[std::string_view]
 
 === Articles & blog posts
 
 - https://abseil.io/tips/107[Abseil ToW#107: Reference Lifetime Extension]
 
-
+ifdef::env-github,rspecator-view[]
+'''
 
 TODO: check if this rule should still belong to "MISRA C++ 2008 recommended"
 
-ifdef::env-github,rspecator-view[]
-'''
 == Comments And Links
 (visible only on this page)
 
