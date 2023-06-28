@@ -48,7 +48,7 @@ Accessing a dangling reference or pointer causes undefined behavior.
 This means the compiler is not bound by the language standard anymore and your program has no meaning assigned to it.
 
 Practially this has wide range of effects.
-In many cases the access works and succeeds at writing or reading a value.
+In many cases the access works by accident and succeeds at writing or reading a value.
 However, it can start misbehaving at anytime.
 If compilation flags, compiler, platform, or runtime environment change,
 the same code can crash the application, corrupt memory, or leak a secret.
@@ -263,8 +263,22 @@ The interface of `Wrapper::getOr` from the example above is dangerous,
 since it is bound to create subtle bugs.
 Instead of fixing every call, it is better to make the interface less error-prone.
 
-For example, use `std::string_view` (or the equivalent if you can't use {cpp}17)
-to make this interface both safe and efficient:
+For example, always return the `std::string` by value.
+
+[source,cpp]
+----
+  std::string Wrapper::getOr(std::string backup) const {
+    return contents.empty() ? backup : contents;
+  }
+----
+
+There is no reference involved, so no risk of having it dangling.
+
+This safer solution, does involve some performance overhead of potentially unncessarily
+copying the `w.contents` string but in many cases it is acceptable.
+
+Alternatively, you can use `std::string_view` (or the equivalent if you can't use {cpp}17)
+to make this interface more efficient:
 
 [source,cpp]
 ----
@@ -278,7 +292,8 @@ and the temporary `std::string_view` stores a pointer to the string literal `"st
 When `getOr` returns `contents` it copies the `backup` value, which is fast,
 and the result is copied to a variable in the caller's stack frame.
 
-Note, that the following code would still create a dangling reference
+Note, that the interface is only slightly safer.
+The following code would still create a dangling pointer
 because it creates a temporary `std::string`
 and the `std::string_view` refers to this temporary object
 that gets destroyed at the end of the full expression:
