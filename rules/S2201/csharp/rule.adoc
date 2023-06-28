@@ -1,44 +1,80 @@
 == Why is this an issue?
 
-When the call to a function doesn't have any side effects, what is the point of making the call if the results are ignored? In such case, either the function call is useless and should be dropped or the source code doesn't behave as expected.
-
+When you do not use the return value of a method with no side effects, it indicates that something is wrong. Either this method is unnecessary, or the source code does not behave as expected and could lead to code defects.
+For example, there are methods, such as https://learn.microsoft.com/en-us/dotnet/api/system.datetime.addyears[DateTime.AddYears] that do not change the value of the input object, but instead, they return a new object whose value is the result of this operation. This means that you will have unexpected effects if you do not use the return value.
 
 This rule raises an issue when the results of the following methods are ignored:
 
-* LINQ method,
-* ``++[Pure]++`` method,
-* any method on ``++string++``, ``++int++``, ..., ``++System.Collections.Immutable.ImmutableArray<T>++``, ``++ImmutableHashSet<T>++``, ...
+* https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/[LINQ],
+* https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.contracts.pureattribute[`Pure` methods],
+* Any method on https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/built-in-types[build-in types]
+* Any method on https://learn.microsoft.com/en-us/archive/msdn-magazine/2017/march/net-framework-immutable-collections[Immutable collections]
 
-Notes:
 
-* although ``++string.Intern++`` has a side effect, ignoring its return value is still suspicious as it is the only reference ensured to point to the intern pool.
-* Link methods can have side effects if they are misused. Example:
+Special cases:
 
+* Although https://learn.microsoft.com/en-us/dotnet/api/system.string.intern[`string.Intern`] has a side effect, ignoring its return value is still suspicious as it is the only reference ensured to point to the intern pool.
+* LINQ methods can have side effects if they are misused. For example:
 ----
-tests.All(c => { c.myfield = "foo"; return true; });
+data.All(x =>
+{
+    x.Property = "foo";
+    return true;
+});
 ----
-Such code should be rewritten as a normal loop.
-
-=== Noncompliant code example
-
-[source,csharp]
-----
-coll.Where(i => i > 5).Select(i => i*i); // Noncompliant
-"this string".Equals("other string"); // Noncompliant
-----
-
-=== Compliant solution
-
-[source,csharp]
-----
-var res = coll.Where(i => i > 5).Select(i => i*i);
-var isEqual = "this string".Equals("other string");
-----
+Such code should be rewritten as a loop because https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.all[`Enumerable.All<TSource>`] method should be used to determine if all elements satisfy a condition and not to change their state.
 
 === Exceptions
 
-This rule doesn't report issues on method calls with ``++out++`` or ``++ref++`` arguments.
+This rule doesn't report issues on invocations with https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/out-parameter-modifier[`out`] or https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/ref[`ref`] arguments.
 
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+data.Where(x => x > 5).Select(x => x * x); // Noncompliant
+"this string".Equals("other string"); // Noncompliant
+
+data.All(x =>  // Noncompliant
+{
+    x.Property = "foo";
+    return true;
+});
+
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+var res = data.Where(x => x > 5).Select(x => x * x); 
+var isEqual = "this string".Equals("other string");
+
+foreach (var x in data)
+{
+    x.Property = "foo";
+}
+----
+
+== Resources
+
+=== Documentation
+* https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.contracts.pureattribute[PureAttribute Class]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/out-parameter-modifier[`out` parameter modifier]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/ref[`ref` keyword]
+* https://learn.microsoft.com/en-us/dotnet/api/system.string.intern[String.Intern(String) Method]
+* https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/[LINQ]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/built-in-types[build-in types]
+* https://learn.microsoft.com/en-us/archive/msdn-magazine/2017/march/net-framework-immutable-collections[Immutable collections]
+
+
+
+=== Articles & blog posts 
+* https://www.daniellittle.dev/dont-ignore-your-functions[Don't ignore your functions]
 
 ifdef::env-github,rspecator-view[]
 
