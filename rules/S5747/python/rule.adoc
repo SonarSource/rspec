@@ -1,42 +1,52 @@
+This rule raises an issue when a bare raise` statement is not in an `except` or `finally` block.
+
 == Why is this an issue?
 
-A bare ``++raise++`` statement, i.e. a ``++raise++`` with no exception provided, will re-raise the last active exception in the current scope. If the "raise" statement is not in an ``++except++`` or ``++finally++`` block, no exception is active and a ``++RuntimeError++`` is raised instead.
-
-
-If the bare ``++raise++`` statement is in a function called in an ``++except++`` statement, the exception caught by the ``++except++`` will be raised. This works but is hard to understand and maintain. Nothing indicates in the parent ``++except++`` that the exception will be reraised, and nothing prevents a developer from calling the function in another context.
-
-
-Note also that using a bare ``++raise++`` in a ``++finally++`` block only works when an exception is active, i.e. when an exception from the ``++try++`` block is not caught or when an exception is raised by an ``++except++`` block. It will fail in any other case and should not be relied upon. This code smell is handled by rule S5704.
-
-
-This rule raises an exception when a bare ``++raise++`` statement is not in an ``++except++`` or ``++finally++`` block.
-
-
-=== Noncompliant code example
+A bare `raise` statement, i.e. a `raise` with no exception provided, will re-raise the last active exception in the current scope:
 
 [source,python]
 ----
-raise  # Noncompliant
+def foo():
+    try:
+        ...
+    except ValueError as e:
+        raise # this will re-raise "e"
+----
+
+If the `raise` statement is not in an `except` or `finally` block, no exception is active and a `RuntimeError` is raised instead.
+
+If the bare `raise` statement is in a function called in an `except` block, the exception caught by the `except` will be re-raised. However, this behavior is not reliable as nothing prevents a developer from calling the function from a different context. Overall, this pattern is discouraged as it is hard to understand and maintain.
+
+
+== How to fix it
+
+To fix this issue, make sure to specify which exception needs to be raised when outside of an `except` block.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python]
+----
+raise  # Noncompliant: no active exception
 
 def foo():
-    raise  # Noncompliant
+    raise  # Noncompliant: no active exception
     try:
-        raise  # Noncompliant
+        raise  # Noncompliant: no active exception
     except ValueError as e:
         handle_error()
     except:
         raise
-    else:
-        raise  # Noncompliant
     finally:
         raise
 
 def handle_error():
-    raise  # Noncompliant. This works but is hard to understand.
+    raise  # Noncompliant: this is not reliable
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
 [source,python]
 ----
@@ -48,12 +58,13 @@ def foo():
         raise ValueError()
     except:
         raise
-    else:
-        raise ValueError()
     finally:
         raise
 ----
 
+=== Pitfalls
+
+In a `finally` block, an exception is still active only when it hasn't been caught in a previous `except` clause or if it has been raised in an `except` block. In both cases, it is better to let the exception propagate automatically than to re-raise it. This pattern is covered by rule S5704.
 
 == Resources
 
