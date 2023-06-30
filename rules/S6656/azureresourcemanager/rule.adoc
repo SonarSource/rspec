@@ -1,43 +1,107 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+When using nested deployments in Azure, template expressions can be evaluated within the scope of the parent template or the scope of the nested template. If such a template expression evaluates a secure value of the parent template, it is possible to expose this value in the deployment history.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Parameters with the type `securestring` and `secureObject` are designed to pass sensitive data to the resources being deployed. Secure parameters cannot be accessed after the deployment is completed: they can neither be logged nor used as an output.
 
-//=== What is the potential impact?
+When used in nested deployments, however, it is possible to embed secure parameters in such a way they can be visible afterward. 
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+=== What is the potential impact?
+
+If the default value contains a secret, it will be disclosed to all accounts that have read access to the deployment history.
+
+== How to fix it in ARM templates
+
+By setting `properties.expressionEvaluationOptions.scope` to `Inner` in the parent template, template evaluations are limited to the scope of the nested template. This makes it impossible to expose secure parameters defined in the parent template.
 
 === Code examples
-
 ==== Noncompliant code example
 
-[source,text,diff-id=1,diff-type=noncompliant]
+[source,json,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "securestring",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.Compute/virtualMachines",
+              "apiVersion": "2022-11-01",
+              "properties": {
+                "osProfile": {
+                  "adminUsername": "[parameters('adminUsername')]"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
 ----
 
 ==== Compliant solution
 
-[source,text,diff-id=1,diff-type=compliant]
+[source,json,diff-id=1,diff-type=compliant]
 ----
-FIXME
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "Inner"
+        },
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "adminUsername": {
+              "type": "securestring",
+              "defaultValue": "[newGuid()]"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Compute/virtualMachines",
+              "apiVersion": "2022-11-01",
+              "properties": {
+                "osProfile": {
+                  "adminUsername": "[parameters('adminUsername')]"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
 ----
 
-//=== How does this work?
+== Resources
+=== Documentation
+* Microsoft Learn - https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/deployments?pivots=deployment-language-arm-template[`Microsoft.Resources/deployments`] 
 
-//=== Pitfalls
-
-//=== Going the extra mile
-
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== Benchmarks
+=== Standards
+* https://cwe.mitre.org/data/definitions/200[MITRE, CWE-200] - Exposure of Sensitive Information to an Unauthorized Actor
+* https://cwe.mitre.org/data/definitions/532[MITRE, CWE-532] - Insertion of Sensitive Information into Log File
