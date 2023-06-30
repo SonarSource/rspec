@@ -1,33 +1,358 @@
+
+References and pointers to temporary objects become dangling after these objects are destroyed.
+Barring lifetime extension, this happens at the end of a full expression.
+
+Lifetime extension allows even after the end of a full expression the use  of
+the temporaries that are bound to `const` references but only if they are bound directly.
+
 == Why is this an issue?
 
-Binding a temporary object to a reference to const usually lengthens the lifetime of the temporary: instead of being destroyed at the end of the full expression, the temporary will have the same lifetime as the reference itself.
+You can create a temporary object as part of the evaluation of an expression.
 
-However, lifetime extension is not transitive, so if the definition of the temporary relies on another temporary, this second temporary will always be destroyed at the end of the full expression, creating an immediately dangling reference.
-
-
-=== Noncompliant code example
+For example:
 
 [source,cpp]
+----
+int getOffset(int i) {
+  int x = std::vector{10, 20, 30}[i] / (i + 1);
+  return x +std::stoi("15");
+}
+----
+
+The code above contains two full expressions (declaration of `i` and `return`), each contains a temporary:
+
+- `std::vector{10, 20, 30}` is a temporary vector created in-place, and accessed directly.
+- `"15"` is implicitly converted to temporary `std::string{"15"}` because `std::stoi` accepts `std::string const&` as an argument.
+
+A temporary object remains valid throughout the single full expression where it was created.
+It is reclaimed and destroyed (for nontrivial objects) at the end of it.
+
+If after the end of a full expression, some references or pointers still refer to a temporary object
+they immediately become dangling, unless the lifetime of the temporary object is extended (see <<Exceptions>>).
+
+Dereferencing and even copying such dangling pointers or references causes *undefined behavior*.
+
+=== Exceptions [[exceptions]]
+
+A reference-to-`const` directly bound to a temporary object extends the lifetime of this object.
+The object enjoys the same lifetime as the reference it is bound to.
+
+However, lifetime extension is not transitive.
+If the definition of the temporary relies on another temporary,
+this second temporary will still be destroyed at the end of the full expression,
+creating an immediately dangling reference.
+
+=== What is the potential impact?
+
+Accessing a dangling reference or pointer causes undefined behavior.
+This means the compiler is not bound by the language standard anymore and your program has no meaning assigned to it.
+
+Practically this has a wide range of effects.
+In many cases, the access works by accident and succeeds at writing or reading a value.
+However, it can start misbehaving at any time.
+If compilation flags, compiler, platform, or runtime environment change,
+the same code can crash the application, corrupt memory, or leak a secret.
+
+== How to fix it
+
+You can either copy the temporary object immediately,
+allocate it on the stack (as a local variable),
+on the heap, or as a static object.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 #include <vector>
 #include <optional>
 
-using namespace std;
-
-void f(int i);
+int f(int i) {
+  // r-value references can also be dangling
+  int &&rval = *std::optional<int>(i);  // Noncompliant: rval is an immediately dangling reference
+  return rval; // dereferencing a dangling reference
+}
 
 int main() {
-    // the vector is a temporary object, and binding a reference to its first element will not extend the vector lifetime
-    auto const &val = vector{1, 2, 3}[0]; // Noncompliant, val is an immediately dangling reference
-    f(val);
-
-    int && rval = *std::optional<int>();  // Noncompliant, rval is an immediately dangling reference
+    //The vector is a temporary object,
+    // and binding a reference to its first element will not extend the vector lifetime
+    auto const &val = std::vector{1, 2, 3}[0]; // Noncompliant: val is an immediately dangling reference
+    return f(val);
 }
 ----
 
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <vector>
+#include <optional>
+
+int f(int i) {
+  int rval = *std::optional<int>(i);  // Compliant, rval copies the temporary
+  return rval;
+}
+
+auto const commonIndexValues = std::vector{1, 2, 3};
+
+int main() {
+    auto const &val = commonIndexValues[0]; // Compliant, commonIndexValues is a global constant
+    return f(val);
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#include <vector>
+
+class Stats {
+    std::vector<int> playerScores;
+  public:
+    std::vector<int> const& getPlayerScores() const {
+      return playerScores;
+    }
+};
+
+Stats getStats();
+
+int getTotalScore() {
+  int sum = 0;
+  // getStats() returns a temporary that is reclaimed before the loop begins
+  // Even though internally the range-based for loop takes a const reference to a subobject of a temporary,
+  // it is not lifetime-extended, because the subobject reference is obtained indirectly
+  for (auto score : getStats().getPlayerScores()) { // Noncompliant
+    sum += score;
+  }
+  return sum;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <vector>
+
+class Stats {
+    std::vector<int> playerScores;
+  public:
+    std::vector<int> const& getPlayerScores() const {
+      return playerScores;
+    }
+};
+
+Stats getStats();
+
+int getTotalScore() {
+  int sum = 0;
+  // stats is not a temporary and it is alive throughout the loop
+  for (auto stats = getStats(); auto score : stats.getPlayerScores()) { // Compliant
+    sum += score;
+  }
+  return sum;
+}
+----
+
+Alternatively, you can rely on lifetime-extension, if you are accessing the field directly:
+
+[source,cpp]
+----
+#include <vector>
+
+class Stats {
+  public:
+    std::vector<int> playerScores;
+};
+
+Stats getStats();
+
+int getTotalScore() {
+  int sum = 0;
+  //The temporary Stats is lifetime extended for the duration of the loop
+  // because a hidden const reference is bound to its field Stats::playerScores
+  for (auto score : getStats().playerScores) { // Compliant
+    sum += score;
+  }
+  return sum;
+}
+----
+
+Another option is to overload the `getPlayerScores` member function to
+"consume" the temporary and return an independent temporary with its own
+lifetime that can be extended:
+
+[source,cpp]
+----
+#include <vector>
+
+class Stats {
+    std::vector<int> playerScores;
+  public:
+    std::vector<int> const& getPlayerScores() const {
+      return playerScores;
+    }
+    std::vector<int> getPlayerScores() && { // Note the &&
+      return std::move(playerScores);
+    }
+};
+
+Stats getStats();
+
+int getTotalScore() {
+  int sum = 0;
+  // Now, the second overload of getPlayerScores() is used, and it
+  // returns another temporary that can be lifetime extended.
+  for (auto score : getStats().getPlayerScores()) { // Compliant
+    sum += score;
+  }
+  return sum;
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+#include <string>
+#include <memory>
+struct MyStrRef {
+  std::shared_ptr<std::string const> target;
+  MyStrRef(std::string const& target):target (&target) {}
+};
+
+void f(Wrapper const& w) {
+  MyStrRef x(std::string{"string"}); // Noncompliant
+  std::cout <<*x.target; // Dereferencing a dangling pointer
+}
+----
+
+==== Compliant solution
+
+You can store the temporary as a global, static, or local variable, or on the heap.
+For the completeness sake, let us put the string on the heap:
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+#include <string>
+#include <memory>
+struct MyStrRef {
+  std::shared_ptr<std::string const> target;
+  MyStrRef(std::shared_ptr<std::string const> target):target (&target) {}
+};
+
+void f(Wrapper const& w) {
+  auto s = std::make_shared<std::string>("string");
+  MyStrRef x(s); // Compliant
+  std::cout <<*x.target;
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+#include <string>
+class Wrapper {
+    std::string contents;
+  public:
+    std::string const& getOr(std::string const& backup) const {
+      return contents.empty() ? backup : contents;
+    }
+};
+
+void f(Wrapper const& w) {
+  // If w.contents is empty, c will be a dangling reference to the former std::string{"<empty>"}
+  auto const& c = w.getOr("<empty>"); // Noncompliant
+  std::cout <<c <<std::endl;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <string>
+class Wrapper {
+    std::string contents;
+  public:
+    std::string const& getOr(std::string const& backup) const {
+      return contents.empty() ? backup : contents;
+    }
+};
+
+void f(Wrapper const& w) {
+  std::string c = w.getOr("<empty>"); // Compliant, c is an independent copy
+  std::cout <<c <<std::endl;
+}
+----
+
+== Going the extra mile
+
+The interface of `Wrapper::getOr` from the example above is dangerous,
+since it is bound to create subtle bugs.
+Instead of fixing every call, it is better to make the interface less error-prone.
+
+For example, always return the `std::string` by value.
+
+[source,cpp]
+----
+  std::string Wrapper::getOr(std::string backup) const {
+    return contents.empty() ? backup : contents;
+  }
+----
+
+There is no reference involved, so no risk of having it dangling.
+
+This safer solution does involve some performance overhead of potentially unnecessarily
+copying `w.contents` string but in many cases it is acceptable.
+
+Alternatively, using `std::string_view` does not escape this flaw in all cases (see below)
+but it avoids the performance impact of `std::string` creation.
+
+Here is a possible implementation using `std::string_view`
+(or its equivalent before {cpp}17):
+
+[source,cpp]
+----
+  std::string_view Wrapper::getOr(std::string_view backup) const {
+    return contents.empty() ? backup : contents;
+  }
+----
+
+In this case, `w.getOr("str")` creates and passes `std::string_view` by value,
+and the temporary `std::string_view` stores a pointer to the string literal `"str"`.
+When `getOr` returns `contents` it copies the `backup` value, which is fast,
+and the result is copied to a variable in the caller's stack frame.
+
+Yet, the following code would still create a dangling pointer
+because it creates a temporary `std::string`
+and the `std::string_view` refers to this temporary object
+that gets destroyed at the end of the full expression:
+
+[source,cpp]
+----
+std::string_view c = w.getOr(std::string{"str"}); // Noncompliant
+std::cout <<c <<std::endl; // c refers to the memory formerly occupied by a temporary string
+----
+
+== Resources
+
+=== Documentation
+
+- C++ reference - https://en.cppreference.com/w/cpp/language/lifetime[Lifetime]
+- C++ reference - https://en.cppreference.com/w/cpp/language/range-for[Range-based for loop / Temporary range expression]
+- C++ reference - https://en.cppreference.com/w/cpp/header/string_view[string_view]
+
+=== Articles & blog posts
+
+- Abseil - https://abseil.io/tips/107[Tip of the Week #107: Reference Lifetime Extension]
 
 ifdef::env-github,rspecator-view[]
 '''
+
 == Comments And Links
 (visible only on this page)
 
