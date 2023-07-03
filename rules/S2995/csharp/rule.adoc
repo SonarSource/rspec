@@ -1,34 +1,89 @@
 == Why is this an issue?
 
-Using ``++Object.ReferenceEquals++`` to compare the references of two value types simply won't return the expected results most of the time because such types are passed by value, not by reference.
+In C#, the https://learn.microsoft.com/en-us/dotnet/api/system.object.referenceequals[`Object.ReferenceEquals`] method is used to compare two https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/reference-types[reference type] variables. If you use this method to compare two https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/value-types[value types], such as `int`, `float`, or `bool` you will not get the expected results because value type variables contain an instance of the type and not a reference to it.
 
+Due to value type variables containing directly an instance of the type, they can't have the same reference, and using `Object.ReferenceEquals` to compare them will always return `false` even if the compared variables have the same value.
 
-=== Noncompliant code example
+== How to fix it
 
-[source,csharp]
+When comparing value types, prefer using the https://learn.microsoft.com/en-us/dotnet/api/system.object.equals[`Object.Equals`].
+
+Note that in the case of https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/struct[structure types], it is recommended to https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/statements-expressions-operators/how-to-define-value-equality-for-a-type#struct-example[implement value equality]. If not, https://rules.sonarsource.com/csharp/RSPEC-3898[S3898] might raise.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-public class MyClass
+using System;
+
+struct MyStruct
 {
-  private MyStruct myStruct;
+    int valueA;
+    int valueB;
+}
 
-  public void DoSomething(MyStruct s1) {
-    int a = 1;
-    int b = 1;
-
-    if (Object.ReferenceEquals(myStruct, s1))  // Noncompliant; this can never be true
+static class MyClass
+{
+    public static void Method(MyStruct struct1, MyStruct struct2)
     {
-      // ...
+        if (Object.ReferenceEquals(struct1, struct2)) // Noncompliant: this will be always false
+        {
+            // ...
+        }
     }
-    else if (Object.ReferenceEquals(a,b)) // Noncompliant
-    {
-      // ...
-    }
-  }
 }
 ----
 
+==== Compliant solution
 
-ifdef::env-github,rspecator-view[]
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+using System;
+
+struct MyStruct : IEquatable<MyStruct>
+{
+    int valueA;
+    int valueB;
+
+    public bool Equals(MyStruct other) => valueA == other.valueA && valueB == other.valueB;
+
+    public override bool Equals(object obj) => obj is MyStruct other && Equals(other);
+
+    public override int GetHashCode() => HashCode.Combine(valueA, valueB);
+
+    public static bool operator ==(MyStruct lhs, MyStruct rhs) => lhs.Equals(rhs);
+
+    public static bool operator !=(MyStruct lhs, MyStruct rhs) => !(lhs == rhs);
+}
+
+static class MyClass
+{
+    public static void Method(MyStruct struct1, MyStruct struct2)
+    {
+        if (struct1.Equals(struct2)) // Compliant: value are compared
+        {
+            // ...
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.object.referenceequals[`Object.ReferenceEquals(Object, Object)` Method]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.object.equals[`Object.Equals` Method]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/value-types[Value types (C# reference)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/reference-types[Reference types (C# reference)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/equality-operators[Equality operators - test if two objects are equal or not]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/statements-expressions-operators/how-to-define-value-equality-for-a-type#struct-example[How to define value equality for a class or struct (C# Programming Guide)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/struct[Structure types (C# reference)]
+* S3898 - https://rules.sonarsource.com/csharp/RSPEC-3898/[Value types should implement "IEquatable<T>"]
+
+ifdef::env-github,rspecator-view,env-vscode[]
 
 '''
 == Implementation Specification
@@ -38,15 +93,14 @@ ifdef::env-github,rspecator-view[]
 
 Use a different kind of comparison for these value types.
 
-
 '''
 == Comments And Links
 (visible only on this page)
 
 === on 3 Jun 2015, 15:56:16 Ann Campbell wrote:
-\[~tamas.vajk] I'm a little confused about whether it should be ``++Object...++`` or ``++object...++``. I followed your lead, but am a little uncomfortable about the inconsistency in usage between title and code sample
+\[~tamas.vajk] I'm a little confused about whether it should be `Object...` or `object...`. I followed your lead, but am a little uncomfortable about the inconsistency in usage between title and code sample
 
 === on 8 Jun 2015, 09:32:21 Tamas Vajk wrote:
-LGTM, I've changed the ``++object++`` to ``++Object++`` just to conform to the title, but  there is no difference, because ``++object++`` is just an alias for ``++System.Object++``
+LGTM, I've changed the `object` to `Object` just to conform to the title, but  there is no difference, because `object` is just an alias for `System.Object`
 
-endif::env-github,rspecator-view[]
+endif::env-github,rspecator-view,env-vscode[]
