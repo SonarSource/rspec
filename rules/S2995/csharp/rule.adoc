@@ -1,10 +1,14 @@
 == Why is this an issue?
 
-In C#, the https://learn.microsoft.com/en-us/dotnet/api/system.object.referenceequals[`Object.ReferenceEquals`] method is used to compare two https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/reference-types[reference type] variables. However, this method should not be used to compare https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/value-types[value types], such as `int`, `float`, or `bool`. This is because value types variable contains an instance of the type.
+In C#, the https://learn.microsoft.com/en-us/dotnet/api/system.object.referenceequals[`Object.ReferenceEquals`] method is used to compare two https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/reference-types[reference type] variables. If you use this method to compare two https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/value-types[value types], such as `int`, `float`, or `bool` you will not get the expected results because value type variables contain an instance of the type and not a reference to it.
 
-Thus, value types variables can't have the same reference and using `Object.ReferenceEquals` to compare them will always return `false` even if the compared variables have the same value.
+Due to value type variables containing directly an instance of the type, they can't have the same reference, and using `Object.ReferenceEquals` to compare them will always return `false` even if the compared variables have the same value.
 
 == How to fix it
+
+When comparing value types, prefer using the https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/equality-operators[equality operators] or the https://learn.microsoft.com/en-us/dotnet/api/system.object.equals(system-object)[`Object.Equals`].
+
+Note that in the case of https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/struct[structure types], it is recommended to https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/statements-expressions-operators/how-to-define-value-equality-for-a-type#struct-example[implement value equality]. If not, https://rules.sonarsource.com/csharp/RSPEC-3898[S3898] might raise.
 
 === Code examples
 
@@ -12,11 +16,22 @@ Thus, value types variables can't have the same reference and using `Object.Refe
 
 [source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-public void Method(MyStruct struct1, MyStruct struct2)
+using System;
+
+struct MyStruct
 {
-    if (Object.ReferenceEquals(struct1, struct2)) // Noncompliant: this will be always false
+    int valueA;
+    int valueB;
+}
+
+static class MyClass
+{
+    public static void Method(MyStruct struct1, MyStruct struct2)
     {
-      // ...
+        if (Object.ReferenceEquals(struct1, struct2)) // Noncompliant: this will be always false
+        {
+            // ...
+        }
     }
 }
 ----
@@ -25,11 +40,28 @@ public void Method(MyStruct struct1, MyStruct struct2)
 
 [source,csharp,diff-id=1,diff-type=compliant]
 ----
-public void Method(MyStruct struct1, MyStruct struct2)
+using System;
+
+struct MyStruct : IEquatable<MyStruct>
 {
-    if (struct1.Equals(struct2)) // Compliant: value are compared
+    int valueA;
+    int valueB;
+
+    public bool Equals(MyStruct other) => valueA == other.valueA && valueB == other.valueB;
+
+    public override bool Equals(object obj) => obj is MyStruct other && Equals(other);
+
+    public override int GetHashCode() => HashCode.Combine(valueA, valueB);
+}
+
+static class MyClass
+{
+    public static void Method(MyStruct struct1, MyStruct struct2)
     {
-      // ...
+        if (struct1.Equals(struct2)) // Compliant: value are compared
+        {
+            // ...
+        }
     }
 }
 ----
@@ -41,6 +73,10 @@ public void Method(MyStruct struct1, MyStruct struct2)
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.object.referenceequals[Object.ReferenceEquals(Object, Object) Method]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/value-types[Value types (C# reference)]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/reference-types[Reference types (C# reference)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/equality-operators[Equality operators - test if two objects are equal or not]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/statements-expressions-operators/how-to-define-value-equality-for-a-type#struct-example[How to define value equality for a class or struct (C# Programming Guide)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/struct[Structure types (C# reference)]
+* S3898 - https://rules.sonarsource.com/csharp/RSPEC-3898/[Value types should implement "IEquatable<T>"]
 
 ifdef::env-github,rspecator-view,env-vscode[]
 
