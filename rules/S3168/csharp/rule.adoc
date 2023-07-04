@@ -1,72 +1,104 @@
 == Why is this an issue?
 
-An ``++async++`` method with a ``++void++`` return type is a "fire and forget" method best reserved for event handlers because there's no way to wait for the method's execution to complete and respond accordingly. There's also no way to ``++catch++`` exceptions thrown from the method.
+An https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/async[`async`] method with a `void` return type does not follow the https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/task-asynchronous-programming-model[task asynchronous programming (TAP)] model since the return type should be https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task[`Task`] or https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task-1[`Task<TResult>`]
 
+Doing so prevents control over the https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/async-scenarios[asynchronous execution], such as:
 
-Having an ``++async void++`` method that is not an event handler could mean your program works some times and not others because of timing issues. Instead, ``++async++`` methods should return ``++Task++``.
-
-
-This rule raises an issue when non-event handler methods are both ``++async++`` and ``++void++``.
-
-
-=== Noncompliant code example
-
-[source,csharp]
-----
-class HttpPrinter
-{
-  private string content;
-
-  public async void CallNetwork(string url) //Noncompliant
-  {
-    var client = new HttpClient();
-    var response = await client.GetAsync(url);
-    content = await response.Content.ReadAsStringAsync();
-  }
-
-  public async Task PrintContent(string url)  // works correctly if web request finishes in under 1 second, otherwise content will be null
-  {
-    CallNetwork(url);
-    await Task.Delay(1000);
-    Console.Write(content);
-  }
-}
-----
-
-
-=== Compliant solution
-
-[source,csharp]
-----
-class HttpPrinter
-{
-  private string content;
-
-  public async Task CallNetwork(string url)
-  {
-    var client = new HttpClient();
-    var response = await client.GetAsync(url);
-    content = await response.Content.ReadAsStringAsync();
-  }
-
-  public async Task PrintContent(string url)
-  {
-    await CallNetwork(url); // <----- call changed here. If await is not added warning CS4014 will be triggered
-    await Task.Delay(1000);
-    Console.Write(content);
-  }
-}
-----
-
+* waiting for the execution to complete
+* catching any exception that might occur during execution
+* testing execution behavior
 
 === Exceptions
 
-Event handlers, i.e. methods with two arguments, first one matching type ``++object++`` or name ``++sender++`` and the second being or inheriting from ``++EventArgs++``, are ignored.
+* Methods with the https://learn.microsoft.com/en-us/dotnet/api/system.eventhandler[`EventHandler`] delegate signature.
++
+Using `void` for `EventHandler` is compliant with the TAP model.
++
+[source,csharp]
+----
+public async void button1_Click(object sender, EventArgs e)
+{
+  await DoSomethingAsync();
+}
+----
+* Methods name matching `On[A-Z]\w*` pattern.
++
+Some frameworks may not use the same `EventHandler` method signature
++
+[source,csharp]
+----
+public async void OnClick(EventContext data)
+{
+  await DoSomethingAsync();
+}
+----
 
-Methods named as ``++OnSomething++`` are also ignored.
+== How to fix it
+
+Update the return type of the method from `void` to `Task`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+private async void ThrowExceptionAsync() // Noncompliant: async method return type is 'void'
+{
+  throw new InvalidOperationException();
+}
+
+public void Method()
+{
+  try
+  {
+    ThrowExceptionAsync();
+  }
+  catch (Exception)
+  {
+    // The exception is never caught here
+    throw;
+  }
+}
+----
 
 
-ifdef::env-github,rspecator-view[]
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+private async Task ThrowExceptionAsync() // Compliant: async method return type is 'Task'
+{
+  throw new InvalidOperationException();
+}
+
+public void Method()
+{
+  try
+  {
+    await ThrowExceptionAsync();
+  }
+  catch (Exception)
+  {
+    // The exception is caught here
+    throw;
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/async[`async` (C# Reference)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/async-scenarios[Asynchronous programming]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/task-asynchronous-programming-model[Task asynchronous programming model]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task[`Task` Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task-1[`Task<TResult>` Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.eventhandler[`EventHandler` Delegate]
+
+
+ifdef::env-github,rspecator-view,env-vscode[]
 
 '''
 == Implementation Specification
@@ -82,7 +114,7 @@ Return "Task" instead.
 (visible only on this page)
 
 === on 30 Jun 2015, 13:36:13 Ann Campbell wrote:
-\[~tamas.vajk] I don't understand the code snippets. The ``++async Task++`` method doesn't return anything.
+\[~tamas.vajk] I don't understand the code snippets. The `async Task` method doesn't return anything.
 
 
 Also, could you morph the Noncompliant Example into a Compliant Solution, please?
@@ -91,15 +123,15 @@ Also, could you morph the Noncompliant Example into a Compliant Solution, please
 \[~ann.campbell.2] I added the compliant solution.
 
 
-A method with ``++async++`` keyword returning a ``++Task++`` is like a non ``++async++`` method with ``++void++`` return type. Similarly in an ``++async Task<int>++`` method we can return a simple ``++int++``. (\https://msdn.microsoft.com/en-us/library/hh524395.aspx)
+A method with `async` keyword returning a `Task` is like a non `async` method with `void` return type. Similarly in an `async Task<int>` method we can return a simple `int`. (\https://msdn.microsoft.com/en-us/library/hh524395.aspx)
 
 === on 1 Jul 2015, 11:31:53 Ann Campbell wrote:
-\[~tamas.vajk] that makes me wonder if we should generalize this rule to catch _any_ ``++async++`` method that does not return a ``++Task++``...?
+\[~tamas.vajk] that makes me wonder if we should generalize this rule to catch _any_ `async` method that does not return a `Task`...?
 
 === on 1 Jul 2015, 11:49:54 Tamas Vajk wrote:
-\[~ann.campbell.2] That's a compiler error (CS1983, _The return type of async must be void, Task or Task<T>_). 
+\[~ann.campbell.2] That's a compiler error (CS1983, _The return type of async must be void, Task or Task<T>_).
 
 === on 1 Jul 2015, 11:59:39 Ann Campbell wrote:
 Okay, thanks [~tamas.vajk]
 
-endif::env-github,rspecator-view[]
+endif::env-github,rspecator-view,env-vscode[]
