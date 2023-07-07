@@ -6,10 +6,10 @@ for local variables and lifetime extended temporaries.
 
 Local variables in C++ are attached to the scope and destroyed when
 the end of the scope is reached. Any access to a variable outside
-of their scope has undefined behavior. 
+of their scope has undefined behavior.
 
 Such access occurs, for example when the address of a variable is
-stored in the pointer, that is later defereferenced:
+stored in the pointer, which is later dereferenced:
 
 [source,cpp]
 ----
@@ -33,14 +33,13 @@ int exampleWithIf() {
   int* ptr;
   if (int i = 10)
     ptr = &i;
-  else 
+  else
     ptr = nullptr;
   // variable i declared in if condition statement goes out of scope here
   if (ptr)
     return *ptr; // Noncompliant: reading from out-of-scope variable
   return 0;
 }
-
 void exampleWithFor() {
   int* ptr = nullptr;
   for (int i = 0; i < 10; ++i)
@@ -57,17 +56,17 @@ Accessing a dangling reference or pointer causes undefined behavior.
 This means the compiler is not bound by the language standard anymore
  and your program has no meaning assigned to it.
 
-Practially this has wide range of effects.
-In many cases the access works by accident and succeeds at writing or
+Practically this has a wide range of effects.
+In many cases, the access works by accident and succeeds at writing or
 reading a value. However, it can start misbehaving at anytime.
 If compilation flags, compiler, platform, or runtime environment change,
 the same code can crash the application, corrupt memory, or leak a secret.
 
 === Why is the issue raised for reference variables?
 
-When a reference variable is directly initialized to the temporary object, 
+When a reference variable is directly initialized to the temporary object,
 such temporary is lifetime-extended by the variable, i.e. the temporary
-object is destroyed when the variable goes out of scope. 
+object is destroyed when the variable goes out of scope.
 Lifetime-extended temporaries have the same behavior, as if they would be
 declared as local variables, and may lead to the same issues. For example:
 
@@ -81,9 +80,9 @@ void refExtension(Clazz const arg) {
     Clazz const& tRef = create(); // temporary object is created here and bound to reference,
                                   // behaves as Class const tRef = create();
     Clazz const& aRef = arg; // bounding reference to object arg
-    tPtr = &tRef;  // point to temporary object that is lifetime extended
+    tPtr = &tRef;  // point to a temporary object that is lifetime extended
     aPtr = &aRef;  // points to arg
-  } // both tRef and aRef goes out of scope here, because tRef was extending the lifetime of 
+  } // both tRef and aRef go out of scope here, because tRef was extending the lifetime of
     // temporary variable, the object is destroyed
   aPtr->foo(); // OK, a points to arg
   tPtr->foo(); // Noncompliant: the pointers point to a dangling temporary
@@ -94,7 +93,7 @@ void refExtension(Clazz const arg) {
 
 Commonly, the use of out-of-scope local object is an indication of a defect in code,
 where the local object was used by mistake, and in such case replacing it with the
-desired variable or removing the use is sufficient. 
+desired variable or removing the use is sufficient.
 For other scenarios two general approaches are possible:
 
 * Extending the scope of the referenced variable
@@ -110,12 +109,10 @@ Whenever possible, it is preferable to use or create a dedicated algorithm that 
 ----
 #include <span>
 #include <optional>
-
 std::optional<int> minimum(std::span<int const> s) {
   if (s.empty()) {
     return std::nullopt;
   }
-
   int* min = nullptr;
   for (int i = 0; i < s.size(); ++i) {
     if ((min == nullptr) || (*min < s[i]))
@@ -133,12 +130,10 @@ Fixing the typo, and taking the address of `&s[i]`:
 ----
 #include <vector>
 #include <optional>
-
 std::optional<int> minimum(std::span<int const> s) {
   if (s.empty()) {
     return std::nullopt;
   }
-
   int* min = nullptr;
   for (int i = 0; i < s.size(); ++i) {
     if ((min == nullptr) || (*min < s[i]))
@@ -154,14 +149,13 @@ Storing a copy instead of a pointer:
 ----
 #include <vector>
 #include <optional>
-
 std::optional<int> minimum(span<int const> s) {
    std::optional<int> min;
    for (int i = 0; i < s.size(); ++i) {
       if (min.has_value() || (*min < s[i]))
-        min = s[i]; 
+        min = s[i];
    }
-   return min; // Compliant, copy of minimum element
+   return min; // Compliant, copy of the minimum element
 }
 ----
 
@@ -173,7 +167,6 @@ Using a dedicated algorithm that avoids the need to store the pointer:
 #include <span>
 #include <optional>
 #include <algorithm>
-
 std::optional<int> minimum(std::span<int const> s) {
   auto it = std::min_element(s.begin(), s.end());
   if (it == s.end())
@@ -194,30 +187,26 @@ that represents a lock of the mutex:
 ----
 std::mutex dataMutex;
 Data data;
-
 void process() {
   Element e;
   { // scope A
      std::unique_lock<std::mutex> l1(dataMutex); // mutex is locked in constructor
      e = data.fetch();
   } // l1 destructor is called here, and the lock is unlocked
-
   // do processing of the element
   if (e.finished())
     return;
-
   { // scope B
-    std::unique_lock<std::mutex> l2(dataMutex); // mutex is locedk in constructor
+    std::unique_lock<std::mutex> l2(dataMutex); // mutex is locked in constructor
     data.append(std::move(e));
   } // l2 destructor is called here, and the mutex is unlocked
-
 }
 ----
 
 In the above example, scope `A` and `B` limits the operation that is performed in
-the critical section (when the mutex is acquired). 
-Removing all nested scopes would lead to deadlock, where `l2` will try to lock 
-`dataMutex`, which is already acquired in the same thread by constructor of `l1`.
+the critical section (when the mutex is acquired).
+Removing all nested scopes would lead to deadlock, where `l2` will try to lock
+`dataMutex`, which is already acquired in the same thread by the constructor of `l1`.
 
 == Resources
 
