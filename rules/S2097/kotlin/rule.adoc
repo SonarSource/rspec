@@ -1,29 +1,77 @@
 == Why is this an issue?
 
-As the `equals` method's parameter is typed as generic `Any?`, any type of object may be passed to it. The method implementation should not assume it will only be used to test objects of its own class type. It must instead check the parameter's type.
+The `Object#equals(other: Any?)` method is used to compare two objects to see if they are equal.
 
+The `other` parameter's type is `Any?`, this means that any object can be passed as a parameter to this method.
 
-=== Noncompliant code example
-
-[source,kotlin]
-----
-override fun equals(other: Any?): Boolean {  // Noncompliant
-  val mc = other as MyClass
-  // ...
-}
-----
-
-
-=== Compliant solution
+Any method overriding `Object#equals(other: Any?)` should respect this contract, accept any objects as a parameter, and return false when object types are different. The `other` parameter's type can be checked using the `is` operator or by comparing the `javaClass` field:
 
 [source,kotlin]
 ----
 override fun equals(other: Any?): Boolean {
-  if (other?.javaClass != this.javaClass)
+  // ...
+  if (other?.javaClass != this.javaClass) {
     return false
-
-  val mc = other as MyClass
+  }
   // ...
 }
 ----
 
+It is an issue to assume the `equals` method will only be used to compare objects having the same type. Casting the `other` parameter without prior tests will throw a `ClassCastException` instead of returning false.
+[source,kotlin]
+----
+class MyClass {
+  override fun equals(other: Any?): Boolean {
+    val that = other as MyClass // may throw a ClassCastException
+    // ...
+  }
+  // ...
+}
+----
+
+This rule raises an issue when `other` parameter's type has not been tested before a cast operation.
+
+== How to fix it
+
+Ensure the `other` parameter's type is checked by comparing `other?.javaClass` and `this.javaClass`, or use the `is` operator to test `other`'s type.
+
+=== Code examples
+
+==== Noncompliant code example
+[source,kotlin,diff-id=1,diff-type=noncompliant]
+----
+class MyClass {
+  override fun equals(other: Any?): Boolean {
+    if (this === other) {
+        return true
+    }
+    val that = other as MyClass // Noncompliant, may throw a ClassCastException
+    // ...
+  }
+  // ...
+}
+----
+
+==== Compliant solution
+[source,kotlin,diff-id=1,diff-type=compliant]
+----
+class MyClass {
+  override fun equals(other: Any?): Boolean {
+    if (this === other) {
+        return true
+    }
+    if (other?.javaClass != this.javaClass) {
+      return false
+    }
+    val that = other as MyClass // Compliant, other's type is MyClass
+    // ...
+  }
+  // ...
+}
+----
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Object.html#equals(java.lang.Object)[Oracle SDK - java.lang.Object#equals(Object obj)]
