@@ -150,6 +150,7 @@ export const SearchPage = () => {
                 onKeyUp={handleKeyup}
                 error={!!error}
                 helperText={error}
+                autoFocus
               />
             </Grid>
             <Grid item xs={12} container spacing={3} className={classes.fullWidth}>
