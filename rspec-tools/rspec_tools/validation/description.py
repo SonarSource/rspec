@@ -34,7 +34,7 @@ MANDATORY_SECTIONS = ['Why is this an issue?']
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
   'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
-  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'Benchmarks', 'Related rules']
+  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'External coding guidelines', 'Benchmarks', 'Related rules']
 }
 SUBSECTIONS = {
   'Code examples': ['Noncompliant code example', 'Compliant solution']
