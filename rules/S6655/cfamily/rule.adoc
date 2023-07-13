@@ -1,0 +1,228 @@
+Accessing local objects outside of their scope (for example, via a pointer
+taken inside the scope) has undefined behavior. This rule flags such
+access for local variables and lifetime-extended temporaries.
+
+== Why is this an issue?
+
+Local variables in C++ are attached to the scope and destroyed when
+the end of the scope is reached. Any access to a variable outside
+of their scope has undefined behavior.
+
+Such access occurs, for example, when the address of a variable is
+stored in a pointer that is later dereferenced:
+
+[source,cpp]
+----
+int func() {
+  int* ptr = nullptr;
+  {
+    int i = 10;
+    ptr = &i;
+  } // variable i goes out of scope here
+  *ptr = 10; // Noncompliant: writing to out-of-scope-variable
+}
+----
+
+A similar defect can occur in code that does not have curly braces
+(also referred to as a compound statement), but contain control
+structures, like `if` or `for` that also introduce scope:
+
+[source,cpp]
+----
+int exampleWithIf() {
+  int* ptr;
+  if (int i = 10)
+    ptr = &i;
+  else
+    ptr = nullptr;
+  // variable i declared in if condition statement goes out of scope here
+  if (ptr)
+    return *ptr; // Noncompliant: reading from out-of-scope variable
+  return 0;
+}
+void exampleWithFor() {
+  int* ptr = nullptr;
+  for (int i = 0; i < 10; ++i)
+    ptr = &i;
+  // variable i defined in for init-statement goes out of scope here
+  *ptr = 10; // Noncompliant
+}
+----
+
+
+=== What is the potential impact?
+
+Accessing a dangling reference or pointer causes undefined behavior.
+This means the compiler is not bound by the language standard anymore
+ and your program has no meaning assigned to it.
+
+Practically this has a wide range of effects.
+In many cases, the access works by accident and succeeds at writing or
+reading a value. However, it can start misbehaving at anytime.
+If compilation flags, compiler, platform, or runtime environment change,
+the same code can crash the application, corrupt memory, or leak a secret.
+
+=== Why is the issue raised for reference variables?
+
+When a reference variable is directly initialized to a temporary object,
+such temporary is lifetime-extended by the variable, i.e., the temporary
+object is destroyed when the variable goes out of scope.
+Lifetime-extended temporaries have the same behavior as if they were
+declared as local variables and may lead to the same issues. For example:
+
+[source,cpp]
+----
+Clazz create();
+void refExtension(Clazz const arg) {
+  Clazz const* aPtr;
+  Clazz const* tPtr;
+  {
+    Clazz const& aRef = arg; // bounding reference to object arg
+    Clazz const& tRef = create(); // temporary object is created here and bound to reference,
+                                  // behaves as Clazz const tRef = create();
+    aPtr = &aRef;  // points to arg
+    tPtr = &tRef;  // point to a temporary object that is lifetime extended
+  } // both aRef and tRef go out of scope here, because tRef was extending the lifetime of
+    // temporary variable, the object is destroyed
+  aPtr->foo(); // OK, a points to arg
+  tPtr->foo(); // Noncompliant: the pointers point to a dangling temporary
+}
+----
+
+== How to fix it
+
+Commonly, the use of an out-of-scope local object is an indication of a defect in code,
+where the local object was used by mistake, and in such case, replacing it with the
+desired variable or removing the use is sufficient.
+For other scenarios, two general approaches are possible:
+
+* Extending the scope of the referenced variable
+* Capturing a copy of the object instead of a pointer to it
+
+Whenever possible, it is preferable to use or create a dedicated algorithm that
+encapsulates the uses of pointers to local objects.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <span>
+#include <optional>
+std::optional<int> minimum(std::span<int const> s) {
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  int const* min = nullptr;
+  for (int i = 0; i < s.size(); ++i) {
+    if ((min == nullptr) || (*min < s[i]))
+      min = &i;  // should be address of &s[i]
+  }
+  return *min; // Noncompliant: dangling
+}
+----
+
+==== Compliant solution
+
+Fixing the typo, and taking the address of `&s[i]`:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <span>
+#include <optional>
+std::optional<int> minimum(std::span<int const> s) {
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  int const* min = nullptr;
+  for (int i = 0; i < s.size(); ++i) {
+    if ((min == nullptr) || (*min < s[i]))
+      min = &s[i];
+  }
+  return *min; // Compliant, points to an element of s
+}
+----
+
+Storing a copy instead of a pointer:
+
+[source,cpp]
+----
+#include <span>
+#include <optional>
+std::optional<int> minimum(span<int const> s) {
+   std::optional<int> min;
+   for (int i = 0; i < s.size(); ++i) {
+      if (min.has_value() || (*min < s[i]))
+        min = s[i];
+   }
+   return min; // Compliant, copy of the minimum element
+}
+----
+
+
+Using a dedicated algorithm that avoids the need to store the pointer:
+
+[source,cpp]
+----
+#include <span>
+#include <optional>
+#include <algorithm>
+std::optional<int> minimum(std::span<int const> s) {
+  auto it = std::min_element(s.begin(), s.end());
+  if (it == s.end())
+    return std::nullopt;
+  return *it;
+}
+----
+
+=== Pitfalls
+
+Reducing the number of nested scopes is not always the right solution to fix
+the issue because, for the variables that represent resources (using RAII idiom),
+the scope of the variables plays an important role in the correctness of the program.
+As an illustration, let's consider the following example that uses `std::unique_lock`
+that represents a lock of a mutex:
+
+[source,cpp]
+----
+std::mutex dataMutex;
+Data data;
+void process() {
+  Element e;
+  { // scope A
+    std::unique_lock<std::mutex> l1(dataMutex); // mutex is locked in constructor
+    e = data.fetch();
+  } // l1 destructor is called here, and the lock is unlocked
+  // do processing of the element
+  if (e.finished())
+    return;
+  { // scope B
+    std::unique_lock<std::mutex> l2(dataMutex); // mutex is locked in constructor
+    data.append(std::move(e));
+  } // l2 destructor is called here, and the mutex is unlocked
+}
+----
+
+In the above example, scopes `A` and `B` limit the number of operations performed
+in the critical section (when the mutex is acquired).
+Removing all nested scopes would lead to deadlock, where `l2` will try to lock
+`dataMutex`, already acquired in the same thread by the constructor of `l1`.
+
+== Resources
+
+=== Documentation
+
+- C++ reference - https://en.cppreference.com/w/cpp/language/lifetime[Lifetime]
+- C++ reference - https://en.cppreference.com/w/cpp/language/raii[RAII]
+- C++ reference - https://en.cppreference.com/w/cpp/thread/unique_lock[unique_lock]
+
+=== Articles & blog posts
+
+- Abseil - https://abseil.io/tips/107[Tip of the Week #107: Reference Lifetime Extension]
+
+=== Related rules
+
+* S5553 detects uses of reclaimed temporary variables that are not lifetime-extended.
+* S946 detects situation when address of reference to local variable is returned from function
+
