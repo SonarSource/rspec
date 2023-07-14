@@ -1,35 +1,88 @@
 == Why is this an issue?
 
-Because the ``++equals++`` method takes a generic ``++Object++`` as a parameter, any type of object may be passed to it. The method should not assume it will only be used to test objects of its class type. It must instead check the parameter's type.
+The `Object#equals(Object obj)` method is used to compare two objects to see if they are equal.
 
+The `obj` parameter's type is `Object`, this means that an object of any type can be passed as a parameter to this method.
 
-=== Noncompliant code example
-
-[source,java]
-----
-public boolean equals(Object obj) { // Noncompliant
-  MyClass mc = (MyClass)obj;
-  // ...
-}
-----
-
-
-=== Compliant solution
+Any class overriding `Object#equals(Object obj)` should respect this contract, accept any object as an argument, and return `false` when the argument's type differs
+from the expected type. The `obj` parameter's type can be checked using `instanceof` or by comparing the `getClass()` value:
 
 [source,java]
 ----
+@Override
 public boolean equals(Object obj) {
-  if (obj == null)
+  // ...
+  if (this.getClass() != obj.getClass()) {
     return false;
-
-  if (this.getClass() != obj.getClass())
-    return false;
-
-  MyClass mc = (MyClass)obj;
+  }
   // ...
 }
 ----
 
+However, it is an issue to assume that the `equals` method will only be used to compare objects of the same type. Casting the `obj` parameter without a prior test will throw a `ClassCastException` instead of returning false.
+[source,java]
+----
+public class MyClass {
+  @Override
+  public boolean equals(Object obj) {
+    MyClass that = (MyClass) obj; // may throw a ClassCastException
+    // ...
+  }
+  // ...
+}
+----
+
+This rule raises an issue when `obj` parameter's type has not been tested before a cast operation.
+
+== How to fix it
+
+Ensure the `obj` parameter's type is checked by comparing `this.getClass()` and `obj.getClass()`, or use the `instanceof` operator to test `obj`'s type.
+
+=== Code examples
+
+==== Noncompliant code example
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+public class MyClass {
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (obj == null) {
+      return false;
+    }
+    MyClass that = (MyClass) obj; // Noncompliant, may throw a ClassCastException
+    // ...
+  }
+  // ...
+}
+----
+
+==== Compliant solution
+[source,java,diff-id=1,diff-type=compliant]
+----
+public class MyClass {
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (obj == null || this.getClass() != obj.getClass()) {
+      return false;
+    }
+    MyClass that = (MyClass) obj; // Compliant, obj's type is MyClass
+    // ...
+  }
+  // ...
+}
+----
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Object.html#equals(java.lang.Object)[Oracle SDK - java.lang.Object#equals(Object obj)]
 
 ifdef::env-github,rspecator-view[]
 
