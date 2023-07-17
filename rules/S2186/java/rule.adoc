@@ -1,18 +1,54 @@
 == Why is this an issue?
 
-JUnit assertions should not be made from the ``++run++`` method of a ``++Runnable++``, because failed assertions result in ``++AssertionError++``s being thrown. If the error is thrown from a thread other than the one that ran the test, the thread will exit but the test won't fail.
+JUnit assertions should not be made from the `run` method of a `Runnable`, because their failure may not fail the test that initiated them.
+Failed assertions throw assertion errors.
+However, if the error is thrown from a thread other than the one that ran the test, the thread will exit but the test will not fail.
 
 
 === Noncompliant code example
 
-[source,java]
+[source,java,diff-id=1,type=noncompliant]
 ----
-public void run() {
-  // ...
-  Assert.assertEquals(expected, actual);  // Noncompliant
+class RunnableWithAnAssertion extends Thread {
+  @Override
+  public void run() {
+    Assert.assertEquals(expected, actual);  // Noncompliant
+  }
+
+  @Test
+  void test() {
+    RunnableWithAnAssertion otherThread = new RunnableWithAnAssertion();
+    otherThread.start(); // The assertion in the run method above will be executed by other thread than the current one
+    // ...
+    // Perform some actions that do not make the test fail
+    // ...
+    Assert.assertTrue(true);
+  }
 }
 ----
 
+=== How to fix it
+Assertions in `Runnable` tasks should be extracted or executed by the main thread to make the whole test fail.
+
+[source,java,diff-id=1,type=compliant]
+----
+class RunnableWithAnAssertion extends Thread {
+  @Override
+  public void run() {
+    Assert.assertEquals(expected, actual);  // Noncompliant
+  }
+
+  @Test
+  void test() {
+    RunnableWithAnAssertion otherThread = new RunnableWithAnAssertion();
+    otherThread.run();
+    // ...
+    // The failed assertions in the run method will prevent us from reaching the assertion below
+    // ...
+    Assert.assertTrue(true);
+  }
+}
+----
 
 
 ifdef::env-github,rspecator-view[]
