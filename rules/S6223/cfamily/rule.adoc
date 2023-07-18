@@ -1,55 +1,171 @@
 == Why is this an issue?
 
-Despite their names, the standard remove algorithms (`std::remove`, `std::remove_if`, `std::unique`) do not remove the elements. Instead, they rearrange elements so that the preserved (not removed) elements are stored first and return an iterator to the end of that sub-sequence (the content of the remainder of the container is unspecified). The responsibility for removing the remaining elements lies in the hands of the programmer, leading to what is called the _erase-remove_ idiom.
+Despite their names, the standard remove algorithms (`std::remove`, `std::remove_if`, `std::unique`) do not erase elements from a given range.
+Instead, they shift the preserved (not removed) elements to the beginning of the range and return an iterator after the last preserved element.
+The "removed" elements have unspecified values.
 
+{cpp}20 introduced functions in the `std::ranges` namespace with the same names.
+Aside from returning a subrange instead of an iterator, they exhibit the same behavior.
 
-Ignoring the return of one of these functions is an indication of a bug, as further operations on the container may access elements with unspecified values.
+Ignoring the result of any of these functions indicates a bug: operations on the container may access elements with unspecified values.
+This may lead to invalid program states, data corruption, or crashes.
 
+== How to fix it?
 
-The `range` counterparts of the above algorithms (in namespace `std::ranges`) return a `subrange` of remaining elements, but otherwise, they exhibit the same behavior.
+The rule raises an issue when you invoke `remove`, `remove_if`, or `unique` from the `std` or `std::ranges` namespace and ignore their returned value.
 
+There are essentially three ways to fix this problem:
 
-The rule raises an issue when the result of the invocation of `remove`, `remove_if` or `unique` from namespace `std` or `std::ranges` is ignored.
+. Use the returned iterator or subrange to consider only the relevant elements.
+. Use the _erase-remove_ idiom to drop elements from a container. +
+  This technique consists in calling the `erase` member function of the container using the produced iterator or subrange.
+. Use other algorithms:
+* Since {cpp}20, `remove` and `remove_if` can be replaced with the free functions `std::erase` and `std::erase_if`, respectively.
+* The member functions of `std::list` and `std::forward_list` of the same name do erase the desired elements from the container.
+* `std::partition` and `std::stable_partition` (and their `std::ranges` siblings) reorder elements without resulting in unspecified values.
 
-=== Noncompliant code example
+Which technique to use depends on the context, as we illustrate with the following examples.
+
+=== Code examples
+
+==== Noncompliant code example
+
+This first example takes a collection of names, filters out the invalid ones, and returns the longest.
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+char const* longestName(std::vector<char const*> names) {
+  // Noncompliant: some elements in "names" have an unspecified value.
+  std::remove(names.begin(), names.end(), nullptr);
+
+  if (names.empty()) { // Flaw: invalid names are still in the container.
+    // No valid names.
+    return nullptr;
+  }
+
+  auto longestNameIterator = std::max_element(
+    names.begin(), names.end(), // Flaw: unspecified values are iterated over.
+    [](auto f1, auto f2) {
+      // Undefined behavior:
+      // * accessing unspecified elements
+      // * potentially dereferencing null pointers
+      return std::strlen(f1) < std::strlen(f2);
+    }
+  );
+  return *longestNameIterator;
+}
+----
+
+This code is imperfect and can result in a crash.
+
+==== Compliant solution
+
+To fix the flaw of the previous code snippet,
+we can use the value returned by `std::remove` to consider only the relevant elements.
+This solution is sufficient because the container `names` is getting destroyed at the end of the function.
+Therefore, there is no risk of accessing unspecified values in other parts of the software.
+Furthermore, this solution is efficient as it does not perform unnecessary work on the container.
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+char const* longestName(std::vector<char const*> names) {
+  // Compliant: the returned iterator is used to limit the subsequent search.
+  auto end = std::remove(names.begin(), names.end(), nullptr);
+
+  if (end == names.begin()) { // Correct: invalid names are not considered.
+    // No valid names.
+    return nullptr;
+  }
+
+  auto longestNameIterator = std::max_element(
+    names.begin(), end, // Correct: only valid names are iterated over.
+    [](auto f1, auto f2) {
+      return std::strlen(f1) < std::strlen(f2);
+    }
+  );
+  return *longestNameIterator;
+}
+----
+
+==== Noncompliant code example
+
+The following example removes even values from a given vector passed by reference.
 
 [source,cpp]
 ----
-void func(std::vector<int>& v) {
-  std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; }); // Noncompliant
-}
-
-auto largestFiles(vector<char*> fileNames, int n) {
-  remove(fileNames.begin(), fileNames.end(), nullptr); // Noncompliant
-  return max_element(fileNames.begin(), fileNames.end(),
-    [](auto f1, auto f2) {
-      // Undefined behavior: accessing unspecifed elements and potentially dereferencing null pointers
-      return filesystem::file_size(f1) < filesystem::file_size(f2);});
+void filterOutEvenNumbers(std::vector<int>& v) {
+  // Noncompliant: some elements in "v" have an unspecified value.
+  std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; });
 }
 ----
+
+This implementation does not actually remove even numbers from `v`.
 
 === Compliant solution
 
+Here are two ways of fixing the bug in the previous snippet:
+
+* With {cpp}20, `std::remove_if` can be replaced by `std::erase_if`:
++
 [source,cpp]
 ----
-void func(std::vector<int>& v) {
+void filterOutEvenNumbers(std::vector<int>& v) {
   std::erase_if(v, [](int x) { return x % 2 == 0; });
 }
-// Or, before C++20:
-void func(std::vector<int>& v) {
-  v.erase(std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; }), v.end());
-}
+----
++
+This solution is sufficient to fix the bug and is more readable than the original code.
 
-auto largestFiles(vector<char*> fileNames, int n) {
-  // Compliant, the value is used (without the erase-remove idiom, it did not apply here)
-  auto it = remove(fileNames.begin(), fileNames.end(), nullptr);
-  return max_element(fileNames.begin(), it,
-    [](auto f1, auto f2) {
-      return filesystem::file_size(f1) < filesystem::file_size(f2);});
+* Before {cpp}20, we can apply the _erase-remove_ idiom and use the `erase` member function of the container:
++
+[source,cpp]
+----
+void filterOutEvenNumbers(std::vector<int>& v) {
+  auto newEnd = std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; });
+  v.erase(newEnd, v.end());
+}
+----
+
+==== Noncompliant code example
+
+This example shows an incorrect use of the `std::ranges::unique` function:
+`v` is left with indeterminate values.
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+void removeDuplicateValues(std::vector<int>& v) {
+  std::ranges::sort(v);
+  // Noncompliant: some elements in "v" have an unspecified value.
+  std::ranges::unique(v);
+}
+----
+
+==== Compliant solution
+
+We apply the _remove-erase_ idiom in this fixed version using the subrange returned by `std::ranges::unique`.
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void removeDuplicateValues(std::vector<int>& v) {
+  std::ranges::sort(v);
+  // Compliant: the returned range is used to erase duplicated elements.
+  auto [duplicateBegin, duplicateEnd] = std::ranges::unique(v);
+  v.erase(duplicateBegin, duplicateEnd);
 }
 ----
 
 
 == Resources
 
-* S6165 - replacing erase-remove idiom with `std::erase`/`std::erase_if`
+=== Documentation
+
+* Wikipedia - https://en.wikipedia.org/wiki/Erase%E2%80%93remove_idiom[Erase-remove idiom]
+* {cpp} reference - https://en.cppreference.com/w/cpp/algorithm/remove[std::remove, std::remove_if]
+* {cpp} reference - https://en.cppreference.com/w/cpp/algorithm/unique[std::unique]
+* {cpp} reference - https://en.cppreference.com/w/cpp/algorithm/ranges/remove[std::ranges::remove, std::ranges::remove_if]
+* {cpp} reference - https://en.cppreference.com/w/cpp/algorithm/ranges/unique[std::ranges::unique]
+* {cpp} reference - https://en.cppreference.com/w/cpp/container/vector/erase2[std::erase, std::erase_if (std::vector)]
+
+=== Related rules
+
+* S6165 for {cpp}20 helps replacing the _erase-remove_ idiom with `std::erase`/`std::erase_if`.
