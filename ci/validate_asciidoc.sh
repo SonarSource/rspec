@@ -92,6 +92,7 @@ do
           TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
           echo "== Description" > "$TMP_ADOC"
           cat "$RULE" >> "$TMP_ADOC"
+          rm "${TMP_ADOC}"
         else
           echo "ERROR: no asciidoc file $RULE"
           exit_code=1
@@ -106,9 +107,15 @@ do
     # Which is why we need to create this list and cannot do anything with the paths it contains until we find the corresponding include
     find "$dir" -name "*.adoc" -execdir sed -r -n -e 's/^:(\w+):\s+([A-Za-z0-9\/._-]+)$/\1\t\2/p' {} \; > vars
     # Directly included
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
+    find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
     # Included through variable
     VARS_FULL_PATH=$(realpath vars) PATH_WITH_VARIABLE=${PATH_WITH_VARIABLE} find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::.*\{" "$1" | xargs -r -I@ $PATH_WITH_VARIABLE $VARS_FULL_PATH "@" | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
+    # There should be no cross inclusion between rules
+    cross_references=$(grep -Eh "S[0-9]{3,}" included | grep -v ${dir})
+    if [[ -n "$cross_references" ]]; then
+        printf 'ERROR: Rule %s tries to include content from rule(s):\n%s\nTo share content between rules, you should use the "shared_content" folder at the root of the repository\n' "$dir" "$cross_references"
+        exit_code=1
+    fi
     find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp*.adoc' -exec sh -c 'realpath $1' shell {} \; > created
     orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
     if [[ -n "$orphans" ]]; then
