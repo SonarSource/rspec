@@ -1,6 +1,6 @@
 == Why is this an issue?
 
-The `processHttpRequest` method and methods called from it are executed by multiple threads within the same servlet instance, and state changes to the instance caused by these methods are, therefore, not threadsafe.
+The `processHttpRequest` method and methods called from it can be executed by multiple threads within the same servlet instance, and state changes to the instance caused by these methods are, therefore, not threadsafe.
 
 This is due to the servlet container creating only one instance of each servlet (`javax.servlet.http.HttpServlet`) and attaching a dedicated thread to each incoming HTTP request.
 The same problem exists for `org.apache.struts.action.Action` but with different methods.
@@ -76,12 +76,32 @@ public class MyServlet extends HttpServlet {
 }
 ----
 
-=== Compliant solution
+=== Noncompliant code example
 
 If you still prefer instance state over local variables, consider using `ThreadLocal` fields.
 These fields provide a separate instance of their value for each thread.
 
-[source,java,diff-id=2,diff-type=compliant]
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+public class MyServlet extends HttpServlet {
+
+  String userName; // Noncompliant, field changes are not thread-safe
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    userName = req.getParameter("userName"); // Different threads may write concurrently to userName
+    resp.getOutputStream().print(getGreeting());
+  }
+
+  public String getGreeting() { // Unpredictable value in field userName
+    return "Hello "+userName+"!";
+  }
+}
+----
+
+=== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
 ----
 public class MyServlet extends HttpServlet {
 
@@ -101,11 +121,12 @@ public class MyServlet extends HttpServlet {
 
 === Noncompliant code example
 
-If you have a use case that requires a shared instance state between threads, declare the corresponding fields as `static` to indicate your intention and awareness that there is only one instance.
+If you have a use case that requires a shared instance state between threads, declare the corresponding fields as `static` to indicate your intention and
+awareness that there is only one instance of the servlet.
 However, the `static` modifier alone does not ensure thread safety.
 Make sure also to take countermeasures against possible race conditions.
 
-[source,java,diff-id=3,diff-type=noncompliant]
+[source,java,diff-id=4,diff-type=noncompliant]
 ----
 public class MyServlet extends HttpServlet {
 
@@ -121,7 +142,7 @@ public class MyServlet extends HttpServlet {
 
 === Compliant solution
 
-[source,java,diff-id=3,diff-type=compliant]
+[source,java,diff-id=4,diff-type=compliant]
 ----
 public class MyServlet extends HttpServlet {
 
