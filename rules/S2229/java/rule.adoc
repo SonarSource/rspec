@@ -1,135 +1,11 @@
 == Why is this an issue?
 
-Transactional methods in Spring can only be called
-from other methods with a compatible propagation type.
-They will throw a runtime exception [which?] otherwise.
+Transactional methods in Spring can only be called from other methods with a compatible propagation type and will throw an exception otherwise.
 
-A method can either be non-transactional, or marked with the `@Transactional` annotation.
-If transactional, the method has a propagation (optional parameter for the `@Transaction` annotation) type which states requirements
-about the transactional context in which the method can be called, and how it creates, appends or suspends a current transaction.
+A method can be non-transactional or marked with the `@Transactional` annotation.
+Transactional methods have a propagation type, an optional parameter for the `@Transaction` annotation. It states the requirements about the transactional context in which the method can be called and how it creates, appends, or suspends an ongoing transaction.
 
-This results in certain transitions from one method to another which would always throw a runtime exception.
-These are:
-
-- Transactional methods with `MANDATORY` propagation can only be called when there is an active transaction.
-  Hence they should not be called from transactional methods with propagation modes
-  `NEVER` (asserts that there is no current transaction), `NOT_SUPPORTED` (suspends current transaction) or `SUPPORTS` (does whether there is a current transaction)
-- Transactional methods with `NEVER` propagation can only be called when there is an active transaction.
-  They should not be called from transactional methods with propagation modes
-  `MANDATORY`, `NESTED`, `REQUIRED` or `REQUIRES_NEW`, because the either append or create a current transaction.
-  They also should not be called from transactional methods with propagation mode `SUPPORTS`, because it does not guarantee whether there is a current transaction.
-- Transactional methods should also never be called from a non-transactional method, because there is no guarantee whether there is a current transaction.
-
-
-NOT_TRANSACTIONAL -> MANDATORY, NESTED, NEVER, NOT_SUPPORTED, REQUIRED, REQUIRES_NEW, SUPPORTS
-MANDATORY -> NEVER
-NESTED -> NEVER
-NEVER -> MANDATORY
-NOT_SUPPORTED -> MANDATORY
-REQUIRED -> NEVER
-REQUIRES_NEW -> NEVER
-SUPPORTS -> MANDATORY, NEVER
-
-
-
-
-
-
-
-NT            | 10 | 0 -> cannot call from  MANDATORY, NESTED, REQUIRED, REQUIRES_NEW, SUPPORTS
-
-
-MANDATORY     | 01 | 1 -> cannot call from NEVER, NOT_SUPPORTED, NT, SUPPORTS
-NESTED        | 11 | 1
-NEVER         | 10 | 0  -> cannot call from MANDATORY, NESTED, REQUIRED, REQUIRES_NEW, SUPPORTS
-NOT_SUPPORTED | 11 | 0
-REQUIRED      | 11 | 1
-REQUIRES_NEW  | 11 | 1
-SUPPORTS      | 11 | *
---
-
-Diff:
-
-
-
-
-NT         -> MANDATORY, NESTED, REQUIRED, REQUIRES_NEW
-MANDATORY  -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
-NESTED     -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
-NEVER      -> MANDATORY, NESTED, REQUIRED, REQUIRES_NEW
-NOT_SUPPORTED -> MANDATORY, NESTED, REQUIRED, REQUIRES_NEW
-REQUIRED      -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
-REQUIRES_NEW  -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
-SUPPORTS      -> MANDATORY, NESTED, NEVER, NOT_SUPPORTED, REQUIRED, REQUIRES_NEW
-
-
-
-- A call to MANDATORY can not succeed from NEVER, NOT_SUPPORTED and non-transactional.
-- A call to NEVER can not succeed from REQUIRED, MANDATORY, REQUIRES_NEW or NESTED
-
-Call requirement:
-
-- Models that require an active transaction when called:
-    MANDATORY
-
-- Models that do not require an active transaction when called:
-    REQUIRED
-    SUPPORTS
-    NOT_SUPPORTED
-    REQUIRES_NEW
-    NESTED
-
-- Models that do not allow an active transaction when called:
-    NEVER
-
-The following propagation models will have an active transaction while executed if an transaction was open:
-The following propagation models will have an active transaction while executed (i.e., either appending the previous transaction or opening a new one, depending on the type of the propagation)
-Execute transaction:
-
-- Models executed in an active transaction
-    REQUIRED
-    MANDATORY
-    REQUIRES_NEW
-    NESTED
-
-- Models executed in an active transaction when they were called in an active transaction
-    SUPPORTS
-
-- Models executed not in an active transaction
-    NEVER
-    NOT_SUPPORTED
-
-From this rules,
-we can derive from which transactional model we never can call which,
-because they are incompatible.
-For example, from REQUIRED we can not call NEVER, because it will always throw an exception,
-as REQUIRED, as REQUIRED will always have an active transaction (either create a new or reuse existing).
-
-
-- A call to MANDATORY can not succeed from NEVER, NOT_SUPPORTED and non-transactional.
-- A call to NEVER can not succeed from REQUIRED, MANDATORY, REQUIRES_NEW or NESTED
-
-- Models that do not allow an active transaction when called:
-NEVER
-
-
-
-
-
---
-
-
-
-
-
-
-When using Spring proxies, calling a method in the same class
-(e.g. ``++this.aMethod()++``) with an incompatible ``++@Transactional++`` requirement
-will result in runtime exceptions because Spring only "sees" the caller and makes no provisions for properly
-invoking the callee.
-
-
-Therefore, certain calls should never be made within the same class:
+This results in specific transitions from one transactional method to another, which are not allowed within the same class:
 
 [frame=all]
 [cols="^1,^1"]
@@ -146,15 +22,20 @@ Therefore, certain calls should never be made within the same class:
 | SUPPORTS | MANDATORY, NESTED, NEVER, NOT_SUPPORTED, REQUIRED, REQUIRES_NEW 
 |===
 
-=== Noncompliant code example
+== How to fix it
 
-[source,java]
+Change the corresponding functions into a compatible propagation type.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-
 @Override
 public void doTheThing() {
   // ...
-  actuallyDoTheThing();  // Noncompliant
+  actuallyDoTheThing(); // Noncompliant, call from non-transactional to transactional
 }
 
 @Override
@@ -164,6 +45,70 @@ public void actuallyDoTheThing() {
 }
 ----
 
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@Override
+@Transactional
+public void doTheThing() {
+  // ...
+  actuallyDoTheThing(); // Compliant
+}
+
+@Override
+@Transactional
+public void actuallyDoTheThing() {
+  // ...
+}
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+@Override
+@Transactional
+public void doTheThing() {
+  // ...
+  actuallyDoTheThing(); // Noncompliant, call from REQUIRED to REQUIRES_NEW
+}
+
+@Override
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+public void actuallyDoTheThing() {
+  // ...
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+@Override
+@Transactional
+public void doTheThing() {
+  // ...
+  actuallyDoTheThing(); // Compliant, call from REQUIRED to MANDATORY
+}
+
+@Override
+@Transactional(propagation = Propagation.MANDATORY)
+public void actuallyDoTheThing() {
+  // ...
+}
+----
+
+== Resources
+
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Propagation.html[Spring Framework 6 API: Enum Class propagation]
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html[Spring Framework 6 API: Annotation Interface Transactional]
+- https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html[Spring 6 Documentation: Transaction Propagation]
+
+=== Articles & blog posts
+
+- https://www.baeldung.com/spring-transactional-propagation-isolation[Baeldung: Transaction Propagation and Isolation in Spring @Transactional]
+- https://dzone.com/articles/spring-transaction-propagation[DZone: Spring Transaction Propagation in a Nutshell]
 
 ifdef::env-github,rspecator-view[]
 
