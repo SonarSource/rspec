@@ -1,7 +1,7 @@
 == Why is this an issue?
 
 _Forwarding references_ (also known as _universal references_) provide the ability to write a template that can deduce and accept any kind of reference to the object (_rvalue_/_lvalue_ _mutable_/_const_).
-This enables the creation of a perfect forwarding constructor for wrapper types, which allows a wrapper to be constructed with any type that the underlying type can be constructed with:
+This enables the creation of a perfect forwarding constructor for wrapper types, which allows a wrapper to forward its constructor arguments into the initializer of the underlying type:
 [source,cpp]
 ----
 template<typename T>
@@ -20,9 +20,9 @@ private:
 };
 ----
 
-However, this constructor is too greedy: It will be preferred by overload resolution over the copy constructor as soon as the argument type is slightly different from a `const Wrapper&`.
+However, this constructor is too greedy: overload resolution prefers it over the copy constructor as soon as the argument type is slightly different from a `const Wrapper&`.
 For instance, when passing a non-const _lvalue_, calling the copy constructor requires a benign non-const to const conversion, while the forwarding reference parameter is an exact match,
-and will therefore be selected. This is usually not the correct behaviour.
+and will therefore be selected. This is usually not the expected behavior.
 
 [source,cpp]
 ----
@@ -32,11 +32,14 @@ Wrapper<int> w2(cw); // ok, calls Wrapper(Wrapper const& other)
 Wrapper<int> w3(w); // ill-formed, calls Wrapper(U&& u) with U = Wrapper<int>&
 ----
 
-The greediness of forwarding references is a general problem, but it is even stronger for constructors that can be called with a single argument of _forwarding reference_ type
-(including variadic template constructors), because in that case they compete with copy or move constructors. 
+The greediness of forwarding references is a general problem, but it is even more serious for constructors that can be called with a single argument of _forwarding reference_ type
+(including variadic template constructors) because in that case, they compete with copy or move constructors.
 
-To eliminate this pitfall, such constructors should be constrained in a way that it is not considered a candidate when `U&&` is a reference to the class type
-or to a class derived from the class type. In the previous example, this can be achieved by adding to the forwarding reference constructor:
+== How to fix it
+
+The rule reports forwarding constructors without proper constraints if they can be called with a single argument.
+To eliminate this pitfall, add constraints to such constructors so that they are not considered an overload candidate when `U&&` is a reference to the class type
+or to a class derived from the class type. This can be achieved by adding any of the following checks to the forwarding reference constructor:
 
 * A check of the concept `!same_as<remove_cvref_t<U>, Wrapper>`
 * A check of type predicate  `!is_same_v<remove_cvref_t<U>, Wrapper>`, or
@@ -50,11 +53,13 @@ If `Wrapper` were a base class, those checks would become:
 
 The concept-based solutions require {cpp}20; while the `enable_if` solution, which is more cumbersome to write, can always be used.
 
-This rule raises an issue when a class has a template constructor that can be called with a single argument bound to a forwarding reference parameter,
-and that constructor is not constrained in one of the previously mentioned ways. There are other ways to ensure that such a constructor cannot be used for objects of the same type, but this rule only detects explicit checks.
+Note that there are other ways to constrain such a constructor, but this rule only recognizes the explicit checks described above as compliant.
 
-=== Noncompliant code example
+=== Code examples
 
+==== Noncompliant code example
+
+// No diff-ids because the first example has two compliant solutions. The rest were also left out for consistency.
 [source,cpp]
 ----
 template<typename T>
@@ -63,14 +68,64 @@ public:
   Wrapper(Wrapper const& other) : value(other.value) {}
 
   template<typename U>
-  Wrapper(U&& u) // noncompliant
+  Wrapper(U&& u) // Noncompliant, competes with copy constructor
     : value(std::forward<U>(u))
   {} 
 
 private:
   T value;
 };
+----
 
+==== Compliant solution
+
+[source,cpp]
+----
+template<typename T>
+class Wrapper {
+public:
+  Wrapper(Wrapper const& other) : value(other.value) {}
+   
+  template<typename U>
+    requires (!std::same_as<Wrapper, std::remove_cvref_t<U>>)
+  Wrapper(U&& u)  // Compliant, no longer competes with copy constructor
+    : value(std::forward<U>(u))
+  {}
+
+private:
+  T value;
+};
+----
+
+If you can't use {cpp}20 yet, use `std::enable_if` instead:
+
+[source,cpp]
+----
+template<typename T>
+class Wrapper {
+public:
+  Wrapper(Wrapper const& other) : value(other.value) {}
+  
+  template<typename U,
+    typename std::enable_if<
+      !std::is_same<
+        Wrapper, 
+        typename std::remove_cv<typename std::remove_reference<U>::type>::type
+      >::value, 
+      int>::type /* Unnamed */ = 0>
+  Wrapper(U&& u)  // Compliant, no longer competes with copy constructor
+    : value(std::forward<U>(u))
+ {} 
+
+private:
+  T value;
+};
+----
+
+==== Noncompliant code example
+
+[source,cpp]
+----
 template<typename T>
 class OtherWrapper {
 public:
@@ -78,14 +133,39 @@ public:
 
   template<typename U>
     requires std::constructible_from<T, U>
-  OtherWrapper(U&& u) // noncompliant, constructible_from check is not sufficient in general
+  OtherWrapper(U&& u) // Noncompliant, constructible_from check is not sufficient in general
     : value(std::forward<U>(u))
   {} 
 
 private:
   T value;
 };
+----
 
+==== Compliant solution
+
+[source,cpp]
+----
+template<typename T>
+class OtherWrapper {
+public:
+  OtherWrapper(OtherWrapper const& other) : value(other.value) {}
+   
+  template<typename U>
+    requires (!std::derived_from<std::remove_cvref_t<U>, OtherWrapper>) && std::constructible_from<T, U>
+  OtherWrapper(U&& u)  // Compliant, properly constrained regardless of how T can be constructed
+    : value(std::forward<U>(u))
+  {} 
+
+private:
+  T value;
+};
+----
+
+==== Noncompliant code example
+
+[source,cpp]
+----
 template<typename T>
 class EmplaceWrapper {
 public:
@@ -93,7 +173,7 @@ public:
 
   template<typename... Args>
     requires std::constructible_from<T, Args...>
-  EmplaceWrapper(Args&&... args) // noncompliant, will compete with copy-constructor
+  EmplaceWrapper(Args&&... args) // Noncompliant, will compete with copy-constructor
     : value(std::forward<Args>(args)...)
   {} 
 
@@ -102,60 +182,10 @@ private:
 };
 ----
 
-=== Compliant solution
+==== Compliant solution
 
 [source,cpp]
 ----
-template<typename T>
-class WrapperCpp20 {
-public:
-  WrapperCpp20(WrapperCpp20 const& other) : value(other.value) {}
-   
-  template<typename U>
-    requires (!std::same_as<WrapperCpp20, std::remove_cvref_t<U>>)
-  WrapperCpp20(U&& u)
-    : value(std::forward<U>(u))
-  {}
-
-private:
-  T value;
-};
-
-template<typename T>
-class WrapperCpp11 {
-public:
-  WrapperCpp11(WrapperCpp11 const& other) : value(other.value) {}
-  
-  template<typename U,
-    typename std::enable_if<
-      !std::is_same<
-        WrapperCpp11, 
-        typename std::remove_cv<typename std::remove_reference<U>::type>::type
-      >::value, 
-      int>::type /* Unnamed */ = 0>
-  WrapperCpp11(U&& u)
-    : value(std::forward<U>(u))
- {} 
-
-private:
-  T value;
-};
-
-template<typename T>
-class OtherWrapper {
-public:
-  OtherWrapper(OtherWrapper const& other) : value(other.value) {}
-   
-  template<typename U>
-    requires (!std::derived_from<std::remove_cvref_t<U>, OtherWrapper>) && std::constructible_from<T, U>
-  OtherWrapper(U&& u)
-    : value(std::forward<U>(u))
-  {} 
-
-private:
-  T value;
-};
-
 template<typename T>
 class EmplaceWrapper {
 public:
@@ -163,7 +193,7 @@ public:
 
   template<typename... Args>
     requires std::constructible_from<T, Args...>
-  EmplaceWrapper(std::in_place_t, Args&&... args)  // compliant, no longer competes with copy-constructor
+  EmplaceWrapper(std::in_place_t, Args&&... args)  // Compliant, use type tag to explicitly choose emplace constructor
     : value(std::forward<Args>(args)...)
   {} 
 
@@ -174,4 +204,12 @@ private:
 
 == Resources
 
-* Effective Modern {cpp} item 29: Avoid overloading on universal references
+=== Documentation
+
+* CPP reference - https://en.cppreference.com/w/cpp/utility/forward[`std::forward`]
+* CPP reference - https://en.cppreference.com/w/cpp/language/overload_resolution#Ranking_of_implicit_conversion_sequences[Ranking of implicit conversion sequences during overload resolution]
+
+=== Articles & blog posts
+
+* Effective Modern {cpp} item 26: Avoid overloading on universal references
+* Eric Niebler - https://ericniebler.com/2013/08/07/universal-references-and-the-copy-constructo/[Universal References and the Copy Constructor]
