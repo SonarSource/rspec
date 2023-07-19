@@ -1,6 +1,132 @@
 == Why is this an issue?
 
-When using Spring proxies, calling a method in the same class (e.g. ``++this.aMethod()++``) with an incompatible ``++@Transactional++`` requirement will result in runtime exceptions because Spring only "sees" the caller and makes no provisions for properly invoking the callee. 
+Transactional methods in Spring can only be called
+from other methods with a compatible propagation type.
+They will throw a runtime exception [which?] otherwise.
+
+A method can either be non-transactional, or marked with the `@Transactional` annotation.
+If transactional, the method has a propagation (optional parameter for the `@Transaction` annotation) type which states requirements
+about the transactional context in which the method can be called, and how it creates, appends or suspends a current transaction.
+
+This results in certain transitions from one method to another which would always throw a runtime exception.
+These are:
+
+- Transactional methods with `MANDATORY` propagation can only be called when there is an active transaction.
+  Hence they should not be called from transactional methods with propagation modes
+  `NEVER` (asserts that there is no current transaction), `NOT_SUPPORTED` (suspends current transaction) or `SUPPORTS` (does whether there is a current transaction)
+- Transactional methods with `NEVER` propagation can only be called when there is an active transaction.
+  They should not be called from transactional methods with propagation modes
+  `MANDATORY`, `NESTED`, `REQUIRED` or `REQUIRES_NEW`, because the either append or create a current transaction.
+  They also should not be called from transactional methods with propagation mode `SUPPORTS`, because it does not guarantee whether there is a current transaction.
+- Transactional methods should also never be called from a non-transactional method, because there is no guarantee whether there is a current transaction.
+
+
+NOT_TRANSACTIONAL -> MANDATORY, NESTED, NEVER, NOT_SUPPORTED, REQUIRED, REQUIRES_NEW, SUPPORTS
+MANDATORY -> NEVER
+NESTED -> NEVER
+NEVER -> MANDATORY
+NOT_SUPPORTED -> MANDATORY
+REQUIRED -> NEVER
+REQUIRES_NEW -> NEVER
+SUPPORTS -> MANDATORY, NEVER
+
+
+
+
+
+
+
+NT            | 10 | 0 -> cannot call from  MANDATORY, NESTED, REQUIRED, REQUIRES_NEW, SUPPORTS
+
+
+MANDATORY     | 01 | 1 -> cannot call from NEVER, NOT_SUPPORTED, NT, SUPPORTS
+NESTED        | 11 | 1
+NEVER         | 10 | 0  -> cannot call from MANDATORY, NESTED, REQUIRED, REQUIRES_NEW, SUPPORTS
+NOT_SUPPORTED | 11 | 0
+REQUIRED      | 11 | 1
+REQUIRES_NEW  | 11 | 1
+SUPPORTS      | 11 | *
+--
+
+Diff:
+
+
+
+
+NT         -> MANDATORY, NESTED, REQUIRED, REQUIRES_NEW
+MANDATORY  -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
+NESTED     -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
+NEVER      -> MANDATORY, NESTED, REQUIRED, REQUIRES_NEW
+NOT_SUPPORTED -> MANDATORY, NESTED, REQUIRED, REQUIRES_NEW
+REQUIRED      -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
+REQUIRES_NEW  -> NESTED, NEVER, NOT_SUPPORTED, REQUIRES_NEW
+SUPPORTS      -> MANDATORY, NESTED, NEVER, NOT_SUPPORTED, REQUIRED, REQUIRES_NEW
+
+
+
+- A call to MANDATORY can not succeed from NEVER, NOT_SUPPORTED and non-transactional.
+- A call to NEVER can not succeed from REQUIRED, MANDATORY, REQUIRES_NEW or NESTED
+
+Call requirement:
+
+- Models that require an active transaction when called:
+    MANDATORY
+
+- Models that do not require an active transaction when called:
+    REQUIRED
+    SUPPORTS
+    NOT_SUPPORTED
+    REQUIRES_NEW
+    NESTED
+
+- Models that do not allow an active transaction when called:
+    NEVER
+
+The following propagation models will have an active transaction while executed if an transaction was open:
+The following propagation models will have an active transaction while executed (i.e., either appending the previous transaction or opening a new one, depending on the type of the propagation)
+Execute transaction:
+
+- Models executed in an active transaction
+    REQUIRED
+    MANDATORY
+    REQUIRES_NEW
+    NESTED
+
+- Models executed in an active transaction when they were called in an active transaction
+    SUPPORTS
+
+- Models executed not in an active transaction
+    NEVER
+    NOT_SUPPORTED
+
+From this rules,
+we can derive from which transactional model we never can call which,
+because they are incompatible.
+For example, from REQUIRED we can not call NEVER, because it will always throw an exception,
+as REQUIRED, as REQUIRED will always have an active transaction (either create a new or reuse existing).
+
+
+- A call to MANDATORY can not succeed from NEVER, NOT_SUPPORTED and non-transactional.
+- A call to NEVER can not succeed from REQUIRED, MANDATORY, REQUIRES_NEW or NESTED
+
+- Models that do not allow an active transaction when called:
+NEVER
+
+
+
+
+
+--
+
+
+
+
+
+
+When using Spring proxies, calling a method in the same class
+(e.g. ``++this.aMethod()++``) with an incompatible ``++@Transactional++`` requirement
+will result in runtime exceptions because Spring only "sees" the caller and makes no provisions for properly
+invoking the callee.
 
 
 Therefore, certain calls should never be made within the same class:
