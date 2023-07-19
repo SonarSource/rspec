@@ -1,44 +1,150 @@
 == Why is this an issue?
 
-By contract, a servlet container creates one instance of each servlet and then a dedicated thread is attached to each new incoming HTTP request to process the request. So all threads share the servlet instances and by extension their instance fields.  To prevent any misunderstanding and unexpected behavior at runtime, all servlet fields should then be either ``++static++`` and/or ``++final++``, or simply removed.
+The `processHttpRequest` method and methods called from it are executed by multiple threads within the same servlet instance, and state changes to the instance caused by these methods are, therefore, not threadsafe.
 
+This is due to the servlet container creating only one instance of each servlet (`javax.servlet.http.HttpServlet`) and attaching a dedicated thread to each incoming HTTP request.
+The same problem exists for `org.apache.struts.action.Action` but with different methods.
 
-With Struts 1.X, the same constraint exists on ``++org.apache.struts.action.Action++``.
-
-
-=== Noncompliant code example
-
-[source,java]
-----
-public class MyServlet extends HttpServlet {
-  private String userName;  //As this field is shared by all users, it's obvious that this piece of information should be managed differently
-  ...
-}
-----
-
-or 
-
-
-[source,java]
-----
-public class MyAction extends Action {
-  private String userName;  //Same reason
-  ...
-}
-----
-
+To prevent unexpected behavior, avoiding mutable states in servlets is recommended.
+Mutable instance fields should either be refactored into local variables or made immutable by declaring them `final`.
 
 === Exceptions
 
 * Fields annotated with ``++@javax.inject.Inject++``, ``++@javax.ejb.EJB++``, ``++@org.springframework.beans.factory.annotation.Autowired++``, ``++@javax.annotation.Resource++``
 * Fields initialized in ``++init()++`` or ``++init(ServletConfig config)++`` methods
 
+== How to fix it
+
+=== Noncompliant code example
+
+If the field is not changed, declare it `final`.
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+public class MyServlet extends HttpServlet {
+  String apiVersion = "0.9.1"; // Noncompliant, field changes are not thread-safe
+}
+----
+
+=== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+public class MyServlet extends HttpServlet {
+  final String apiVersion = "0.9.1"; // Compliant, field cannot be changed
+}
+----
+
+=== Noncompliant code example
+
+If a field is changed within instance methods, refactor it into a local variable.
+That variable can be passed as an argument to other functions if needed.
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+public class MyServlet extends HttpServlet {
+
+  String userName; // Noncompliant, field changes are not thread-safe
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    userName = req.getParameter("userName"); // Different threads may write concurrently to userName
+    resp.getOutputStream().print(getGreeting());
+  }
+
+  public String getGreeting() { // Unpredictable value in field userName
+    return "Hello "+userName+"!";
+  }
+}
+----
+
+=== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+public class MyServlet extends HttpServlet {
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    String userName = req.getParameter("userName"); // Compliant, local variable instead instance field
+    resp.getOutputStream().print(getGreeting(userName));
+  }
+
+  public String getGreeting(String userName) { // Compliant, method argument instead instance field
+    return "Hello "+userName+"!";
+  }
+}
+----
+
+=== Compliant solution
+
+If you still prefer instance state over local variables, consider using `ThreadLocal` fields.
+These fields provide a separate instance of their value for each thread.
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+public class MyServlet extends HttpServlet {
+
+  final ThreadLocal<String> userName = new ThreadLocal<>(); // Compliant, field itself does not change
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    userName.set(req.getParameter("userName")); // Compliant, own value provided for every thread
+    resp.getOutputStream().print(getGreeting());
+  }
+
+  public String getGreeting() {
+    return "Hello "+userName.get()+"!"; // Compliant, own value provided for every thread
+  }
+}
+----
+
+=== Noncompliant code example
+
+If you have a use case that requires a shared instance state between threads, declare the corresponding fields as `static` to indicate your intention and awareness that there is only one instance.
+However, the `static` modifier alone does not ensure thread safety.
+Make sure also to take countermeasures against possible race conditions.
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+public class MyServlet extends HttpServlet {
+
+  public long timestampLastRequest; // Noncompliant, field changes are not thread-safe
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    timestampLastRequest = System.currentTimeMillis();
+    resp.getOutputStream().print(timestampLastRequest); // Race condition
+  }
+}
+----
+
+=== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+public class MyServlet extends HttpServlet {
+
+  public static long timestampLastRequest; // Compliant, sharing state is our intention
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    long timestamp;
+    synchronized (this) {
+      timestamp = timestampLastRequest; // No race condition, synchronized get & set
+      timestampLastRequest = System.currentTimeMillis();
+    }
+    resp.getOutputStream().print(timestamp);
+  }
+}
+----
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/2TZGBQ[CERT, MSC11-J.] - Do not let session information leak within a servlet
+=== Articles & blog posts
 
-
+* https://www.devinline.com/2013/08/how-to-make-thread-safe-servlet.html[Nikhil Ranjan: How to make thread safe servlet ?]
+* https://objectcomputing.com/resources/publications/sett/april-2000-tips-for-creating-thread-safe-code-avoiding-race-conditions[Object Computing: Tips for creating thread-safe code]
 
 ifdef::env-github,rspecator-view[]
 
@@ -49,7 +155,6 @@ ifdef::env-github,rspecator-view[]
 === Message
 
 Remove this misleading mutable servlet instance fields or make it "static" and/or "final"
-
 
 '''
 == Comments And Links
