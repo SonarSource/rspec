@@ -145,6 +145,8 @@ else
   echo "No new asciidoc file changed"
 fi
 
+find rules -name "tmp*.adoc" -delete
+
 if (( exit_code == 0 )); then
     echo "Success"
 else
