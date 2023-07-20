@@ -106,13 +106,13 @@ do
     # Files can be included through variables. We create a list of variables
     # These paths are relative to the file where they are _included_, not where they are _declared_
     # Which is why we need to create this list and cannot do anything with the paths it contains until we find the corresponding include
-    find "$dir" -name "*.adoc" -execdir sed -r -n -e 's/^:(\w+):\s+([A-Za-z0-9\/._-]+)$/\1\t\2/p' {} \; > vars
+    find "$dir" -name "*.adoc" ! -name 'tmp_*.adoc' -execdir sed -r -n -e 's/^:(\w+):\s+([A-Za-z0-9\/._-]+)$/\1\t\2/p' {} \; > vars
     # Directly included
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -h "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
+    find "$dir" -name "*.adoc" ! -name 'tmp_*.adoc' -execdir sh -c 'grep -h "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
     # Included through variable
-    VARS_FULL_PATH=$(realpath vars) PATH_WITH_VARIABLE=${PATH_WITH_VARIABLE} find "$dir" -name "*.adoc" -execdir sh -c 'grep -Eh "include::.*\{" "$1" | xargs -r -I@ $PATH_WITH_VARIABLE $VARS_FULL_PATH "@" | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
+    VARS_FULL_PATH=$(realpath vars) PATH_WITH_VARIABLE=${PATH_WITH_VARIABLE} find "$dir" ! -name 'tmp_*.adoc' -name "*.adoc" -execdir sh -c 'grep -Eh "include::.*\{" "$1" | xargs -r -I@ $PATH_WITH_VARIABLE $VARS_FULL_PATH "@" | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
     # We should only include documents from the same rule or from shared_content
-    cross_references=$(grep -vEh "${ROOT}\/${dir}|${ROOT}\/shared_content" included)
+    cross_references=$(grep -vEh "${ROOT}\/${dir}\/|${ROOT}\/shared_content\/" included)
     if [[ -n "$cross_references" ]]; then
         printf 'ERROR: Rule %s tries to include content from unallowed directory:\n%s\nTo share content between rules, you should use the "shared_content" folder at the root of the repository\n' "$dir" "$cross_references"
         exit_code=1
