@@ -1,11 +1,11 @@
 == Why is this an issue?
 
-Transactional methods in Spring can only be called from other methods with a compatible propagation type and will throw an exception otherwise.
+Transactional methods have a propagation type parameter in the @Transaction annotation that specifies the requirements about the transactional context in which the method can be called and how it creates, appends, or suspends an ongoing transaction.
 
-A method can be non-transactional or marked with the `@Transactional` annotation.
-Transactional methods have a propagation type, an optional parameter for the `@Transaction` annotation. It states the requirements about the transactional context in which the method can be called and how it creates, appends, or suspends an ongoing transaction.
+When an instance that contains transactional methods is injected, Spring uses proxy objects to wrap these methods with the actual transaction code.
 
-This results in specific transitions from one transactional method to another, which are not allowed within the same class:
+However, if a transactional method is called from another method in the same class, the `this` argument is used as the receiver instance instead of an injected proxy object, which bypasses the wrapper code.
+This results in specific transitions from one transactional method to another, which are not allowed:
 
 [frame=all]
 [cols="^1,^1"]
@@ -67,14 +67,12 @@ public void actuallyDoTheThing() {
 
 [source,java,diff-id=2,diff-type=noncompliant]
 ----
-@Override
 @Transactional
 public void doTheThing() {
   // ...
   actuallyDoTheThing(); // Noncompliant, call from REQUIRED to REQUIRES_NEW
 }
 
-@Override
 @Transactional(propagation = Propagation.REQUIRES_NEW)
 public void actuallyDoTheThing() {
   // ...
@@ -85,14 +83,12 @@ public void actuallyDoTheThing() {
 
 [source,java,diff-id=2,diff-type=compliant]
 ----
-@Override
 @Transactional
 public void doTheThing() {
   // ...
   actuallyDoTheThing(); // Compliant, call from REQUIRED to MANDATORY
 }
 
-@Override
 @Transactional(propagation = Propagation.MANDATORY)
 public void actuallyDoTheThing() {
   // ...
