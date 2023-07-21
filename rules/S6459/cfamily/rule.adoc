@@ -1,32 +1,76 @@
 == Why is this an issue?
 
-_Type-constraints_ provide a terse way to express constraints on the type deduced for a given template parameter or auto placeholder.
+_Type-constraints_ provide a concise way to express constraints on the type deduced for a given template parameter or auto placeholder.
 In a situation when a type-constraint is applied to a forwarding reference parameter (`T&&`), the corresponding concept will be checked
-against the _lvalue reference_ (if the argument is an _lvalue_) or the plain type (if the argument is an _rvalue_).
-
-Even if it is possible to write a check that works for both plain types and references, it requires a dedicated effort,
-and a naive attempt may silently fail for one or the other. For instance, a `std::copyable` constraint is never satisfied for references,
-regardless of the referenced type, while a `std::copy_constructible` constraint always is.
-
-This rule detects forwarding reference parameters that are constrained by the standard-provided concepts using _type-constraint_ syntax.
-
-=== Noncompliant code example
+against the _lvalue reference_ (if the argument is an _lvalue_) or the plain type (if the argument is an _rvalue_):
 
 [source,cpp]
 ----
-auto func(std::copy_constructible auto&& arg) // noncompliant
+template <SomeConcept T> void func(T&& x);
+void f() {
+  func(SomeType{});  // Argument is an rvalue -> T is deduced as 'SomeType'
+  SomeType obj;
+  func(obj);  //  Argument is lvalue -> T is deduced as 'SomeType&'
+}
+----
+
+Even if it is possible to write `SomeConcept` in a way that works for both plain types and references, it is not straightforward and
+requires a dedicated effort.
+
+Many standard-provided constraints change their behavior when the type is a reference. For instance, a `std::copyable` constraint is never
+satisfied for references, regardless of the referenced type, while a `std::copy_constructible` constraint always is. The following example
+illustrates this:
+
+[source,cpp]
+----
+template <std::copyable T> void func(T&& t);  // Overload #1.
+template <typename T> void func(T&& t);  // Overload #2 (unconstrained).
+
+void f() {
+    // Call with an rvalue argument:
+    func(std::string{""});  // Calls #1: T is 'std::string', which satisfies 'std::copyable'.
+
+    // Call with an lvalue argument:
+    std::string s{""};
+    func(s);  // Calls #2: T is a reference type ('std::string&') and therefore does not satisfy 'std::copyable'.
+}
+----
+
+The rule raises an issue when a forwarding reference parameter is constrained by a standard-provided concept using _type-constraint_ syntax.
+
+=== Exceptions
+
+The rule does not raise an issue for the `std::ranges::range` concept and its refinements (like `std::ranges::forward_range`, `std::ranges::bidirectional_range`) which are designed to handle forwarding reference parameters.
+
+== How to fix it
+
+To apply a constraint to a forwarding reference parameter, consider the following options:
+
+* Either wrap the deduced type in `std::remove_cvref_t` and use the standard-provided constraint on the result in a `requires` clause.
+
+* Or design a custom constraint that works for both reference and non-reference types, which is useful if you frequently encounter this
+  issue with a specific constraint.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+auto func(std::copy_constructible auto&& arg) // Noncompliant
 { /* … */ }
 
 template<std::copyable T>
-auto func2(T&& arg)  // noncompliant
+auto func2(T&& arg) //  Noncompliant
 { /* … */ }
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-auto func(auto&& argc)
+auto func(auto&& arg)
   requires std::copy_constructible<std::remove_cvref_t<decltype(arg)>>
 { /* … */ }
 
@@ -36,7 +80,12 @@ auto func2(T&& arg)
 { /* … */ }
 ----
 
-=== Exceptions
 
-The `std::ranges::range` concept and its refinements (like `std::ranges::forward_range`, `std::ranges::bidirectional_range`)
-are designed to handle forwarding references parameters, and will not raise issues for this rule.
+== Resources
+
+=== Documentation
+
+ * CPP reference - https://en.cppreference.com/w/cpp/language/reference#Forwarding_references[Forwarding references]
+ * CPP reference - https://en.cppreference.com/w/cpp/language/constraints[Constraints and concepts]
+ * CPP reference - https://en.cppreference.com/w/cpp/concepts/copy_constructible[`std::copy_constructible` concept]
+ * CPP reference - https://en.cppreference.com/w/cpp/concepts/copyable[`std::copyable` concept]
