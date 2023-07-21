@@ -58,81 +58,79 @@ Note that there are other ways to constrain such a constructor, but this rule on
 
 ==== Noncompliant code example
 
+In this noncompliant example, the compiler-generated copy constructor can receive calls only when copying non-const lvalues (i.e., exact
+matches). Otherwise, the forwarding constructor will take over, even when the given type can not be used to initialize the wrapped
+`std::string` object.
+
 // No diff-ids because the first example has two compliant solutions. The rest were also left out for consistency.
 [source,cpp]
 ----
-template<typename T>
 class Wrapper {
 public:
-  Wrapper(Wrapper const& other) : value(other.value) {}
-
-  template<typename U>
-  Wrapper(U&& u) // Noncompliant: competes with copy constructor
-    : value(std::forward<U>(u))
-  {} 
+  template <typename T>
+  Wrapper(T&& str)  // Noncompliant: competes with compiler-generated copy constructor
+    : str(std::forward<T>(str)) {}
 
 private:
-  T value;
+  std::string str;
 };
 ----
 
 ==== Compliant solution
 
+We fix the problem by adding a constraint to our forwarding constructor. This enables the copy constructor to receive calls again by
+excluding the forwarding constructor when the deduced `T` is `Wrapper` (after discarding references and const-volatile qualifiers).
+
 [source,cpp]
 ----
-template<typename T>
 class Wrapper {
 public:
-  Wrapper(Wrapper const& other) : value(other.value) {}
-   
-  template<typename U>
-    requires (!std::same_as<Wrapper, std::remove_cvref_t<U>>)
-  Wrapper(U&& u)  // Compliant: no longer competes with copy constructor
-    : value(std::forward<U>(u))
-  {}
+  template <typename T>
+  requires (!std::same_as<Wrapper, std::remove_cvref_t<T>>)
+  Wrapper(T&& str)  // Compliant: no longer competes with the copy constructor
+    : str(std::forward<T>(str)) {}
 
 private:
-  T value;
+  std::string str;
 };
 ----
 
-If you can't use {cpp}20 yet, use `std::enable_if` instead:
+If {cpp}20 is not available yet, we can use `std::enable_if` instead of concepts. We also can not use `std::remove_cvref_t`, and we have to
+be more verbose:
 
 [source,cpp]
 ----
-template<typename T>
 class Wrapper {
 public:
-  Wrapper(Wrapper const& other) : value(other.value) {}
-  
-  template<typename U,
-    typename std::enable_if<
+  template <typename T,
+      typename std::enable_if<
       !std::is_same<
         Wrapper, 
-        typename std::remove_cv<typename std::remove_reference<U>::type>::type
+        typename std::remove_cv<typename std::remove_reference<T>::type>::type
       >::value, 
       int>::type /* Unnamed */ = 0>
-  Wrapper(U&& u)  // Compliant: no longer competes with copy constructor
-    : value(std::forward<U>(u))
- {} 
+  Wrapper(T&& str)  // Compliant: no longer competes with the copy constructor
+    : str(std::forward<T>(str)) {}
 
 private:
-  T value;
+  std::string str;
 };
 ----
 
 ==== Noncompliant code example
 
+This noncompliant example demonstrates a bad attempt at constraining a forwarding constructor in a template wrapper:
+
 [source,cpp]
 ----
 template<typename T>
-class OtherWrapper {
+class TemplateWrapper {
 public:
-  OtherWrapper(OtherWrapper const& other) = default;
+  TemplateWrapper(TemplateWrapper const& other) = default;
 
   template<typename U>
     requires std::constructible_from<T, U>
-  OtherWrapper(U&& u) // Noncompliant: constructible_from check is not sufficient in general
+  TemplateWrapper(U&& u) // Noncompliant: constructible_from check is not sufficient in general
     : value(std::forward<U>(u))
   {} 
 
@@ -141,18 +139,23 @@ private:
 };
 ----
 
+The problem with this constraint is that it depends on how the type `T` can be constructed; For example, it can yield unexpected results if
+`T` itself has a forwarding constructor.
+
 ==== Compliant solution
+
+In order to properly make our `TemplateWrapper` generic, we need to add the necessary `std::same_as` constraint in addition to `std::constructible_from`.
 
 [source,cpp]
 ----
 template<typename T>
-class OtherWrapper {
+class TemplateWrapper {
 public:
-  OtherWrapper(OtherWrapper const& other) : value(other.value) {}
+  TemplateWrapper(TemplateWrapper const& other) : value(other.value) {}
    
   template<typename U>
-    requires (!std::derived_from<std::remove_cvref_t<U>, OtherWrapper>) && std::constructible_from<T, U>
-  OtherWrapper(U&& u)  // Compliant: properly constrained regardless of how T can be constructed
+    requires (!std::same_as<std::remove_cvref_t<U>, TemplateWrapper>) && std::constructible_from<T, U>
+  TemplateWrapper(U&& u)  // Compliant: properly constrained regardless of how T can be constructed
     : value(std::forward<U>(u))
   {} 
 
@@ -162,6 +165,10 @@ private:
 ----
 
 ==== Noncompliant code example
+
+In this noncompliant example, the forwarding constructor accepts a parameter pack and uses it to initialize the wrapped type. This can
+still compete with the copy constructor when called with a single argument. Using `std::constructible_from` is not sufficient for the same
+reasons as the previous example.
 
 [source,cpp]
 ----
@@ -182,6 +189,10 @@ private:
 ----
 
 ==== Compliant solution
+
+In this case, we can use a type tag to allow the user to explicitly choose the emplace constructor. This approach is simpler to implement
+and offers greater flexibility. It is the same approach used by many wrapper types in the standard library, such as `std::optional` and
+`std::expected`.
 
 [source,cpp]
 ----
@@ -207,6 +218,7 @@ private:
 
 * CPP reference - https://en.cppreference.com/w/cpp/utility/forward[`std::forward`]
 * CPP reference - https://en.cppreference.com/w/cpp/language/overload_resolution#Ranking_of_implicit_conversion_sequences[Ranking of implicit conversion sequences during overload resolution]
+* CPP reference - https://en.cppreference.com/w/cpp/utility/optional/optional[`std::optional` constructor]
 
 === Articles & blog posts
 
