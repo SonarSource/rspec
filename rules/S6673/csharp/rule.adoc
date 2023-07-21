@@ -1,55 +1,90 @@
-The argument positions of a logging call should fit their position in https://messagetemplates.org[message template] placeholders.
+The positions of arguments in a logging call should match the positions of their https://messagetemplates.org[message template] placeholders.
 
 == Why is this an issue?
 
 The placeholders of a https://messagetemplates.org[message template] are defined by their name and their position. Log methods specify the values for the placeholder at runtime by passing them in a https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/params[params array]:
 
-`logger.LogError(messageTemplate: "This is the {First} placeholder and this is the {Second} one.", first, second);`
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+logger.LogError("{First} placeholder and {Second} one.", first, second);
+----
 
-This rule raises an issue if the position of an argument does not fit to the corresponding placeholders position.
+This rule raises an issue if the position of an argument does not match the position of the corresponding placeholder:
 
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+// 'first' and 'second' are swapped
+logger.LogError("{First} placeholder and {Second} one.", second, first);
+//                                                       ^^^^^^  ^^^^^
+----
 === What is the potential impact?
 
-Logging providers use the placeholder names to create key/value pairs in the log entry. The key corresponds to the placeholder and the value is the argument passed in the log call. If the positions of the placeholder and the argument do not fit, the value is associated with the wrong key.
-This corrupts the logs entry and makes log analytics unreliable.
+Logging providers use placeholder names to create key/value pairs in the log entry. The key corresponds to the placeholder and the value is the argument passed in the log call.
+
+If the positions of the placeholder and the argument do not match, the value is associated with the wrong key. This corrupts the logs entry and makes log analytics unreliable.
 
 == How to fix it
 
-Make sure that the placeholder positions and the argument positions are equivalent. Use local variables, fields, or properties for the arguments and name the placeholders accordingly.
+Make sure that the placeholder positions and the argument positions match. Use local variables, fields, or properties for the arguments and name the placeholders accordingly.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,csharp,diff-id=1,diff-type=noncompliant]
+'path' and 'fileName' are swapped and therefore assigned to the wrong placeholders.
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
 ----
-// 'path' and 'fileName' are swapped and assigned to the wrong placeholders
-logger.LogError("File {FileName} not found in folder {Path}", path, fileName); // Noncompliant
+logger.LogError("File {FileName} not found in folder {Path}", path, fileName);
 //                                                            ^^^^  ^^^^^^^^
+----
 
+==== Compliant solution
 
-// 'Name' is detected but 'Folder' not. The placeholders name should correspond to the name from the argument.
-logger.LogError("File {Name} not found in folder {Folder}", file.DirectoryName , file.Name); // Noncompliant
+Swap the arguments.
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+logger.LogError("File {FileName} not found in folder {Path}", fileName, path);
+----
+
+==== Noncompliant code example
+
+'Name' is detected but 'Folder' is not. The placeholder's name should correspond to the name from the argument.
+
+[source,csharp,diff-id=3,diff-type=noncompliant]
+----
+logger.LogError("File {Name} not found in folder {Folder}", file.DirectoryName , file.Name);
 //                                                                                    ^^^^
+----
 
-// Not detected: A name for the arguments can not be inferred. Use locals to support detection.
+==== Compliant solution
+
+Swap the arguments and rename the placeholder to 'DirectoryName'.
+
+[source,csharp,diff-id=3,diff-type=compliant]
+----
+logger.LogError("File {Name} not found in folder {DirectoryName}", file.Name, file.DirectoryName);
+----
+
+==== Noncompliant code example
+
+Not detected: A name for the arguments can not be inferred. Use locals to support detection.
+
+[source,csharp,diff-id=4,diff-type=noncompliant]
+----
 logger.LogError("Sum is {Sum} and product is {Product}", x * y, x + y); // Not detected.
 ----
 
 ==== Compliant solution
 
-[source,csharp,diff-id=1,diff-type=compliant]
+Help detection by using arguments with a name.
+
+[source,csharp,diff-id=4,diff-type=compliant]
 ----
-// Swap the arguments
-logger.LogError("File {FileName} not found in folder {Path}", fileName, path); // Compliant
-
-// Swap the arguments and rename the placeholder to 'DirectoryName'
-logger.LogError("File {Name} not found in folder {DirectoryName}", file.Name, file.DirectoryName); // Compliant
-
-// Help detection by using arguments with a name
 var sum = x + y;
 var product = x * y;
-logger.LogError("Sum is {Sum} and product is {Product}", sum, product); // Compliant
+logger.LogError("Sum is {Sum} and product is {Product}", sum, product);
 ----
 
 == Resources
