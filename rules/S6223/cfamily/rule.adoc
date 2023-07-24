@@ -44,7 +44,7 @@ Which technique to use depends on the context, as we illustrate with the followi
 
 This first example takes a collection of names, filters out the invalid ones, and returns the longest.
 
-[source,cpp,diff-id=1,diff-type=noncompliant]
+[source,cpp]
 ----
 char const* longestName(std::vector<char const*> names) {
   // Noncompliant: some elements in "names" are left with an unspecified value.
@@ -76,9 +76,9 @@ To fix the flaws of the previous code snippet,
 we can use the value returned by `std::remove` to consider only the relevant elements.
 This solution is sufficient because the container `names` is getting destroyed at the end of the function.
 Therefore, there is no risk of accessing unspecified values in other parts of the software.
-Furthermore, this solution is efficient as it does not perform unnecessary work on the container.
+Furthermore, this solution is relatively efficient as it does not perform unnecessary work on the container beyond the `std::remove` call.
 
-[source,cpp,diff-id=1,diff-type=compliant]
+[source,cpp]
 ----
 char const* longestName(std::vector<char const*> names) {
   // Compliant: the returned iterator is used to limit the subsequent search.
@@ -94,6 +94,30 @@ char const* longestName(std::vector<char const*> names) {
     [](auto f1, auto f2) {
       return std::strlen(f1) < std::strlen(f2);
     }
+  );
+  return *longestNameIterator;
+}
+----
+
+Another more modern approach is to use {cpp}20's `std::views::filter` instead.
+Since this solution does not mutate the argument, it can be a const-reference or even a view.
+
+[source,cpp]
+----
+char const* longestName(std::vector<char const*> const& names) {
+  // Compliant: std::views::filter is used instead.
+  auto validNames =
+    std::views::all(names) |
+    std::views::filter([](char const* e) { return e != nullptr; });
+
+  if (std::ranges::empty(validNames)) {
+    // No valid names.
+    return nullptr;
+  }
+
+  auto longestNameIterator = std::ranges::max_element(
+    validNames, // Correct: the following lambda is only called with valid names.
+    [](auto f1, auto f2) { return std::strlen(f1) < std::strlen(f2); }
   );
   return *longestNameIterator;
 }
