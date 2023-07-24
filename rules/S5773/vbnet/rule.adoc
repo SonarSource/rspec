@@ -4,75 +4,72 @@ include::../why-dotnet.adoc[]
 
 For https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?view=netframework-4.8[BinaryFormatter], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer?view=netframework-4.8[NetDataContractSerializer], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter?view=netframework-4.8[SoapFormatter] serializers:
 
-[source,csharp]
+[source,vbnet]
 ----
-var myBinaryFormatter = new BinaryFormatter();
-myBinaryFormatter.Deserialize(stream); // Noncompliant: a binder is not used to limit types during deserialization
+Dim myBinaryFormatter = New BinaryFormatter()
+myBinaryFormatter.Deserialize(stream) ' Noncompliant: a binder is not used to limit types during deserialization
 ----
 
 https://docs.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer?view=netframework-4.8[JavaScriptSerializer] should not use SimpleTypeResolver or other weak resolvers:
 
-[source,csharp]
+[source,vbnet]
 ----
-JavaScriptSerializer serializer1 = new JavaScriptSerializer(new SimpleTypeResolver()); // Noncompliant: SimpleTypeResolver is unsecure (every types is resolved)
-serializer1.Deserialize<ExpectedType>(json);
+Dim serializer1 As JavaScriptSerializer = New JavaScriptSerializer(New SimpleTypeResolver()) ' Noncompliant: SimpleTypeResolver is unsecure (every types is resolved)
+serializer1.Deserialize(Of ExpectedType)(json)
 ----
 
 https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.losformatter?view=netframework-4.8[LosFormatter] should not be used without MAC verification:
 
-[source,csharp]
+[source,vbnet]
 ----
-LosFormatter formatter = new LosFormatter(); // Noncompliant
-formatter.Deserialize(fs);
+Dim formatter As LosFormatter = New LosFormatter() ' Noncompliant
+formatter.Deserialize(fs)
 ----
 
 === Compliant solution
 
 https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?view=netframework-4.8[BinaryFormatter], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer?view=netframework-4.8[NetDataContractSerializer ], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter?view=netframework-4.8[SoapFormatter] serializers should use a binder implementing a whitelist approach to limit types during deserialization (at least one exception should be thrown or a null value returned):
 
-[source,csharp]
+[source,vbnet]
 ----
-sealed class CustomBinder : SerializationBinder
-{
-   public override Type BindToType(string assemblyName, string typeName)
-   {
-       if (!(typeName == "type1" || typeName == "type2" || typeName == "type3"))
-       {
-          throw new SerializationException("Only type1, type2 and type3 are allowed"); // Compliant
-       }
-       return Assembly.Load(assemblyName).GetType(typeName);
-   }
-}
+NotInheritable Class CustomBinder
+    Inherits SerializationBinder
+    Public Overrides Function BindToType(assemblyName As String, typeName As String) As Type
+        If Not (Equals(typeName, "type1") OrElse Equals(typeName, "type2") OrElse Equals(typeName, "type3")) Then
+            Throw New SerializationException("Only type1, type2 and type3 are allowed") ' Compliant
+        End If
+        Return Assembly.Load(assemblyName).[GetType](typeName)
+    End Function
+End Class
 
-var myBinaryFormatter = new BinaryFormatter();
-myBinaryFormatter.Binder = new CustomBinder();
-myBinaryFormatter.Deserialize(stream);
+Dim myBinaryFormatter = New BinaryFormatter()
+myBinaryFormatter.Binder = New CustomBinder()
+myBinaryFormatter.Deserialize(stream)
 ----
 
 https://docs.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer?view=netframework-4.8[JavaScriptSerializer] should use a resolver implementing a whitelist to limit types during deserialization (at least one exception should be thrown or a null value  returned):
 
-[source,csharp]
+[source,vbnet]
 ----
-public class CustomSafeTypeResolver : JavaScriptTypeResolver
-{
-   public override Type ResolveType(string id)
-   {
-      if(id != "ExpectedType") {
-         throw new ArgumentNullException("Only ExpectedType is allowed during deserialization"); // Compliant
-      }
-      return Type.GetType(id);
-   }
-}
+Public Class CustomSafeTypeResolver
+    Inherits JavaScriptTypeResolver
+    Public Overrides Function ResolveType(id As String) As Type
+        If Not Equals(id, "ExpectedType") Then
+            Throw New ArgumentNullException("Only ExpectedType is allowed during deserialization") ' Compliant
+        End If
+        Return Type.[GetType](id)
+    End Function
+End Class
 
-JavaScriptSerializer serializer = new JavaScriptSerializer(new CustomSafeTypeResolver()); // Compliant
-serializer.Deserialize<ExpectedType>(json);
+Dim serializer As JavaScriptSerializer = New JavaScriptSerializer(New CustomSafeTypeResolver()) ' Compliant
+serializer.Deserialize(Of ExpectedType)(json)
 ----
 https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.losformatter?view=netframework-4.8[LosFormatter] serializer with MAC verification:
 
-[source,csharp]
+[source,vbnet]
 ----
-LosFormatter formatter = new LosFormatter(true, secret); // Compliant
-formatter.Deserialize(fs);
+Dim formatter As LosFormatter = New LosFormatter(True, secret) ' Compliant
+formatter.Deserialize(fs)
 ----
 
 include::../resources.adoc[]
