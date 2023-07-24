@@ -1,65 +1,53 @@
 == Why is this an issue?
 
-An empty ``++throw++`` re-throws the temporary object that represents the exception being processed. It is intended to allow partially handling an exception at some level in the call stack (for instance, logging an issue) but then forwarding it to a higher level where it will be fully handled.
+Catch blocks define how to deal with exceptions. It is possible to partially handle an exception before passing it on to a higher level for complete handling by calling an empty throw statement `throw;`.
 
+However, when an empty throw is called outside of a catch clause, and there is no exception object to re-throw, the program will call `std::terminate`. This will cause the program to end, which is unlikely to be the expected behavior.
 
-However, syntactically, there is nothing to prevent ``++throw;++`` being used outside a catch handler, where there might be no exception object to re-throw. In such a case, the program would call ``++std::terminate++``, which is probably not the expected behavior.
+== How to fix it
 
+The rule raises an issue when an empty throw is called outside of a catch clause.
 
-=== Noncompliant code example
+=== Code examples
+
+==== Noncompliant code example
 
 [source,cpp]
 ----
-void f1(void)
-{
-  throw;   // Noncompliant - will call std::terminate() if f1 is called while no exception is active
+void f() {
+  throw;   // Noncompliant: it will call std::terminate() if f1 is called while no exception is active
 }
 
-void g1(void)
-{
-  try
-  {
-    f1();
+void g() {
+  try {
+    f();
     throw; // Noncompliant
-  }
-  catch (...)
-  {
-    // ...
+  } catch (...) {
+    doSomething();
   }
 }
 ----
 
-
-=== Compliant solution
+==== Compliant solution
 
 [source,cpp]
 ----
-void f1(void)
-{
-  try
-  {
+void f() {
+  try {
     throw(42);
-  }
-  catch (int32_t i) // int will be handled first here
-  {
-    if (i > 0)
-    {
-      throw; // and then re-thrown - Compliant
+  } catch (int i) { // The catch block handles partially the int exception
+    if (i > 0) {
+      throw; // And passes control to the next exception handler
     }
   }
 }
 
-void g1(void)
-{
-  try
-  {
-    f1();
-  }
-  catch (int32_t i)
-  {
-    // Handle re-throw from f1()
-    // after f1's handler has done what it needs
-    throw;
+void g() noexcept {
+  try {
+    f();
+  } catch (...) {
+    // The catch block handles the re-throw from f
+    doSomething();
   }
 }
 ----
@@ -67,7 +55,13 @@ void g1(void)
 
 == Resources
 
-* MISRA {cpp}:2008, 15-1-3 - An empty throw (``++throw;++``) shall only be used in the compound-statement of a catch handler.
+=== Documentation
+* C{plus}{plus} reference - https://en.cppreference.com/w/cpp/language/throw[`throw` expression]
+* C{plus}{plus} reference - https://en.cppreference.com/w/cpp/error/terminate[`std::terminate`]
+
+=== External coding guidelines
+
+* MISRA {cpp}:2008, 15-1-3 - An empty throw (`throw;`) shall only be used in the compound-statement of a catch handler.
 
 
 ifdef::env-github,rspecator-view[]
