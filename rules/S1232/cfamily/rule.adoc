@@ -1,41 +1,96 @@
+Use the same form to deallocate objects as used to allocate them to avoid segmentation faults and memory leaks.
+
 == Why is this an issue?
 
-The same form that was used to create an object should always be used to delete it. Specifically, arrays should be deleted with ``++delete []++`` and objects should be deleted with ``++delete++``. To do otherwise will cause segfaults (in the case of deleting an object with ``++delete []++``) and memory leaks (in the case of deleting an array with ``++delete++``).
+The same form that was used to create an object should always be used to delete it.
+Specifically, arrays should be deleted with `+delete []+` and objects should be deleted with `delete`.
 
-This is also true when memory was allocated with ``++malloc++``, or one of its variants, then it must be released using ``++free()++`` not ``++delete++``. Similarly memory allocated by ``++new++`` can not be released using ``++free++`` instead of ``++delete++``.
+This is also true for the memory allocated with `+malloc+` or one of its variants.
+It must be released using `free()` and not `delete`.
+Similarly, the memory allocated with `new` cannot be released using `free()` instead of `delete`.
 
+=== What is the potential impact?
 
-=== Noncompliant code example
+Using a mismatching deallocation construct leads to undefined behavior.
+This means the compiler is not bound by the language standard anymore and your program has no meaning assigned to it.
 
-[source,cpp]
+Practically, you can observe the following effects:
+
+- Deleting a single object with `+delete[]+` leads to a segmentation fault
+  trying to access memory-manager metadata that is not there.
+- Deleting an array with `delete` leads to a memory leak because it will
+  delete and deallocate only the first element of the array.
+- Freeing with `free()` the underlying memory for an object constructed with `new`
+  will skip the destructor call, most likely leading to a memory leak.
+  An automatic mechanism, such as RAII,
+  might still invoke later the destructor on the freed memory causing a segmentation fault.
+- Deleting with `delete` an "object" allocated with `new`
+  will lead to a destructor invocation on an "object" that was never constructed
+  so the destructor might hit an unsatisfied assumption.
+
+== How to fix it
+
+Use the deallocation mechanism that matches the allocation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 string* _pString1 = new string;
 string* _pString2 = new string[100];
 char* _pChar = (char *) malloc(100);
 
-delete [] _pString1; // Noncompliant; an object was declared but array deletion is attempted
-delete _pString2;  // Noncompliant; an array was declared but an object (the first in the array) is deleted
+delete [] _pString1; // Noncompliant: an object was declared but array deletion is attempted
+delete _pString2;  // Noncompliant: an array was declared but an object (the first in the array) is deleted
 delete _pChar; // Noncompliant
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 string* _pString1 = new string;
 string* _pString2 = new string[100];
 char* _pChar = (char *) malloc(100);
 
-delete _pString1;
-delete [] _pString2; 
-free(_pChar);
+delete _pString1; // Compliant: delete the object
+delete [] _pString2; // Compliant: delete the entire array
+free(_pChar); // Compliant: free the memory C-style
 ----
 
+=== Going the extra mile
+
+Manually allocating and deallocating memory is a code smell
+because of the issue covered by this rule, and it is easy to leak memory.
+
+Whenever possible, prefer the RAII (resource acquisition is allocation) {cpp} idiom.
+
+If in the example above you use the appropriate standard objects,
+you do not need to remember how and when to deallocate them:
+
+[source,cpp]
+----
+auto _pString1 = std::make_unique<std::string>();
+auto _pString2 = std::make_unique<std::string[]>(100);
+std::string _pChar{100, '\0'};
+
+// No need to call "delete" or "free".
+// Memory allocated for the three objects above will be freed automatically
+// when they go out of scope.
+----
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/Gns-BQ[CERT, MEM51-CPP.] - Properly deallocate dynamically allocated resources
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/Gns-BQ[MEM51-CPP. Properly deallocate dynamically allocated resources]
+
+=== Related rules
+
+* S5025 - recomments to avoid manual memory management
 
 
 ifdef::env-github,rspecator-view[]
