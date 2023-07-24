@@ -1,8 +1,10 @@
+`union` is not suitable for type-punning in {cpp} code.
+It leads to undefined behavior, it is unsafe,
+and it has well-defined safe alternatives that are just as fast.
+
 == Why is this an issue?
 
-
 In some performance-oriented algorithms, a solution to certain slow operations is reinterpreting a value as a different type of the same length while preserving its binary representation.
-
 
 One of the superseded solutions, known as "union type-punning", is to use a `union` with two members with types corresponding to the source and the target types of the cast.
 The operation is performed by saving the value in the member of the source type and then reading the value from the member of the target type.
@@ -12,7 +14,7 @@ Despite being allowed in C, this operation has undefined behavior according to {
 Note: `std::memcpy` has no performance impact on modern compilers when used in type-punning and is optimized during compilation.
 
 
-Union type-punning can also be used to remove `const`. This can create readability issues and should be replaced with `const_cast`.
+Sometimes `union` type-punning is used to remove `const`. This can create readability issues and should be replaced with `const_cast`.
 
 
 This rule raises an issue on any use of a `union` that should be replaced with `std::memcpy`, `std::bit_cast`, or `const_cast`.
@@ -21,27 +23,27 @@ This rule raises an issue on any use of a `union` that should be replaced with `
 === What is the potential impact?
 
 
-The {cpp} standard states that only one union member can be "active" at any time.
-A member becomes active once assigned a value, making the other union members "inactive".
+The {cpp} standard states that only one `union` member can be "active" at any time.
+A member becomes active once assigned a value, making the other `union` members "inactive".
 The standard also states that reading from an "inactive" member is undefined behavior.
 
-Since union type-punning relies on reading the "inactive" member, code using it exercises undefined behavior.
+Since `union` type-punning relies on reading the "inactive" member, code using it exercises undefined behavior.
 Such code can be unintentionally removed in aggressive levels of optimization.
 
-Further problems could also arise from using union-based type punning in cross-platform solutions.
-Since this method is mainly used with Fundamental Types, which vary in size depending on the underlying architecture, it could hide a portability issue.
+Further problems could also arise from using `+union+`-based type punning in cross-platform solutions.
+Since this method is mainly used with Built-in Types, which vary in size depending on the underlying architecture, it could hide a portability issue.
 
 
 
 == How to fix it
 
-Replace any "union-based type punning" solution with a standard-compliant solution.
+Replace any "``++union++``-based type punning" solution with a standard-compliant solution.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 float fastInvSqrt(float number) 
   constexpr float threehalfs = 1.5F;	
@@ -70,12 +72,12 @@ float fastInvSqrt(float number) {
 
   std::uint32_t i;
   static_assert(sizeof(i) == sizeof(number), "Use equal-size types in order to achieve safe type-punning");
-  std::memcpy(&i, &number, sizeof(float));
+  std::memcpy(&i, &number, sizeof(float)); // Compliant
   i  = 0x5f3759df - (i >> 1);
 
   float result;
   static_assert(sizeof(result) == sizeof(i), "Use equal-size types in order to achieve safe type-punning");
-  std::memcpy(&result, &i, sizeof(float));
+  std::memcpy(&result, &i, sizeof(float)); // Compliant
   result  *= threehalfs - (x2 * result * result);
   return result;
 }
@@ -83,15 +85,15 @@ float fastInvSqrt(float number) {
 
 {cpp}20 and after:
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 float fastInvSqrt(float number) {
   constexpr float threehalfs = 1.5F;
   const float x2 = number * 0.5F;
 
-  auto i = std::bit_cast<std::uint32_t>(number);
+  auto i = std::bit_cast<std::uint32_t>(number); // Compliant
   i  = 0x5f3759df - (i >> 1);
-  auto result = std::bit_cast<float>(i);
+  auto result = std::bit_cast<float>(i); // Compliant
   result  *= threehalfs - (x2 * result * result);
   return result;
 }
@@ -100,9 +102,11 @@ float fastInvSqrt(float number) {
 
 == Resources
 
-* S6181 - replacing `std::memcpy` with `std::bit_cast`.
-* https://www.youtube.com/watch?v=_qzMpk-22cc - Type punning in modern C++ - Timur Doumler - CppCon 2019
+* CppCon 2019 - https://www.youtube.com/watch?v=_qzMpk-22cc[Type punning in modern C++, Timur Doumler (video)]
 
+=== Relevant rules
+
+* S6181 - replacing `std::memcpy` with `std::bit_cast`.
 
 ifdef::env-github,rspecator-view[]
 '''
