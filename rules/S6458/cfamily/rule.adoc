@@ -45,13 +45,13 @@ The rule reports forwarding constructors without proper constraints if they can 
 To eliminate this pitfall, add constraints to such constructors so that they are not considered an overload candidate when the argument is a reference to the class type
 or to a class derived from the class type. This can be achieved by adding any of the following checks to the forwarding reference constructor:
 
-* A check of the concept `!same_as<remove_cvref_t<U>, Wrapper>`
+* A check of the concept `!same_as<remove_cvref_t<U>, Wrapper>`, or
 * A check of type predicate  `!is_same_v<remove_cvref_t<U>, Wrapper>`, or
 * An `enable_if` with the equivalent condition.
 
 If `Wrapper` were a base class, those checks would become:
 
-* The concept `!derived_from<std::remove_cvref_t<U>, Wrapper>`
+* The concept `!derived_from<std::remove_cvref_t<U>, Wrapper>`, or
 * A type-predicate `!is_base_of_v<Wrapper, std::remove_cvref_t<U>>`, or
 * An `enable_if` with the equivalent condition.
 
@@ -63,11 +63,11 @@ Note that there are other ways to constrain such a constructor, but this rule on
 
 ==== Noncompliant code example
 
-In this noncompliant example, the compiler-generated copy constructor can receive calls only when copying non-const lvalues (i.e., exact
-matches). Otherwise, the forwarding constructor will take over, even when the given type can not be used to initialize the wrapped
+In this noncompliant example, the implicitly compiler-generated copy constructor can receive calls only when copying non-const lvalues (i.e., exact
+matches). Otherwise, the forwarding constructor is used, even when the given type can not be used to initialize the wrapped
 `std::string` object.
 
-// No diff-ids because the first example has two compliant solutions. The rest were also left out for consistency.
+// No diff-ids because the first example has two compliant solutions.
 [source,cpp]
 ----
 class Wrapper {
@@ -100,20 +100,22 @@ private:
 };
 ----
 
-If {cpp}20 is not available yet, we can use `std::enable_if` instead of concepts. We also can not use `std::remove_cvref_t`, and we have to
+If {cpp}20 is not available, we can use `std::enable_if` instead of concepts. We also can not use `std::remove_cvref_t`, and we have to
 be more verbose:
 
 [source,cpp]
 ----
 class Wrapper {
 public:
-  template <typename T,
-      typename std::enable_if<
+  template <
+    typename T,
+    typename std::enable_if<
       !std::is_same<
         Wrapper, 
         typename std::remove_cv<typename std::remove_reference<T>::type>::type
       >::value, 
-      int>::type /* Unnamed */ = 0>
+      int
+    >::type /* Unnamed */ = 0>
   Wrapper(T&& str)  // Compliant: no longer competes with the copy constructor
     : str(std::forward<T>(str)) {}
 
@@ -159,7 +161,7 @@ public:
   TemplateWrapper(TemplateWrapper const& other) : value(other.value) {}
    
   template<typename U>
-    requires (!std::derived_from<std::remove_cvref_t<U>, TemplateWrapper>) && std::constructible_from<T, U>
+    requires (!std::derived_from<std::remove_cvref_t<U>, TemplateWrapper> && std::constructible_from<T, U>)
   TemplateWrapper(U&& u)  // Compliant: properly constrained regardless of how T can be constructed
     : value(std::forward<U>(u))
   {} 
