@@ -36,20 +36,21 @@ In such cases, they compete with copy or move constructors, including those impl
 Yet, selecting the wrong overload can also happen with forwarding references on regular functions and methods, but this is out of scope for this rule.
 
 Even if the non-constrained forwarding constructor may currently seem to work fine, using it with different value categories in the future
-could result in hard-to-debug compilation errors or, even worse, unexpected run-time behavior if the wrapped type happens to be
+could result in unexpected compilation errors or, even worse, hard-to-debug run-time behavior if the wrapped type happens to be
 constructible from instances of the wrapper.
 
 == How to fix it
 
 The rule reports forwarding constructors without proper constraints if they can be called with a single argument.
-To eliminate this pitfall, add constraints to such constructors so that they are not considered an overload candidate when the argument is a reference to the class type
-or to a class derived from the class type. This can be achieved by adding any of the following checks to the forwarding reference constructor:
+To eliminate this pitfall, add constraints to such constructors so that they are not considered an overload candidate when the argument is
+a reference to the class itself. This can be achieved by adding any of the following checks to the forwarding reference constructor:
 
 * a check of the concept `!std::same_as<std::remove_cvref_t<U>, Wrapper>`, or
 * a check of type predicate  `!std::is_same_v<std::remove_cvref_t<U>, Wrapper>`, or
 * an `std::enable_if` with the equivalent condition
 
-If `Wrapper` were a base class, those checks would become:
+Note that special care has to be taken when `Wrapper` is a base class. This is explained in more detail in the "Going the extra mile"
+below. In this case, those checks would become:
 
 * the concept `!std::derived_from<std::remove_cvref_t<U>, Wrapper>`, or
 * a type-predicate `!std::is_base_of_v<Wrapper, std::remove_cvref_t<U>>`, or
@@ -172,7 +173,7 @@ private:
 
 Using `std::derived_from` instead of `std::same_as` is only meant for demonstration purposes here. `std::derived_from` is necessary only if
 `TemplateWrapper` has derived classes, to ensure that the copy constructors of these derived classes don't end up calling the forwarding
-constructor.
+constructor. This is explained in more detail in the "Going the extra mile" section below.
 
 ==== Noncompliant code example
 
@@ -221,6 +222,54 @@ private:
   T value;
 };
 ----
+
+=== Going the extra mile
+
+When the forwarding constructor belongs to a base class, using the `same_as` constraint check solely is not sufficient. The problem is that
+the forwarding constructor may still get selected when we are copying from a derived object. The example below demonstrates some of these
+cases:
+
+[source,cpp]
+----
+class Base {
+public:
+  template <typename T>
+  requires (!std::same_as<std::remove_cvref_t<T>, Base>)
+  Base(T&& str) : str(std::forward<T>(str)) {}
+private:
+  std::string str;
+};
+
+class Derived : public Base {};
+----
+
+Then the following would result in a compilation better:
+
+[source,cpp]
+----
+Derived d("str");
+// The constraint is satisfied when T is Derived&
+Base b(d);  // Calls the forwarding constructor instead of the usual "slicing" behavior
+----
+
+Additionally, subclasses can run into trouble when they try to define their copy constructors:
+
+[source,cpp]
+----
+class Derived2 : public Base {
+  // [...]
+public:
+  Derived2(Derived2 const& d)
+    // d is of Derived2 type and it therefore satisfies the same_as constraint for the forwarding constructor
+    : Base(d) {
+    // [...]
+  }
+};
+----
+
+To avoid these problems, use `std::derived_from` or `std::base_of` checks instead of `std::same_as` or `std::is_same` when the forwarding
+constructor belongs to a class that has derived classes.
+
 
 == Resources
 
