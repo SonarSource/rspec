@@ -10,9 +10,6 @@ set +e
 exit_code=0
 
 readonly ALLOWED_RULE_SUB_FOLDERS=['common'];
-readonly ROOT=$PWD
-# Declare read-only variable PATH_WITH_VARIABLE and make it available to child processes
-declare -xr PATH_WITH_VARIABLE="$(realpath ./ci/replace_variables_in_path.sh)"
 
 # Validate user-visible rule descriptions
 # i.e., without rspecator-view.
@@ -38,12 +35,16 @@ if printf '%s\n' "$changeset" | grep -qv '/S[0-9]\+/'; then
 fi
 
 # Validate some properties of the asciidoc:
+#
+# [properties validated only on affected rules]
 #  * Rules should have at least one language specification,
 #    unless they are closed or deprecated.
 #  * The include:: should have an empty line before and after them.
 #  * Only valid languages can be used as subdirectories in rule directories,
 #    with the exception of ALLOWED_RULE_SUB_FOLDERS.
 #  * Asciidoc files are free or errors and warnings.
+#
+# [properties validated always on all rules]
 #  * Rule descriptions can include other asciidoc files from the same rule
 #    directory or from shared_content.
 #  * All asciidoc files are used/included.
@@ -109,30 +110,6 @@ do
         fi
       fi
     done
-
-    # Check that all adoc are included
-
-    # Files can be included through variables. We create a list of variables
-    # These paths are relative to the file where they are _included_, not where they are _declared_
-    # Which is why we need to create this list and cannot do anything with the paths it contains until we find the corresponding include
-    find "$dir" -name "*.adoc" ! -name 'tmp_*.adoc' -execdir sed -r -n -e 's/^:(\w+):\s+([A-Za-z0-9\/._-]+)$/\1\t\2/p' {} \; > vars
-    # Directly included
-    find "$dir" -name "*.adoc" ! -name 'tmp_*.adoc' -execdir sh -c 'grep -h "include::" "$1" | grep -Ev "{\w+}" | grep -v "rule.adoc" | sed -r "s/include::(.*)\[\]/\1/" | xargs -r -I@ realpath "$PWD/@"' shell {} \; > included
-    # Included through variable
-    VARS_FULL_PATH=$(realpath vars) find "$dir" ! -name 'tmp_*.adoc' -name "*.adoc" -execdir sh -c 'grep -Eh "include::.*\{" "$1" | xargs -r -I@ $PATH_WITH_VARIABLE $VARS_FULL_PATH "@" | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> included
-    # We should only include documents from the same rule or from shared_content
-    cross_references=$(grep -vEh "${ROOT}\/${dir}\/|${ROOT}\/shared_content\/" included)
-    if [[ -n "$cross_references" ]]; then
-      printf 'ERROR: Rule %s tries to include content from unallowed directory:\n%s\nTo share content between rules, you should use the "shared_content" folder at the root of the repository\n' "$dir" "$cross_references"
-      exit_code=1
-    fi
-    find "$dir" -name "*.adoc" ! -name 'rule.adoc' ! -name 'tmp*.adoc' -exec sh -c 'realpath $1' shell {} \; > created
-    orphans=$(comm -1 -3 <(sort -u included) <(sort -u created))
-    if [[ -n "$orphans" ]]; then
-      printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
-      exit_code=1
-    fi
-    rm -f included created vars
   fi
 done
 
@@ -155,6 +132,48 @@ else
   echo "No new asciidoc file changed"
 fi
 find rules -name "tmp*.adoc" -delete
+
+# Cover file inclusion and crossreferences.
+#
+# This needs to be done on all rule descriptions, including the default,
+# language-agnostic description, with rspecator-view. Otherwise, a rule
+# could drop an include of a shared_content asciidoc and that file could
+# become unused.
+#
+# We use a custom asciidoctor with extra logging for this purpose.
+# The format for the interesting log entries are:
+#   asciidoctor: INFO: ASCIIDOC LOGGER MAIN FILE: $PATH
+#   asciidoctor: INFO: ASCIIDOC LOGGER INCLUDED: $PATH
+#   asciidoctor: INFO: ASCIIDOC LOGGER CROSSREFERENCE: $RULEID crossreferences $PATH
+outdir="$(mktemp -d)"
+find rules -name 'rule.adoc' \
+  | xargs ./ci/custom-asciidoctor -a rspecator-view --verbose -R rules -D "${outdir}" 2>&1 \
+  | grep -e 'ASCIIDOC LOGGER' \
+  > asciidoc_introspection
+
+grep -ve 'CROSSREFERENCE' asciidoc_introspection \
+  | cut -d ':' -f 4 \
+  | sort -u \
+  > used_asciidoc_files
+
+git ls-files --cached -- 'rules/**.adoc' 'shared_content/**.adoc' \
+  | xargs realpath \
+  > all_asciidoc_files
+
+cross_references=$(grep -e 'CROSSREFERENCE' asciidoc_introspection | cut -d ':' -f 4 | sort -u)
+if [[ -n "$cross_references" ]]; then
+  echo 'ERROR: Some rule try to include content from unallowed directories.'
+  echo 'To share content between rules, you should use the "shared_content" folder at the root of the repository.'
+  echo "List of errors:"
+  echo "${cross_references}"
+  exit_code=1
+fi
+
+orphans=$(comm -1 -3 <(sort -u used_asciidoc_files) <(sort -u all_asciidoc_files))
+if [[ -n "$orphans" ]]; then
+  printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
+  exit_code=1
+fi
 
 if (( exit_code == 0 )); then
   echo "Success"
