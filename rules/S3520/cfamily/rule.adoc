@@ -1,17 +1,41 @@
+Do not deallocate the same object twice to avoid "double-free" undefined behavior.
+
 == Why is this an issue?
 
-Using ``++free(...)++`` or ``++delete++`` releases the reservation on a memory location, making it immediately available for another purpose. So releasing the same memory location twice can lead to corrupting the program's memory. 
+Using `delete` or `free(...)` releases the reservation on a memory location, making it immediately available for another purpose.
+Releasing the same pointer twice is undefined behavior and will usually crash the program.
 
+=== What is the potential impact
 
-A best practice to avoid this bug calls for setting just-freed pointers to ``++NULL++``, and always null-testing before a ``++free++`` or ``++delete++``.
+The effects of a "double-free" heavily depend on how the program's memory management data structures are implemented.
+In the case of such a scenario, one of the following can be observed:
 
+- The program's memory management data structures can become corrupted.
+This will usually cause a crash.
+- In specific circumstances, corruption of mentioned data structures can cause two later calls to malloc to return the same pointer.
+This can lead to a buffer overflow vulnerability.
+- The {cpp} standard defines the first `delete` call as the end of the lifetime for dynamically allocated memory.
+Any access to that memory past its lifetime end, including another `delete`, is undefined behavior.
+As a result, a second call can be optimized out, leading to hard-to-identify bugs.
 
-=== Noncompliant code example
+== How to fix it
+
+Besides just ensuring that every release happens once, the following best practices can also be used:
+
+- After a `delete` or `free`, set the pointer's value to `nullptr` or `NULL`.
+`delete` of `nullptr` and `free` of `NULL` are defined as having no effect.
+- Attempt to release any allocated memory in the function it was allocated in.
+- If lifetime of memory is tied to an object, use smart pointers.
+These will manage the lifetime of the required memory without any "double-free" risk.
+
+=== Code examples
+
+==== C Noncompliant code
 
 [source,cpp]
 ----
 void doSomething(int size) {
-  char *cp = (char *) malloc(sizeof(char) * size);
+  char* cp = (char*) malloc(sizeof(char) * size);
 
   // ...
   if (condition) {
@@ -23,12 +47,12 @@ void doSomething(int size) {
 ----
 
 
-=== Compliant solution
+=== C Compliant solution
 
 [source,cpp]
 ----
 void doSomething(int size) {
-  char *cp = (char *) malloc(sizeof(char) * size);
+  char* cp = (char*) malloc(sizeof(char) * size);
 
   // ...
   if (condition) {
@@ -41,11 +65,67 @@ void doSomething(int size) {
 }
 ----
 
+==== {cpp} Noncompliant code
+
+[source,cpp]
+----
+void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    delete p;
+  }
+
+  delete p;  // Noncompliant
+}
+----
+
+==== {cpp} Compliant solutions
+
+Set to null:
+
+[source,cpp]
+----
+void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    delete p;
+    p = nullptr; // This will prevent freeing the same memory again
+  }
+
+  delete p; // This is OK: if the memory was freed in the if-block above, operator delete of nullptr is a no-op
+  p = nullptr; // This will prevent freeing the same memory again
+}
+----
+
+Smart pointers:
+
+[source,cpp]
+----
+void doSomething(int size) {
+  auto p = std::make_unique<std::string>();
+
+  // ...
+  if (condition) {
+    p.reset(); // Delete happens here.
+  }
+
+  // delete not called by std::unique_ptr destructor.
+}
+----
+
 
 == Resources
 
 * https://cwe.mitre.org/data/definitions/415[MITRE, CWE-415] - Double Free
 * https://owasp.org/www-community/vulnerabilities/Doubly_freeing_memory[OWASP, Doubly freeing memory]
+
+=== Related rules
+
+* S5025 recommends avoiding manual memory management
 
 
 ifdef::env-github,rspecator-view[]
