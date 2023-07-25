@@ -28,7 +28,8 @@ Wrapper const cw("str1");
 Wrapper w("str2");
 
 Wrapper w1(cw);  // Ok: calls Wrapper(Wrapper const& other)
-Wrapper w2(w);   // Ill-formed: calls Wrapper(T&& str) with [T = Wrapper&] which tries to initialize a std::string using a Wrapper object.
+Wrapper w2(w);   // Ill-formed: calls Wrapper(T&& str) with [T = Wrapper&]
+                 // This tries to initialize a std::string using a Wrapper object
 ----
 
 This rule specifically targets constructors that can be called with a single _forwarding reference_ argument.
@@ -158,7 +159,7 @@ In order to properly make our `TemplateWrapper` generic, we need to add the nece
 template<typename T>
 class TemplateWrapper {
 public:
-  TemplateWrapper(TemplateWrapper const& other) : value(other.value) {}
+  TemplateWrapper(TemplateWrapper const& other) = default;
    
   template<typename U>
     requires (!std::derived_from<std::remove_cvref_t<U>, TemplateWrapper> && std::constructible_from<T, U>)
@@ -226,15 +227,14 @@ private:
 === Going the extra mile
 
 When the forwarding constructor belongs to a base class, using the `same_as` constraint check solely is not sufficient. The problem is that
-the forwarding constructor may still get selected when we are copying from a derived object. The example below demonstrates some of these
-cases:
+the forwarding constructor may still get selected when we are copying from a derived object.
 
 [source,cpp]
 ----
 class Base {
 public:
   template <typename T>
-  requires (!std::same_as<std::remove_cvref_t<T>, Base>)
+  requires (!std::same_as<std::remove_cvref_t<T>, Base>)  // Bad: same_as is not sufficient for base classes.
   Base(T&& str) : str(std::forward<T>(str)) {}
 private:
   std::string str;
@@ -243,12 +243,12 @@ private:
 class Derived : public Base {};
 ----
 
-Then the following would result in a compilation better:
+Then the following would result in a compilation error:
 
 [source,cpp]
 ----
 Derived d("str");
-// The constraint is satisfied when T is Derived&
+// Note that the constraint is satisfied when T is Derived&
 Base b(d);  // Calls the forwarding constructor instead of the usual "slicing" behavior
 ----
 
@@ -261,7 +261,7 @@ class Derived2 : public Base {
 public:
   Derived2(Derived2 const& d)
     // d is of Derived2 type and it therefore satisfies the same_as constraint for the forwarding constructor
-    : Base(d) {
+    : Base(d) {  // Error: Calls the forwarding constructor instead of the base copy constructor
     // [...]
   }
 };
