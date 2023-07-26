@@ -27,32 +27,49 @@ Practically, you can observe the following effects:
   delete and deallocate only the first element of the array.
 - Freeing with `free()` the underlying memory for an object constructed with `new`
   will skip the destructor call, most likely leading to a memory leak.
-  Additionally, a destructor might still be called on freed memory causing further undefined behavior.
+  Additionally, a destructor might still be called on deallocated memory causing further undefined behavior.
 
 === Why is the issue raised for a type with a trivial destructor?
 
-TODO:
+Automatic constructor and destructor invocation is not the only difference between
+the C-style `malloc`/`free` memory allocator, and the {cpp}-style `new`/`delete`.
 
+These two memory allocators use different metadata and different algorithms.
+For example, `new` has an array form `+new[]+` that stores an "array cookie".
+
+
+The following example causes undefined behavior,
+even though the destructor has now effect,
+because `free()` expects different metadata for the pointer it is passed
+than what is arranged by the `new` operator:
+
+[source,cpp]
 ----
 struct TrivialClass {};
 
 
 TrivialClass* p = new TrivialClass();
-free(p); // no destructor is called.
+free(p); // Noncompliant: no-op destructor is skipped; still undefined behavior
 ----
 
+In the code below, `+delete[]+` expects to find an array cookie and fails:
 
+[source,cpp]
 ----
 int* p = malloc(10 * sizeof(int));
-delete[] p; // expect array coookie
+delete[] p; // Noncompliant: expect array cookie
 ----
 
 
-TODO `::operator new(std::size_t count)`
+If you need allocate memory in a custom `T::operator new(std::size_t)`,
+you should use `void* ::operator new(std::size_t)` and not `free()`.
 
+Note that `::operator new` is still not compatible with `free()`:
+
+[source,cpp]
 ----
-::operator new(10 * sizeof(int));
-free()
+auto p = ::operator new(10 * sizeof(int));
+free(p); // Noncompliant
 ----
 
 == How to fix it
@@ -91,7 +108,7 @@ free(_pChar); // Compliant: free the memory C-style
 === Going the extra mile
 
 Manually allocating and deallocating memory is a code smell
-because of the issue covered by this rule, and because it is easy to leak memory.
+because of the above, and because it is easy to leak memory.
 
 Whenever possible, prefer the RAII (Resource Acquisition Is Initialization) {cpp} idiom.
 
