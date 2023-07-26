@@ -1,9 +1,18 @@
+This rule raises an issue when the default value of a function parameter is mutated.
+
 == Why is this an issue?
 
-In Python function parameters can have default values. These default values are expressions which are executed when the function is defined, i.e. only once. The same default value will be used every time the function is called, thus modifying it will have an effect on every subsequent call. This can create some very confusing bugs.
+In Python, function parameters can have default values. 
 
+These default values are expressions which are evalutated when the function is defined, i.e. only once. The same default value will be used every time the function is called. Therefore, modifying it will have an effect on every subsequent call. This can lead to confusing bugs.
 
-It is also a bad idea to store mutable default value in another object (ex: as an attribute). Multiple instances will then share the same value and modifying one objet will modify all of them.
+[source,python]
+----
+def myfunction(param=foo()):  # foo is called only once, when the function is defined.
+    ...
+----
+
+For the same reason, it is also a bad idea to store mutable default value in another object (ex: as an attribute). Multiple instances will then share the same value and modifying one objet will modify all of them.
 
 
 This rule raises an issue when:
@@ -11,17 +20,30 @@ This rule raises an issue when:
 * a default value is either modified in the function or assigned to anything else than a variable and it has one of the following types:
 ** builtins: set, dict, list.
 ** https://docs.python.org/3/library/collections.html[collections] module: deque, UserList, ChainMap, Counter, OrderedDict, defaultdict, UserDict.
-* or when an attribute of a default value is assigned.
+* an attribute of a default value is assigned.
 
 
-=== Noncompliant code example
+=== Exceptions
+
+In some rare cases, modifying a default value is intentional. For example, default values can be used as a cache.
+
+
+No issue will be raised when the parameter's name contains "cache" or "memo" (as in memoization).
+
+== How to fix it
+
+When a parameter default value is meant to be a mutable object, it is best to keep the parameter optional and instantiate the mutable object in the function's body directly.
+
+=== Code examples
+
+==== Noncompliant code example
 
 In the following example, the parameter "param" has ``++list()++`` as a default value. This list is created only once and then reused in every call. Thus when it appends ``++'a'++`` to this list, the next call will have ``++['a']++`` as a default value.
 
 
-[source,python]
+[source,python,diff-id=1,diff-type=noncompliant]
 ----
-def myfunction(param=list()):  # Noncompliant.
+def myfunction(param=list()):  # Noncompliant: param is a list that gets mutated
     param.append('a')  # modification of the default value.
     return param
 
@@ -30,27 +52,10 @@ print(myfunction()) # returns ['a', 'a']
 print(myfunction()) # returns ['a', 'a', 'a']
 ----
 
-In the following example the same list is used for multiple instances of MyClass.param.
 
-[source,python]
-----
-class MyClass:
-    def __init__(self, param=list()):  # Noncompliant.
-        self.param = param  # The same list is used for every instance of MyClass
+==== Compliant solution
 
-    def process(self, value):
-        self.param.append(value)  # modifying the same list
-
-a1, a2 = (MyClass(), MyClass())
-a1.process("value")
-print(a1.param)  # ['value']
-print(a2.param)  # ['value']
-----
-
-
-=== Compliant solution
-
-[source,python]
+[source,python,diff-id=1,diff-type=compliant]
 ----
 def myfunction(param=None):
     if param is None:
@@ -63,37 +68,15 @@ print(myfunction()) # returns ['a']
 print(myfunction()) # returns ['a']
 ----
 
-[source,python]
-----
-class MyClass:
-    def __init__(self, param=None):
-        if param is None:
-            self.param = list()
-        else:
-            self.param = param
-
-    def process(self, value):
-        self.param.append(value)
-
-a1, a2 = (MyClass(), MyClass())
-a1.process("value")
-print(a1.param)  # ['value']
-print(a2.param)  # []
-----
-
-
-=== Exceptions
-
-In some very rare cases modifying a default value is ok. For example, default values can be used as a cache.
-
-
-No issue will be raised when the parameter's name contains "cache" or "memo" (as in memoization).
-
-
 == Resources
 
-* https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments[The Hitchhiker's Guide to Python - Common Gotchas]
-* https://docs.python.org/3/reference/compound_stmts.html#function-definitions[Python documentation - Function definitions]
+=== Documentation
+
+* Python documentation - https://docs.python.org/3/reference/compound_stmts.html#function-definitions[Function definitions]
+
+=== External coding guidelines
+
+* The Hitchhiker's Guide to Python - https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments[Common Gotchas]
 
 
 ifdef::env-github,rspecator-view[]
