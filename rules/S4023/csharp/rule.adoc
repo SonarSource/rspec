@@ -1,4 +1,131 @@
-include::../rule.adoc[]
+Interfaces describe functionality that an implementing class has to provide. An empty interface doesn't add any such functional requirements and is as such useless.
+
+== Why is this an issue?
+
+Empty interfaces are either useless or used as a https://en.wikipedia.org/wiki/Marker_interface_pattern[marker]. https://learn.microsoft.com/en-us/dotnet/standard/attributes/writing-custom-attributes[Custom attributes] are a better alternative to marker interfaces.
+
+A typical use case for marker interfaces is doing type inspection via https://learn.microsoft.com/en-us/dotnet/framework/reflection-and-codedom/reflection[reflection] as shown below.
+
+The `IIncludeFields` marker interface is used to configure the JSON serialization of an object.
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+// An example marker interface
+public interface IIncludeFields { }
+
+public class OptInToIncludeFields: IIncludeFields { }
+
+Serialize(new OptInToIncludeFields());
+
+void Serialize<T>(T o)
+{
+    // Use reflection to check if the interface is applied to the type
+    var includeFields = o.GetType()
+        .GetInterfaces().Any(i => i == typeof(IIncludeFields));
+    var options = new JsonSerializerOptions()
+    {
+        // Take decisions based on the presents of the marker
+        IncludeFields = includeFields, 
+    };
+}
+----
+
+The same example can be rewritten using custom attributes.
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+// A custom attribute used as a marker
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class IncludeFieldsAttribute: Attribute { }
+
+[IncludeFields]
+public class OptInToIncludeFields { }
+
+Serialize(new OptInToIncludeFields());
+
+void Serialize<T>(T o)
+{
+    // Use reflection to check if the attribute is applied to the type
+    var includeFields = o.GetType()
+        .GetCustomAttributes(typeof(IncludeFieldsAttribute), inherit: true).Any();
+    var options = new JsonSerializerOptions()
+    {
+        // Take decisions based on the presents of the marker
+        IncludeFields = includeFields,
+    };
+}
+----
+
+=== Exceptions
+
+This rule doesn't raise in any of the following cases:
+
+==== Aggregation of multiple interfaces
+
+[source,csharp]
+----
+public interface IAggregate: IComparable, IFormattable { } // Compliant
+----
+
+==== Generic specialization
+
+An empty interface with a single base interface is compliant as long as the resulting interface binds a generic parameter or constrains it.
+
+[source,csharp]
+----
+// Compliant: bound to a concrete type
+public interface IStringEquatable: IEquatable<string> { }
+// Compliant: specialized by type parameter constraint
+public interface ICreateableEquatable<T>: IEquatable<T> where T: new() { } 
+----
+
+==== Custom attribute
+
+An empty interface with a single base interface is compliant if a custom attribute is applied to the interface.
+
+[source,csharp]
+----
+[Obsolete]
+public interface IConsoleLogger: ILogger { }
+----
+
+== How to fix it
+
+Do any of the following to fix the issue:
+
+* Add members to the interface
+* Remove the useless interface
+* Replace the usage as a marker interface with custom attributes
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+public interface IFoo // Noncompliant
+{ 
+
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+public interface IFoo
+{ 
+    void Bar();
+}
+----
+
+=== How does this work?
+We added something.
+
+== Resources
+=== Documentation
+http-address-of-documentation[My doc name]
+
 
 ifdef::env-github,rspecator-view[]
 
