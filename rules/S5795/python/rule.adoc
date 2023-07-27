@@ -1,4 +1,4 @@
-This rule raises an issue when the identity operator is used with literals.
+This rule raises an issue when the identity operator is used with cached literals.
 
 == Why is this an issue?
 
@@ -6,22 +6,45 @@ Identity operators ``++is++`` and ``++is not++`` check if the same object is on 
 i.e. ``++a is b++`` returns ``++True++`` if ``++id(a) == id(b)++``.
 
 The CPython interpreter caches certain builtin values for integers, bytes, floats, strings, frozensets and tuples. 
-For example, the literal `1` will be cached and when using `int("1")` the object return is the integer `1` from the cache. 
-`1` and `int("1")` refer then to the same object and `id(1)` and `id(int("1"))` will have the same value. 
-This is why `1 is int("1")` is `True`. 
-However this does not work with every values, for example the integer `1000` will not be cached, this means that `int("1000") is 1000` will always be `False` as the two objects have different ids. 
+The following example illustrates this caching mechanism:
 
-Using the identity operators on integers, bytes, floats, strings, frozensets and tuples could lead to bugs as the behaviour could change depending on the value.
+[source,python]
+----
+my_int = 1
+other_int = 1
+
+id(my_int) == id(other_int) # True
+----
+
+The integer `1` is cached and assigned to the variable `my_int`. When `other_int` is assigned the value `1`, it is in fact the object from the cache which is assigned to `other_int`. 
+For this reason both variable are referencing the same object in memory, this is why their ids are identical, thus `my_int is other_int` is `True`.
+This mechanism allows the interpreter for faster retrieval of the cached objects and spare memory space.
+
+However the caching mechanism does not work with every values: 
+
+[source,python]
+----
+my_int = 1000
+
+id(my_int) == id(1000) # False
+my_int is 1000 # False
+----
+
+In this example the integer `1000` will not be cached. Each reference to `1000` creates an new integer object in memory with a new id.
+This means that `my_int is 1000` will always be `False` as the two objects have different ids. 
+
+This is the reason why using the identity operators on integers, bytes, floats, strings, frozensets and tuples could lead 
+to bugs as the behaviour changes depending on the value.
 
 Moreover the caching behavior is not part of the Python language specification and could vary between interpreters. 
 CPython 3.8 https://docs.python.org/3.8/whatsnew/3.8.html#changes-in-python-behavior[warns about comparing literals using identity operators].
-
-If you need to compare these types you should use the equality operators instead `==` or `!=`.
 
 This rule raises an issue when at least one operand of an identity operator:
 
 * is of type ``++int++``, ``++bytes++``, ``++float++``, ``++frozenset++`` or ``++tuple++``.
 * is a string literal.
+
+If you need to compare these types you should use the equality operators instead `==` or `!=`.
 
 === Exceptions
 
@@ -46,7 +69,8 @@ Use the equality operator to compare ``++int++``, ``++bytes++``, ``++float++``, 
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-int("2000") is 2000 # Noncompliant: the integer 2000 may not be cached, the identity operator could return False.
+my_int = 2000
+my_int is 2000 # Noncompliant: the integer 2000 may not be cached, the identity operator could return False.
 
 () is tuple() # Noncompliant: the empty tuple object is cached this line will return True.
 (1,) is tuple([1])  # Noncompliant: comparing non empty tuples will return False as none of these objects are cached. 
@@ -57,7 +81,8 @@ int("2000") is 2000 # Noncompliant: the integer 2000 may not be cached, the iden
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-int("2000") == 2000
+my_int = 2000
+my_int == 2000
 
 () == tuple()
 (1,) == tuple([1]) 
