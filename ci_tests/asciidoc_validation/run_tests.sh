@@ -77,4 +77,22 @@ run_test "test_bad_cross_ref" \
   "S100 cross-references .*rules/S1000/bad.adoc" \
   "S1000 cross-references .*rules/S100/java/bad.adoc"
 
+run_test "test_diff_source" \
+  "ERROR: Diff sources are incorrectly used:" \
+  "diff-type is missing in .*/rules/S100/cfamily/rule.adoc:3" \
+  "diff-id is missing in .*/rules/S100/cfamily/rule.adoc:8" \
+  "diff-type 'bad' is not valid in .*/rules/S100/cfamily/rule.adoc:13" \
+  "diff-type is missing in .*/rules/S100/cfamily/local.adoc:3" \
+  "diff-id is missing in .*/rules/S100/cfamily/local.adoc:8" \
+  "diff-type 'local' is not valid in .*/rules/S100/cfamily/local.adoc:13" \
+  "diff-type is missing in .*/shared_content/cfamily/shared.adoc:3" \
+  "diff-id is missing in .*/shared_content/cfamily/shared.adoc:8" \
+  "diff-type 'shared' is not valid in .*/shared_content/cfamily/shared.adoc:13" \
+  "Rule S100 has an incomplete example for diff-id=1, missing counterpart for .*/rules/S100/java/rule.adoc:3" \
+  "Rule S100 has an incomplete example for diff-id=2, missing counterpart for .*/rules/S100/java/rule.adoc:8" \
+  "Rule S100 has an incomplete example for diff-id=3, missing counterpart for .*/shared_content/java/example.adoc:3" \
+  "Rule S100 has 3 examples for diff-id=4: .*/rules/S100/java/rule.adoc:15, .*/shared_content/java/example.adoc:13, .*/shared_content/java/example.adoc:8" \
+  "Rule S200 has 3 examples for diff-id=1: .*/rules/S200/rule.adoc:12, .*/rules/S200/rule.adoc:2, .*/rules/S200/rule.adoc:7" \
+  "Rule S200 has two noncompliant examples for diff-id=2: .*/rules/S200/rule.adoc:17 and .*/rules/S200/rule.adoc:22"
+
 echo "All tests passed"
