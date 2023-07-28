@@ -1,55 +1,57 @@
 == Why is this an issue?
 
-If a pointer to an object is used as an exception, the code that will catch the exception may or may not have to delete the pointed-to object. This is even more complex in the exception case than in classical manual memory management, because of the distance between the ``++throw++`` statements and the matching ``++catch++``. 
+When an exception is a pointer, it is difficult for the code that catches the exception to determine whether or not it needs to delete the pointed-to object.
+It is even more complicated than a traditional manual memory management scenario because the `throw` and the corresponding `catch` can be far apart.
 
+== How to fix it
 
-Throwing by value is just simpler and less error prone.
+Throwing by value is more straightforward and less error-prone than using a pointer as an exception object.
 
+=== Code examples
 
-=== Noncompliant code example
+==== Noncompliant code example
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class E { /* Implementation */};
-E globalException;
+std::out_of_range globalException("Index too high");
 
-void fn ( int i )
-{ 
-  // In this situation, the developer writing the 'catch' has no way to know if the object pointed-to by 
-  // the exception should be deleted or not...
-  if ( i > 10 ) {
-    throw ( &globalException); // Noncompliant, the catch is supposed not to delete the pointer
+void fn(int i) {
+  // In this situation, the developer writing the "catch" has no way of knowing if the object pointed to by
+  // the exception should be deleted or not
+  if (i > 10) {
+    throw (&globalException); // Noncompliant: the catch is supposed not to delete the pointer
+  } else {
+    throw (new std::out_of_range{"Invalid index"}); // Noncompliant: the catch is supposed to delete the pointer
   }
-  else {
-    throw (new E ); // Noncompliant, the catch is supposed to delete the pointer
-  } 
 }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-class E { /* Implementation */};
-E globalException;
+std::out_of_range globalException("Index too high");
 
-void fn ( int i )
-{ 
-  if ( i > 10 ) {
-    throw ( globalException); // Throws a copy of the global variable
+void fn(int i) {
+  if (i > 10) {
+    throw (globalException); // Compliant: it throws a copy of the global variable
+  } else {
+    throw (std::out_of_range{"Invalid index"}); // Compliant: it throws a new object
   }
-  else {
-    throw (E{} ); // Throws a new object
-  } 
 }
 ----
 
 
 == Resources
 
+=== External coding guidelines
+
 * MISRA {cpp} 2008, 15-0-2 - An exception object should not have pointer type.
 
+=== Related rules
+
+* S1044 - Exception classes should be caught by reference
 
 ifdef::env-github,rspecator-view[]
 
@@ -75,7 +77,7 @@ Throw the exception by value.
 
 
 === on 14 Oct 2014, 18:34:18 Ann Campbell wrote:
-Also [~samuel.mercier] I don't think Maintainability is appropriate here. The risks are 
+Also [~samuel.mercier] I don't think Maintainability is appropriate here. The risks are
 
 * both caller and callee destroy the object - undefined behavior (likely runtime crash)
 * neither caller nor callee destroys the object - memory leak
