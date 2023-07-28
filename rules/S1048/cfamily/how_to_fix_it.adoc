@@ -72,3 +72,92 @@ void application(std::string const& name) {
   // ...
 }
 ----
+
+==== Noncompliant code example
+
+How to deal with exceptions in destructors highly depends on the application.
+Below, we present another way to solve the raised defect with an RAII-based class representing a temporary directory.
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+// Delete the given directory; throws OSException on failure.
+void deleteDirectory(Path path) noexcept(false) {
+  // ...
+}
+
+class TemporaryDirectory {
+  Path tmp;
+
+public:
+  TemporaryDirectory(); // Create a new temporary directory.
+
+  TemporaryDirectory(TemporaryDirectory const&) = delete;
+  TemporaryDirectory(TemporaryDirectory&&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory const&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+
+  ~TemporaryDirectory() {
+    deleteDirectory(tmp); // Noncompliant: may throw.
+  }
+};
+----
+
+==== Compliant solution
+
+Depending on the use case for those temporary directories, applying some remedial actions to avoid leaking secrets may be essential.
+Yet, it may be reasonable to simply log and silence the exception, for example, in the context of unit tests.
+
+It is possible to redesign the class:
+
+* Add a `remove` member function for scenarios that must carefully and reliably handle any `OSException`.
+  In sensitive contexts, the application should not solely rely on the destructor.
+* Call this `remove` function from the destructor and catch any exception.
+  This preserves the original class intent: an attempt to delete the directory is made.
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+// Delete the given directory; throws OSException on failure.
+void deleteDirectory(Path path) noexcept(false) {
+  // ...
+}
+
+class TemporaryDirectory {
+  Path tmp;
+
+public:
+  TemporaryDirectory(); // Create a new temporary directory.
+
+  TemporaryDirectory(TemporaryDirectory const&) = delete;
+  TemporaryDirectory(TemporaryDirectory&&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory const&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+
+  void remove() { deleteDirectory(tmp); }
+
+  ~TemporaryDirectory() {
+    try {
+      remove();
+    } catch (OSException const& e) {
+      logFailureToRemoveDirectory(e);
+    }
+  }
+ };
+----
+
+=== Pitfalls
+
+Using a _function-try-block_ in a destructor does not prevent the destructor from exiting with an exception.
+
+For example, the following destructor does not prevent the exception from escaping.
+
+[source,cpp]
+----
+~TemporaryDirectory() try {
+  remove();
+} catch (OSException const& e) {
+  logFailureToRemoveDirectory(e);
+}
+// `e` is automatically rethrow as if `throw;` was used.
+----
+
+Instead, a _try-block_ should be used within the destructor's body.
