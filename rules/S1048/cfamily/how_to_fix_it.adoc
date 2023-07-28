@@ -8,68 +8,67 @@ Such an exception should be caught and handled before the destructor exits.
 
 ==== Noncompliant code example
 
-In the following example, an exception is thrown when calling `std::map::at`.
-The program abruptly terminates when `tmp` gets destroyed during stack unwinding if a filesystem error occurs.
+In the following example, an exception is thrown inside the `Builder` destructor when calling `std::optional::value` on an empty optional.
+It follows that the program abruptly terminates when `b` gets destroyed during stack unwinding in `application()` if the user name lookup fails.
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class TemporaryDirectory {
-  std::filesystem::path directory;
+void logBuilderDestruction(int userId);
 
-public:
-  TemporaryDirectory();
-  TemporaryDirectory(TemporaryDirectory const&) = delete;
-  TemporaryDirectory(TemporaryDirectory&&) = delete;
-  TemporaryDirectory& operator=(TemporaryDirectory const&) = delete;
-  TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+class Builder {
+  std::optional<int> _id;
 
-  ~TemporaryDirectory() {
-    // Noncompliant: std::filesystem::filesystem_error can be thrown.
-    std::filesystem::remove_all(directory);
+ public:
+  void setId(int userId) { _id = userId; }
+
+  ~Builder() {
+    auto userId = _id.value(); // Noncompliant: may throw std::bad_optional_access
+    logBuilderDestruction(userId);
   }
 };
 
-void application() {
-  TemporaryDirectory tmp;
-  downloadDatabase(tmp);
-  std::map<ClientId, ClientName> database = readDatabaseFromDisk(tmp);
-  displayClientName(database.at(unknownClientID)); // Throws std::out_of_range.
+std::unordered_map<std::string, int>& getDatabase();
+
+int lookupUserId(std::string const& name) {
+  return getDatabase().at(name); // May throw std::out_of_range.
+}
+
+void application(std::string const& name) {
+  Builder b;
+  b.setId(lookupUserId(name)); // Throws an exception when the name is unknown.
+  // ...
 }
 ----
 
 ==== Compliant solution
 
-How to deal with the exception highly depends on the application.
-The solution below uses another overload of `std::filesystem::remove_all` and ensures no exceptions are thrown from the destructor.
+The solution below uses `std::optional::value_or` to ensure no exceptions are thrown from the destructor.
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-class TemporaryDirectory {
-  std::filesystem::path directory;
+void logBuilderDestruction(int userId);
 
-public:
-  TemporaryDirectory();
-  TemporaryDirectory(TemporaryDirectory const&) = delete;
-  TemporaryDirectory(TemporaryDirectory&&) = delete;
-  TemporaryDirectory& operator=(TemporaryDirectory const&) = delete;
-  TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+class Builder {
+  std::optional<int> _id;
 
-  ~TemporaryDirectory() {
-    // Compliant: the destructor never exits with an exception.
-    std::error_code ec;
-    if (std::filesystem::remove_all(directory, ec) == -1) {
-      std::cerr << "Failed to delete temporary directory." << std::endl;
-    }
+ public:
+  void setId(int userId) { _id = userId; }
+
+  ~Builder() {
+    auto userId = _id.value_or(-1); // Compliant: never throws.
+    logBuilderDestruction(userId);
   }
 };
 
-void application() {
-  TemporaryDirectory tmp;
-  downloadDatabase(tmp);
-  std::map<ClientId, ClientName> database = readDatabaseFromDisk(tmp);
-  displayClientName(database.at(unknownClientID)); // Throws std::out_of_range.
+std::unordered_map<std::string, int>& getDatabase();
+
+int lookupUserId(std::string const& name) {
+  return getDatabase().at(name); // May throw std::out_of_range.
+}
+
+void application(std::string const& name) {
+  Builder b;
+  b.setId(lookupUserId(name)); // Throws an exception when the name is unknown.
+  // ...
 }
 ----
-
-Note that this solution simply logs the event.
-This may not be appropriate for all kinds of applications.
