@@ -3,7 +3,7 @@ set -uo pipefail
 
 # Install script dependencies
 set -e
-cd rspec-tools && pipenv install
+cd rspec-tools && pipenv install && cd ..
 set +e
 
 # This script runs all tests; it doesn't exit at the first failure.
