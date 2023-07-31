@@ -49,6 +49,7 @@ fi
 #  * All asciidoc files are used/included.
 
 echo "Testing the following rules: ${affected_rules}"
+supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
 for dir in $affected_rules
 do
   if [ ! -d "$dir" ]; then
@@ -83,7 +84,6 @@ do
     fi
     rm -f stuck
 
-    supportedLanguages=$(sed 's/ or//' supported_languages.adoc | tr -d '`,')
     for language in "${dir}"/*/
     do
       language=${language%*/}
