@@ -32,7 +32,7 @@ branch_base_sha=$(git merge-base FETCH_HEAD HEAD)
 echo "Comparing against the merge-base: $branch_base_sha"
 changeset=$(git diff --name-only "$branch_base_sha"..HEAD)
 affected_rules=$(printf '%s\n' "$changeset" | grep '/S[0-9]\+/' | sed 's:\(.*/S[0-9]\+\)/.*:\1:' | sort | uniq)
-if "$(printf '%s\n' "$changeset" | grep -qv '/S[0-9]\+/')"; then
+if printf '%s\n' "$changeset" | grep -qv '/S[0-9]\+/'; then
   echo "Some rpec tools or shared_content changed, validating all rules"
   affected_rules=rules/*
 fi
