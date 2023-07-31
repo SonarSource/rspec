@@ -8,6 +8,88 @@ all member variables of a type with an implicit or explicit constructor will be 
 This is not the case for the others:
 if no initialization is explicitly written,
 the variable will be left uninitialized.
+Trivial types with a ``++default++``ed or implicit default constructor follow the aggregate initialization syntax:
+if you omit their initialization, they will not be initialized.
+
+[source,cpp]
+----
+struct Trivial {
+  int x;
+  int y;
+};
+
+struct Container {
+  Trivial t;
+  int arr[2];
+  Container() {
+    // Noncompliant
+    // this->t is not initialized
+    // this->t.x and this->t.y contain garbage
+    // this->arr contains garbage
+  }
+  Container(int) :t{}, arr{} {
+    // Compliant
+    // this->t.x and this->t.y are initialized to 0
+    // this->arr is initialized to {0, 0}
+  }
+  Container(int, int) :t{1}, arr{1} {
+    // Compliant
+    // this->t.x is 1
+    // this->t.y is 0
+    // this->arr is initialized to {1, 0}
+  }
+};
+
+struct DefaultedContainer {
+  Trivial t;
+  int arr[2];
+  DefaultedContainer() = default; // Noncompliant
+  // this->t and this->arr are not initialized
+};
+----
+
+The same is true for an explicit ``++default++``ed default constructor.
+[source,cpp]
+----
+struct Defaulted {
+  int x;
+  Defaulted() = default;
+};
+struct ContainerDefaulted {
+  Defaulted d;
+  ContainerDefaulted() {
+    // Noncompliant this->d.x is not initialized
+  }
+};
+----
+
+
+Even if some of the members have class initializers,
+the other members are still not initialized by default.
+
+[source,cpp]
+----
+struct Partial {
+  int x;
+  int y = 1;
+  int z;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Noncompliant
+    // this->p.x is not initialized
+    // this->p.y is initialized to 1
+    // this->p.z is not initialized
+  }
+  ContainrePartial(bool) :p{3} {
+    // Compliant
+    // this->p.x is initialized to 3
+    // this->p.y is initialized to 1
+    // this->p.z is initialized to 0
+  }
+};
+----
 
 It is a common expectation that an object be in a fully-initialized state after its construction.
 A partially initialized object breaks this assumption.
@@ -117,6 +199,38 @@ public:
   T t;
 
   U() : t() { t.s.j = 0; }  // Compliant
+};
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+struct Partial {
+  int x;
+  int y = 1;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Noncompliant: this->p.x is not initialized
+  }
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+struct Partial {
+  int x = 0;
+  int y = 1;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Compliant
+  }
 };
 ----
 
