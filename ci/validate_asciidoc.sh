@@ -9,6 +9,7 @@ exit_code=0
 
 readonly ALLOWED_RULE_SUB_FOLDERS=['common'];
 readonly ROOT=$PWD
+# Declare read-only variable PATH_WITH_VARIABLE and make it available to child processes
 declare -xr PATH_WITH_VARIABLE="$(realpath ./ci/replace_variables_in_path.sh)"
 
 # Validate user-visible rule descriptions
@@ -94,8 +95,9 @@ do
         if test -f "$RULE"; then
           # Errors emitted by asciidoctor don't include the full path.
           # https://github.com/asciidoctor/asciidoctor/issues/3414
-          # To ease debugging, we copy the rule.adoc into tmp_SXYZ_language.adoc,
-          # with the required header, and run asciidoctor on them instead.
+          # To ease debugging, we copy the rule.adoc into tmp_SXYZ_language.adoc
+          # and run asciidoctor on them instead.
+          # We add the implicit header "Description" to prevent an asciidoctor warning.
           TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
           echo "== Description" > "$TMP_ADOC"
           cat "$RULE" >> "$TMP_ADOC"
@@ -132,7 +134,7 @@ do
   fi
 done
 
-# Run asciidoctor and fails when a warning is emitted.
+# Run asciidoctor and fail if a warning is emitted.
 # Use the tmp_SXYZ_language.adoc files (see note above).
 ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
 if (( ADOC_COUNT > 0 )); then
