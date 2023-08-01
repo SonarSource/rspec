@@ -1,35 +1,104 @@
+Relying on an object that has been moved-from may lead to undefined behavior.
+
 == Why is this an issue?
 
-By specification, objects supporting move operations will be left in a valid but unspecified state after the move. Even if in a valid state, the fact of being in an unspecified state leads to undefined behavior, you should not rely on their value. 
+In accordance with the specification, objects supporting move operations will be left in a valid _but_ unspecified state after the move took place.
+Even if in a valid state, the fact of being in an unspecified state leads to undefined behavior.
 
 
-=== Noncompliant code example
+== What is the potential impact?
 
-[source,cpp]
+Using an object after it has been moved-from leads to *undefined behavior*.
+
+
+== How to fix it
+
+Do not use an object after it has been moved-from, i.e., has been used to move-construct another object.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-void f() {
-  A a;
+#include <algorithm> // std::fill
+#include <memory> // std::move
 
-  A a2 = std::move(a);
-  a.fun(); // Noncompliant, a is moved-from
+class DynamicIntArray {
+private:
+  size_t size;
+  int *data;
+
+public:
+  explicit DynamicIntArray(size_t size) : size(size), data(new int[size]) {
+    std::fill(data, &data[size], 42);
+  }
+  ~DynamicIntArray() {
+    delete[] data;
+    size = 0;
+  }
+  DynamicIntArray(DynamicIntArray &&other) noexcept
+      : size(other.size), data(other.data) {
+    other.data = nullptr;
+    other.size = 0;
+  }
+
+  int &getValueAt(size_t idx) { return data[idx]; }
+};
+
+int foo() {
+  DynamicIntArray a{32};
+
+  DynamicIntArray a2 = std::move(a);
+  int x = a.getValueAt(0); // Noncompliant, `a` is moved-from.
+  return x;
 }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-void f() {
-  A a;
+#include <algorithm> // std::fill
+#include <memory> // std::move
 
-  A a2 = std::move(a);
-  a2.fun();
+class DynamicIntArray {
+private:
+  size_t size;
+  int *data;
+
+public:
+  explicit DynamicIntArray(size_t size) : size(size), data(new int[size]) {
+    std::fill(data, &data[size], 42);
+  }
+  ~DynamicIntArray() {
+    delete[] data;
+    size = 0;
+  }
+  DynamicIntArray(DynamicIntArray &&other) noexcept
+      : size(other.size), data(other.data) {
+    other.data = nullptr;
+    other.size = 0;
+  }
+
+  int &getValueAt(size_t idx) { return data[idx]; }
+};
+
+int foo() {
+  DynamicIntArray a{32};
+
+  DynamicIntArray a2 = std::move(a);
+  int x = a2.getValueAt(0); // Ok, the correctly move-constructed variable `a2` can be used, of course.
+  return x;
 }
 ----
 
 
 == Resources
+
+=== External coding guidelines
 
 * https://www.securecoding.cert.org/confluence/x/O3s-BQ[CERT, EXP63-CPP.] - Do not rely on the value of a moved-from object
 
