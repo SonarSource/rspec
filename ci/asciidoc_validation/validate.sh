@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 TOPLEVEL="$(realpath "${TOPLEVEL}")"
 RULES_DIR="${TOPLEVEL}/rules"
 SHARED_CONTENT_DIR="${TOPLEVEL}/shared_content"
@@ -55,16 +55,16 @@ git ls-files --cached -- "${RULES_DIR}/**.adoc" "${SHARED_CONTENT_DIR}/**.adoc" 
 
 cross_references=$(grep_nofail -e 'CROSSREFERENCE' "${TMPOUT_DIR}/asciidoc_introspection" | cut -d ':' -f 4 | sort -u)
 if [[ -n "$cross_references" ]]; then
-  echo 'ERROR: Some rules try to include content from unallowed directories.'
-  echo 'To share content between rules, you should use the "shared_content" folder at the root of the repository.'
-  echo 'List of errors:'
-  echo "${cross_references}"
+  echo >&2 'ERROR: Some rules try to include content from unallowed directories.'
+  echo >&2 'To share content between rules, you should use the "shared_content" folder at the root of the repository.'
+  echo >&2 'List of errors:'
+  echo >&2 "${cross_references}"
   exit_code=1
 fi
 
 orphans=$(comm -1 -3 <(sort -u "${TMPOUT_DIR}/used_asciidoc_files") <(sort -u "${TMPOUT_DIR}/all_asciidoc_files"))
 if [[ -n "$orphans" ]]; then
-  printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
+  printf >&2 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
   exit_code=1
 fi
 
