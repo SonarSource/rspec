@@ -2,13 +2,41 @@ Relying on an object that has been moved-from may lead to undefined behavior.
 
 == Why is this an issue?
 
-In accordance with the specification, objects supporting move operations will be left in a valid _but_ unspecified state after the move took place.
+In accordance with the C++ language specification, objects supporting move operations will be left in a valid _but_ unspecified state after the move took place.
 Even if in a valid state, the fact of being in an unspecified state leads to undefined behavior.
+
+Move construction and its respective move semantics has been introduced in C++11.
+Moving objects becomes interesting if one wishes to get an object into a different scope, while no longer requiring the original object.
+While one would previously need to make a potentially expensive copy to get an object into another scope and then destroy the original, move constructors allow one to _move_ objects without performing a copy.
+Move constructors are typically implemented by "stealing" the resources held by another object specified as the move constructor's parameter, rather than making a copy.
+"Stealing" resources (e.g. memory) from another object is oftentimes much more efficient than making a copy and destroying the original, and can frequently be implemented by reassigning a few pointer variables.
+
+The ``++ObjectTy++`` defined in the following offers a default constructor, a destructor, a copy constructor and a move constructor as well as a copy-assignment and move-assignment operation.
+
+[source,cpp]
+----
+struct ObjectTy {
+  ObjectTy();
+  ~ObjectTy();
+  ObjectTy(const ObjectTy &other);
+  ObjectTy(ObjectTy &&other);
+
+  ObjectTy& operator=(const ObjectTy &other);
+  ObjectTy& operator=(ObjectTy &&other);
+};
+----
+
+=== Exceptions
+
+There are some C++ standard template library types such as `std::unique_ptr` for which the moved-from state is fully specified.
 
 
 == What is the potential impact?
 
 Using an object after it has been moved-from leads to *undefined behavior*.
+
+For programs that comprise undefined behavior, the compiler is no longer bound to the language specification.
+The application may crash or, even worse, the application appears to execute correctly while losing data or producing incorrect results, for instance.
 
 
 == How to fix it
@@ -22,7 +50,7 @@ Do not use an object after it has been moved-from, i.e., has been used to move-c
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-#include <algorithm> // std::fill
+#include <algorithm> // std::copy, std::fill
 #include <memory> // std::move
 
 class DynamicIntArray {
@@ -31,15 +59,25 @@ private:
   int *data;
 
 public:
+  // Constructor
   explicit DynamicIntArray(size_t size) : size(size), data(new int[size]) {
     std::fill(data, &data[size], 42);
   }
+  // Destructor
   ~DynamicIntArray() {
     delete[] data;
     size = 0;
   }
+  // Copy constructor (copies object)
+  DynamicIntArray(const DynamicIntArray &other)
+      : size(other.size), data(new int[other.size]) {
+    std::copy(other.data, &other.data[size], data);
+  }
+  // Move constructor ("steals" data, no allocation or copy necessary)
   DynamicIntArray(DynamicIntArray &&other) noexcept
       : size(other.size), data(other.data) {
+    // Ensure that the moved-from object `other` can be safely destructed (using
+    // delete[]).
     other.data = nullptr;
     other.size = 0;
   }
@@ -61,7 +99,7 @@ int foo() {
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-#include <algorithm> // std::fill
+#include <algorithm> // std::copy, std::fill
 #include <memory> // std::move
 
 class DynamicIntArray {
@@ -70,15 +108,25 @@ private:
   int *data;
 
 public:
+  // Constructor
   explicit DynamicIntArray(size_t size) : size(size), data(new int[size]) {
     std::fill(data, &data[size], 42);
   }
+  // Destructor
   ~DynamicIntArray() {
     delete[] data;
     size = 0;
   }
+  // Copy constructor (copies object)
+  DynamicIntArray(const DynamicIntArray &other)
+      : size(other.size), data(new int[other.size]) {
+    std::copy(other.data, &other.data[size], data);
+  }
+  // Move constructor ("steals" data, no allocation or copy necessary)
   DynamicIntArray(DynamicIntArray &&other) noexcept
       : size(other.size), data(other.data) {
+    // Ensure that the moved-from object `other` can be safely destructed (using
+    // delete[]).
     other.data = nullptr;
     other.size = 0;
   }
