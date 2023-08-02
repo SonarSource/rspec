@@ -162,9 +162,9 @@ git ls-files --cached -- 'rules/**.adoc' 'shared_content/**.adoc' \
 
 cross_references=$(grep -e 'CROSSREFERENCE' asciidoc_introspection | cut -d ':' -f 4 | sort -u)
 if [[ -n "$cross_references" ]]; then
-  echo 'ERROR: Some rule try to include content from unallowed directories.'
+  echo 'ERROR: Some rules try to include content from unallowed directories.'
   echo 'To share content between rules, you should use the "shared_content" folder at the root of the repository.'
-  echo "List of errors:"
+  echo 'List of errors:'
   echo "${cross_references}"
   exit_code=1
 fi
