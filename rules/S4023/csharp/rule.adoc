@@ -1,4 +1,138 @@
-include::../rule.adoc[]
+Empty interfaces should be avoided as they do not provide any functional requirements for implementing classes.
+
+== Why is this an issue?
+
+Empty interfaces are either useless or used as a https://en.wikipedia.org/wiki/Marker_interface_pattern[marker]. https://learn.microsoft.com/en-us/dotnet/standard/attributes/writing-custom-attributes[Custom attributes] are a better alternative to marker interfaces. See the _How to fix it_ section for more information.
+
+=== Exceptions
+
+This rule doesn't raise in any of the following cases:
+
+==== Aggregation of multiple interfaces
+
+[source,csharp]
+----
+public interface IAggregate: IComparable, IFormattable { } // Compliant: Aggregates two interfaces
+----
+
+==== Generic specialization
+
+An empty interface with a single base interface is compliant as long as the resulting interface binds a generic parameter or constrains it.
+
+[source,csharp]
+----
+// Compliant: Bound to a concrete type
+public interface IStringEquatable: IEquatable<string> { }
+// Compliant: Specialized by type parameter constraint
+public interface ICreateableEquatable<T>: IEquatable<T> where T: new() { } 
+----
+
+==== Custom attribute
+
+An empty interface is compliant if a custom attribute is applied to the interface.
+
+[source,csharp]
+----
+[Obsolete]
+public interface ISorted { } // Compliant: An attribute is applied to the interface declaration
+----
+
+== How to fix it
+
+Do any of the following to fix the issue:
+
+* Add members to the interface
+* Remove the useless interface
+* Replace the usage as a marker interface with custom attributes
+
+=== Code examples
+
+==== Noncompliant code example
+
+The empty interface does not add any functionality.
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public interface IFoo // Noncompliant
+{ 
+
+}
+----
+
+==== Compliant solution
+
+Add members to the interface to be compliant.
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+public interface IFoo
+{ 
+    void Bar();
+}
+----
+
+==== Noncompliant code example
+
+A typical use case for marker interfaces is doing type inspection via https://learn.microsoft.com/en-us/dotnet/framework/reflection-and-codedom/reflection[reflection] as shown below.
+
+The `IIncludeFields` marker interface is used to configure the JSON serialization of an object.
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+// An example marker interface
+public interface IIncludeFields { }
+
+public class OptInToIncludeFields: IIncludeFields { }
+
+Serialize(new OptInToIncludeFields());
+
+void Serialize<T>(T o)
+{
+    // Use reflection to check if the interface is applied to the type
+    var includeFields = o.GetType()
+        .GetInterfaces().Any(i => i == typeof(IIncludeFields));
+    var options = new JsonSerializerOptions()
+    {
+        // Take decisions based on the presence of the marker
+        IncludeFields = includeFields, 
+    };
+}
+----
+
+The same example can be rewritten using custom attributes. This approach is preferable because it is more fine-grained, allows parameterization, and is more flexible in type hierarchies.
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+// A custom attribute used as a marker
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class IncludeFieldsAttribute: Attribute { }
+
+[IncludeFields]
+public class OptInToIncludeFields { }
+
+Serialize(new OptInToIncludeFields());
+
+void Serialize<T>(T o)
+{
+    // Use reflection to check if the attribute is applied to the type
+    var includeFields = o.GetType()
+        .GetCustomAttributes(typeof(IncludeFieldsAttribute), inherit: true).Any();
+    var options = new JsonSerializerOptions()
+    {
+        // Take decisions based on the presence of the marker
+        IncludeFields = includeFields,
+    };
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/types/interfaces[Interfaces - define behavior for multiple types]
+* Wikipedia - https://en.wikipedia.org/wiki/Marker_interface_pattern[Marker interface pattern]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/standard/attributes/writing-custom-attributes[Writing custom attributes]
+
 
 ifdef::env-github,rspecator-view[]
 
