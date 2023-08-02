@@ -1,14 +1,45 @@
 Partially-initialized objects are surprising to the `class` users
 and might lead to hard-to-catch bugs.
+``class``es with constructors are expected to have all members initialized after their constructor finishes.
+
+This rule raises an issue when some members are left uninitialized after a constructor finishes.
 
 == Why is this an issue?
 
-In a {cpp} class,
-all member variables of a type with an explicit constructor
-or of non-trivial type with a default constructor will be automatically initialized.
-This is not the case for the others:
-if no initialization is explicitly written,
-the variable will be left uninitialized.
+In the following example, `PartInit::x` is left uninitialized after the constructor finishes.
+
+[source,cpp]
+----
+struct AutomaticallyInitialized {
+  int x;
+  AutomaticallyInitialized() : x(0) {}
+};
+
+struct PartInit {
+  AutomaticallyInitialized ai;
+  int x;
+  int y;
+  PartInit(int n) :y(n) {
+    // this->ai is initialized
+    // this->y is initialized
+    // Noncompliant: this->x is left uninitialized
+  }
+};
+----
+
+This leads to a garbage being printed in benign-looking code like this:
+
+[source,cpp]
+----
+PartInit pi(1);
+std::cout <<pi.y;
+----
+
+For this reason, constructors should always initialize all data members of a class.
+
+While in some cases data-members are initialized by their default constructor,
+in others they are left with garbage.
+
 Trivial types with a ``++default++``ed or implicit default constructor follow the aggregate initialization syntax:
 if you omit them in the initialization list, they will not be initialized.
 
@@ -90,10 +121,10 @@ struct ContainerPartial {
 };
 ----
 
+=== What is the potential impact?
+
 It is a common expectation that an object be in a fully-initialized state after its construction.
 A partially initialized object breaks this assumption.
-
-=== What is the potential impact?
 
 This comes with all the risks associated with uninitialized variables,
 and these risks propagate to all the classes using the faulty class as a type
@@ -108,7 +139,7 @@ include::../../../shared_content/cfamily/garbage_value_impact.adoc[]
 Aggregate classes do not initialize most of their data members
 (unless you explicitly value initialize them with `x{}` or `x()`)
 but allow their users to use nice and flexible initialization syntax.
-They will be ignored by this rule (but are the subject of S5558).
+They will be ignored by this rule (but are the subject of rule S5558).
 
 == How to fix it
 
@@ -125,8 +156,8 @@ If none of the above places are a good fit for a data member,
 ask yourself whether it belongs to this class.
 Instead of a data member, it might be more appropriate to keep the value
 
-- in a member of the class of a dats member
-  (delegating initialization to the member type),
+- as part of the class of a data member
+  (delegating initialization to the constructor of the member type),
 - in a derived class (delegating initialization to the derived class),
 - in a (potentially `static`) local variable of a member function, or
 - in a parameter of a member function.
