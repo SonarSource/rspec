@@ -1,20 +1,95 @@
 == Why is this an issue?
 
-A class can override the `operator new` when it needs to customize memory allocation.
-Not overriding the `operator delete` method means relying on the program to release the allocated memory automatically. It is unlikely that the program will know how to do it correctly. To ensure it does, the class must override the `operator delete` method in a complementary manner.
+The `operator new` allocates memory for objects, and the `operator delete` frees the memory allocated by the matching `operator new`. When a class needs to customize memory allocation, it can override the `operator new` to use a custom memory allocation strategy.
 
-[source,cpp]
+However, it is important to override the `operator delete` when the `operator new` is overridden because the compiler's default implementation of the `operator delete` provided may not be suitable for the custom memory allocation strategy used by the `operator new`. By defining the `operator delete` along with the `operator new`, the user can ensure that the memory is deallocated in a way consistent with the custom allocation strategy used by the `operator new`.
+
+For instance, if the `operator new` function draws memory from a preallocated buffer instead of allocating memory, the `operator delete` function should not call the `free` function to release the memory.
+
+On the other hand, if the `operator delete` is overridden without overriding the `operator new`, it is suspicious because it may not correctly release the memory allocated by the default `operator new`.
+
+=== What is the potential impact?
+
+Overriding both operators will ensure that your program does not consume more and more memory over time, eventually leading to a crash. Otherwise, memory leaks or memory corruption will result.
+Deallocating memory that was not allocated results in undefined behavior.
+
+== How to fix it
+
+Each override of the `operator new` should have a matching overridden `operator delete` and vice versa.
+
+=== Code examples
+
+Let's imagine there is a custom allocator `MyAllocator` which is defined like this:
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class AirPlane {
+class MyAllocator {
 public:
-  void* operator new(size_t size);
-  void operator delete(void* deadObject, size_t size); // Compliant: it releases the memory allocated in operator new()
+    void* allocate(size_t size) {
+        void* p = malloc(size);
+        return p;
+    }
+
+    void deallocate(void* p) {
+        free(p);
+    }
 };
 ----
 
-Overriding both operators will ensure that your program does not consume more and more memory over time, eventually leading to a crash. Otherwise, memory leaks or memory corruption will result.
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+class MyClass {
+public:
+    // Noncompliant: there is no matching override of the delete operator
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+private:
+    static MyAllocator allocator;
+};
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call the default implementation of the operator delete
+    // and this latter will not call the MyAllocator::deallocate function to correctly release the memory
+    return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+class MyClass {
+public:
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+    void operator delete(void* p) {
+        allocator.deallocate(p);
+    }
+
+private:
+    static MyAllocator allocator;
+};
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call MyClass::delete to correctly deallocate the memory
+    return 0;
+}
+----
 
 == Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/new/operator_new[`operator new`, ``++operator new[]++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/new/operator_delete[`operator delete`, ``++operator delete[]++``]
 
 === Standards
 
@@ -23,6 +98,10 @@ Overriding both operators will ensure that your program does not consume more an
 === External coding guidelines
 
 * {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#r15-always-overload-matched-allocationdeallocation-pairs[R.15: Always overload matched allocation/deallocation pairs]
+
+=== Related rules
+
+* S1232 - Appropriate memory de-allocation should be used
 
 
 ifdef::env-github,rspecator-view[]
