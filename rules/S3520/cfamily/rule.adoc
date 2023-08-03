@@ -144,9 +144,10 @@ void doSomething(int size) {
 
 === Going the extra mile
 
-{cpp}11 introduced smart pointers.
-Using these instead of manual memory management can mitigate most dynamic memory management issues
-including "double-free".
+
+include::../../../shared_content/cfamily/memory_raii_extra_mile.adoc
+
+Using _RAII_ objects instead of manual memory management can mitigate most dynamic memory management issues including "double-free".
 
 [source,cpp]
 ----
@@ -162,10 +163,103 @@ void doSomething(int size) {
 }
 ----
 
+=== Pitfalls
+
+While better, this is not a perfect solution.
+Any raw pointers of references to memory held by _RAII_ objects may still lead to a "double-free".
+Care must be taken to avoid the following pitfalls:
+
+==== Initialization of `std::shared_ptr`
+
+`std::shared_ptr` relies on an internal counter of owners inside a "control block".
+This control block is either created when the object is constructed with a raw pointer, or inherited when constructed from another `std::shared_ptr`.
+
+The owner counter is incremented when a `std::shared_ptr` inherits a "control block", and decremented when a `std::shared_ptr` is destructed or releases its contents.
+
+When the owner counter reaches 0, the dynamically allocated memory area pointed to is released.
+
+The following example will demonstrate two `std::shared_ptr` objects being created, with an intention to point to the same object.
+
+Noncompliant code example
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+void doSomething(char const* data) {
+  std::shared_ptr<std::string> p1(new std::string(data));
+  std::shared_ptr<std::string> p2(p1.get()); /// Noncompliant: Intended: std::shared_ptr<string> p2(p1);
+}
+----
+
+This is not compliant since `p2` does not inherit the "control block" of `p1`, and creates its own.
+When `p1` is destroyed, the string is destroyed as well.
+Due to the previously mentioned condition, when `p2` is destroyed, it will attempt to destroy the string as well, leading to a "double-free".
+
+To avoid this, only use copy/move construction and the `std::make_*` family of functions on initialization.
+Since `std::make_*` accepts construction arguments valid only for the underlying type, it will not allow a pointer to the same type to be passed as a parameter.
+This helps to avoid the confusion created by the constructor overloads.
+
+Compliant solution
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+void doSomething(char const* data) {
+  auto p1 = std::make_shared<std::string>(data);
+  auto p2 = p1; /// Compliant
+}
+----
+
+==== Initialization of `std::unique_ptr`
+
+Similar to `std::unique_ptr`, a "double-free" can lead from an erroneous initialization.
+This also comes from a confusion raised by the constructor overloads of this class.
+
+Noncompliant code example
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+void doSomething(char const* data) {
+  // Copy intended
+  std::unique_ptr<std::string> p1(new std::string(data));
+  // ...
+  std::unique_ptr<std::string> p2(p1.get()); /// Noncompliant: Since the copy constructor of std::unique_ptr is deleted, an user might attempt this.
+                                             /// If intention was to create another pointer - std::unqiue_ptr<std::string> p2(*p1);
+
+  // Ownership transfer intended
+  std::unqiue_ptr<std::string> p3(new std::string(data));
+  // ...
+  std::unique_ptr<std::string> p4(p3.get()); /// Noncompliant: Intention was to transfer ownership, double-free will happen.
+                                             /// Possibly intended code: std::unique_ptr<std::string> p4(p3.release());
+}
+----
+
+As with `std::shared_ptr`, using the `std::make_*` family of functions avoids this pitfall.
+This will not accept a pointer to object as a parameter.
+
+Compliant solution
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+void doSomething(char const* data) {
+  // Copy intended
+  auto p1 = std::make_unique<std::string>(data);
+  // ...
+  auto p2 = std::make_unique<std::string>(*p1); /// Compliant: Creates a copy.
+
+  // Ownership transfer intended
+  auto p3 = std::make_unique<std::string>(data);
+  auto p4 = std::move(p3); // Compliant: Will invoke move ctor, which is present in std::unique_ptr. More obvious intention.
+}
+----
+
+==== Out of scope access
+
+Extra care must be taken when passing the address of the memory contained in a RAII object.
+INCOMPLETE: TL; DR - Do not use std::shared/unique_ptr::get to send ptr out of scope. Do not release and delete manually because of deletors.
 
 == Resources
 
+=== Standards
+
 * CWE - https://cwe.mitre.org/data/definitions/415[415 Double Free]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/GdYxBQ[MEM30-C - Do not access freed memory]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/Gns-BQ[MEM51-CPP - Properly deallocate dynamically allocated resources]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/Zns-BQ[MEM56-CPP - Do not store an already-owned pointer value in an unrelated smart pointer]
 * OWASP - https://owasp.org/www-community/vulnerabilities/Doubly_freeing_memory[Doubly freeing memory]
 
 === Related rules
