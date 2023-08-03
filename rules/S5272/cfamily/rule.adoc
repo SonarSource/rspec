@@ -14,9 +14,29 @@ Move constructors are typically implemented by "stealing" the resources held by 
 Move-assignment operators behave analogously, except that they are used once the object that is moved-to has already been constructed.
 In contrast to copy-assignment operators, a move-assignment operator too "steals" the moved-from object's resources without the need for making a potentially expensive copy.
 
+
+=== What is the potential impact?
+
+Using an object after it has been moved-from typically leads to *undefined behavior*.
+
+For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
+The application may crash or, even worse, the application appears to execute correctly while losing data or producing incorrect results, for instance.
+
+Trying to access an object that has been moved-from frequently ends up in a null pointer dereference, since any pointers to the resources that have been "stolen" are set to ``++nullptr++`` as part of the move construction or move assignment.
+
+
+=== Exceptions
+
+There are some C++ standard template library types such as `std::unique_ptr` for which the moved-from state is fully specified.
+
+
+=== Exemplary type with move operations
+
 The ``++DynamicIntArray++`` type defined in the following manages a resource, i.e., memory, and shall serve as an example that showcases how move operations "steal" another object's resources and how they differ from making copies.
+
 While the copy constructor does make a full copy by allocating memory and then copying the ``++other++`` object's array values into the freshly allocated memory, the move constructor only assigns the pointer to point to ``++other++``'s dynamically allocated memory.
 It then sets the pointer of the ``++other++`` object to ``++nullptr++`` to allow its correct cleanup by the destructor of the ``++DynamicIntArray++`` type.
+
 The implementations for the copy- and move-assignment operators are similar with the main difference being that the objects have already been constructed.
 
 [source,cpp]
@@ -70,7 +90,7 @@ public:
     return *this;
   }
   // Move-assignment operator ("steals" data, no allocation or copy necessary)
-  DynamicIntArray &operator=(DynamicIntArray &&other) {
+  DynamicIntArray &operator=(DynamicIntArray &&other) noexcept {
     delete[] data; // Clean-up our own data before we "steal" from `other`.
     data = other.data;
     size = other.size;
@@ -94,29 +114,21 @@ int main() {
   // Use the assignment operators.
   a = d;            // Copy-assignment operator.
   c = std::move(e); // Move-assignment operator.
-  return 0;
+  int i = b.getValueAt(0); // Noncompliant: `b` has been moved-from during construction of `c`.
+  int j = e.getValueAt(0); // Noncompliant: `e` has been moved-from during move-assignment to `c`.
+  return i + j;
 }
 ----
 
 
-=== What is the potential impact?
-
-Using an object after it has been moved-from typically leads to *undefined behavior*.
-
-For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
-The application may crash or, even worse, the application appears to execute correctly while losing data or producing incorrect results, for instance.
-
-Trying to access an object that has been moved-from frequently ends up in a null pointer dereference, since any pointers to the resources that have been "stolen" are set to ``++nullptr++`` as part of the move construction or move assignment.
-
-
-=== Exceptions
-
-There are some C++ standard template library types such as `std::unique_ptr` for which the moved-from state is fully specified.
-
-
 == How to fix it
 
-Do not use objects after they have been moved-from such as objects that have been used to move construct others or objects that have been move assigned to other objects.
+There are several potential ways to fix this issue, depending on the concrete situation.
+Potential fixes include:
+
+* Use the object _before_ moving it
+* Create a copy of the desired object and operate on the copy
+* Completely remove the use of the object _after_ is has been moved-from
 
 
 === Code examples
@@ -125,6 +137,15 @@ Do not use objects after they have been moved-from such as objects that have bee
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
+#include <memory>
+
+class DynamicIntArray {
+ public:
+  DynamicIntArray(size_t, int);
+  int getValueAt(int);
+  // Further details of the `DynamicIntArray` implementation ...
+};
+
 int foo() {
   DynamicIntArray a{128, 0};
 
@@ -139,6 +160,15 @@ int foo() {
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
+#include <memory>
+
+class DynamicIntArray {
+ public:
+  DynamicIntArray(size_t, int);
+  int getValueAt(int);
+  // Further details of the `DynamicIntArray` implementation ...
+};
+
 int foo() {
   DynamicIntArray a{128, 0};
 
@@ -150,6 +180,15 @@ int foo() {
 
 [source,cpp]
 ----
+#include <memory>
+
+class DynamicIntArray {
+ public:
+  DynamicIntArray(size_t, int);
+  int getValueAt(int);
+  // Further details of the `DynamicIntArray` implementation ...
+};
+
 int foo() {
   DynamicIntArray a{128, 0};
 
@@ -160,6 +199,15 @@ int foo() {
 
 [source,cpp]
 ----
+#include <memory>
+
+class DynamicIntArray {
+ public:
+  DynamicIntArray(size_t, int);
+  int getValueAt(int);
+  // Further details of the `DynamicIntArray` implementation ...
+};
+
 int foo() {
   DynamicIntArray a{128, 0};
 
@@ -171,6 +219,15 @@ int foo() {
 
 [source,cpp]
 ----
+#include <memory>
+
+class DynamicIntArray {
+ public:
+  DynamicIntArray(size_t, int);
+  int getValueAt(int);
+  // Further details of the `DynamicIntArray` implementation ...
+};
+
 int foo() {
   DynamicIntArray a{128, 0};
 
@@ -185,6 +242,15 @@ int foo() {
 
 [source,cpp,diff-id=2,diff-type=noncompliant]
 ----
+#include <memory>
+
+class DynamicIntArray {
+ public:
+  DynamicIntArray(size_t, int);
+  int getValueAt(int);
+  // Further details of the `DynamicIntArray` implementation ...
+};
+
 void array_user(DynamicIntArray &&array);
 
 int bar() {
@@ -199,6 +265,15 @@ int bar() {
 
 [source,cpp,diff-id=2,diff-type=compliant]
 ----
+#include <memory>
+
+class DynamicIntArray {
+ public:
+  DynamicIntArray(size_t, int);
+  int getValueAt(int);
+  // Further details of the `DynamicIntArray` implementation ...
+};
+
 void array_user(DynamicIntArray &&array);
 
 int bar() {
