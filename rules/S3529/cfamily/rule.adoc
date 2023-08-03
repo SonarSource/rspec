@@ -27,16 +27,16 @@ intArray[3] = 10; // Noncompliant: memory is used after it was released
 ----
 
 Releasing a memory block by invoking `free` or operator `delete`
-informs the memory management system that the given block is no longer in use by the program.
+informs the memory management system that the program no longer uses the given block.
 Depending on the state and load of the program, such block can be then:
 
- * reused, i.e., the same pointer is returned by the allocation function,
+ * reused, i.e., the allocation function returns the same pointer,
  * released to the operating system, making it inaccessible to the program.
 
 === What is the potential impact?
 
 Accessing released memory causes undefined behavior.
-This means the compiler is not bound by the language standard anymore and your program has no meaning assigned to it.
+This means the compiler is not bound by the language standard anymore, and your program has no meaning assigned to it.
 
 Practically this has a wide range of effects:
 
@@ -108,20 +108,23 @@ intArray[9] = 0;  // Compliant
 === Going the extra mile
 
 In {cpp}, manually allocating and deallocating memory is considered a code smell.
-It is recommended to follow the _RAII_ idiom and create a class that manages the memory by allocating it in its constructor and freeing it in its destructor.
-Such an object can be then passed between functions (either as an argument or by being returned) instead of raw pointers.
-Passing such object by value guarantees that the heap memory remains accessible when accessed via the object.
+It is recommended to follow the _RAII_ idiom and create a class that manages the memory by allocating it when the object is constructed and freeing it when it is destroyed.
+Furthermore, copy and move operations on such objects are designed such that this object can be passed by value between functions (either as an argument or by being returned)
+in place of raw pointers.
+Depending on the type, passing an _RAII_ object operations may either allocate a new block of memory and copy the elements (`std::vector`),
+transfer ownership of the memory to constructed object (`std::unique_ptr`), or shared ownership and free memory when the last object is destroyed (`std::shared_ptr`).
+This guarantees that accessing a memory managed by such an object is not released as long as such an object is not modified or destroyed (some _RAII_ types provide a stronger guarantee).
 
 [source,cpp]
 ----
-std::vector<int> intArray; // manages an array on the heap
+std::vector<int> intArray(10); // manages an array of 10 integers, on the heap
 std::unique_ptr<Class> objPtr = std::make_unique<Class>(); // manages an object on the heap
 
 intArray[5]; // OK
 objPtr->foo(); // OK
 ----
 
-However, any raw pointers or references to memory held by such object may still lead to a use after free:
+However, any raw pointers or references to memory held by _RAII_ object may still lead to a use after free:
 [source,cpp]
 ----
 int* p1 = &intArray[0];    // becomes dangling when intArray is destroyed
