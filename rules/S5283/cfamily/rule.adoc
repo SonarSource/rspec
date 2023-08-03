@@ -1,23 +1,114 @@
+Creating a Variable Length Array (VLA) with the size that is not greater than zero leads to undefined behavior.
+
 == Why is this an issue?
 
-Variable length arrays should have a well-defined, positive size.
+Variable length arrays are used to allocate an stack size for the number of elements that is know at the runtime,
+for example: 
+
+[source,c]
+----
+void merge(int* tab, int size, int first) {
+  int res[size]; // allocate buffer for merging on stack
+  // merge the ranges [tab, tab + first) and [tab + first, tab + last) into res
+  memcpy(tab, res, size * sizeof(int));
+}
+----
+
+The syntax follows the one used by array with static size (where size is constant),
+and the value placed in the square brackets (`[size]` in above example) determine the size of the array.
+For both static and runtime sized array, a size is required to be greater than zero,
+however in case of VLAs this cannot be verified at compile-time, 
+and any program that creates such array with size that has a value of zero or is negative, 
+has undefined behavior.
+
+[source,c]
+----
+void example() {
+  int s = -1;
+  int vla[s]; // program compiles, and have undefined behavior
+  int arr[-1]; // program is ill-formed
+}
+----
+
+This defect may also manifest, when variable used as size is not inintialized, and it's value is not determinstic.
+This may result in negative or zero value being read from it in case of some runs of the program.
+ 
+[source,c]
+----
+void uninitialized() {
+  int s;      // uninitialized, the value is not determined
+  int vla[s]; // program compiles, have undefined behavior if value read from s is negative or zero
+}
+----
 
 
-=== Noncompliant code example
+A non-positive size of the VLAs may also be result of using a value that was loaded by the program from file,
+or other external resource, is used as a size, without previous validation.
+Such values as usually referred as being _tainted_.
+
+[source,c]
+----
+void loadFromInput() {
+  int size;
+  scanf("%d", &size); // loads size from input
+  char bytes[size]; // size may be negative
+  /* ... */  
+}
+----
+
+The above code will lead to undefined behavior, when the value of `size` load from the input is not greater from zero.
+This may happen due source data corruption, accidental user mistake, or malicious action. 
+
+=== What is the potential impact?
+
+Creating a variable length array with size smaller or equal to zero causes undefined behavior.
+This means the compiler is not bound by the language standard anymore and your program has no meaning assigned to it.
+
+Practically this can lead to wide range of the effects, and may lead to:
+
+* crashes, in particular segmentation faults, when program access memory that it is not allowed to,
+* memory corruption and data losses, when program overwrites bytes responsible for storing data or executable code,
+* stack overflow, when negative size is interpreted as very large positive number.
+
+Furthermore, in situation when VLA size is dependent on the user input, it can lead to vulnerabilities in the program. 
+
+== How to fix it
+
+Ensure that the size of the variable length array is always greater than zero.
+In case of value that depends on user input (is _tainted_), include appropariate checks to ensure that value is positive,
+before using it as size for VLA.
+
+=== Code examples
+
+==== Noncompliant code example
 
 [source,cpp]
 ----
+void directly() {
+}
+
 void f1() {
   int n;
   int a[n]; // Noncompliant; n is undefined
 }
 
-void f2() {
-  int n = 0;
-  int a[n]; // Noncompliant; array of zero size
-}
 ----
 
+=== Pitfalls
+
+// Review question: mentions that large VLA may lead to stack overflow, and there is no way for program to reject
+// allocation. In this case using heap may be better. However, this seem as not really related to problem in the rule.
+// and does not avoid it.
+
+== Resources
+
+=== Documentation
+
+* C++ reference - https://en.cppreference.com/w/c/language/array#Variable-length_arrays[Variable length arrays]
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/ARR32-C.+Ensure+size+arguments+for+variable+length+arrays+are+in+a+valid+range[ARR32-C. Ensure size arguments for variable length arrays are in a valid range]
 
 ifdef::env-github,rspecator-view[]
 
