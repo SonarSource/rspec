@@ -5,7 +5,7 @@
 set -uo pipefail
 
 # We could write complex checks to ensure only specific commands fail and emit
-# a specific error message, or we can rely on `set -xe` to consistently and
+# a specific error message. Instead, we rely on `set -xe` to consistently and
 # reliably exit with non-zero if any command fails and pinpoint which command
 # failed in the trace output. We also use a trap on ERR to give users a short
 # hint, and `set -E` to propagate this trap to shell functions and subshells.
