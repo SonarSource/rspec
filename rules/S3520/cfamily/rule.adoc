@@ -5,25 +5,32 @@ Deallocating a memory location more than once leads to undefined behavior.
 Using `delete` or `free(...)` releases the reservation on a memory location, making it immediately available for another purpose.
 Releasing the exact memory location twice leads to undefined behavior and can often crash the program.
 
+The C standard defines a call to `free` with a pointer to a memory area that has already been released as undefined behavior.
+
+The {cpp} standard defines the first `delete` call as the end of the lifetime for dynamically allocated memory.
+Access to memory past its lifetime end, including another `delete`, is undefined behavior.
+
 === What is the potential impact
 
-The effects of a "double-free" heavily depend on how the program's memory management is implemented.
-In the case of such a scenario, one of the following can be observed:
+The danger of a "double-free" comes directly from the fact that it is undefined behavior.
+Both the C and {cpp} standards describe it as such.
+Due to this, there is no guarantee that a crash will happen on a "double-free".
+
+The effects of a "double-free" depend entirely on the program's memory management implementation.
+In the case of such an event, one of the following can be observed:
 
 - The program's memory-management data structures can become corrupted.
 This will usually cause a crash.
-- In specific circumstances, corruption of mentioned data structures can cause two later calls to malloc to return the same pointer.
+- Demonstrative Example 2 on CWE - https://cwe.mitre.org/data/definitions/415[415 Double Free] presents a set of circumstances where a crash does not occur.
+In these circumstances, the corruption of the mentioned data structures causes two later calls to malloc to return the same pointer.
 This can lead to a buffer overflow vulnerability.
-- The {cpp} standard defines the first `delete` call as the end of the lifetime for dynamically allocated memory.
-Any access to that memory past its lifetime end, including another `delete`, is undefined behavior.
-Similar to free, this will usually cause a crash.
-Although this does not mean it is guaranteed, it can lead to worse issues.
 
 == How to fix it
 
 Besides just ensuring that every release happens once, the following best practices can also be used:
 
-- Release any allocated memory in the function it was allocated in.
+- Release any allocated memory in the function it was acquired in.
+Ideally, the release should be independent of any additional conditions.
 - After a `delete` or `free`, set the pointer's value to `nullptr` or `NULL`.
 `delete` of `nullptr` and `free` of `NULL` are defined as having no effect.
 
@@ -40,15 +47,17 @@ void doSomething(int size) {
 
   // ...
   if (condition) {
+    // ...
     free(cp);
   }
 
-  free(cp);  // Noncompliant
+  free(cp);  // Noncompliant: potential call to free in above branch
 }
 ----
 
 ==== Compliant solution
 
+Remove the unnecessary call to `free`:
 [source,c,diff-id=1,diff-type=compliant]
 ----
 void doSomething(int size) {
@@ -56,13 +65,27 @@ void doSomething(int size) {
 
   // ...
   if (condition) {
+    // ...
+  }
+
+  free(cp); // Compliant: no previous call to free in above branch
+}
+----
+
+Set the pointer to `NULL` after any call to `free`:
+[source,c]
+----
+void doSomething(int size) {
+  char* cp = (char*) malloc(sizeof(char) * size);
+
+  // ...
+  if (condition) {
+    // ...
     free(cp);
     cp = NULL; // This will prevent freeing the same memory again
-    // Alternatively, the call to free here can be removed since another will happen later
   }
 
   free(cp); // Compliant: if the memory was freed in the if-block above, free(NULL) is a no-op
-  cp = NULL; // This will prevent freeing the same memory again
 }
 ----
 
@@ -70,6 +93,7 @@ Example for {cpp}:
 
 ==== Noncompliant code example
 
+Remove the unnecessary invocation of `delete`:
 [source,cpp,diff-id=2,diff-type=noncompliant]
 ----
 void doSomething(int size) {
@@ -77,10 +101,11 @@ void doSomething(int size) {
 
   // ...
   if (condition) {
+    // ...
     delete p;
   }
 
-  delete p;  // Noncompliant
+  delete p;  // Noncompliant: potential invocation of delete in above branch
 }
 ----
 
@@ -93,13 +118,27 @@ void doSomething(int size) {
 
   // ...
   if (condition) {
+    // ...
+  }
+
+  delete p; // Compliant: no previous call to free in above branch
+}
+----
+
+Set the pointer to `nullptr` after any invocation of `delete`:
+[source,cpp]
+----
+void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    // ...
     delete p;
     p = nullptr; // This will prevent freeing the same memory again
-    // Alternatively, the invocation of delete here can be removed since another will happen later
   }
 
   delete p; // Compliant: if the memory was freed in the if-block above, operator delete of nullptr is a no-op
-  p = nullptr; // This will prevent freeing the same memory again
 }
 ----
 
