@@ -1,45 +1,150 @@
+Passing inappropriate arguments to standard C library functions for handling I/O streams results in undefined behavior.
+
 == Why is this an issue?
 
-The standard C library includes a number of functions for handling streams. If not called correctly, these functions can have undefined behavior. More specifically:
+The standard C library includes a number of functions for handling I/O streams.
+If not called correctly, these functions can introduce undefined behavior.
+More specifically:
 
-* ``++FILE*++`` should be checked for null before being used in a function that accesses the file content
-* The third argument of ``++fseek++`` must be ``++SEEK_SET++``, ``++SEEK_END++``, or ``++SEEK_CUR++``
+* ``++FILE*++`` should be checked for ``++NULL++`` before being used in a function that accesses the file's contents
+* The third argument of ``++fseek++`` must be either of ``++SEEK_SET++``, ``++SEEK_END++``, or ``++SEEK_CUR++``
 
+Failing to provide these parameters correctly introduces undefined behavior to the application.
 
-=== Noncompliant code example
-
-[source,cpp]
-----
-FILE *file1 = fopen("myFile", "r");
-fseek(file1, 1, SEEK_SET); // Noncompliant, file could be NULL
-fclose(file1);
-
-FILE *file2 = tmpfile();
-ftell(file2); // Noncompliant, file could be NULL
-if (file2) {
-  fseek(file2, 1, 3); // Noncompliant, third argument should either be SEEK_SET, SEEK_CUR or SEEK_END
-}
-fclose(file2);
-----
-
-
-=== Compliant solution
+Consider the following code.
+The call to ``++fopen++`` may fail and return ``++NULL++`` to indicate the failure.
+Passing the returned value to ``++fseek++`` without checking its value and handling an error appropriately, results in undefined behavior if the file cannot be opened correctly.
+There are a multitude of reasons while opening a file might fail.
 
 [source,cpp]
 ----
-FILE *file1 = fopen("myFile", "r");
-if (file1) {
-  fseek(file1, 1, SEEK_SET);
-  fclose(file1);
-}
+#include <stdio.h>
 
-FILE *file2 = tmpfile();
-if (file2) {
-  ftell(file2);
-  fseek(file2, 1, SEEK_END);
-  fclose(file2);
+size_t get_file_size() {
+  FILE *f = fopen("example_file.txt", "r");
+  fseek(f, 0L, SEEK_END); // Leads to undefined behavior, if `f` is NULL.
+  size_t size = ftell(f);
+  fclose(f);
+  return size;
 }
 ----
+
+
+== What is the potential impact?
+
+Using the standard C library's functions for handling I/O streams with inappropriate arguments leads to *undefined behavior*.
+
+For programs that comprise undefined behavior, the compiler is no longer bound to the language specification.
+The application may crash or, even worse, the application appears to execute correctly while losing data or producing incorrect results, for instance.
+
+Besides the aforementioned availability issues of the application, any attempts to dereference a ``++NULL++`` pointer made by the C library functions can, in rare circumstances, also results in security issues.
+
+
+== Hot to fix it
+
+Ensure that the pointer parameters passed to the standard C library's I/O stream handling functions are non-``++NULL++`` and also any other parameters such as the third argument of ``++fseek++`` carry appropriate values.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+int process_file(const char *fname) {
+  FILE *f = fopen(fname, "r");
+  fseek(f, 0L, SEEK_END);
+  size_t size = ftell(f);
+  rewind(f);
+  char *buf = (char *)malloc(size);
+  // Read file into buffer ...
+  fclose(f);
+  // Process buffer ...
+  free(buf);
+  return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+int process_file(const char *fname) {
+  FILE *f = fopen(fname, "r");
+  if (!f) {
+    printf("Could not open file!\n");
+    return 1;
+  }
+  fseek(f, 0L, SEEK_END);
+  size_t size = ftell(f);
+  rewind(f);
+  char *buf = (char *)malloc(size);
+  // Read file into buffer ...
+  fclose(f);
+  // Process buffer ...
+  free(buf);
+  return 0;
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+void process_tmp_file() {
+  FILE *f = tmpfile();
+  size_t pos_indicator = ftell(f); // Noncompliant: `f` could be NULL.
+  fseek(f, 0L, 3); // Noncompliant: 3rd argument should either be SEEK_SET, SEEK_CUR or SEEK_END.
+  // Further file processing ...
+  fclose(f);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+int process_tmp_file() {
+  FILE *f = tmpfile();
+  if (!f) {
+    printf("Could not create temporary file!\n");
+    return 1;
+  }
+  size_t pos_indicator = ftell(f); // Compliant: `f` cannot be NULL here.
+  fseek(f, 0L, SEEK_END); // Compliant: 3rd argument is now a valid value.
+  // Further file processing ...
+  fclose(f);
+  return 0;
+}
+----
+
+
+== Resources
+
+=== Documentation
+
+* MITRE - https://cwe.mitre.org/data/definitions/476[CWE-476 NULL Pointer Dereference]
+
+=== External coding guidelines
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/aDdGBQ[EXP01-J. Do not use a null in a case where an object is required]
+
+=== Related rules
+
+* S3807 ensures that appropriate arguments are passed to C standard library functions
+* S5488 ensures that appropriate arguments are passed to UNIX/POSIX functions
 
 
 ifdef::env-github,rspecator-view[]
