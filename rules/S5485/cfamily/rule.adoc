@@ -1,16 +1,18 @@
-Passing inappropriate arguments to standard C library functions for handling I/O streams results in undefined behavior.
+Passing insufficiently restricted arguments to standard C library functions for handling I/O streams results in undefined behavior.
 
 == Why is this an issue?
 
 The standard C library includes a number of functions for handling I/O streams.
-These functions require appropriate parameters.
-For instance, passing ``++NULL++`` for the ``++FILE*++`` parameter to ``++fseek++``, ``++ftell++``, ``++rewind++``, etc. will result in undefined behavior.
+These functions put certain restrictions on the values of their parameters, which are listed in the following:
 
-Furthermore, failing to pass either of ``++SEEK_SET++``, ``++SEEK_END++``, or ``++SEEK_CUR++`` as a third parameter to ``++fseek++`` will also result in undefined behavior.
+* The value for the ``++FILE*++``-typed parameter may _not_ be ``++NULL++``
+* The third argument of ``++fseek++`` must be either of ``++SEEK_SET++``, ``++SEEK_END++``, or ``++SEEK_CUR++``
+
+Failing to pass correctly restricted parameters will result in undefined behavior.
 
 Consider the following code.
 The call to ``++fopen++`` may fail and return ``++NULL++`` to indicate the failure.
-Passing the returned value to ``++fseek++`` without checking its value and handling an error appropriately, results in undefined behavior if the file cannot be opened correctly.
+Passing the returned value to ``++fseek++`` and ``++ftell++`` without checking its value and handling an error appropriately, results in undefined behavior if the file cannot be opened correctly.
 There are a multitude of reasons while opening a file might fail.
 
 [source,cpp]
@@ -20,7 +22,7 @@ There are a multitude of reasons while opening a file might fail.
 size_t get_file_size() {
   FILE *f = fopen("example_file.txt", "r");
   fseek(f, 0L, SEEK_END); // Leads to undefined behavior, if `f` is NULL.
-  size_t size = ftell(f);
+  size_t size = ftell(f); // Leads to undefined behavior, if `f` is NULL.
   fclose(f);
   return size;
 }
@@ -29,12 +31,14 @@ size_t get_file_size() {
 
 == What is the potential impact?
 
-Using the standard C library's functions for handling I/O streams with inappropriate arguments leads to *undefined behavior*.
+Using the standard C library's functions for handling I/O streams with insufficiently restricted arguments leads to *undefined behavior*.
 
-For programs that comprise undefined behavior, the compiler is no longer bound to the language specification.
-The application may crash or, even worse, the application appears to execute correctly while losing data or producing incorrect results, for instance.
+When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.
 
-Besides the aforementioned availability issues of the application, any attempts to dereference a ``++NULL++`` pointer made by the C library functions can, in rare circumstances, also results in security issues.
+Due to the resulting NULL pointer dereferences in the C library functions, the application might just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.
+
+Besides affecting the application's availability, NULL pointer dereferences may lead to code execution, in rare circumstances.
+If NULL is equivalent to the 0x0 memory address that can be accessed by privileged code, writing and reading memory is possible, which compromises the integrity and confidentiality of the application.
 
 
 == Hot to fix it
@@ -130,12 +134,9 @@ int process_tmp_file() {
 
 == Resources
 
-=== Documentation
+=== Standards
 
-* MITRE - https://cwe.mitre.org/data/definitions/476[CWE-476 NULL Pointer Dereference]
-
-=== External coding guidelines
-
+* CWE - https://cwe.mitre.org/data/definitions/476[476 NULL Pointer Dereference]
 * CERT - https://wiki.sei.cmu.edu/confluence/x/aDdGBQ[EXP01-J. Do not use a null in a case where an object is required]
 
 === Related rules
