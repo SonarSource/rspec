@@ -80,7 +80,10 @@ bad_diffs=$(grep_nofail -e 'DIFF' "${TMPOUT_DIR}/asciidoc_introspection" | extra
 if [[ -n "$bad_diffs" ]]
 then
   printf >&2 'ERROR: Diff highlighting is used incorrectly:\n-----\n%s\n-----\n' "$bad_diffs"
-  # exit_code=1 # FIXME: there are currently validation errors in the repo. Enable this line when they are all fixed.
+  if [[ -n "${RUNNING_CI_INTEGRATION_TEST:-}" ]]
+  then
+    exit_code=1 # FIXME: there are currently validation errors in the repo. Unconditionally enable this line when they are all fixed.
+  fi
 fi
 
 exit $exit_code

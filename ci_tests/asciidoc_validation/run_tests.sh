@@ -4,6 +4,8 @@
 
 set -uo pipefail
 
+export RUNNING_CI_INTEGRATION_TEST=1 # FIXME remove this once it's no longer needed in validate.sh
+
 # We could write complex checks to ensure only specific commands fail and emit
 # a specific error message. Instead, we rely on `set -xe` to consistently and
 # reliably exit with non-zero if any command fails and pinpoint which command
