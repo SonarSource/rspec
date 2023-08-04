@@ -5,7 +5,7 @@ Deallocating a memory location more than once leads to undefined behavior.
 Using `delete` or `free` releases the reservation on a memory location, making it immediately available for another purpose.
 Releasing the exact memory location twice leads to undefined behavior and can often crash the program.
 
-The C standard defines a call to `free` with a pointer to a memory area that has already been released as undefined behavior.
+The C standard defines as _undefined behavior_ a call to `free` with a pointer to a memory area that has already been released.
 
 The {cpp} standard defines the first `delete` call as the end of the lifetime for dynamically allocated memory.
 Access to memory past its lifetime end, including another `delete`, is undefined behavior.
@@ -13,7 +13,7 @@ Access to memory past its lifetime end, including another `delete`, is undefined
 === What is the potential impact
 
 The danger of a "double-free" comes directly from the fact that it is undefined behavior (in both C and {cpp}).
-Due to this, there is no guarantee that a crash will happen on a "double-free" when the resource is released or at all until the end of the program's execution.
+Note that there is no guarantee that a crash will happen on a "double-free" when the resource is released or at all until the end of the program's execution.
 
 The effects of a "double-free" depend entirely on the program's memory management implementation.
 In the case of such an event, one of the following can be observed:
@@ -22,7 +22,7 @@ In the case of such an event, one of the following can be observed:
 This will usually cause a crash.
 - Demonstrative Example 2 on https://cwe.mitre.org/data/definitions/415[CWE-415] presents a set of circumstances where a crash does not occur.
 In these circumstances, the corruption of the mentioned data structures causes two later calls to `malloc` to return the same pointer.
-This can lead to a sensitive data exposure vulnerability or a buffer overflow vulnerability.
+This can lead to a sensitive-data-exposure vulnerability or a buffer-overflow vulnerability.
 
 == How to fix it
 
@@ -164,7 +164,7 @@ void doSomething(int size) {
 
 === Pitfalls
 
-However, any raw pointers of references to memory held by _RAII_ objects may still lead to a "double-free".
+However, keeping a raw pointer or reference to memory held by _RAII_ objects may still lead to a "double-free".
 Care must be taken to avoid the following pitfalls:
 
 ==== Initialization of `std::shared_ptr`
@@ -185,7 +185,7 @@ void doSomething(char const* data) {
 
 Both objects are created from the raw pointer, leading them to have independent control blocks. Both will attempt to release the original memory area.
 
-To avoid this, only use copy/move construction and the `std::make_*` family of functions on initialization.
+To avoid this, only use copy/move construction for sharing ownership or the `std::make_shared` for initialization.
 
 Compliant solution
 [source,cpp,diff-id=3,diff-type=compliant]
@@ -208,17 +208,17 @@ void doSomething(char const* data) {
   // Creating another unique_ptr
   std::unique_ptr<std::string> p1(new std::string(data));
   // ...
-  std::unique_ptr<std::string> p2(p1.get()); // Noncompliant: Since the copy constructor of std::unique_ptr is deleted, an user might attempt this.
+  std::unique_ptr<std::string> p2(p1.get()); // Noncompliant: both p1 and p2 own the pointer now.
 
   // Transfering ownership
   std::unqiue_ptr<std::string> p3(new std::string(data));
   // ...
-  std::unique_ptr<std::string> p4(p3.get()); // Noncompliant: The intention was to transfer ownership, “double-free” will happen.
+  std::unique_ptr<std::string> p4(p3.get()); // Noncompliant: both p3 and p4 own the pointer now.
 }
 ----
 
-As with `std::shared_ptr`, using the `std::make_*` family of functions avoids this pitfall.
-This will not accept a pointer to an object as a parameter.
+As with `std::shared_ptr`, using `std::make_unique` avoids this pitfall.
+It does not accept a pointer to an existing object but only creates a new one.
 
 Compliant solution
 [source,cpp,diff-id=4,diff-type=compliant]
@@ -237,7 +237,7 @@ void doSomething(char const* data) {
 
 ==== Out-of-scope access
 
-Extra care must be taken when passing the memory address contained in a RAII object.
+Extra care must be taken when passing the memory address contained in an RAII object.
 
 Both `std::shared_ptr` and `std::unique_ptr` provide the `get` method to obtain a raw pointer to the contained memory.
 This should only be used to read the data.
