@@ -1,27 +1,151 @@
+Accessing a memory block that was already freed is undefined behavior.
+This rule flags access via a pointer or a reference to released heap memory.
+
 == Why is this an issue?
 
-Once a block of memory has been ``++free++``d, it becomes available for other memory requests. Whether it's re-used immediately, some time later, or not at all is random, and may vary based on load. Because of that randomness, tests may pass when running locally, but the odds are that such code will fail spectacularly in production by returning strange values, executing unexpected code, or causing a program crash.
+A program may allocate an additional memory block using the `malloc` function.
+When no longer needed, such memory blocks are released using the `free` function.
+After it is released, reading or writing to a heap-allocated memory block leads to undefined behavior.
 
+[source,c]
+----
+char *cp = (char*)malloc(sizeof(char)*10); // memory is allocated
+// all bytes in cp can be used here
+free(cp); // memory is released
+cp[9] = 0; // Noncompliant: memory is used after it was released
+----
 
-=== Noncompliant code example
+In addition to the `malloc` and `free` pair, in {cpp} a heap memory may be acquired by use of the operator `new`,
+and later released using the operator `delete`.
 
 [source,cpp]
 ----
-char *cp = malloc(sizeof(char)*10);
-
-// ...
-free(cp);
-
-cp[9] = 0;  // Noncompliant
+int *intArray = new int[20]; // memory is allocated
+// elements of intArray can be written or read here
+delete[] intArray; // memory is released
+intArray[3] = 10; // Noncompliant: memory is used after it was released
 ----
 
+Releasing a memory block by invoking `free` or operator `delete`
+informs the memory management system that the program no longer uses the given block.
+Depending on the state and load of the program, such block can be then:
+
+ * reused, i.e., the allocation function returns the same pointer,
+ * released to the operating system, making it inaccessible to the program.
+
+=== What is the potential impact?
+
+Accessing released memory causes undefined behavior.
+This means the compiler is not bound by the language standard anymore, and your program has no meaning assigned to it.
+
+Practically this has a wide range of effects:
+
+* The program may crash due to the memory no longer being accessible,
+  or due to unexpected value being read or written via the pointer.
+* Reading from the released memory may produce a garbage value.
+* When the memory was already reused to store sensitive data, such as passwords, it may lead to a vulnerability that uses this defect to extract information from an instance of the program.
+* Writing to released memory may change the value of the unrelated object in a remote part of the code if the memory was reused by it.
+  As different objects may reuse same the block of memory between runs, this leads to unintuitive and hard diagnose bugs.
+
+
+== How to fix it
+
+In most situations, the use of an uninitialized object is a strong indication of a defect in the code,
+and fixing it requires a review of the object allocation and deallocation strategies.
+Generally, the fix requires adjusting the code, so either:
+
+* Moving accesses to the memory before the deallocation
+* Moving the deallocation so it happens after all the uses
+
+If possible, it is desired to remove manual memory allocation,
+and replace it with stack-allocated objects, or in the case of {cpp},
+stack objects that manage memory (using RAII idiom).
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,c,diff-id=1,diff-type=noncompliant]
+----
+int *intArray = (int*)malloc(sizeof(int)*10);
+// ...
+free(intArray);
+intArray[9] = 0;  // Noncompliant
+----
+
+==== Compliant solution
+
+Release the memory after all of its uses.
+
+[source,c,diff-id=1,diff-type=compliant]
+----
+int *intArray = (int*)malloc(sizeof(int)*10);
+// ...
+intArray[9] = 0;  // Compliant
+free(intArray);
+----
+
+Alternatively, allocate the array on the stack,
+if the size of the array is known at compile-time:
+
+[source,c]
+----
+int intArray[10];
+// ...
+intArray[9] = 0;  // Compliant
+----
+
+In {cpp}, use `std::vector` with an arbitrary number of elements:
+
+[source,cpp]
+----
+std::vector<int> intArray;
+intArray.resize(10);
+// ...
+intArray[9] = 0;  // Compliant
+----
+
+=== Going the extra mile
+
+include::../../../shared_content/cfamily/memory_raii_extra_mile.adoc[]
+
+This guarantees that accessing a memory managed by such an object is not released as long as such an object is not modified or destroyed (some _RAII_ types provide a stronger guarantee).
+
+[source,cpp]
+----
+std::vector<int> intArray(10); // manages an array of 10 integers, on the heap
+std::unique_ptr<Class> objPtr = std::make_unique<Class>(); // manages an object on the heap
+
+intArray[5]; // OK
+objPtr->foo(); // OK
+----
+
+However, any raw pointers or references to memory held by _RAII_ object may still lead to a use after free:
+[source,cpp]
+----
+int* p1 = &intArray[0];    // becomes dangling when intArray is destroyed
+int* p2 = intArray.data(); // same as above
+Class* p3 = objPtr.get();  // becomes dangling, when objPtr releases the pointer
+----
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/416[MITRE, CWE-416] - Use After Free
-* https://wiki.sei.cmu.edu/confluence/x/GdYxBQ[CERT, MEM30-C.] - Do not access freed memory
-* https://wiki.sei.cmu.edu/confluence/x/onw-BQ[CERT, MEM50-CPP.] - Do not access freed memory
-* https://wiki.sei.cmu.edu/confluence/x/OXw-BQ[CERT, EXP54-CPP.] - Do not access an object outside of its lifetime
+=== Documentation
+
+- {cpp} reference - https://en.cppreference.com/w/cpp/language/raii[RAII]
+- {cpp} reference - https://en.cppreference.com/w/cpp/memory/unique_ptr[std::unique_ptr]
+- {cpp} reference - https://en.cppreference.com/w/cpp/memory/shared_ptr[std::shared_ptr]
+
+=== Standards
+
+* CWE - https://cwe.mitre.org/data/definitions/416[416 - Use After Free]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/GdYxBQ[MEM30-C - Do not access freed memory]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/onw-BQ[MEM50-CPP - Do not access freed memory]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/OXw-BQ[EXP54-CPP - Do not access an object outside of its lifetime]
+
+=== Related rules
+
+* S5025 recommends avoiding manual memory management
 
 ifdef::env-github,rspecator-view[]
 

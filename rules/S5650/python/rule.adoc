@@ -1,46 +1,88 @@
+This rule raises an issue when the object of a ``++with++`` statement is not a valid a context manager.
+
 == Why is this an issue?
 
-The https://docs.python.org/3/reference/compound_stmts.html#the-with-statement[``++with++`` statement] should only be used with https://docs.python.org/3/reference/datamodel.html#context-managers[context managers]. A context manager should have an ``++__enter__++`` and an ``++__exit__++`` method.
+The https://docs.python.org/3/reference/compound_stmts.html#the-with-statement[``++with++`` statement] is used to wrap the execution of a block with methods defined by a context manager. The https://docs.python.org/3/reference/datamodel.html#context-managers[context manager] handles the entry into, and the exit from, the desired runtime context for the execution of the block of code. To do so, a context manager should have an ``++__enter__++`` and an ``++__exit__++`` method.
 
-
-Note that only ``++async with++`` statements should be used on https://docs.python.org/3/reference/datamodel.html#async-context-managers[asynchronous context managers].
-
-
-This rule raises an issue when a ``++with++`` statement is used on something else than a context manager.
-
-
-=== Noncompliant code example
+Executing the  following block of code:
 
 [source,python]
 ----
-from contextlib import contextmanager, asynccontextmanager
+class MyContextManager:
+    def __enter__(self):
+        print("Entering")
 
-def generator():
-    yield 42
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print("Exiting")
 
-with generator() as e:  # Noncompliant
-    print(e)
 
-class Empty:
-    pass
+with MyContextManager():
+    print("Executing body")
+----
 
-with Empty():  # Noncompliant
-    pass
+will output:
+```
+Entering
+Executing body
+Exiting
+```
+
+If either the ``++__enter__++`` or the ``++__exit__++`` method is missing, an ``AttributeError`` will be raised instead.
+
+
+=== Note 
+When working with https://docs.python.org/3/reference/datamodel.html#async-context-managers[asynchronous context managers], the ``with`` statement should be replaced by ``++async with++``.
+
+== How to fix it
+
+To fix this issue, make sure that the object of the `with` statement is a valid context manager (implementing both ``++__enter__++`` and ``++__exit__++`` methods).
+
+If the object of the `with` statement is an asynchronous context manager, make sure to use an `async with` statement.
+
+== Code examples
+
+=== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+class MyContextManager:
+    ...
+
+with MyContextManager():  # Noncompliant: not a valid contex manager
+    ...
+
+def simple_contextmanager():
+    ...
+
+with simple_contextmanager() as e:  # Noncompliant: not a valid contex manager
+    ...
 
 @asynccontextmanager
 async def async_context_manager():
     yield 42
 
-with async_context_manager() as context:  # Noncompliant Missing "async"
-    print(context)
+def call_async_context_manager():
+    with async_context_manager() as context:  # Noncompliant: missing "async"
+        ...
 
 ----
 
 
 === Compliant solution
 
-[source,python]
+[source,python,diff-id=1,diff-type=compliant]
 ----
+class MyContextManager:
+    def __enter__(self):
+        print("Entering")
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print("Exiting")
+
+
+with MyContextManager():
+    ...
+
 from contextlib import contextmanager, asynccontextmanager
 
 @contextmanager
@@ -50,16 +92,7 @@ def simple_contextmanager():
     print("exit")
 
 with simple_contextmanager() as e:
-    print(e)
-
-class SimpleContextManager:
-    def __enter__(self):
-        print("enter")
-    def __exit__(self, type_, value, traceback):
-        print("exit")
-
-with SimpleContextManager():
-    pass
+    ...
 
 @asynccontextmanager
 async def async_context_manager():
@@ -67,10 +100,16 @@ async def async_context_manager():
 
 async def call_async_context_manager():
     async with async_context_manager() as context:
-        print(context)
-
-asyncio.run(call_async_context_manager())
+        ...
 ----
+
+== Resources
+
+=== Documentation
+
+* Python Documentation - https://docs.python.org/3/reference/compound_stmts.html#the-with-statement[``++with++`` statement]
+* Python Documentation - https://docs.python.org/3/reference/datamodel.html#context-managers[context managers]
+
 
 ifdef::env-github,rspecator-view[]
 

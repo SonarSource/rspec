@@ -1,0 +1,84 @@
+#!/usr/bin/ruby
+# Based on asciidoctor main ruby script.
+# This is only meant to introspect and log which asciidoc files were used.
+
+require 'asciidoctor'
+require 'asciidoctor/cli'
+
+class MainFileLogger < Asciidoctor::Extensions::Preprocessor
+  include Asciidoctor::Logging
+
+  def process document, reader
+    main_file = document.normalize_system_path(reader.file, document.reader.dir)
+
+    # This assumes unix-style path separator.
+    if nil == main_file.match(/^.*\/rules\/S\d+\/(\w+\/)?rule.adoc$/)
+      abort("Main file does not follow expected pattern: #{main_file}")
+    end
+
+    logger.info("ASCIIDOC LOGGER MAIN FILE:#{main_file}")
+    reader
+  end
+end
+
+class IncludeLogger < Asciidoctor::Extensions::IncludeProcessor
+  include Asciidoctor::Logging
+
+  def initialize document
+    @config = {} # Defined in parent class; will be updated by the extension registry mechanism.
+    @document = document
+
+    # @document.reader.file is not defined yet at this stage.
+    # Therefore we cannot compute the main file path and cache it.
+    # This cannot be done once in handles? because the object is then frozen.
+    # For these reasons, we end up recomputing the rule directory path each time.
+  end
+
+  def get_main_file reader
+    # See how include_stack is used:
+    # https://github.com/asciidoctor/asciidoctor/blob/f3800cc9c92faf8370041b2b27a61124318ed289/lib/asciidoctor/reader.rb#L669
+    if reader.include_stack.empty?
+      reader.file
+    else
+      main_frame = reader.include_stack.fetch(0)
+      main_frame.fetch(1)
+    end
+  end
+
+  def handles? target
+    include_path = @document.normalize_system_path(target, @document.reader.dir)
+
+    main_file = get_main_file(@document.reader)
+    main_file = @document.normalize_system_path(main_file, @document.reader.dir)
+    rule_dir = File.dirname(File.dirname(main_file))
+    rule_id = File.basename(rule_dir)
+    if rule_id == 'rules'
+      # This is a language-agnostic rule description.
+      rule_dir = File.dirname(main_file)
+      rule_id = File.basename(rule_dir)
+    end
+    git_dir = File.dirname(File.dirname(rule_dir))
+    shared_dir = File.join(git_dir, 'shared_content')
+
+    rule_dir = rule_dir + '/' # Don't allow S100 to include things from S1000.
+    if !include_path.start_with?(rule_dir) && !include_path.start_with?(shared_dir)
+      logger.info("ASCIIDOC LOGGER CROSSREFERENCE:#{rule_id} cross-references #{include_path}")
+    end
+
+    logger.info("ASCIIDOC LOGGER INCLUDE:#{include_path}")
+
+    false # Actually, this include processor does nothing.
+  end
+
+  # Intentionnaly no process function here.
+end
+
+Asciidoctor::Extensions.register do
+  preprocessor MainFileLogger
+  include_processor IncludeLogger.new @document
+end
+
+invoker = Asciidoctor::Cli::Invoker.new ARGV
+GC.start
+invoker.invoke!
+exit invoker.code
