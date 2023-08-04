@@ -78,7 +78,7 @@ run_test "test_bad_cross_ref" \
   "S1000 cross-references .*rules/S100/java/bad.adoc"
 
 run_test "test_diff_source" \
-  "ERROR: Diff sources are incorrectly used:" \
+  "ERROR: Diff highlighting is used incorrectly:" \
   "\[S100/cfamily] diff-type is missing in .*/rules/S100/cfamily/rule.adoc:3" \
   "\[S100/cfamily] diff-id is missing in .*/rules/S100/cfamily/rule.adoc:8" \
   "\[S100/cfamily] diff-type 'bad' is not valid in .*/rules/S100/cfamily/rule.adoc:13" \

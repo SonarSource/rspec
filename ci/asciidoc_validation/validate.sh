@@ -79,7 +79,7 @@ fi
 bad_diffs=$(grep_nofail -e 'DIFF' "${TMPOUT_DIR}/asciidoc_introspection" | extract_messages_from_log)
 if [[ -n "$bad_diffs" ]]
 then
-  printf >&2 'ERROR: Diff sources are incorrectly used:\n-----\n%s\n-----\n' "$bad_diffs"
+  printf >&2 'ERROR: Diff highlighting is used incorrectly:\n-----\n%s\n-----\n' "$bad_diffs"
   # exit_code=1 # FIXME: there are currently validation errors in the repo. Enable this line when they are all fixed.
 fi
 
