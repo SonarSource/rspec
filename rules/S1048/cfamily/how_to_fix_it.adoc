@@ -1,0 +1,182 @@
+== How to fix it
+
+This rule raises an issue when an exception is thrown from within a destructor or from a function transitively called by a destructor.
+
+Such an exception should be caught and handled before the destructor exits.
+
+=== Code examples
+
+==== Noncompliant code example
+
+In the following example, an exception is thrown inside the `Builder` destructor when calling `std::optional::value` on an empty optional.
+It follows that the program abruptly terminates when `b` gets destroyed during stack unwinding in `application()` if the user name lookup fails.
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+void logBuilderDestruction(int userId);
+
+class Builder {
+  std::optional<int> _id;
+
+ public:
+  void setId(int userId) { _id = userId; }
+
+  ~Builder() {
+    auto userId = _id.value(); // Noncompliant: may throw std::bad_optional_access
+    logBuilderDestruction(userId);
+  }
+};
+
+std::unordered_map<std::string, int>& getDatabase();
+
+int lookupUserId(std::string const& name) {
+  return getDatabase().at(name); // May throw std::out_of_range.
+}
+
+void application(std::string const& name) {
+  Builder b;
+  b.setId(lookupUserId(name));
+  // lookupUserId throws an exception when the name is unknown.
+  // This causes the stack to unwind: local variables alive at
+  // this point, such a "b", are destroyed. This happens before
+  // the invocation of "b.setId()" so "b._id" is still empty
+  // when its destructor is executed.
+
+  // ...
+}
+----
+
+==== Compliant solution
+
+The solution below uses `std::optional::value_or` to ensure no exceptions are thrown from the destructor.
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+void logBuilderDestruction(int userId);
+
+class Builder {
+  std::optional<int> _id;
+
+ public:
+  void setId(int userId) { _id = userId; }
+
+  ~Builder() {
+    auto userId = _id.value_or(-1); // Compliant: never throws.
+    logBuilderDestruction(userId);
+  }
+};
+
+std::unordered_map<std::string, int>& getDatabase();
+
+int lookupUserId(std::string const& name) {
+  return getDatabase().at(name); // May throw std::out_of_range.
+}
+
+void application(std::string const& name) {
+  Builder b;
+  b.setId(lookupUserId(name));
+  // lookupUserId throws an exception when the name is unknown.
+  // This causes the stack to unwind: local variables alive at
+  // this point, such a "b", are destroyed. This happens before
+  // the invocation of "b.setId()" so "b._id" is still empty
+  // when its destructor is executed.
+
+  // ...
+}
+----
+
+==== Noncompliant code example
+
+How to deal with exceptions in destructors highly depends on the application.
+Below, we present another way to solve the issue with an RAII-based class representing a temporary directory.
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+// Delete the given directory; throws OSException on failure.
+void deleteDirectory(Path path) noexcept(false) {
+  // ...
+}
+
+class TemporaryDirectory {
+  Path tmp;
+
+public:
+  TemporaryDirectory(); // Create a new temporary directory.
+
+  TemporaryDirectory(TemporaryDirectory const&) = delete;
+  TemporaryDirectory(TemporaryDirectory&&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory const&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+
+  ~TemporaryDirectory() {
+    deleteDirectory(tmp); // Noncompliant: may throw.
+  }
+};
+----
+
+==== Compliant solution
+
+Depending on the use case for those temporary directories, applying some remedial actions to avoid leaking secrets may be essential.
+Yet, it may be reasonable to simply log and silence the exception, for example, in the context of unit tests.
+
+It is possible to redesign the class:
+
+* Add a `remove` member function for scenarios that must carefully and reliably handle any `OSException`.
+  In sensitive contexts, the application should not solely rely on the destructor.
+* Call this `remove` function from the destructor and catch any exception.
+  This preserves the original class intent: an attempt to delete the directory is made.
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+// Delete the given directory; throws OSException on failure.
+void deleteDirectory(Path path) noexcept(false) {
+  // ...
+}
+
+class TemporaryDirectory {
+  Path tmp;
+
+public:
+  TemporaryDirectory(); // Create a new temporary directory.
+
+  TemporaryDirectory(TemporaryDirectory const&) = delete;
+  TemporaryDirectory(TemporaryDirectory&&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory const&) = delete;
+  TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+
+  void remove() { deleteDirectory(tmp); }
+
+  ~TemporaryDirectory() {
+    try {
+      remove();
+    } catch (OSException const& e) {
+      logFailureToRemoveDirectory(e);
+    }
+  }
+ };
+----
+
+=== Pitfalls
+
+Using a _function-try-block_ in a destructor does not prevent the destructor from exiting with an exception.
+
+For example, the following destructor does not prevent the exception from escaping.
+
+[source,cpp]
+----
+~TemporaryDirectory() try {
+  remove();
+} catch (OSException const& e) {
+  logFailureToRemoveDirectory(e);
+}
+// `e` is automatically rethrow as if `throw;` was used.
+----
+
+Instead, a _try-block_ should be used within the destructor's body.
+
+=== Going the extra mile
+
+It is possible to detect whether a destructor is executed during stack unwinding and act accordingly; for example, to implement a transaction rollback action.
+
+The {cpp}17 https://en.cppreference.com/w/cpp/error/uncaught_exception[`std::uncaught_exceptions`] function can be used for this purpose, as explained in https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4152.pdf[N4152].
+This function ends with an `s` and should not be confused with `std::uncaught_exception`, which got removed in {cpp}20 for the reasons exposed in the paper.
