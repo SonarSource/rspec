@@ -1,0 +1,158 @@
+This vulnerability exposes the system to various operational overloads that can
+lead to either a technical denial of service and/or business disruptions.
+
+== Why is this an issue?
+
+Loop boundary injections occur in an application when the application retrieves
+data from a user or a third-party service and inserts it into a loop or a function
+acting as a loop, without sanitizing it first.
+
+If an application contains a loop that is vulnerable to injections, 
+it is exposed to attacks that target its availability where that loop is used.
+
+A user with malicious intent carefully performs actions whose goal is to cause the 
+loop to run for more iterations than the developer intended, resulting in unexpected
+behavior or even a crash of the program.
+
+After creating the malicious request, the attacker can attack the servers
+affected by this vulnerability without relying on any prerequisites.
+
+=== What is the potential impact?
+After discovering the injection point, attackers insert data into the
+vulnerable field to either make the affected component inaccessible, attempt a
+malfunction, or read from an artifact that exceeds the developer's intended
+boundaries.
+
+In languages that don't enforce memory access checks, this can also lead to a buffer
+overflow or underflow which may result in sensitive information disclosure or
+remote code execution.
+
+==== Self Denial of service
+
+If the component affected by this vulnerability is not a bottleneck that
+acts as a single point of failure (SPOF) within the application, the denial of
+service might only affect the attacker who initiated it.
+
+Even if the denial of service has little direct impact, it can cause secondary
+effects in architectures that use containers and container orchestrators. It
+could cause unexpected container failures or resource overconsumption,
+for example.
+
+==== Infrastructure SPOFs
+
+A denial of service attack can be critical to the enterprise if it
+targets a SPOF component. Sometimes the SPOF is a software architecture
+vulnerability (such as a single component on which multiple critical components
+depend) or an operational vulnerability (for example, insufficient container
+creation capabilities or failures from containers to terminate).
+
+In either case, attackers aim to exploit the infrastructure weakness by sending
+as many malicious payloads as possible, using potentially huge offensive
+infrastructures.
+
+These threats are particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public class ExampleController : Controller
+{
+    public IActionResult Compute(int data)
+    {
+        for (int i = 0; i < data; i++) // Noncompliant
+        {
+            Console.WriteLine("Hello");
+        }
+
+        Enumerable
+            .Range(1, data) // Noncompliant
+            .ToList()
+            .ForEach(i => Console.WriteLine("World"));
+
+        return Ok();
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+public class ExampleController : Controller
+{
+    public static int MAX_BOUNDARY = 1337;
+    public static int MIN_BOUNDARY = 1;
+
+    public IActionResult Compute(int data)
+    {
+        
+        if (MIN_BOUNDARY > data)
+        {
+            data = MIN_BOUNDARY;
+        }
+        else if (data > MAX_BOUNDARY)
+        {
+            data = MAX_BOUNDARY;
+        }
+
+        for (int i = 0; i < data; i++)
+        {
+            Console.WriteLine("Hello");
+        }
+
+        Enumerable
+            .Range(1, data) // Noncompliant
+            .ToList()
+            .ForEach(i => Console.WriteLine("World"));
+
+        return Ok();
+    }
+}
+----
+
+=== How does this work?
+
+==== Set limits
+
+Validate loop variable values to ensure they fall within the expected bounds.
+If a value falls outside of these bounds, reject it as invalid or adjust it to
+bring it within bounds. This guarantees that the loop will only iterate over
+the expected number of elements or perform the expected number of iterations.
+
+Do not assume that users will provide sensible values. Attackers intentionally
+choose unusual values to cause the system to misbehave.
+
+== Resources
+
+=== Standards
+
+* https://owasp.org/Top10/A03_2021-Injection/[OWASP Top 10 2021 Category A3] - Injection
+* https://www.owasp.org/index.php/Top_10-2017_A1-Injection[OWASP Top 10 2017 Category A1] - Injection
+* https://cwe.mitre.org/data/definitions/606[MITRE, CWE-606] - Unchecked Input for Loop Condition
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Change this code to set loop bounds directly from user-controlled data.
+
+=== Highlighting
+
+"[varname]" is tainted (assignments and parameters)
+
+this argument is tainted (method invocations)
+
+the returned value is tainted (returns & method invocations results)
+
+'''
+endif::env-github,rspecator-view[]

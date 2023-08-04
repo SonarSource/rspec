@@ -1,9 +1,11 @@
 == Why is this an issue?
 
-When using Spring proxies, calling a method in the same class (e.g. ``++this.aMethod()++``) with an incompatible ``++@Transactional++`` requirement will result in runtime exceptions because Spring only "sees" the caller and makes no provisions for properly invoking the callee. 
+Transactional methods have a propagation type parameter in the @Transaction annotation that specifies the requirements about the transactional context in which the method can be called and how it creates, appends, or suspends an ongoing transaction.
 
+When an instance that contains transactional methods is injected, Spring uses proxy objects to wrap these methods with the actual transaction code.
 
-Therefore, certain calls should never be made within the same class:
+However, if a transactional method is called from another method in the same class, the `this` argument is used as the receiver instance instead of the injected proxy object, which bypasses the wrapper code.
+This results in specific transitions from one transactional method to another, which are not allowed:
 
 [frame=all]
 [cols="^1,^1"]
@@ -20,24 +22,85 @@ Therefore, certain calls should never be made within the same class:
 | SUPPORTS | MANDATORY, NESTED, NEVER, NOT_SUPPORTED, REQUIRED, REQUIRES_NEW 
 |===
 
-=== Noncompliant code example
+== How to fix it
 
-[source,java]
+Change the corresponding functions into a compatible propagation type.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-
-@Override
 public void doTheThing() {
   // ...
-  actuallyDoTheThing();  // Noncompliant
+  actuallyDoTheThing(); // Noncompliant, call from non-transactional to transactional
 }
 
-@Override
 @Transactional
 public void actuallyDoTheThing() {
   // ...
 }
 ----
 
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@Transactional
+public void doTheThing() {
+  // ...
+  actuallyDoTheThing(); // Compliant
+}
+
+@Transactional
+public void actuallyDoTheThing() {
+  // ...
+}
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+@Transactional
+public void doTheThing() {
+  // ...
+  actuallyDoTheThing(); // Noncompliant, call from REQUIRED to REQUIRES_NEW
+}
+
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+public void actuallyDoTheThing() {
+  // ...
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+@Transactional
+public void doTheThing() {
+  // ...
+  actuallyDoTheThing(); // Compliant, call from REQUIRED to MANDATORY
+}
+
+@Transactional(propagation = Propagation.MANDATORY)
+public void actuallyDoTheThing() {
+  // ...
+}
+----
+
+== Resources
+
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Propagation.html[Spring Framework 6 API: Enum Class propagation]
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html[Spring Framework 6 API: Annotation Interface Transactional]
+- https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/tx-propagation.html[Spring 6 Documentation: Transaction Propagation]
+
+=== Articles & blog posts
+
+- https://www.baeldung.com/spring-transactional-propagation-isolation[Baeldung: Transaction Propagation and Isolation in Spring @Transactional]
+- https://dzone.com/articles/spring-transaction-propagation[DZone: Spring Transaction Propagation in a Nutshell]
 
 ifdef::env-github,rspecator-view[]
 

@@ -1,42 +1,146 @@
+Use the matching way of deallocating the objects to the one used to allocate them to avoid segmentation faults and memory leaks.
+
 == Why is this an issue?
 
-The same form that was used to create an object should always be used to delete it. Specifically, arrays should be deleted with ``++delete []++`` and objects should be deleted with ``++delete++``. To do otherwise will cause segfaults (in the case of deleting an object with ``++delete []++``) and memory leaks (in the case of deleting an array with ``++delete++``).
+The same form that was used to create an object should always be used to delete it.
+Specifically, deallocation should correspond to allocation as per the table below.
 
-This is also true when memory was allocated with ``++malloc++``, or one of its variants, then it must be released using ``++free()++`` not ``++delete++``. Similarly memory allocated by ``++new++`` can not be released using ``++free++`` instead of ``++delete++``.
+.Matching allocation and deallocation ways
+[options="header"]
+|============================================
+|Allocation                   | Deallocation
+|`p = new T();`               | `delete p;`
+|`+p = new T[5];+`            | `+delete[] p;+`
+|`p = malloc(sizeof(int)*5);` | `free(p);`
+|============================================
+
+=== What is the potential impact?
+
+Using a mismatching deallocation construct leads to undefined behavior.
+This means the compiler is not bound by the language standard anymore and your program has no meaning assigned to it.
+
+Practically, you can observe the following effects:
+
+- Deleting a single object with `+delete[]+` leads to a segmentation fault
+  trying to access memory-manager metadata that is not there.
+- Deleting an array with `delete` leads to a memory leak because it will
+  delete and deallocate only the first element of the array.
+- Freeing with `free()` the underlying memory for an object constructed with `new`
+  will skip the destructor call, most likely leading to a memory leak.
+  Additionally, a destructor might still be called on deallocated memory causing further undefined behavior.
+
+=== Why is the issue raised for a type with a trivial destructor?
+
+Automatic constructor and destructor invocation is not the only difference between
+the C-style `malloc`/`free` memory allocator, and the {cpp}-style `new`/`delete`.
+
+These two memory allocators use different metadata and different algorithms.
+For example, `new` has an array form `+new[]+` that stores an "array cookie".
 
 
-=== Noncompliant code example
+The following example causes undefined behavior,
+even though the destructor has now effect,
+because `free()` expects different metadata for the pointer it is passed
+than what is arranged by the `new` operator:
 
 [source,cpp]
 ----
-string* _pString1 = new string;
-string* _pString2 = new string[100];
+struct TrivialClass {};
+
+
+TrivialClass* p = new TrivialClass();
+free(p); // Noncompliant: no-op destructor is skipped; still undefined behavior
+----
+
+In the code below, `+delete[]+` expects to find an array cookie and fails:
+
+[source,cpp]
+----
+int* p = malloc(10 * sizeof(int));
+delete[] p; // Noncompliant: expect array cookie
+----
+
+
+If you need allocate memory in a custom `T::operator new(std::size_t)`,
+you should use `void* ::operator new(std::size_t)` and not `free()`.
+
+Note that `::operator new` is still not compatible with `free()`:
+
+[source,cpp]
+----
+auto p = ::operator new(10 * sizeof(int));
+free(p); // Noncompliant
+----
+
+== How to fix it
+
+Use the deallocation mechanism that matches the allocation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+std::string* _pString1 = new std::string;
+std::string* _pString2 = new std::string[100];
 char* _pChar = (char *) malloc(100);
 
-delete [] _pString1; // Noncompliant; an object was declared but array deletion is attempted
-delete _pString2;  // Noncompliant; an array was declared but an object (the first in the array) is deleted
+delete [] _pString1; // Noncompliant: an object was declared, but array deletion is attempted
+delete _pString2;  // Noncompliant: an array was declared, but an object (the first in the array) is deleted
 delete _pChar; // Noncompliant
 ----
 
 
-=== Compliant solution
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+std::string* _pString1 = new std::string;
+std::string* _pString2 = new std::string[100];
+char* _pChar = (char *) malloc(100);
+
+delete _pString1; // Compliant: delete the object
+delete [] _pString2; // Compliant: delete the entire array
+free(_pChar); // Compliant: free the memory C-style
+----
+
+=== Going the extra mile
+
+include::../../../shared_content/cfamily/memory_raii_extra_mile.adoc[]
+
+This guarantees that the memory managed by such object is automatically deallocated by the destructor,
+using the matching form of deallocation.
+ 
 
 [source,cpp]
 ----
-string* _pString1 = new string;
-string* _pString2 = new string[100];
-char* _pChar = (char *) malloc(100);
+std::string _pString1a; // A local variable, that manages heap memory
 
-delete _pString1;
-delete [] _pString2; 
-free(_pChar);
+// Use a smart pointer when you do need heap allocation
+auto _pString1b = std::make_unique<std::string>();
+
+std::vector<std::string> _pString2(100);
+std::string _pChar{100, '\0'};
+
+// No need to call "delete" or "free".
+// Memory allocated for the three objects above will be freed automatically
+// when they go out of scope.
 ----
-
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/Gns-BQ[CERT, MEM51-CPP.] - Properly deallocate dynamically allocated resources
+=== Standards
 
+* CERT - https://wiki.sei.cmu.edu/confluence/x/Gns-BQ[MEM51-CPP. Properly deallocate dynamically allocated resources]
+
+=== Related rules
+
+* S5025 recommends avoiding manual memory management
+
+=== Documentation
+
+* {cpp} Reference - https://en.cppreference.com/w/cpp/language/raii[RAII (Resource Acquisition Is Initialization)]
 
 ifdef::env-github,rspecator-view[]
 
