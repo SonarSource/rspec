@@ -1,48 +1,238 @@
+Memory allocated dynamically with `calloc`, `malloc`, `realloc`, or `new` should be released when it is not needed anymore.
+Failure to do so will result in a memory leak that could severely hinder application performance or abort it or the entire host machine.
+
 == Why is this an issue?
 
-Memory allocated dynamically with ``++calloc(...)++``, ``++malloc(...)++``, ``++realloc(...)++`` or ``++new++`` should be released when it's not needed anymore. Failure to do so will result in a memory leak that could bring the box to its knees.
+Memory is a limited resource shared between all the applications running on the same host machine.
 
+C and {cpp} do not automatically reclaim unused memory.
+The developer has to release the memory claimed for their application that is no longer needed.
+Unlike the stack that automatically allocates local variables on a function call
+and deallocates them on a function return, the heap offers no automatic memory management.
+The developer has to make sure to deallocate the memory they allocate dynamically on the heap.
 
-This rule raises an issue when memory is allocated and not freed in the same function. Allocated memory is ignored if a pointer to it is ``++return++``ed to the caller or stored in a structure that's external to the function.
+This rule raises an issue when memory is allocated dynamically and not freed within the same function.
 
+=== What is the potential impact?
 
-=== Noncompliant code example
+Neglecting to free the memory leads to a memory leak.
 
-[source,cpp]
+The application that leaks memory will consume more and more of it over time,
+eventually claiming all the memory available on the host machine.
+When this happens and the system runs out of memory, it typically does one of the following:
+
+- The operating system (if any) terminates the application.
+- The operating system (if any) terminates some other application,
+  and the problem reoccurs when the reclaimed memory gets used up by the leaking application.
+- The operating system (if any) starts offloading some of the memory pages to disk and slows down some memory accesses by orders of magnitude.
+- The entire system crashes as a whole and reboots automatically or hangs waiting for a manual reboot.
+
+Moreover, memory leaks can help an attacker to take over the system.
+An attacker could use a memory leak to fill the memory with malicious code.
+This facilitates remote code execution through another chained vulnerability.
+
+Even if the attacker cannot take over the system she can
+intentionally trigger the condition leading to a memory leak
+to make use of the issue above and cause denial-of-service (DoS) of the system.
+
+A memory leak can have a significant impact on the energy footprint of an application.
+
+- If an application demands more memory than necessary,
+  the user will have to install more memory banks than necessary.
+  Each memory bank consumes additional power.
+- As the application continues to reserve more and more memory,
+  it places an increased load on the memory management subsystem.
+  This increased load can lead to a larger computation demand,
+  which in turn translates to higher power consumption by the CPU.
+
+Finally, memory leaks degrade the user experience.
+The user often experiences a system slowdown
+caused by the uncontrolled memory use of an application.
+Delayed response time, system freezes, and crashes degrade the user experience
+and discourage the further use of the application.
+
+=== Exceptions
+
+If a function `+return+`s a pointer to the caller or stores it in an external structure,
+this pointer is said to _escape_ (it is now accessible outside of function, and no longer local to it).
+This includes storing the pointer in a static or global variable,
+passing it to a function that can potentially do that,
+or returning the pointer directly or as part of an aggregate object.
+
+The memory pointed to by an escaping pointer might be used somewhere else in the program.
+For that reason, the analyzer cannot proclaim a leak for an escaping pointer
+by only looking at a function scope.
+
+While in some cases the leak might be detectable in the scope of a caller,
+in others, the analyzer would need to simulate the entire program to verify
+that the memory is not used anywhere, which is not feasible.
+
+For this technical reason, this rule often ignores escaping pointers.
+
+== How to fix it
+
+Ask yourself whether you need to allocate memory on the heap.
+If your object is small enough,
+in many cases allocating it as a local variable on the stack is a better choice
+as it simplifies memory management.
+
+If you do need to allocate it on the heap,
+the direct fix for a memory leak is to make sure you always deallocate memory.
+
+In {cpp} you should use RAII (resource acquisition is initialization) idiom.
+See <<Going the extra mile>>.
+
+Alternatively,
+you have to manually make sure that every exit of the scope of the pointer to the allocated memory
+is prepended by the deallocation of that pointer.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+bool fire(Point pos, Direction dir, State const& s) {
+  Bullet *bullet = new Bullet{pos, dir};
+  if (auto affected = bullet->hitAnyone(s)) {
+    affected->takeHit();
+    return true; // Noncompliant, the memory pointed to by bullet is not deleted
+  }
+  delete bullet;
+  return false;
+}
+----
+
+==== Compliant solution
+
+Use a local object
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+bool fire(Point pos, Direction dir, State const& s) {
+  Bullet bullet{pos, dir};
+  if (auto affected = bullet.hitAnyone(s)) {
+    affected->takeHit();
+    return true; // Compliant: bullet is destroyed and deallocated automatically
+  }
+  return false; // Compliant: bullet is destroyed and deallocated automatically
+}
+----
+
+If you cannot use RAII or a local object,
+manually make sure memory is freed on every exit of the scope of the pointer.
+
+==== Noncompliant code example
+
+[source,c,diff-id=2,diff-type=noncompliant]
 ----
 int fun() {
   char* name = (char *) malloc (size);
   if (!name) {
     return 1;
   }
+  if (condition()) {
+    return 2; // Noncompliant: memory pointed to by "name" has not been released
+  }
   // ...
-  return 0; // Noncompliant, memory pointed by "name" has not been released
+  return 0; // Noncompliant: memory pointed to by "name" has not been released
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,c,diff-id=2,diff-type=compliant]
 ----
 int fun() {
   char* name = (char *) malloc (size);
   if (!name) {
-    return 1;
+    return 1; // Memory wasn't allocated, no need to free it
+  }
+  if (condition()) {
+    free(name);
+    return 2; // Compliant: memory is freed
   }
   // ...
   free(name);
-  return 0;
+  return 0; // Compliant: memory is freed
 }
 ----
 
+=== Pitfalls
+
+Note that the execution can exit the scope in different ways:
+
+- `return` from the function
+- `break` from a `switch` statement or a loop
+- `goto` out of a code block (compound statement)
+- `+throw+` a {cpp} exception
+- `+co_return+` from an {cpp} coroutine
+- End of the scope (`}`)
+
+In the following example,
+even though the function frees memory before the explicit `return`,
+the memory remains allocated when the execution leaves the `while` body
+via many other ways.
+
+[source,cpp]
+----
+void fire(Point pos, Direction dir, State const& s) {
+  while (condition()) {
+    Bullet *bullet = new Bullet{pos, dir};
+    if (bullet->misfired()) break; // Noncompliant: memory is not freed
+    if (!condition()) {
+      delete bullet;
+      return;
+    }
+    // Noncompliant: memory is not freed
+    if (s.tooManyBullets()) throw Exception("Too many bullets");
+    if (bullet->timeIsUp(s)) goto end; // Noncompliant: memory is not freed
+  } // Noncompliant: at the end of iteration bullet leaks
+
+end: // Memory allocated in the loop is not freed
+  std::cout <<"Bullet is lost\n";
+}
+----
+
+This is why it is very difficult to avoid leaks when managing memory manually.
+
+=== Going the extra mile
+
+include::../../../shared_content/cfamily/memory_raii_extra_mile.adoc[]
+
+The RAII object will take care of the deallocation of the memory when it is no longer used.
+
+To correct the noncompliant example, use `std::unique_ptr`:
+
+[source,cpp]
+----
+bool fire(Point pos, Direction dir, State const& s) {
+  auto bullet = std::make_unique<Bullet>(pos, dir);
+  if (auto affected = bullet->hitAnything(s)) {
+    affected->takeHit();
+    return true; // Compliant: unique_ptr<Bullet> automatically frees memory
+  }
+  return false; // Compliant: unique_ptr<Bullet> automatically frees memory
+}
+----
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/401[MITRE, CWE-401] - Improper Release of Memory Before Removing Last Reference ('Memory Leak')
-* https://wiki.sei.cmu.edu/confluence/x/FtYxBQ[MEM00-C.] - Allocate and free memory in the same module, at the same level of abstraction
-* https://wiki.sei.cmu.edu/confluence/x/GNYxBQ[CERT, MEM31-C.] - Free dynamically allocated memory when no longer needed
+=== Documentation
 
+* Wikipedia - https://en.wikipedia.org/wiki/Memory_leak[Memory leak]
+* C++ reference - https://en.cppreference.com/w/cpp/language/raii[RAII]
+
+=== Standards
+
+* CWE - https://cwe.mitre.org/data/definitions/401[401 Improper Release of Memory Before Removing Last Reference ('Memory Leak')]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/FtYxBQ[MEM00-C. Allocate and free memory in the same module, at the same level of abstraction]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/GNYxBQ[MEM31-C. Free dynamically allocated memory when no longer needed]
+
+
+=== Related rules
+
+* S5025 discourages manual memory management, which helps to avoid memory leaks.
 
 
 ifdef::env-github,rspecator-view[]
