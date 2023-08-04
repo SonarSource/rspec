@@ -9,15 +9,19 @@ for example:
 ----
 void merge(int* tab, int size, int first) {
   int res[size]; // allocate buffer for merging on stack
-  // merge the ranges [tab, tab + first) and [tab + first, tab + last) into res
+  /* Code that merges two sorted ranges [tab, tab + first) and [tab + first, tab + last)
+   * into res buffer.
+   * ....
+   */
+  // copy merged data into input
   memcpy(tab, res, size * sizeof(int));
 }
 ----
 
 The syntax follows the one used by an array with static size (where size is constant),
 and the value placed in the square brackets (`[size]` in the above example) determines the size of the array.
-For both static and runtime-sized arrays, the size is required to be greater than zero,
-however, in the case of VLAs, this cannot be verified at compile-time, 
+For both static and runtime-sized arrays, the size is required to be greater than zero.
+However, in the case of VLAs, this cannot be verified at compile-time, 
 and any program that creates such an array with a size that has a value of zero or is negative, 
 has undefined behavior.
 
@@ -25,14 +29,14 @@ has undefined behavior.
 ----
 void example() {
   int s = -1;
-  int vla[s]; // program compiles, and have undefined behavior
+  int vla[s];  // program compiles, and have undefined behavior
   int arr[-1]; // program is ill-formed
 }
 ----
 
-This defect may also manifest when a variable used as size is not initialized and its value is not deterministic.
-This may result in a negative or zero value being read from it in case of some program runs.
- 
+This defect may also manifest, when variable used as size is not inintialized, and it's value is not determinstic.
+This may result in negative or zero value being read from it in case of some runs of the program.
+
 [source,c]
 ----
 void uninitialized() {
@@ -48,10 +52,10 @@ Such values as usually referred to as being _tainted_.
 [source,c]
 ----
 void loadFromInput() {
-  int size;
+  int size = -1;
   scanf("%d", &size); // loads size from input
-  char bytes[size]; // size may be negative
-  /* ... */  
+  char bytes[size];   // size may be negative
+  /* ... */
 }
 ----
 
@@ -81,17 +85,65 @@ before using it as size for VLA.
 
 ==== Noncompliant code example
 
-[source,cpp]
-----
-void directly() {
-}
+Zero size VLA is created due of by-one error.
 
-void f1() {
-  int n;
-  int a[n]; // Noncompliant; n is undefined
-}
-
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
+void zeroSize() {
+  int array[5];
+  for (int i = 0; i <= 5; ++i) {
+    int buffer[5 - i]; // Noncompliant: buffer size is zero for i == 5
+    /* ... */
+  }
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+void zeroSize() {
+  int array[5];
+  for (int i = 0; i < 5; ++i) {
+    int buffer[5 - i]; // Complaint
+    /* ... */
+  }
+}
+----
+
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+int taintedSize() {
+  int size = 0;
+  scanf("%d", &size); // size value is loaded from input, value is tainted here
+  char bytes[size]; // Noncomplaint: size may be negative
+  /* ... */
+  return 0;
+}
+----
+
+==== Compliant solution
+
+Validate value of `size` before using as size of array.
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+int taintedSize() {
+  int size = 0;
+  scanf("%d", &size);
+  if (size <= 0) {
+    return -1;
+  }
+
+  char bytes[size]; // Complaint: size is never negative
+  /* ... */
+  return 0;
+}
+----
+
 
 === Pitfalls
 
@@ -103,7 +155,7 @@ void f1() {
 
 === Documentation
 
-* C++ reference - https://en.cppreference.com/w/c/language/array#Variable-length_arrays[Variable length arrays]
+* {cpp} reference - https://en.cppreference.com/w/c/language/array#Variable-length_arrays[Variable length arrays]
 
 === Standards
 
