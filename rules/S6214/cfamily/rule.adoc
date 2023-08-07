@@ -1,20 +1,32 @@
+Compare integers of mixed signedness safely using `std::cmp_*` functions to avoid any unexpected results.
+
 == Why is this an issue?
 
-Comparison between `signed` and `unsigned` integers is dangerous because it produces counterintuitive results outside of their common range of values.
-
-
-When a signed integer is compared to an unsigned one, the former might be converted to unsigned. The conversion preserves the two's-complement bit pattern of the signed value that often corresponds to a large unsigned result. For example, `2U < -1` is `true`.
-
-
-{cpp}20 introduced remedy to this common pitfall: a family of `std::cmp_*` functions defined in the `<utility>` header. These functions correctly handle negative numbers and lossy integer conversion. For example, `std::cmp_less(2U, -1)` is `false`.
-
+Comparison between `signed` and `unsigned` integers is dangerous because it produces counter-intuitive results due to implicit conversions.
+When a signed integer is compared to an unsigned one, the former might be converted to unsigned.
+Since {cpp}20, the conversion preserves the two's-complement bit pattern of the signed value that always corresponds to a large unsigned result.
+For example, `2U < -1` is `true`.
 
 This rule raises an issue when an unsigned integer is compared with a negative value.
 
+=== What is the potential impact
 
-=== Noncompliant code example
+Integer comparisons are often used in branch and loop conditions.
+An unexpected result from one of these conditions can lead to hard-to-detect issues, such as unexpected infinite loops.
 
-[source,cpp]
+For example, using container size functions in a comparison can lead to such a problem since these return an unsigned integer value.
+
+== How to fix it
+
+{cpp}20 introduced a remedy to this common pitfall: a family of `std::cmp_*` functions defined in the `<utility>` header.
+These functions correctly handle negative numbers and lossy integer conversion.
+For example, `std::cmp_less(2U, -1)` is `false`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 bool less = 2U < -1; // Noncompliant
 
@@ -23,12 +35,21 @@ signed y = -1;
 if (x < y) { // Noncompliant
   // ...
 }
+
+bool fun(int x, std::vector<int> const& v) {
+  return x < v.size(); // Noncompliant: if x is negative, it is converted to unsigned, losing its value.
+}
+
+std::vector<int> v = foo();
+if (-1 < v.size() && v.size() < 100) { // Noncompliant: -1 < v.size() is false for all sizes.
+                                       // -1 converted to unsigned is larger than any int value
+}
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 bool less = std::cmp_less(2U, -1); // Compliant
 
@@ -43,15 +64,21 @@ bool fun(int x, std::vector<int> const& v) {
 }
 
 std::vector<int> v = foo();
-if (0 < v.size() && v.size() < 100) { // Compliant, even though v.size() returns an unsigned integer
+if (0 <= v.size() && v.size() < 100) { // Compliant, even though v.size() returns an unsigned integer
 }
 ----
 
 
 == Resources
 
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/intcmp[std::cmp_* functions]
+
+=== Related rules
+
 * S845 - a more generic rule about mixing signed and unsigned values.
-* S6183 - a version of this rule that triggers as soon as signed and unsigned variables are compared.
+* S6183 - a version of this rule that triggers when any signed and unsigned variables are compared.
 
 
 ifdef::env-github,rspecator-view[]
@@ -64,3 +91,4 @@ ifdef::env-github,rspecator-view[]
 === relates to: S6183
 
 endif::env-github,rspecator-view[]
+

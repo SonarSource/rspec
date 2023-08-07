@@ -133,47 +133,11 @@ else
 fi
 find rules -name "tmp*.adoc" -delete
 
-# Cover file inclusion and crossreferences.
+# Validate file inclusion, cross-references, and other properties.
 #
-# This needs to be done on all rule descriptions, including the default,
-# language-agnostic description, with rspecator-view. Otherwise, a rule
-# could drop an include of a shared_content asciidoc and that file could
-# become unused.
-#
-# We use a custom asciidoctor with extra logging for this purpose.
-# The format for the interesting log entries are:
-#   asciidoctor: INFO: ASCIIDOC LOGGER MAIN FILE: $PATH
-#   asciidoctor: INFO: ASCIIDOC LOGGER INCLUDED: $PATH
-#   asciidoctor: INFO: ASCIIDOC LOGGER CROSSREFERENCE: $RULEID crossreferences $PATH
-outdir="$(mktemp -d)"
-find rules -name 'rule.adoc' \
-  | xargs ./ci/custom-asciidoctor -a rspecator-view --verbose -R rules -D "${outdir}" 2>&1 \
-  | grep -e 'ASCIIDOC LOGGER' \
-  > asciidoc_introspection
-
-grep -ve 'CROSSREFERENCE' asciidoc_introspection \
-  | cut -d ':' -f 4 \
-  | sort -u \
-  > used_asciidoc_files
-
-git ls-files --cached -- 'rules/**.adoc' 'shared_content/**.adoc' \
-  | xargs realpath \
-  > all_asciidoc_files
-
-cross_references=$(grep -e 'CROSSREFERENCE' asciidoc_introspection | cut -d ':' -f 4 | sort -u)
-if [[ -n "$cross_references" ]]; then
-  echo 'ERROR: Some rules try to include content from unallowed directories.'
-  echo 'To share content between rules, you should use the "shared_content" folder at the root of the repository.'
-  echo 'List of errors:'
-  echo "${cross_references}"
-  exit_code=1
-fi
-
-orphans=$(comm -1 -3 <(sort -u used_asciidoc_files) <(sort -u all_asciidoc_files))
-if [[ -n "$orphans" ]]; then
-  printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
-  exit_code=1
-fi
+# This part of the validation is extracted in a separate script,
+# which is covered by tests unlike what is above this line.
+TOPLEVEL=. ./ci/asciidoc_validation/validate.sh || exit_code=1
 
 if (( exit_code == 0 )); then
   echo "Success"
