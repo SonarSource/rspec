@@ -1,0 +1,103 @@
+== How to fix it in Go Standard Library
+
+=== Code examples
+
+==== Noncompliant code example
+
+For HTTP clients:
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+import (
+    "net/http"
+)
+
+func main() {
+    client := &http.Client{
+        Transport: &http.Transport{
+            TLSClientConfig: &tls.Config{
+                MinVersion: tls.VersionTLS10,
+            },
+        },
+    }
+    resp, err := client.Get("https://www.example.com")
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+}
+----
+
+For HTTP servers:
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+import (
+    "net/http"
+)
+
+func main() {
+    http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+        w.Write([]byte("Hello world!\n"))
+    })
+    // TLS 1.0 is the default minimal version for HTTP servers
+    http.ListenAndServeTLS(":443", "tls.crt", "tls.key")
+    if err != nil {
+        panic(err)
+    }
+}
+----
+
+==== Compliant solution
+
+For HTTP clients:
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+import (
+    "net/http"
+)
+
+func main() {
+    // TLS 1.2 is the default minimal version for HTTP clients
+    resp, err := http.Get("https://www.example.com")
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+}
+----
+
+For HTTP servers:
+
+[source,go,diff-id=2,diff-type=compliant]
+----
+import (
+    "crypto/tls"
+    "net/http"
+)
+
+func main() {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+        w.Write([]byte("Hello world!\n"))
+    })
+    cfg := &tls.Config{
+        MinVersion: tls.VersionTLS12,
+    }
+    srv := &http.Server{
+        Addr: ":443",
+        Handler: mux,
+        TLSConfig: cfg,
+    }
+    err := srv.ListenAndServeTLS("tls.crt", "tls.key")
+    if err != nil {
+        panic(err)
+    }
+}
+----
+
+
+=== How does this work?
+
+include::../../common/fix/fix.adoc[]
