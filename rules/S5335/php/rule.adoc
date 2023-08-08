@@ -1,17 +1,61 @@
 == Why is this an issue?
 
-User-provided data such as URL parameters, POST data payloads or cookies should always be considered untrusted and tainted. Constructing include statements based on  data supplied by the user could enable an attacker to control which files are included. If the attacker has the ability to upload files to the system, then arbitrary code could be executed. This could enable a wide range of serious attacks like accessing/modifying sensitive information or gain full system access.
+Include injection vulnerabilties occur in an application if data from an untrusted source +
+like user input is inserted into an include statement without sanitizing first. 
+User-provided data such as URL parameters, POST data payloads or cookies should always be considered untrusted and tainted.
 
+If an application contains include statements that process user controlled input, +
+an attacker can control which files will be included on the server side in the PHP script leading to unwanted behavior.
 
-The mitigation strategy should be based on whitelisting of allowed values or casting to safe types.
+=== What is the potential impact?
+A user with malicious intent can abuse an include injection vulnerability to read local files on the server or even execute arbitrary PHP code in the context of the server.
 
+The impact depends on the access control measures taken on the target system
+OS. In the worst-case scenario, the process runs with root privileges, and
+therefore any OS commands or programs may be affected.
+
+Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.
+
+==== Denial of service and data leaks
+
+In this scenario, the attack aims to disrupt the organization's activities and
+profit from data leaks.
+
+An attacker could, for example:
+
+* download the internal server's data, most likely to sell it
+* modify data, send malware
+* stop services or exhaust resources (with fork bombs for example)
+
+This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).
+
+==== Root privilege escalation and pivot
+
+In this scenario, the attacker can do everything described in the previous
+section. The difference is that the attacker also manages to elevate their
+privileges to an administrative level and attacks other servers.
+
+Here, the impact depends on how much the target company focuses on its Defense
+In Depth. For example, the entire infrastructure can be compromised by a
+combination of OS injections and *misconfiguration* of:
+
+* Docker or Kubernetes clusters
+* cloud services
+* network firewalls and routing
+* OS access control
+
+== How to fix it
 
 === Noncompliant code example
-
+The following code is vulnerable to include injection because it
+is inserting untrusted inputs directly into the `include()` statement, +
+allowing attackers to specify arbitrary local or even remote files to be included.
 [source,php]
 ----
 $filename = $_GET["filename"];
-include $filename . ".php";
+include($filename); // Noncompliant
 ----
 
 
@@ -21,9 +65,19 @@ include $filename . ".php";
 ----
 $filename = $_GET["filename"];
 if (in_array($filename, $whitelist)) {
-  include $filename . ".php";
+  include($filename); 
 }
 ----
+
+=== How does this work?
+
+=== Use whitelisting
+
+The universal method to prevent include injection is to allow only a whitelist of inputs to be passed to the include function.
+This whitelist should contain only files that are safe to include. Manual sanitization is error-prone, so it is best to be as restrictive as possible.
+
+Here, the variable `$whitelist` contains a list of the only allowed files to include. If the user controlled variable `$filename` contains anything that is **not** in the whitelist
+the include statement will not be executed, preventing the injection of any unwanted inputs.
 
 == Resources
 
