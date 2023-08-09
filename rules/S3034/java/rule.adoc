@@ -10,16 +10,18 @@ For instance, the byte `0b1000_0000` (equal to `-128` in decimal notation), when
 
 When performing shifting or bitwise operations without considering that bytes are signed, the bits added during the promotion may have unexpected effects on the final result of the operations.
 
-To prevent such accidental value conversions, we can mask promoted bytes to only consider the least significant 8 bits.
-Masking can be achieved with the bitwise AND `&` symbol and the `0xff` hexadecimal symbol for 255 (0b1111_1111 in binary) or, since Java 8, with the more convenient `Byte.toUnsignedInt(byte b)` or `Byte.toUnsignedLong(byte b)`.
+== How to fix it
 
 This rule raises an issue any time a `byte` value is used as an operand combined with shifts without being masked.
+
+To prevent such accidental value conversions, you can mask promoted bytes to only consider the least significant 8 bits.
+Masking can be achieved with the bitwise AND operator `&` and the appropriate mask of `0xff` (255 in decimal and 0b1111_1111 in binary) or, since Java 8, with the more convenient `Byte.toUnsignedInt(byte b)` or `Byte.toUnsignedLong(byte b)`.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,java]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
   public static void main(String[] args) {
     byte[] bytes12 = BigInteger.valueOf(12).toByteArray(); // This byte array will be simply [12]
@@ -29,10 +31,8 @@ This rule raises an issue any time a `byte` value is used as an operand combined
     // which is equivalent to the concatenation of 2 bytes: 0b0000_0010 = 2, and 0b1000_0000 = -128
     byte[] bytes640 = BigInteger.valueOf(640).toByteArray();
 
-    // In this case, the shifting operation combined with the bitwise OR, will produce the wrong binary string
-    // and "-128" will be printed.
+    // In this case, the shifting operation combined with the bitwise OR, will produce the wrong binary string and "-128" will be printed.
     System.out.println(intFromBuffer(bytes640));
-
   }
 
   static int intFromBuffer(byte[] bytes) {
@@ -49,27 +49,21 @@ This rule raises an issue any time a `byte` value is used as an operand combined
 
 ==== Compliant solution
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
   public static void main(String[] args) {
-    byte[] bytes12 = BigInteger.valueOf(12).toByteArray();
-    System.out.println(intFromBuffer(bytes12)); 
+    byte[] bytes12 = BigInteger.valueOf(12).toByteArray(); // This byte array will be simply [12]
+    System.out.println(intFromBuffer(bytes12)); // In this case, the bytes promotion will not cause any issues, and "12" will be printed.
 
+    // Here the bytes will be [2, -128] since 640 in binary is represented as 0b0000_0010_1000_0000
+    // which is equivalent to the concatenation of 2 bytes: 0b0000_0010 = 2, and 0b1000_0000 = -128
     byte[] bytes640 = BigInteger.valueOf(640).toByteArray();
+
     // This will correctly print "640" now.
-    System.out.println(intFromBuffer(bytes640)); 
-    
+    System.out.println(intFromBuffer(bytes640));
   }
 
   static int intFromBuffer(byte[] bytes) {
-    int originalInt = 0;
-    for (int i = 0; i < bytes.length; i++) {
-      originalInt = (originalInt << 8) | (bytes[i] & 0xff); // Compliant, only the relevant 8 least significant bits will affect the bitwise OR
-    }
-    return originalInt;
-  }
-
-  static int intFromBufferAlternative(byte[] bytes) {
     int originalInt = 0;
     for (int i = 0; i < bytes.length; i++) {
       originalInt = (originalInt << 8) | Byte.toUnsignedInt(bytes[i]); // Compliant, only the relevant 8 least significant bits will affect the bitwise OR
