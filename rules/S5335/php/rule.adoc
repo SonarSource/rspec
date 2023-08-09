@@ -1,29 +1,98 @@
 == Why is this an issue?
 
-User-provided data such as URL parameters, POST data payloads or cookies should always be considered untrusted and tainted. Constructing include statements based on  data supplied by the user could enable an attacker to control which files are included. If the attacker has the ability to upload files to the system, then arbitrary code could be executed. This could enable a wide range of serious attacks like accessing/modifying sensitive information or gain full system access.
+Include injections occur in an application when the application retrieves data from a
+user or a third-party service and inserts it into an `include` expression without sanitizing it first.
 
+If an application contains an `include` expression that is vulnerable to injections, 
+it is exposed to attacks that target the underlying server.
 
-The mitigation strategy should be based on whitelisting of allowed values or casting to safe types.
+=== What is the potential impact?
+A user with malicious intent can create requests that will cause the `include` expression to
+leak valuable data or achieve remote code execution on the server's website.
 
+After creating the malicious request, the attacker can attack the servers
+affected by this vulnerability without relying on any prerequisites.
 
-=== Noncompliant code example
+The impact depends on the access control measures taken on the target system
+OS. In the worst-case scenario, the process runs with root privileges, and
+therefore any OS commands or programs may be affected.
 
-[source,php]
+Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.
+
+==== Denial of service and data leaks
+
+In this scenario, the attack aims to disrupt the organization's activities and
+profit from data leaks.
+
+An attacker could, for example:
+
+* download the internal server's data, most likely to sell it
+* modify data, send malware
+* stop services or exhaust resources (with fork bombs for example)
+
+This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).
+
+==== Root privilege escalation and pivot
+
+In this scenario, the attacker can do everything described in the previous
+section. The difference is that the attacker also manages to elevate their
+privileges to an administrative level and attacks other servers.
+
+Here, the impact depends on how much the target company focuses on its Defense
+In Depth. For example, the entire infrastructure can be compromised by a
+combination of OS injections and *misconfiguration* of:
+
+* Docker or Kubernetes clusters
+* cloud services
+* network firewalls and routing
+* OS access control
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,php,diff-id=1,diff-type=noncompliant]
 ----
 $filename = $_GET["filename"];
-include $filename . ".php";
+include $filename; // Noncompliant
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,php]
+[source,php,diff-id=1,diff-type=compliant]
 ----
+$INCLUDE_ALLOW_LIST = [
+    "home.php",
+    "dashboard.php",
+    "profile.php",
+    "settings.php"
+];
+
 $filename = $_GET["filename"];
-if (in_array($filename, $whitelist)) {
-  include $filename . ".php";
+if (in_array($filename, $INCLUDE_ALLOW_LIST)) {
+  include $filename;
 }
 ----
+
+=== How does this work?
+
+==== Pre-Approved files
+
+The cleanest way to avoid this defect is to validate the input before using it
+in an `include`-type expression.
+
+Create a list of authorized and secure files that you want the application to
+be able to load with `include`-type expressions. +
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.
+
+*Important note*: The application must do validation on the server side. Not on
+client-side front-ends.
 
 == Resources
 
@@ -45,7 +114,7 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Refactor this code to not use tainted, user-controlled data in include statements.
+Refactor this code to not use tainted, user-controlled data in include expressions.
 
 
 === Highlighting
