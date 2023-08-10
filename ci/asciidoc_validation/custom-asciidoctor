@@ -1,18 +1,24 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 # Based on asciidoctor main ruby script.
 # This is only meant to introspect and log which asciidoc files were used.
 
 require 'asciidoctor'
 require 'asciidoctor/cli'
 
+MAIN_FILE_REGEX = /^.*\/rules\/(?<id>S\d+)\/(?:(?<lang>\w+)\/)?rule.adoc$/
+
 class MainFileLogger < Asciidoctor::Extensions::Preprocessor
   include Asciidoctor::Logging
 
   def process document, reader
+    # Enable sourcemap to track source location.
+    # This is useful to report more accurate errors in other loggers.
+    document.sourcemap = true
+
     main_file = document.normalize_system_path(reader.file, document.reader.dir)
 
     # This assumes unix-style path separator.
-    if nil == main_file.match(/^.*\/rules\/S\d+\/(\w+\/)?rule.adoc$/)
+    if nil == main_file.match(MAIN_FILE_REGEX)
       abort("Main file does not follow expected pattern: #{main_file}")
     end
 
@@ -73,9 +79,87 @@ class IncludeLogger < Asciidoctor::Extensions::IncludeProcessor
   # Intentionnaly no process function here.
 end
 
+class SourceLogger < Asciidoctor::Extensions::TreeProcessor
+  include Asciidoctor::Logging
+
+  def get_source_location block
+    loc = block.source_location # Asciidoctor::Reader::Cursor.
+    return "#{loc.file}:#{loc.lineno}"
+  end
+
+  def get_rule document
+    main_file = document.normalize_system_path(document.reader.file, document.reader.dir)
+    res = main_file.match(MAIN_FILE_REGEX)
+    lang = res[:lang] || 'default'
+    "#{res[:id]}/#{lang}"
+  end
+
+  def process document
+    rule = get_rule(document)
+    source_blocks = document.find_by(context: :listing, style: 'source')
+
+    # Collect individually valid blocks per diff-id.
+    blocks_per_id = Hash.new { |hash, key| hash[key] = Array.new }
+
+    # Find blocks with only diff-id but no diff-type, or vice-versa, or invalid diff-type.
+    source_blocks.each do |block|
+      id = block.attr('diff-id', nil)
+      type = block.attr('diff-type', nil)
+
+      if !id and !type
+        next # Nothing to validate
+      end
+
+      loc = get_source_location(block)
+
+      if !id
+        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] diff-id is missing in #{loc}")
+        next
+      end
+
+      if !type
+        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] diff-type is missing in #{loc}")
+        next
+      elsif !['compliant', 'noncompliant'].include?(type)
+        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] diff-type '#{type}' is not valid in #{loc}")
+        next
+      end
+
+      # The block is valid on its own.
+      blocks_per_id[id].push(block)
+    end
+
+    # Each diff-id should have exactly 1 compliant and 1 noncompliant block.
+    # Find blocks that break this rule.
+    blocks_per_id.each do |id, blocks|
+      # Sort to ensure deterministic output.
+      blocks.sort_by! { |block| get_source_location(block) }
+
+      case blocks.length
+      when 1
+        loc = get_source_location(blocks[0])
+        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] Incomplete example for diff-id=#{id}, missing counterpart for #{loc}")
+      when 2
+        type1 = blocks[0].attr('diff-type')
+        type2 = blocks[1].attr('diff-type')
+        if type1 == type2
+          loc1 = get_source_location(blocks[0])
+          loc2 = get_source_location(blocks[1])
+          logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] Two #{type1} examples for diff-id=#{id}: #{loc1} and #{loc2}")
+        end
+      else
+        locs = blocks.map { |block| get_source_location(block) }
+        locs = locs.join(', ')
+        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] #{blocks.length} examples for diff-id=#{id}: #{locs}")
+      end
+    end
+  end
+end
+
 Asciidoctor::Extensions.register do
   preprocessor MainFileLogger
   include_processor IncludeLogger.new @document
+  treeprocessor SourceLogger
 end
 
 invoker = Asciidoctor::Cli::Invoker.new ARGV

@@ -22,6 +22,7 @@
 #     asciidoctor: INFO: ASCIIDOC LOGGER MAIN FILE: $PATH
 #     asciidoctor: INFO: ASCIIDOC LOGGER INCLUDED: $PATH
 #     asciidoctor: INFO: ASCIIDOC LOGGER CROSSREFERENCE: $RULEID cross-references $PATH
+#     asciidoctor: INFO: ASCIIDOC LOGGER DIFF: $VALIDATION_FAILURE_MESSAGE
 
 set -euo pipefail
 
@@ -39,21 +40,19 @@ grep_nofail() {
   grep "$@" || [ "$?" == "1" ]
 }
 
+extract_messages_from_log() {
+  # The first 3 columns of the log are not relevant.
+  # The 4th (and any that follows if ':' is used in the message)
+  # provides the relevant validation error message.
+  cut -d ':' -f 4- | sort -u
+}
+
 find "${RULES_DIR}" -name 'rule.adoc' \
   | xargs "${SCRIPT_DIR}/custom-asciidoctor" -a rspecator-view --verbose -R "${RULES_DIR}" -D "${TMPOUT_DIR}" 2>&1 \
   | grep_nofail -e 'ASCIIDOC LOGGER' \
   > "${TMPOUT_DIR}/asciidoc_introspection"
 
-grep -ve 'CROSSREFERENCE' "${TMPOUT_DIR}/asciidoc_introspection" \
-  | cut -d ':' -f 4 \
-  | sort -u \
-  > "${TMPOUT_DIR}/used_asciidoc_files"
-
-git ls-files --cached -- "${RULES_DIR}/**.adoc" "${SHARED_CONTENT_DIR}/**.adoc" \
-  | xargs realpath \
-  > "${TMPOUT_DIR}/all_asciidoc_files"
-
-cross_references=$(grep_nofail -e 'CROSSREFERENCE' "${TMPOUT_DIR}/asciidoc_introspection" | cut -d ':' -f 4 | sort -u)
+cross_references=$(grep_nofail -e 'CROSSREFERENCE' "${TMPOUT_DIR}/asciidoc_introspection" | extract_messages_from_log)
 if [[ -n "$cross_references" ]]; then
   echo >&2 'ERROR: Some rules try to include content from unallowed directories.'
   echo >&2 'To share content between rules, you should use the "shared_content" folder at the root of the repository.'
@@ -62,10 +61,29 @@ if [[ -n "$cross_references" ]]; then
   exit_code=1
 fi
 
+grep_nofail -Pe '(INCLUDE|MAIN FILE)' "${TMPOUT_DIR}/asciidoc_introspection" \
+  | extract_messages_from_log \
+  > "${TMPOUT_DIR}/used_asciidoc_files"
+
+git ls-files --cached -- "${RULES_DIR}/**.adoc" "${SHARED_CONTENT_DIR}/**.adoc" \
+  | xargs realpath \
+  > "${TMPOUT_DIR}/all_asciidoc_files"
+
 orphans=$(comm -1 -3 <(sort -u "${TMPOUT_DIR}/used_asciidoc_files") <(sort -u "${TMPOUT_DIR}/all_asciidoc_files"))
-if [[ -n "$orphans" ]]; then
+if [[ -n "$orphans" ]]
+then
   printf >&2 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
   exit_code=1
+fi
+
+bad_diffs=$(grep_nofail -e 'DIFF' "${TMPOUT_DIR}/asciidoc_introspection" | extract_messages_from_log)
+if [[ -n "$bad_diffs" ]]
+then
+  printf >&2 'ERROR: Diff highlighting is used incorrectly:\n-----\n%s\n-----\n' "$bad_diffs"
+  if [[ -n "${RUNNING_CI_INTEGRATION_TEST:-}" ]]
+  then
+    exit_code=1 # FIXME: there are currently validation errors in the repo. Unconditionally enable this line when they are all fixed.
+  fi
 fi
 
 exit $exit_code

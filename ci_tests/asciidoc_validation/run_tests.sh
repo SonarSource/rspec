@@ -4,6 +4,8 @@
 
 set -uo pipefail
 
+export RUNNING_CI_INTEGRATION_TEST=1 # FIXME remove this once it's no longer needed in validate.sh
+
 # We could write complex checks to ensure only specific commands fail and emit
 # a specific error message. Instead, we rely on `set -xe` to consistently and
 # reliably exit with non-zero if any command fails and pinpoint which command
@@ -76,5 +78,23 @@ run_test "test_bad_cross_ref" \
   "ERROR: Some rules try to include content from unallowed directories." \
   "S100 cross-references .*rules/S1000/bad.adoc" \
   "S1000 cross-references .*rules/S100/java/bad.adoc"
+
+run_test "test_diff_source" \
+  "ERROR: Diff highlighting is used incorrectly:" \
+  "\[S100/cfamily] diff-type is missing in .*/rules/S100/cfamily/rule.adoc:3" \
+  "\[S100/cfamily] diff-id is missing in .*/rules/S100/cfamily/rule.adoc:8" \
+  "\[S100/cfamily] diff-type 'bad' is not valid in .*/rules/S100/cfamily/rule.adoc:13" \
+  "\[S100/cfamily] diff-type is missing in .*/rules/S100/cfamily/local.adoc:3" \
+  "\[S100/cfamily] diff-id is missing in .*/rules/S100/cfamily/local.adoc:8" \
+  "\[S100/cfamily] diff-type 'local' is not valid in .*/rules/S100/cfamily/local.adoc:13" \
+  "\[S100/cfamily] diff-type is missing in .*/shared_content/cfamily/shared.adoc:3" \
+  "\[S100/cfamily] diff-id is missing in .*/shared_content/cfamily/shared.adoc:8" \
+  "\[S100/cfamily] diff-type 'shared' is not valid in .*/shared_content/cfamily/shared.adoc:13" \
+  "\[S100/java] Incomplete example for diff-id=1, missing counterpart for .*/rules/S100/java/rule.adoc:3" \
+  "\[S100/java] Incomplete example for diff-id=2, missing counterpart for .*/rules/S100/java/rule.adoc:8" \
+  "\[S100/java] Incomplete example for diff-id=3, missing counterpart for .*/shared_content/java/example.adoc:3" \
+  "\[S100/java] 3 examples for diff-id=4: .*/rules/S100/java/rule.adoc:15, .*/shared_content/java/example.adoc:13, .*/shared_content/java/example.adoc:8" \
+  "\[S200/default] 3 examples for diff-id=1: .*/rules/S200/rule.adoc:12, .*/rules/S200/rule.adoc:2, .*/rules/S200/rule.adoc:7" \
+  "\[S200/default] Two noncompliant examples for diff-id=2: .*/rules/S200/rule.adoc:17 and .*/rules/S200/rule.adoc:22"
 
 echo "All tests passed"
