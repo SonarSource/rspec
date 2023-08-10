@@ -1,39 +1,111 @@
 == Why is this an issue?
 
-Overriding ``++operator new++`` typically indicates that custom memory allocation is required for the class. When that's the case, it must be balanced with a custom memory deallocation in a matching ``++operator delete++`` method. Otherwise memory leaks or memory corruption will result.
+The `operator new` allocates memory for objects, and the `operator delete` frees the memory allocated by the matching `operator new`. When a class needs to customize memory allocation, it can override the `operator new` to use a custom memory allocation strategy and override the `operator delete` accordingly.
 
+If the `operator delete` is not overridden alongside the `operator new`, the program will call its default implementation, which may not be suitable for the custom memory allocation strategy used by the overridden `operator new`.
 
-=== Noncompliant code example
+For instance, if the `operator new` draws memory from a preallocated buffer instead of allocating memory, the `operator delete` should not call the `free` function to release the memory. Reciprocally, if the `operator new` allocate memory with `malloc`, the `operator delete` must call `free`.
 
-[source,cpp]
+On the other hand, if the `operator delete` is overridden without overriding the `operator new`, it is suspicious because it may not correctly release the memory allocated by the default `operator new`.
+
+By defining the `operator delete` along with the `operator new`, the memory is deallocated in a way consistent with the custom allocation strategy used by the `operator new`.
+
+=== What is the potential impact?
+
+Overriding only one of the two operators may result in your program consuming more and more memory over time, eventually leading to a crash. 
+
+Deallocating memory that was not allocated with the corresponding strategy results in undefined behavior.
+
+== How to fix it
+
+Each override of the `operator new` should have a matching overridden `operator delete` and vice versa.
+
+=== Code examples
+
+Imagine a custom allocator `MyAllocator`:
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class AirPlane
-{
+class MyAllocator {
 public:
-  void* operator new(size_t size);
-  void fly();
+    void* allocate(size_t size) {
+        void* p = malloc(size);
+        if (!p) {
+            throw std::bad_alloc();
+        }
+        return p;
+    }
+
+    void deallocate(void* p) {
+        free(p);
+    }
 };
 ----
 
+==== Noncompliant code example
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class AirPlane
-{
+class MyClass {
 public:
-  void* operator new(size_t size);
-  void operator delete(void* deadObject, size_t size);
-  void fly();
+    // Noncompliant: there is no matching override of the delete operator
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+private:
+    static MyAllocator allocator;
 };
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call the default implementation of the operator delete
+    // and this latter will not call the MyAllocator::deallocate function to correctly release the memory
+}
 ----
 
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+class MyClass {
+public:
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+    void operator delete(void* p) {
+        allocator.deallocate(p);
+    }
+
+private:
+    static MyAllocator allocator;
+};
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call MyClass::delete to correctly deallocate the memory
+}
+----
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/KX0-BQ[CERT, DCL54-CPP.] - Overload allocation and deallocation functions as a pair in the same scope
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#r15-always-overload-matched-allocationdeallocation-pairs[{cpp} Core Guidelines R.15] - Always overload matched allocation/deallocation pairs
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/new/operator_new[`operator new`, ``++operator new[]++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/new/operator_delete[`operator delete`, ``++operator delete[]++``]
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/KX0-BQ[DCL54-CPP. Overload allocation and deallocation functions as a pair in the same scope]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#r15-always-overload-matched-allocationdeallocation-pairs[R.15: Always overload matched allocation/deallocation pairs]
+
+=== Related rules
+
+* S1232 - Appropriate memory de-allocation should be used
 
 
 ifdef::env-github,rspecator-view[]
