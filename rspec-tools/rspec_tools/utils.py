@@ -80,6 +80,7 @@ LANG_TO_SOURCE = {
     'flex': 'flex',
     'pli': 'pli',
     'rpg': 'rpg',
+    'secrets': 'secrets',
     'terraform': 'terraform',
     'text': 'text',
     'vb6': 'vb6'
