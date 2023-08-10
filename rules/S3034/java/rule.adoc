@@ -1,48 +1,82 @@
 == Why is this an issue?
 
-When reading bytes in order to build other primitive values such as ``++int++``s or ``++long++``s, the ``++byte++`` values are automatically promoted, but that promotion can have unexpected results.
+In Java, numeric promotions happen when two operands of an arithmetic expression have different sizes.
+More specifically, narrower operands get promoted to the type of wider operands.
+For instance, an operation between a byte and an `int`, will trigger a promotion of the byte operand, converting it into an `int`.
 
+When this happens, the sequence of 8 bits that represents the `byte` will need to be extended to match the 32-bit long sequence that represents the `int` operand.
+Since Java uses two's complement notation for signed number types, the promotion will fill the missing leading bits with zeros or ones, depending on the sign of the value.
+For instance, the byte `0b1000_0000` (equal to `-128` in decimal notation), when promoted to `int`, will become `0b1111_1111_1111_1111_1111_1111_1000_0000`.
 
-For instance, the binary representation of the integer 640 is ``++0b0000_0010_1000_0000++``, which can also be written with the array of (unsigned) bytes ``++[2, 128]++``. However, since Java uses two's complement, the representation of the integer in signed bytes will be ``++[2, -128]++``  (because the ``++byte++`` ``++0b1000_0000++`` is promoted to the ``++int++`` ``++0b1111_1111_1111_1111_1111_1111_1000_0000++``). Consequently, trying to reconstruct the initial integer by shifting and adding the values of the bytes without taking care of the sign will not produce the expected result.  
+When performing shifting or bitwise operations without considering that bytes are signed, the bits added during the promotion may have unexpected effects on the final result of the operations.
 
+== How to fix it
 
-To prevent such accidental value conversion, use bitwise and (``++&++``) to combine the ``++byte++`` value with ``++0xff++`` (255) and turn all the higher bits back off.
+This rule raises an issue any time a `byte` value is used as an operand combined with shifts without being masked.
 
+To prevent such accidental value conversions, you can mask promoted bytes to only consider the least significant 8 bits.
+Masking can be achieved with the bitwise AND operator `&` and the appropriate mask of `0xff` (255 in decimal and 0b1111_1111 in binary) or, since Java 8, with the more convenient `Byte.toUnsignedInt(byte b)` or `Byte.toUnsignedLong(byte b)`.
 
-This rule raises an issue any time a ``++byte++`` value is used as an operand without ``++& 0xff++``, when combined with shifts.
+=== Code examples
 
+==== Noncompliant code example
 
-=== Noncompliant code example
-
-[source,java]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-  int intFromBuffer() {
-    int result = 0;
-    for (int i = 0; i < 4; i++) {
-      result = (result << 8) | readByte(); // Noncompliant
+  public static void main(String[] args) {
+    byte[] bytes12 = BigInteger.valueOf(12).toByteArray(); // This byte array will be simply [12]
+    System.out.println(intFromBuffer(bytes12)); // In this case, the bytes promotion will not cause any issues, and "12" will be printed.
+
+    // Here the bytes will be [2, -128] since 640 in binary is represented as 0b0000_0010_1000_0000
+    // which is equivalent to the concatenation of 2 bytes: 0b0000_0010 = 2, and 0b1000_0000 = -128
+    byte[] bytes640 = BigInteger.valueOf(640).toByteArray();
+
+    // In this case, the shifting operation combined with the bitwise OR, will produce the wrong binary string and "-128" will be printed.
+    System.out.println(intFromBuffer(bytes640));
+  }
+
+  static int intFromBuffer(byte[] bytes) {
+    int originalInt = 0;
+    for (int i = 0; i < bytes.length; i++) {
+      // Here the right operand of the bitwise OR, which is a byte, will be promoted to an `int`
+      // and if its value was negative, the added ones in front of the binary string will alter the value of the `originalInt`
+      originalInt = (originalInt << 8) | bytes[i]; // Noncompliant
     }
-    return result;
+    return originalInt;
   }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-  int intFromBuffer() {
-    int result = 0;
-    for (int i = 0; i < 4; i++) {
-      result = (result << 8) | (readByte() & 0xff);
+  public static void main(String[] args) {
+    byte[] bytes12 = BigInteger.valueOf(12).toByteArray(); // This byte array will be simply [12]
+    System.out.println(intFromBuffer(bytes12)); // In this case, the bytes promotion will not cause any issues, and "12" will be printed.
+
+    // Here the bytes will be [2, -128] since 640 in binary is represented as 0b0000_0010_1000_0000
+    // which is equivalent to the concatenation of 2 bytes: 0b0000_0010 = 2, and 0b1000_0000 = -128
+    byte[] bytes640 = BigInteger.valueOf(640).toByteArray();
+
+    // This will correctly print "640" now.
+    System.out.println(intFromBuffer(bytes640));
+  }
+
+  static int intFromBuffer(byte[] bytes) {
+    int originalInt = 0;
+    for (int i = 0; i < bytes.length; i++) {
+      originalInt = (originalInt << 8) | Byte.toUnsignedInt(bytes[i]); // Compliant, only the relevant 8 least significant bits will affect the bitwise OR
     }
-    return result;
+    return originalInt;
   }
 ----
 
 
-== Resources
+== References
 
 * https://wiki.sei.cmu.edu/confluence/x/kDZGBQ[CERT, NUM52-J.] - Be aware of numeric promotion behavior 
+* https://en.wikipedia.org/wiki/Signed_number_representations#Two.27s_complement[Wikipedia] - Two's complement
 
 
 ifdef::env-github,rspecator-view[]
