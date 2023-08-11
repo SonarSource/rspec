@@ -1,48 +1,60 @@
 == Why is this an issue?
 
-According to the documentation of the Java ``++Condition++`` interface:
+In a multithreaded environment, the `Object.wait(...)`, as well as `Condition.await(...)` and similar methods are used to pause the execution of a thread until the thread is awakened.
+A thread is typically awakened when it is notified, signaled, or interrupted, usually because of an event in another thread requiring some subsequent action by the waiting thread.
+
+However, a thread may be awakened despite the desired condition not being met or the desired event not having happened.
+This is referred to as "spurious wakeups" and may be caused by underlying platform semantics.
+In other words, a thread may be awakened due to reasons that have nothing to do with the business logic.
+Hence, the assumption that the desired condition is met or the desired event occurred after a thread is awakened does not always hold.
+
+According to the documentation of the Java `Condition` interface [1]:
 
 ____
-When waiting upon a ``++Condition++``, a "spurious wakeup" is permitted to occur, in general, as a concession to the underlying platform semantics. This has little practical impact on most application programs as a Condition should always be waited upon in a loop, testing the state predicate that is being waited for. An implementation is free to remove the possibility of spurious wakeups but it is recommended that applications programmers always assume that they can occur and so always wait in a loop.
-
+When waiting upon a `Condition`, a "spurious wakeup" is permitted to occur, in general, as a concession to the underlying platform semantics. This has little practical impact on most application programs as a Condition should always be waited upon in a loop, testing the state predicate that is being waited for. An implementation is free to remove the possibility of spurious wakeups but it is recommended that applications programmers always assume that they can occur and so always wait in a loop.
 ____
 
-The same advice is also found for the ``++Object.wait(...)++`` method:
+The same advice is also found for the `Object.wait(...)` method [2]:
 
 ____
-waits should always occur in loops, like this one:
+[...] waits should always occur in loops, like this one:
 
 ----
 synchronized (obj) {
   while (<condition does not hold>){
-    obj.wait(timeout); 
+    obj.wait(timeout);
   }
    ... // Perform action appropriate to condition
 }
 ----
 ____
 
+== How to fix it
 
-=== Noncompliant code example
+Make sure that the desired condition is actually true after being awakened. This can be accomplished by calling the `wait` or `await` methods inside a loop that checks said condition.
 
-[source,java]
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
 synchronized (obj) {
   if (!suitableCondition()){
-    obj.wait(timeout);   //the thread can wake up even if the condition is still false
+    obj.wait(timeout); // Noncompliant, the thread can be awakened even though the condition is still false
   }
-   ... // Perform action appropriate to condition
+   ... // Perform some logic that is appropriate for when the condition is true
 }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
 synchronized (obj) {
   while (!suitableCondition()){
-    obj.wait(timeout);
+    obj.wait(timeout); // Compliant, the condition is checked in a loop, so the action below will only occur if the condition is true
   }
    ... // Perform action appropriate to condition
 }
@@ -51,7 +63,9 @@ synchronized (obj) {
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/EzdGBQ[CERT THI03-J.] - Always invoke wait() and await() methods inside a loop
+1. https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/locks/Condition.html[Java SE 17 & JDK 17] - Condition
+2. https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#wait--[Java Platform SE 8] - Object#wait
+3. https://wiki.sei.cmu.edu/confluence/x/EzdGBQ[CERT THI03-J.] - Always invoke wait() and await() methods inside a loop
 
 ifdef::env-github,rspecator-view[]
 
