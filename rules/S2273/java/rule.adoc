@@ -1,14 +1,16 @@
 == Why is this an issue?
 
-The `Object.wait(...)`, `Object.notify()` and `Object.notifyAll()` methods are used in multithreaded environments to coordinate the access of multiple threads on the same resources.
-By contract, a `Thread` needs to hold the lock on the object these methods are being invoked on, otherwise, an `IllegalMonitorException` is thrown.
+The `Object.wait(...)`, `Object.notify()` and `Object.notifyAll()` methods are used in multithreaded environments to coordinate interdependent tasks that are performed by different threads.
+These methods are not thread-safe and by contract, they require the invoking `Thread` to own the object's monitor.
+If a thread invokes one of these methods without owning the object's monitor an `IllegalMonitorStateException` is thrown.
 
 == How to fix it
 
-To ensure that these methods are called only when the currently running thread is the holder of the lock on the object, you can use the `synchronized` keyword.
-`synchronized` can be used to mark entire methods or to define synchronized blocks within methods.
-The code inside a synchronized portion of code will only be executed by one thread at a time, and the executing thread will acquire the lock on the object.
-This guarantees that when one of the methods mentioned above is invoked by a thread, it will only possibly be the holder of the lock on the object.
+To become the owner of an object's monitor Java provides the `synchronized` keyword.
+In other words, calling `Object.wait(...)`, `Object.notify()` and `Object.notifyAll()` on a given object should only be done from code synchronized on the same object.
+
+For example, the call to `someObject.wait(...)` should be wrapped in a `synchronized(someObject){ ... }` block.
+If `wait` or `notify` are invoked on `this`, then the entire method can be marked as `synchronized`.
 
 === Code examples
 
@@ -16,11 +18,11 @@ This guarantees that when one of the methods mentioned above is invoked by a thr
 
 [source,java]
 ----
-private void removeElement() {
+private void performSomeAction(Object syncValue) {
   while (!suitableCondition()){
-    wait(); // Noncompliant, not being inside a `synchronized` block, this could be invoked by a Thread that does not have the right to do it
+    syncValue.wait(); // Noncompliant, not being inside a `synchronized` block, this will raise an IllegalMonitorStateException
   }
-  ... // Perform removal
+  ... // Perform some action
 }
 ----
 
@@ -28,20 +30,20 @@ private void removeElement() {
 
 [source,java]
 ----
-private void removeElement() {
-  synchronized(obj) {
+private void performSomeAction(Object syncValue) {
+  synchronized(syncValue) {
     while (!suitableCondition()){
-      wait(); // Compliant, the `synchronized` block guarantees that Threads running this portion of the code, will be the holders of the object's lock
+      syncValue.wait(); // Compliant, the `synchronized` block guarantees ownership of syncValue's monitor
     }
-    ... // Perform removal
+    ... // Perform some action
   }
 }
 ----
 
 == References
 
-* https://docs.oracle.com/javase/tutorial/essential/concurrency/syncmeth.html[docs.oracle] - Synchronized methods
-* https://docs.oracle.com/javase%2F7%2Fdocs%2Fapi%2F%2F/java/lang/Object.html#wait()[docs.oracle] - java.lang.Object class and its methods
+* https://docs.oracle.com/javase/tutorial/essential/concurrency/syncmeth.html[Java Documentation] - Synchronized methods
+* https://docs.oracle.com/javase%2F7%2Fdocs%2Fapi%2F%2F/java/lang/Object.html#wait()[Java Documentation] - java.lang.Object class and its methods
 
 ifdef::env-github,rspecator-view[]
 
