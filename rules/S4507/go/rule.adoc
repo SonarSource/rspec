@@ -1,0 +1,210 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+For https://pkg.go.dev/runtime/debug[debug package in Go Standard Library:]
+
+``++debug.PrintStack()++`` prints a stack trace to the standard error output (by default) which is not easily parseable and can expose sensitive information:
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+import "runtime/debug"
+
+_, err := funcThatFails()
+if err != nil {
+    fmt.Printf("Error calling funcThatFails: %v\n", err)
+    debug.PrintStack() // Sensitive
+    return
+}
+----
+
+For https://pkg.go.dev/runtime/pprof[pprof package in Go Standard Library:]
+
+[source,go,diff-id=2,diff-type=noncompliant]
+----
+pprof.Lookup("goroutine").WriteTo(os.Stdout, 1) // Sensitive
+----
+
+For https://pkg.go.dev/net/http/pprof[http/pprof package in Go Standard Library:]
+
+Importing ``++net/http/pprof++`` adds several https://pkg.go.dev/net/http/pprof[HTTP handlers] that expose runtime profiling data about the current process:
+
+[source,go,diff-id=3,diff-type=noncompliant]
+----
+import (
+    "net/http"
+    _ "net/http/pprof" // Sensitive
+)
+----
+
+For https://pkg.go.dev/net/http/httputil[httputil package in Go Standard Library:]
+
+``++httputil.DumpRequest()++`` generates a dump of an HTTP request and can expose sensitive information:
+
+[source,go,diff-id=4,diff-type=noncompliant]
+----
+import "net/http/httputil"
+
+dump, err := httputil.DumpRequest(req, true) // Sensitive
+if err == nil {
+    fmt.Printf("%q", dump)
+}
+----
+
+For https://pkg.go.dev/gorm.io/gorm[GORM Library:]
+
+ORM libraries like GORM often allow logging SQL queries that may expose sensitive information:
+
+[source,go,diff-id=5,diff-type=noncompliant]
+----
+import "gorm.io/gorm"
+
+db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{
+    Logger: logger.Default.LogMode(logger.Info), // Sensitive
+})
+if err != nil {
+    panic("failed to connect database")
+}
+
+db.Debug().Create(&User{Account: acccount, Password: password}) // Sensitive
+----
+
+== Compliant Solution
+
+For https://pkg.go.dev/runtime/debug[debug package in Go Standard Library:]
+
+Loggers should be used (such as https://pkg.go.dev/go.uber.org/zap[zap]) to print logs in a parsable way, with a proper level, and without stack trace when used in production:
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+import "go.uber.org/zap"
+
+level := zap.WarnLevel
+
+config := zap.NewProductionConfig()
+config.DisableStacktrace = level != zap.DebugLevel
+config.Level.SetLevel(level)
+logger := zap.Must(config.Build())
+zap.ReplaceGlobals(logger)
+
+...
+
+_, err := funcThatFails()
+if err != nil {
+    zap.L().Sugar().Errorf("Error calling funcThatFails: %v\n", err) // Compliant
+    return
+}
+----
+
+For https://pkg.go.dev/runtime/pprof[pprof package in Go Standard Library:]
+
+Loggers should be used (such as https://pkg.go.dev/go.uber.org/zap[zap]) to print logs in a parsable way, with a proper level, and without stack trace when used in production:
+
+[source,go,diff-id=2,diff-type=compliant]
+----
+import "go.uber.org/zap"
+
+level := zap.WarnLevel
+
+config := zap.NewProductionConfig()
+config.DisableStacktrace = level != zap.DebugLevel
+config.Level.SetLevel(level)
+logger := zap.Must(config.Build())
+zap.ReplaceGlobals(logger)
+
+...
+
+// Create a writer for the logger, log only for Debug level
+writer := &zapio.Writer{Log: zap.L(), Level: zap.DebugLevel}
+defer writer.Close()
+
+pprof.Lookup("goroutine").WriteTo(writer, 1) // Compliant
+----
+
+For https://pkg.go.dev/net/http/pprof[http/pprof package in Go Standard Library:]
+
+Do not import ``++net/http/pprof++`` or ensure the HTTP handlers can't be accessed by end-users.
+
+[source,go,diff-id=3,diff-type=compliant]
+----
+import (
+    "net/http"
+)
+----
+
+For https://pkg.go.dev/net/http/httputil[httputil package in Go Standard Library:]
+
+Loggers should be used (such as https://pkg.go.dev/go.uber.org/zap[zap]) to print logs in a parsable way and with a proper level:
+
+[source,go,diff-id=4,diff-type=compliant]
+----
+import (
+    "net/http/httputil"
+
+    "go.uber.org/zap"
+)
+
+level := zap.WarnLevel
+
+config := zap.NewProductionConfig()
+config.DisableStacktrace = level != zap.DebugLevel
+config.Level.SetLevel(level)
+logger := zap.Must(config.Build())
+zap.ReplaceGlobals(logger)
+
+dump, err := httputil.DumpRequest(req, true)
+if err == nil {
+    zap.L().Sugar().Debugf("%q", dump) // Compliant
+}
+----
+
+For https://pkg.go.dev/gorm.io/gorm[GORM Library:]
+
+Loggers should be used (such as https://pkg.go.dev/go.uber.org/zap[zap]) to print logs in a parsable way and with a proper level:
+
+[source,go,diff-id=5,diff-type=compliant]
+----
+import "gorm.io/gorm"
+
+db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{
+    Logger: logger.Default.LogMode(logger.Warn), // Compliant
+})
+if err != nil {
+    panic("failed to connect database")
+}
+
+db.Create(&User{Account: acccount, Password: password}) // Compliant
+----
+
+include::../see.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+=== Highlighting
+
+Highlight the following:
+
+* The function ``++PrintStack++`` from the package ``++runtime/debug++``.
+* The method ``++WriteTo++`` of the type ``++Profile++`` from the package ``++runtime/pprof++``.
+* The name of the package ``++net/http/pprof++`` when it is imported.
+* The functions ``++DumpRequest++`` and ``++DumpResponse++`` from the package ``++net/http/httputil++``.
+* The method ``++Debug++`` of the type ``++DB++`` from the package ``++gorm.io/gorm++``.
+* The value `Info` of the type ``++LogLevel++`` from the package ``++gorm.io/gorm++``.
+
+'''
+== Comments And Links
+(visible only on this page)
+
+include::../comments-and-links.adoc[]
+
+endif::env-github,rspecator-view[]
