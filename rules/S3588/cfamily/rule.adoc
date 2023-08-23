@@ -52,6 +52,83 @@ Using {cpp}'s _RAII_ idiom can mitigate these "double-close" issues.
 
 Following this idiom, one would create a class that manages the underlying file by opening it when the object is constructed and closing it when the object is destroyed, effectively using a constructor-destructor pair as a "do-undo"-mechanism.
 
+An exemplary class that manages a pointer to a file is shown in what follows.
+
+[source,cpp]
+----
+#include <cstdio>
+#include <iostream>
+#include <string>
+
+// Although `std::fstream` should be preferred, if available, this `File` class
+// does not and cannot suffer from "double-close" issues.
+class File {
+  FILE *f;
+
+public:
+  // Opens file stream on construction.
+  File(std::string const &path, std::string const &modes) {
+    f = fopen(path.c_str(), modes.c_str());
+    if (!f) {
+      perror("fopen() failed");
+      exit(1);
+    }
+  }
+  // Will close the file stream upon destruction.
+  ~File() {
+    int status = fclose(f);
+    if (status == EOF) {
+      perror("fclose() failed");
+      exit(1);
+    }
+  }
+  // We wish to use an object of this type only the the scope it has been
+  // created in and hence disallow copying or moving it.
+  File(const File &other) = delete;
+  File(File &&other) = delete;
+  // Forward to standard C library's `fread`.
+  size_t fread(void *ptr, size_t size, size_t nmemb) {
+    return ::fread(ptr, size, nmemb, f);
+  }
+  // Forward to standard C library's `fwrite`.
+  size_t fwrite(const void *ptr, size_t size, size_t nmemb) {
+    return ::fwrite(ptr, size, nmemb, f);
+  }
+  // Determine file size in bytes.
+  size_t size() {
+    int status = fseek(f, 0L, SEEK_END);
+    if (status == -1) {
+      perror("fseek() failed");
+      exit(1);
+    }
+    ssize_t bytes = ftell(f);
+    if (bytes == -1) {
+      perror("ftell() failed");
+      exit(-1);
+    }
+    rewind(f);
+    return bytes;
+  }
+};
+
+int main() {
+  File f{"example.txt", "r"};
+  size_t bytes = f.size();
+  char *buffer = (char *)malloc(bytes + 1);
+  buffer[bytes] = '\0'; // Add null terminator.
+  size_t items_read = f.fread(buffer, bytes, 1);
+  if (items_read < 1) {
+    printf("Could not read items!\n");
+    return 1;
+  }
+  printf("file contents: %s\n", buffer);
+  free(buffer);
+  return 0;
+}
+----
+
+If falling back to low-level file operations is not necessary, one should prefer ``++std::fstream++``, for instance.
+
 
 === Code examples
 
