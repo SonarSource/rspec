@@ -50,77 +50,7 @@ Do not use the value of a pointer to a ``++FILE++`` object after the associated 
 
 Using {cpp}'s _RAII_ idiom can mitigate these "double-close" issues.
 
-Following this idiom, one would create a class that manages the underlying file by opening it when the object is constructed and closing it when the object is destroyed, effectively using a constructor-destructor pair as a "do-undo"-mechanism.
-
-An exemplary class that manages a pointer to a file is shown in what follows.
-
-[source,cpp]
-----
-#include <cstdio>
-#include <fstream>
-#include <string>
-#include <utility>
-
-// Although `std::fstream` should be preferred, if available, a file stream
-// managed by this `File` class cannot suffer from "double-close" issues.
-class File {
-  FILE *f;
-
-public:
-  // Opens file stream on construction.
-  File(std::string const &path, std::string const &modes)
-      : f(fopen(path.c_str(), modes.c_str())) {
-    if (!f) {
-      throw std::ios_base::failure("fopen() failed");
-    }
-  }
-  // Will close the file stream upon destruction.
-  ~File() {
-    // Here we are fine with `std::terminate` being called here in case `close`
-    // throws and exception.
-    close();
-  }
-  // Allow only one owner of a file, disallow copy operations.
-  File(const File &other) = delete;
-  File &operator=(const File &other) = delete;
-  // Moving a file to a different scope shall be allowed.
-  File(File &&other) : f(std::exchange(other.f, nullptr)) {}
-  File &operator=(File &&other) {
-    if (this != &other) {
-      // In case of non-self-assignment, close the currently managed file and
-      // "steal" the other's file.
-      close();
-      f = std::exchange(other.f, nullptr);
-    }
-    return *this;
-  }
-  // Allow file to be closed explicitly.
-  void close() {
-    if (f != nullptr && fclose(std::exchange(f, nullptr)) == EOF) {
-      throw std::ios_base::failure("fclose() failed");
-    }
-  }
-  // Allow access to underlying file via `f`.
-  FILE *handle() { return f; }
-  // Release `f`, i.e., stop managing it.
-  FILE *release() { return std::exchange(f, nullptr); }
-};
-
-void file_user() {
-  File fh{"example.txt", "r"};
-  FILE *f = fh.handle();
-  // Use `f` for the desired file operation(s).
-  //
-  // The file stream managed by `fh` will be automatically closed when `fh` goes
-  // out of scope at the end of this function.
-}
-----
-
-With the design shown above, it is still possible to "double-close" a file by passing the raw ``++FILE++`` pointer obtained by a call to ``++File::handle++`` to ``++fclose++`` (e.g. ``++fclose(f.handle())++``).
-However, this design reduces the risk of such occurrence by eliminating the need for manually closing files.
-If even the reduced possibility of "double-close" is still a concern, the function member ``++File::handle++`` should be removed and any required file operations should be wrapped by the ``++File++`` class.
-
-If falling back to low-level file operations is not necessary, one should prefer ``++std::fstream++``.
+include::../../../shared_content/cfamily/c_file_io_raii_extra_mile.adoc[]
 
 
 === Code examples
