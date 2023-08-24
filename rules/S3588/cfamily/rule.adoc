@@ -57,7 +57,6 @@ An exemplary class that manages a pointer to a file is shown in what follows.
 [source,cpp]
 ----
 #include <cstdio>
-#include <exception>
 #include <fstream>
 #include <string>
 #include <utility>
@@ -76,37 +75,27 @@ public:
     }
   }
   // Will close the file stream upon destruction.
-  ~File() {
-    if (!f) {
-      return;
-    }
-    int status = fclose(f);
-    if (status == EOF) {
-      // One should not throw in destructors. We hence exit immediately, if a
-      // file cannot be closed.
-      perror("fclose() failed");
-      exit(1);
-    }
-  }
+  ~File() { close(); }
   // Allow only one owner of a file, disallow copy operations.
   File(const File &other) = delete;
   File &operator=(const File &other) = delete;
   // Moving a file to a different scope shall be allowed.
-  File(File &&other) { f = std::exchange(other.f, nullptr); }
+  File(File &&other) : f(std::exchange(other.f, nullptr)) {}
   File &operator=(File &&other) {
-    if (this == &other) { // Handle self-assignment.
-      return *this;
+    if (this != &other) {
+      // In case of non-self-assignment, close the currently managed file and
+      // "steal" the other's file.
+      close();
+      f = std::exchange(other.f, nullptr);
     }
-    // Close the currently managed file and "steal" the other's file.
-    close();
-    f = std::exchange(other.f, nullptr);
     return *this;
   }
   // Allow file to be closed explicitly.
   void close() {
-    int status = fclose(std::exchange(f, nullptr));
-    if (status == EOF) {
-      throw std::ios_base::failure("fclose() failed");
+    if (f != nullptr && fclose(std::exchange(f, nullptr)) == EOF) {
+      // We made the choice to exit immediately, if a file cannot be closed.
+      perror("fclose() failed");
+      exit(1);
     }
   }
   // Allow access to underlying file via `f`.
