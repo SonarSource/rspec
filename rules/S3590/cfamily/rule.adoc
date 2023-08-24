@@ -1,34 +1,137 @@
+Explicitly releasing non-heap memory leads to undefined behavior.
+
 == Why is this an issue?
 
-Stack allocated memory, like memory allocated with the functions ``++alloca++``, ``++_alloca++``, ``++_malloca++``, ``++__builtin_alloca++``, is automatically released at the end of the function, and should not be released with ``++free++``. Explicitly ``++free++``-ing such memory results in undefined behavior.
+The `free` function and `delete` operator are used exclusively to release dynamically allocated memory.
+Attempting to release any other type of memory is _undefined behavior_.
+
+This rule raises an issue when trying to release pointers to non-heap memory, such as:
+
+* Stack allocated memory - local variables or memory allocated with the `alloca`, `_alloca`, `_malloca` and `__builtin_alloca` functions.
+* Program executable code - function pointers.
+* Program data - global and static variables.
+* Read-only program data - constants and strings.
 
 
-This rule raises issues when trying to release pointers to memory which is not owned, like stack allocated memory and function pointers.
+== How to fix it
 
+Remove any calls to `free` or `delete` that release non-heap memory.
 
-=== Noncompliant code example
+As a best practice, do not use the same pointer variable to point to heap memory and any other type of memory at different points in the program.
 
-[source,cpp]
+=== Code examples
+
+Stack allocated memory:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=1]
 ----
-void fun() {
-  char *name = (char *) alloca(size);
+void fun(int size) {
+  int number = 0;
+  char* name = (char*)alloca(size);
   // ...
-  free(name); // Noncompliant, memory allocated on the stack
-  char *name2 = "name";
-  // ...
-  free(name2); // Noncompliant, memory allocated on the stack
+  delete &number; // Noncompliant, memory allocated on the stack.
+  free(name); // Noncompliant, memory allocated on the stack.
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-type=compliant,diff-id=1]
 ----
-void fun() {
-  char *name = (char *) alloca(size);
+void fun(int size) {
+  int number = 0;
+  char* name = (char*)alloca(size);
   // ...
-  char *name2 = "name";
+}
+----
+
+Program executable code:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=2]
+----
+int get10() {
+  return 10;
+}
+
+void fun() {
+  // ...
+  free((void*) &get10); // Noncompliant, memory part of program executable code.
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=2]
+----
+int get10() {
+  return 10;
+}
+
+void fun() {
+  // ...
+}
+----
+
+Program data:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=3]
+----
+struct S {
+  static inline int data = 64;
+};
+
+void fun() {
+  static int x = 8;
+  // ...
+  free(&x); // Noncompliant, memory part of program data.
+  free(&S::data); // Noncompliant, memory part of program data.
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=3]
+----
+struct S {
+  static inline int data = 64;
+};
+
+void fun() {
+  static int x = 8;
+  // ...
+}
+----
+
+Read-only program data:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=4]
+----
+int const limit = 128;
+
+void fun() {
+  char* name = "string";
+  // ...
+  free((void*)&limit); // Noncompliant, memory part of read-only program data.
+  free(name); // Noncompliant, memory part of read-only program data.
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=4]
+----
+int const limit = 128;
+
+void fun() {
+  char const* name = "string";
   // ...
 }
 ----
