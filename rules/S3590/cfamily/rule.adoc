@@ -5,19 +5,22 @@ Explicitly releasing non-heap memory leads to undefined behavior.
 The `free` function and `delete` operator are used exclusively to release dynamically allocated memory.
 Attempting to release any other type of memory is _undefined behavior_.
 
-This rule raises an issue when trying to release pointers to non-heap memory, such as:
+The following non-heap memory types should not be released:
 
 * Stack allocated memory - local variables or memory allocated with the `alloca`, `_alloca`, `_malloca` and `__builtin_alloca` functions.
 * Executable program code - function pointers.
 * Program data - global and static variables.
 * Read-only program data - constants and strings.
 
+=== What is the potential impact
+
+Both the C and {cpp} standards define freeing non-heap memory as _undefined behavior_.
+
+In all modern compilers, this scenario will result in a crash.
 
 == How to fix it
 
 Remove any calls to `free` or `delete` that aim at releasing non-heap memory.
-
-As a best practice, do not use the same pointer variable to point to heap memory and any other type of memory at different points in the program.
 
 === Code examples
 
@@ -44,6 +47,7 @@ void fun(int size) {
   int number = 0;
   char* name = (char*)alloca(size);
   // ...
+  // Compliant: stack memory is automatically released at the end of the function.
 }
 ----
 
@@ -73,6 +77,7 @@ int get10() {
 
 void fun() {
   // ...
+  // Compliant: program code will be released at the end of the program's execution.
 }
 ----
 
@@ -105,6 +110,7 @@ struct S {
 void fun() {
   static int x = 8;
   // ...
+  // Compliant: globals and static variables are released at the end of the program's execution.
 }
 ----
 
@@ -133,9 +139,107 @@ int const limit = 128;
 void fun() {
   char const* name = "string";
   // ...
+  // Compliant: read-only program data is freed at the end of the program's execution.
 }
 ----
 
+
+=== Going the extra mile
+
+Freeing stack memory usually happens if the origin of the memory held by a pointer is mixed.
+Specifically, if the same pointer is used to reference heap and non-heap memory.
+
+This can happen
+
+To avoid this, follow these best practices:
+* If accessing different memory types, different pointers should be used.
+* When passing non-heap memory address to a function, ensure that the function does not attempt to release the memory.
+* If manually managing dynamic memory, release the memory in the same scope where it was acquired.
+
+The following example illustrates the usage of different pointers:
+
+Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=5]
+----
+void fun(int length) {
+  static char smallString[32];
+  char* usedString;
+
+  if (length < 31) {
+    usedString = smallString; // Pointer to stack memory assigned here
+  } else {
+    usedString = (char*)malloc(length + 1);
+  }
+  // ...
+  free(usedString); // Noncompliant: if length < 31, the freed memory will be located on the stack.
+}
+----
+
+Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=5]
+----
+void fun(int length) {
+  static char smallString[32];
+  char* stackOrHeapString;
+  char* heapString = nullptr;
+
+  if (length < 31) {
+    stackOrHeapString = smallString;
+  } else {
+    heapString = (char*)malloc(length + 1);
+    stackOrHeapString = heapString;
+  }
+  // ...
+  free(heapString); // Compliant: only the heap string will be freed, if allocated.
+}
+----
+
+The following example illustrates a case of passing a mixed pointer to an unsafe function:
+
+Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=6]
+----
+void use(char* string) {
+  // ...
+  free(string); // Noncompliant: pointer's origin is unknown. If non-heap, the program will crash.
+}
+
+void fun(int length) {
+  static char smallString[32];
+  char* usedString;
+
+  if (length < 31) {
+    usedString = smallString; // Pointer to stack memory assigned here
+  } else {
+    usedString = (char*)malloc(length + 1);
+  }
+  useAndClear(usedString); // If length < 31, the unsafe memory will free memory located on the stack.
+}
+----
+
+Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=6]
+----
+void use(char* string) {
+  // ...
+  // Compliant: memory no longer freed in the called function
+}
+
+void fun(int length) {
+  static char smallString[32];
+  if (length < 31) {
+    use(smallString);
+  } else {
+    heapString = (char*)malloc(length + 1);
+    use(heapString);
+    free(heapString); // Compliant: memory released in the scope it was acquired in.
+  }
+}
+----
 
 ifdef::env-github,rspecator-view[]
 
