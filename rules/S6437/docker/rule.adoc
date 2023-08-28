@@ -5,7 +5,7 @@ should be considered breached.
 
 If malicious third parties can get a hold of such information, they could
 impersonate legitimate identities within the organization. +
-It is a clear breach of trust in the system, as the systems involved falsely 
+It is a clear breach of trust in the system, as the systems involved falsely
 assume that the authenticated entity is who it claims to be. +
 The consequences can be catastrophic.
 
@@ -31,12 +31,22 @@ The following code snippet demonstrates the creation of a file with a private
 key and a public key, which are then stored in the metadata of the container. +
 This is non-compliant, as the private key should not be exposed anywhere.
 
-[source,docker]
+Afterwards, the code uses a seemingly-hidden password which is actually leaked
+after the container is built.
+
+
+[source,docker, diff-id=1, diff-type=noncompliant]
 ----
 FROM example
 
 # Noncompliant
-RUN ssh-keygen -N "Passphrase" -t rsa -b 1024 -f rsync-key
+RUN ssh-keygen -N "passphrase" -t rsa -b 2048 -f /etc/ssh/rsa_key
+
+RUN /example.sh --ssh /etc/ssh/rsa_key
+
+ARG PASSWORD
+# Noncompliant
+RUN wget --user=guest --password="$PASSWORD" https://example.com
 ----
 
 === Compliant solution
@@ -44,11 +54,15 @@ RUN ssh-keygen -N "Passphrase" -t rsa -b 1024 -f rsync-key
 For build-time secrets, use
 https://docs.docker.com/engine/reference/builder/#run---mounttypesecret[Buildkit's secret mount type] instead:
 
-[source,docker]
+[source,docker, diff-id=1, diff-type=compliant]
 ----
 FROM example
-RUN --mount=type=secret,id=build_secret \
-    wget --user=guest --password=$(cat /run/secrets/build_secret) https://example.com
+
+RUN --mount=type=secret,id=ssh,target=/etc/ssh/rsa_key \
+    /example.sh --ssh /etc/ssh/rsa_key
+
+RUN --mount=type=secret,id=wget_passwd \
+    wget --user=guest --password="$(cat /run/secrets/wget_passwd)" https://example.com
 ----
 
 For runtime secrets, leave the environment variables empty until runtime:
@@ -56,13 +70,14 @@ For runtime secrets, leave the environment variables empty until runtime:
 [source,docker]
 ----
 FROM example
-ENV ACCESS_TOKEN=""
-CMD /run.sh
+ENV PASSWORD=""
+
+CMD /runtime_wget.sh
 ----
 
 Store the runtime secrets in an
-https://docs.docker.com/compose/env-file/[environment file] (such as `.env`)
-and then start the container with the
+https://docs.docker.com/compose/env-file/[environment file] such as `.env` and
+then start the container with the
 https://docs.docker.com/engine/reference/commandline/run/#set-environment-variables--e---env---env-file[`--env-file`] argument:
 
 [source,docker]
