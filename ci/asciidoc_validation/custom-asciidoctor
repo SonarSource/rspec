@@ -129,28 +129,25 @@ class SourceLogger < Asciidoctor::Extensions::TreeProcessor
       blocks_per_id[id].push(block)
     end
 
-    # Each diff-id should have exactly 1 compliant and 1 noncompliant block.
+    # Each diff-id should have:
+    #  * exactly 1 noncompliant block, and
+    #  * 1 or more compliant blocks.
     # Find blocks that break this rule.
     blocks_per_id.each do |id, blocks|
       # Sort to ensure deterministic output.
       blocks.sort_by! { |block| get_source_location(block) }
 
-      case blocks.length
-      when 1
-        loc = get_source_location(blocks[0])
-        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] Incomplete example for diff-id=#{id}, missing counterpart for #{loc}")
-      when 2
-        type1 = blocks[0].attr('diff-type')
-        type2 = blocks[1].attr('diff-type')
-        if type1 == type2
-          loc1 = get_source_location(blocks[0])
-          loc2 = get_source_location(blocks[1])
-          logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] Two #{type1} examples for diff-id=#{id}: #{loc1} and #{loc2}")
-        end
-      else
-        locs = blocks.map { |block| get_source_location(block) }
-        locs = locs.join(', ')
-        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] #{blocks.length} examples for diff-id=#{id}: #{locs}")
+      locs = blocks.map { |block| get_source_location(block) }.join(', ')
+
+      compliant = blocks.count { |block| block.attr('diff-type') == 'compliant' }
+      if compliant == 0
+        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] diff-id=#{id} has zero compliant example: #{locs}")
+      end
+
+      noncompliant = blocks.count { |block| block.attr('diff-type') == 'noncompliant' }
+      if noncompliant != 1
+        message = noncompliant == 0 ? "zero noncompliant example" : "too many noncompliant examples"
+        logger.info("ASCIIDOC LOGGER DIFF:[#{rule}] diff-id=#{id} has #{message}: #{locs}")
       end
     end
   end
