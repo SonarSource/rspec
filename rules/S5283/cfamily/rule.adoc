@@ -1,23 +1,213 @@
+Creating a Variable Length Array (VLA) with a size that is not greater than zero leads to undefined behavior.
+
 == Why is this an issue?
 
-Variable length arrays should have a well-defined, positive size.
+Variable length arrays are used to allocate a stack size for the number of elements that are known at the runtime,
+for example: 
 
-
-=== Noncompliant code example
-
-[source,cpp]
+[source,c]
 ----
-void f1() {
-  int n;
-  int a[n]; // Noncompliant; n is undefined
-}
-
-void f2() {
-  int n = 0;
-  int a[n]; // Noncompliant; array of zero size
+void merge(int* tab, int size, int first) {
+  int res[size]; // allocate buffer for merging on stack
+  /* Code that merges two sorted ranges [tab, tab + first) and [tab + first, tab + last)
+   * into res buffer.
+   * ....
+   */
+  // copy merged data into input
+  memcpy(tab, res, size * sizeof(int));
 }
 ----
 
+The syntax follows the one used by an array with static size (where size is a constant),
+and the value placed in the square brackets (`[size]` in the above example) determines the size of the array.
+For both static and runtime-sized arrays, the size is required to be greater than zero.
+However, in the case of VLAs, this cannot be checked by the compiler, 
+and any program that creates such an array with a size that has a value of zero or is negative, 
+has undefined behavior.
+
+[source,c]
+----
+void example() {
+  int s = -1;
+  int vla[s];  // program compiles, and have undefined behavior
+  int arr[-1]; // program is ill-formed
+}
+----
+
+This defect may also manifest when the variable used as size is not initialized.
+Uninitialized variables might have zero, negative, or any value at each time the program executes.
+
+[source,c]
+----
+void uninitialized() {
+  int s;      // uninitialized, the value is not determined
+  int vla[s]; // program compiles, have undefined behavior if the value read from s is negative or zero
+}
+----
+
+
+A non-positive size of the VLAs may also result from using a value loaded by the program from a file or other external resources used as size without previous validation.
+Such values as usually referred to as being _tainted_.
+
+[source,c]
+----
+void loadFromInput() {
+  int size = -1;
+  scanf("%d", &size); // loads size from input
+  char bytes[size];   // size may be negative
+  /* ... */
+}
+----
+
+The above code will lead to undefined behavior when the value of the `size` load from the input is not greater than zero.
+This may happen due to source data corruption, accidental user mistake, or malicious action. 
+
+=== What is the potential impact?
+
+Creating a variable length array with a size smaller or equal to zero leads to undefined behavior.
+This means the compiler is not bound by the language standard anymore, and your program has no meaning assigned to it.
+
+Practically this can lead to a wide range of effects and may lead to the following:
+
+* crashes, in particular segmentation faults, when the program access memory that it is not allowed to,
+* memory corruption and data losses, when the program overwrites bytes responsible for storing data or executable code,
+* stack overflow, when negative size is interpreted as a large positive number.
+
+Furthermore, in a situation when VLA size is dependent on the user input, it can lead to vulnerabilities in the program. 
+
+== How to fix it
+
+Ensure that the size of the variable length array is always greater than zero.
+In case of value that depends on user input (is _tainted_), prefer to allocate the memory on heap,
+or if that is not possible, include appropriate checks to ensure that value is positive and constrained before using it as size for VLA.
+
+=== Code examples
+
+==== Noncompliant code example
+
+Zero size VLA is created due of by-one error.
+
+[source,c,diff-id=1,diff-type=noncompliant]
+----
+void zeroSize() {
+  for (int i = 0; i <= 5; ++i) {
+    int buffer[5 - i]; // Noncompliant: buffer size is zero for last iteration
+    /* ... */
+  }
+}
+----
+
+==== Compliant solution
+
+[source,c,diff-id=1,diff-type=compliant]
+----
+void zeroSize() {
+  for (int i = 0; i < 5; ++i) {
+    int buffer[5 - i]; // Complaint
+    /* ... */
+  }
+}
+----
+
+==== Noncompliant code example
+
+Size is not initialized in one of code paths.
+
+[source,c,diff-id=2,diff-type=noncompliant]
+----
+int countGrapheneClusters(int codeUnits, int bytesInCodeUnit) {
+  int size;
+  if (bytesInCodeUnit > 0) {
+    size = codeUnits * bytesInCodeUnit;
+  }
+  char buffer[size]; // Noncomplaint: size may not be initialized
+  // .... 
+  return  0;
+}
+----
+
+==== Compliant solution
+
+[source,c,diff-id=2,diff-type=compliant]
+----
+int countGrapheneClusters(int codeUnits, int bytesInCodeUnit) {
+  int size;
+  if (bytesInCodeUnit > 0) {
+    size = codeUnits * bytesInCodeUnit;
+  } else {
+    return -1;
+  }
+  char buffer[size]; // Complaint: size is always initialized
+  // .... 
+  return  0;
+}
+----
+
+==== Noncompliant code example
+
+[source,c,diff-id=3,diff-type=noncompliant]
+----
+int taintedSize() {
+  int size = 0;
+  scanf("%d", &size); // size value is loaded from input, value is tainted here
+  char bytes[size];   // Noncomplaint: size may be negative
+  /* ... */
+  return 0;
+}
+----
+
+==== Compliant solution
+
+Allocate memory on heap, instead of using variable lenght array.
+
+[source,c,diff-id=3,diff-type=compliant]
+----
+int taintedSize() {
+  int size = 0;
+  scanf("%d", &size);
+  if (size <= 0 || size > 1000) {
+    return -1;
+  }
+
+  char* bytes = (char*)malloc(size); // Complaint: uses heap allocation
+  /* ... */
+  return 0;
+}
+----
+
+== Going the extra mile
+
+Variable length arrays are allocated on the stack, so in situations when a large value of the size is used,
+creating such an array may lead to stack overflow and undefined behavior:
+ 
+[source,c]
+----
+void largeVLA() {
+  int s = INT_MAX;
+  int vla[s][100]; // requires allocation of the INT_MAX * 100
+}
+----
+
+In addition, the language does not provide a way to query available stack space, nor the possibility of reporting failure in the creation of such an array.
+
+When applicable, it is recommended to replace the VLA with heap-allocated memory. 
+In contrast to VLA, heap allocation functions report in a situation when sufficient memory cannot be provided, by returning `NULL` or throwing an exception (in {cpp}).
+Furthermore, the {cpp} standard library provides containers like `std::vector`, that manage the heap-allocated memory.
+
+Moreover, the C11 language standard and above only optionally supports VLAs (with `__STDC_NO_VLA__`),
+and the {cpp} standard never supported it, however, they are commonly accepted as extensions.
+
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/c/language/array#Variable-length_arrays[Variable-length arrays]
+* {cpp} reference - https://en.cppreference.com/w/cpp/container/vector[``std::vector``]
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/ARR32-C.+Ensure+size+arguments+for+variable+length+arrays+are+in+a+valid+range[ARR32-C. Ensure size arguments for variable length arrays are in a valid range]
 
 ifdef::env-github,rspecator-view[]
 

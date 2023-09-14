@@ -1,51 +1,184 @@
+`pthread_mutex_t` should not be locked when already locked, or unlocked when already unlocked.
+
 == Why is this an issue?
 
 _Mutexes_ are synchronization primitives that allow to manage concurrency.
+This is the most fundamental building block for creating _safe_ concurrent applications.
+By using a _mutex_, one can ensure that a block of code is executed by a single thread concurrently.
+Data structures are designed to maintain their invariants between member-function calls.
+If a data structure is accessed concurrently, and one of the accesses is a write operation, then it has a _data race_.
+Having _data races_ is _undefined behavior_.
 
-* _non recursive mutexes_ are targeted by this rule. They can be locked/unlocked only once. Any locking/unlocking sequence that contains two consecutive identical operations leads to an undefined behaviour.
-* _recursive mutexes_ are not target by this rule.  They can be locked several times and unlocked several times as long as the number of locks/unlocks is the same.
+Adversaries actively exploit _data races_ to take over systems, but _data races_
+are also a common source of _data corruption_ in concurrent applications
+resulting in dormant and hard-to-find bugs.
 
-This rule raises an issue when a ``++pthread_mutex_t++`` is locked or unlocked several times in a row. We assume that all ``++pthread_mutex_t++`` are non-recursive (this is the most common case).
+To prevent _data races_, the shared resource (usually memory) must be protected
+by obtaining mutual access to the data during both reading and writing.
+Such mutual exclusion is generally achieved by using a _mutex_, which is
+frequently referred to as a _lock_.
 
+A _mutex_ has two states: _released_ - which is the initial state, or _acquired_.
+These two states are frequently called _unlocked_ and _locked_ as well.
 
-=== Noncompliant code example
+To effectively protect the shared resource from concurrent accesses, all such accesses should be guarded by the same _mutex_.
+They need to _lock_ the _mutex_ to gain _safe_ exclusive access to the resource and _unlock_ it after they are done mutating or reading it.
 
-[source,cpp]
+You can abstract away the concurrent threads sharing the mutex and think of it as owned by the current thread.
+It never spontaneously changes between _acquired_ and _released_.
+
+In this view, these are the possible transitions when calling ``lock`` or ``unlock`` on a _mutex_ in a given state:
+
+. _released_ + ``lock()``   => _acquired_
+. _acquired_ + ``unlock()`` => _released_
+. _acquired_ + ``lock()``   => _deadlock_
+. _released_ + ``unlock()`` => _undefined behavior_
+
+When a thread locks a mutex, another thread trying to _acquire_ the same mutex will be _blocked_ and have to wait for the first thread to _release_ it.
+This waiting period can take some time.
+If a thread attempts to lock a mutex it has already acquired, it will _deadlock_ because it would need to release it to lock it again.
+
+=== What is the potential impact?
+
+Locking an _acquired_ mutex leads to a _deadlock_, as a mutex can only be obtained once.
+Unlocking a _released_ mutex is _undefined behavior_.
+Removing synchronization can cause _data races_, leading to _data corruption_,
+which adversaries might leverage to take over the system.
+
+=== Exceptions
+
+There are _recursive mutexes_ that can be _acquired_ multiple times by the same
+thread, given that just as many times we also _release_ the _mutex_.
+They are rare in practice and usually signal design problems in the code.
+Thus we assume ``++pthread_mutex_t++`` refers to _non-recursive_ mutexes.
+
+== How to fix it
+
+Never lock an _acquired_ mutex.
+Lock the mutexes in a strict order that is followed throughout the project.
+Unlock operations should be done the same way but in reversed order.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-pthread_mutex_t mtx1;
+#include <pthread.h>
 
-void bad1(void)
-{
-  pthread_mutex_lock(&mtx1);
-  pthread_mutex_lock(&mtx1);
+pthread_mutex_t m1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t m2 = PTHREAD_MUTEX_INITIALIZER;
+
+void locks() {
+  pthread_mutex_lock(&m1);
+  pthread_mutex_lock(&m1); // Noncompliant: 'm1' is already acquired
 }
 
-void bad2(void)
-{
-  pthread_mutex_unlock(&mtx1);
-  pthread_mutex_unlock(&mtx1);
+void unlocks() {
+  pthread_mutex_unlock(&m1);
+  pthread_mutex_unlock(&m1); // Noncompliant: 'm1' is already released
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-pthread_mutex_t mtx1;
+#include <pthread.h>
 
-void ok(void)
-{
-  pthread_mutex_lock(&mtx1);
-  pthread_mutex_unlock(&mtx1);
+pthread_mutex_t m1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t m2 = PTHREAD_MUTEX_INITIALIZER;
+
+void locks() {
+  pthread_mutex_lock(&m1);
+  pthread_mutex_lock(&m2); // Compliant: we acquired both 'm1' and 'm2' for the first time.
+}
+
+void unlocks() {
+  pthread_mutex_unlock(&m2);
+  pthread_mutex_unlock(&m1); // Compliant: we released both 'm1' and 'm2' for the first time.
 }
 ----
 
+=== Pitfalls
+
+Calling arbitrary functions while holding a lock should be avoided,
+as the function might also want to lock the resource we already acquired,
+causing a deadlock. One particular example of such functions is callbacks.
+
+[source,c]
+----
+#include <pthread.h>
+
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+void handle_callback(void (*callback)(void)) {
+  pthread_mutex_lock(&m);
+  callback(); // If tries to lock mutex 'm', then we have a deadlock.
+  pthread_mutex_unlock(&m);
+}
+----
+
+=== Going the extra mile
+
+The section of code for which the _mutex_ is _acquired_ is called the _critical section_.
+Inside the _critical section_, we are the only ones with access to the shared resource.
+Thus we are free to mutate or read it without considering what other threads are doing
+concurrently. However, having large _critical sections_ can prevent other threads
+from making progress if they want to also _acquire_ the same _mutex_ and access
+the shared resource.
+Consequently, _critical sections_ are supposed to be as small as possible.
+
+[source,c]
+----
+#include <pthread.h>
+#include <stdbool.h>
+
+int input;
+int result;
+bool isFib;
+
+// Guards both 'num1' and 'num2'.
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+int fibonacci(int n);
+int factorial(int n);
+
+void locks(bool calcFib, int n) {
+  // Do the calculations without taking the lock.
+  int res;
+  if (calcFib) {
+    res = fibonacci(n);
+  } else {
+    res = factorial(n);
+  }
+
+  pthread_mutex_lock(&m);
+  // Critical section starts
+  input = n;
+  result = res;
+  isFib = calcFib;
+  // Critical section ends.
+  pthread_mutex_unlock(&m);
+}
+----
 
 == Resources
 
-* https://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_mutex_destroy.html[The Open Group] pthread_mutex_init, pthread_mutex_destroy
+=== Standards
 
+* CWE - https://cwe.mitre.org/data/definitions/764[764 Multiple Locks of a Critical Resource]
+* CWE - https://cwe.mitre.org/data/definitions/362[362 Multiple Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')]
+
+=== Related rules
+
+* S5487 enforces proper initialization and destruction of ``pthread`` mutexes.
+* S5489 enforces unlocking held ``pthread`` mutexes in reverse order.
+
+=== Documentation
+
+* The Open Group - https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_mutex_init.html[``++pthread_mutex_init++``, ``++pthread_mutex_destroy++``]
+* The Open Group - https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_mutex_lock.html[``++pthread_mutex_lock++``, ``++pthread_mutex_unlock++``]
 
 ifdef::env-github,rspecator-view[]
 '''
@@ -59,8 +192,5 @@ ifdef::env-github,rspecator-view[]
 === is related to: S5487
 
 === is related to: S5489
-
-=== on 6 Nov 2019, 23:32:48 Loïc Joly wrote:
-\[~geoffray.adde]Can you please review my changes?
 
 endif::env-github,rspecator-view[]

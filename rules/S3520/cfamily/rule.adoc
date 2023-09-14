@@ -1,51 +1,269 @@
+Deallocating a memory location more than once leads to undefined behavior.
+
 == Why is this an issue?
 
-Using ``++free(...)++`` or ``++delete++`` releases the reservation on a memory location, making it immediately available for another purpose. So releasing the same memory location twice can lead to corrupting the program's memory. 
+Using `delete` or `free` releases the reservation on a memory location, making it immediately available for another purpose.
+Releasing the exact memory location twice leads to undefined behavior and can often crash the program.
+
+The C standard defines as _undefined behavior_ a call to `free` with a pointer to a memory area that has already been released.
+
+The {cpp} standard defines the first `delete` call as the end of the lifetime for dynamically allocated memory.
+Access to memory past its lifetime end, including another `delete`, is undefined behavior.
+
+=== What is the potential impact
+
+The danger of a "double-free" comes directly from the fact that it is undefined behavior (in both C and {cpp}).
+Note that there is no guarantee that a crash will happen on a "double-free" when the resource is released or at all until the end of the program's execution.
+
+The effects of a "double-free" depend entirely on the program's memory management implementation.
+In the case of such an event, one of the following can be observed:
+
+- The program's memory-management data structures can become corrupted.
+This will usually cause a crash.
+- Demonstrative Example 2 on https://cwe.mitre.org/data/definitions/415[CWE-415] presents a set of circumstances where a crash does not occur.
+In these circumstances, the corruption of the mentioned data structures causes two later calls to `malloc` to return the same pointer.
+This can lead to a sensitive-data-exposure vulnerability or a buffer-overflow vulnerability.
+
+== How to fix it
+
+To ensure that every release happens once, you can follow these best practices:
+
+- Release any allocated memory in the function it was acquired in.
+The release should be independent of any additional conditions.
+- After a `delete` or `free`, set the pointer's value to `nullptr` or `NULL`.
+`delete` of `nullptr` and `free` of `NULL` are defined as having no effect.
+
+=== Code examples
+
+Example for C:
+
+==== Noncompliant code example
+
+[source,c,diff-id=1,diff-type=noncompliant]
+----
+void doSomething(int size) {
+  char* cp = (char*) malloc(sizeof(char) * size);
+
+  // ...
+  if (condition) {
+    // ...
+    free(cp);
+  }
+
+  free(cp);  // Noncompliant: potential call to free in the above branch
+}
+----
+
+==== Compliant solution
+
+Remove the unnecessary call to `free`:
+[source,c,diff-id=1,diff-type=compliant]
+----
+void doSomething(int size) {
+  char* cp = (char*) malloc(sizeof(char) * size);
+
+  // ...
+  if (condition) {
+    // ...
+  }
+
+  free(cp); // Compliant: no previous call to free in the above branch
+}
+----
+
+Set the pointer to `NULL` after any call to `free`:
+[source,c]
+----
+void doSomething(int size) {
+  char* cp = (char*) malloc(sizeof(char) * size);
+
+  // ...
+  if (condition) {
+    // ...
+    free(cp);
+    cp = NULL; // This will prevent freeing the same memory again
+  }
+
+  free(cp); // Compliant: if the memory was freed in the if-block above, free(NULL) is a no-op
+}
+----
+
+Example for {cpp}:
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    // ...
+    delete p;
+  }
+
+  delete p;  // Noncompliant: potential invocation of delete in the above branch
+}
+----
+
+==== Compliant solution
+
+Remove the unnecessary invocation of `delete`:
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    // ...
+  }
+
+  delete p; // Compliant: no previous call to free in the above branch
+}
+----
+
+Set the pointer to `nullptr` after invoking `delete`:
+[source,cpp]
+----
+void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    // ...
+    delete p;
+    p = nullptr; // This will prevent freeing the same memory again
+  }
+
+  delete p; // Compliant: if the memory was freed in the if-block above, operator delete of nullptr is a no-op
+}
+----
+
+=== Going the extra mile
 
 
-A best practice to avoid this bug calls for setting just-freed pointers to ``++NULL++``, and always null-testing before a ``++free++`` or ``++delete++``.
+include::../../../shared_content/cfamily/memory_raii_extra_mile.adoc[]
 
-
-=== Noncompliant code example
+Using _RAII_ objects instead of manual memory management can mitigate most dynamic memory management issues, including "double-free".
 
 [source,cpp]
 ----
 void doSomething(int size) {
-  char *cp = (char *) malloc(sizeof(char) * size);
+  auto p = std::make_unique<std::string>();
 
   // ...
   if (condition) {
-    free(cp);
+    p.reset(); // Delete happens here.
   }
 
-  free(cp);  // Noncompliant
+  // delete not called by std::unique_ptr destructor if the branch above was taken.
 }
 ----
 
+=== Pitfalls
 
-=== Compliant solution
+However, keeping a raw pointer or a reference to memory held by _RAII_ objects may still lead to a "double-free".
+Care must be taken to avoid the following pitfalls:
 
-[source,cpp]
+==== Initialization of `std::shared_ptr`
+
+`std::shared_ptr` relies on an internal counter of owners inside a "control block".
+This control block is either created when the object is constructed with a raw pointer or inherited when constructed from another `std::shared_ptr`.
+
+Misunderstanding this can lead to a "double-free", as the following example demonstrates.
+
+Noncompliant code example
+[source,cpp,diff-id=3,diff-type=noncompliant]
 ----
-void doSomething(int size) {
-  char *cp = (char *) malloc(sizeof(char) * size);
+void doSomething(char const* data) {
+  std::shared_ptr<std::string> p1(new std::string(data));
+  std::shared_ptr<std::string> p2(p1.get()); // Noncompliant: Intended: std::shared_ptr<string> p2(p1);
+}
+----
 
+Both objects are created from the raw pointer, leading them to have independent control blocks. Both will attempt to release the original memory area.
+
+To avoid this, only use copy/move construction for sharing ownership or the `std::make_shared` for initialization.
+
+Compliant solution
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+void doSomething(char const* data) {
+  auto p1 = std::make_shared<std::string>(data);
+  auto p2 = p1; // Compliant
+}
+----
+
+==== Initialization of `std::unique_ptr`
+
+Similar to `std::shared_ptr`, a "double-free" can occur from an erroneous initialization.
+This also comes from confusion raised by the constructor overloads of this class.
+
+Noncompliant code example
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+void doSomething(char const* data) {
+  // Creating another unique_ptr
+  std::unique_ptr<std::string> p1(new std::string(data));
   // ...
-  if (condition) {
-    free(cp);
-    cp = NULL; // This will prewent freeing the same memory again
-  }
+  std::unique_ptr<std::string> p2(p1.get()); // Noncompliant: both p1 and p2 own the pointer now.
 
-  free(cp); // This is OK: if the memory was freed in the if-block above, free(NULL) is a no-op
-  cp = NULL; // This will prevent freeing the same memory again
+  // Transfering ownership
+  std::unqiue_ptr<std::string> p3(new std::string(data));
+  // ...
+  std::unique_ptr<std::string> p4(p3.get()); // Noncompliant: both p3 and p4 own the pointer now.
 }
 ----
 
+As with `std::shared_ptr`, using `std::make_unique` avoids this pitfall.
+It does not accept a pointer to an existing object but only creates a new one.
+
+Compliant solution
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+void doSomething(char const* data) {
+  // Creating another unique_ptr
+  auto p1 = std::make_unique<std::string>(data);
+  // ...
+  auto p2 = std::make_unique<std::string>(*p1); // Compliant: Creates a copy.
+
+  // Transfering ownership
+  auto p3 = std::make_unique<std::string>(data);
+  auto p4 = std::move(p3); // Compliant: Will invoke move constructor, which is present in std::unique_ptr.
+}
+----
+
+==== Out-of-scope access
+
+Extra care must be taken when passing the memory address contained in an RAII object.
+
+Both `std::shared_ptr` and `std::unique_ptr` provide the `get` method to obtain a raw pointer to the contained memory.
+This should only be used to read the data.
+Passing this pointer to a function that might release it can lead to a "double-free" and "use-after-free".
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/415[MITRE, CWE-415] - Double Free
-* https://owasp.org/www-community/vulnerabilities/Doubly_freeing_memory[OWASP, Doubly freeing memory]
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/unique_ptr[std::unique_ptr]
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/unique_ptr/make_unique[std::make_unique]
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/shared_ptr[std::shared_ptr]
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/shared_ptr/make_shared[std::make_shared]
+
+=== Standards
+
+* CWE - https://cwe.mitre.org/data/definitions/415[415 Double Free]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/GdYxBQ[MEM30-C - Do not access freed memory]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/Gns-BQ[MEM51-CPP - Properly deallocate dynamically allocated resources]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/Zns-BQ[MEM56-CPP - Do not store an already-owned pointer value in an unrelated smart pointer]
+* OWASP - https://owasp.org/www-community/vulnerabilities/Doubly_freeing_memory[Doubly freeing memory]
+
+=== Related rules
+
+* S5025 recommends avoiding manual memory management
+* S3529 refers to "use-after-free", an issue with similar causes.
 
 
 ifdef::env-github,rspecator-view[]
@@ -85,3 +303,5 @@ Euh for me [~ann.campbell.2], there is no doubt about the fact that this is a bl
 You're right, of course [~freddy.mallet]. I struggle a little with the UI.
 
 endif::env-github,rspecator-view[]
+
+

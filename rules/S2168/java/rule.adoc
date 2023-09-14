@@ -1,100 +1,75 @@
 == Why is this an issue?
 
-Double-checked locking is the practice of checking a lazy-initialized object's state both before and after a ``++synchronized++`` block is entered to determine whether or not to initialize the object.
+Double-checked locking is the practice of checking a lazy-initialized object's state both before and after a `synchronized` block is entered to determine whether to initialize the object.
+In early JVM versions, synchronizing entire methods was not performant, which sometimes caused this practice to be used in its place.
 
 
-It does not work reliably in a platform-independent manner without additional synchronization for mutable instances of anything other than ``++float++`` or ``++int++``. Using double-checked locking for the lazy initialization of any other type of primitive or mutable object risks a second thread using an uninitialized or partially initialized member while the first thread is still creating it, and crashing the program.
+Apart from `float` and `int` types, this practice does not work reliably in a platform-independent manner without additional synchronization of mutable instances.
+Using double-checked locking for the lazy initialization of any other type of primitive or mutable object risks a second thread using an uninitialized or partially initialized member while the first thread is still creating it.
+The results can be unexpected, potentially even causing the application to crash.
 
 
-There are multiple ways to fix this. The simplest one is to simply not use double checked locking at all, and synchronize the whole method instead. With early versions of the JVM, synchronizing the whole method was generally advised against for performance reasons. But ``++synchronized++`` performance has improved a lot in newer JVMs, so this is now a preferred solution. If you prefer to avoid using ``++synchronized++`` altogether, you can use an inner ``++static class++`` to hold the reference instead. Inner static classes are guaranteed to load lazily.
+== How to fix it
 
+Given significant performance improvements of `synchronized` methods in recent JVM versions, `synchronized` methods are now preferred over the less robust double-checked locking.
 
-=== Noncompliant code example
+If marking the entire method as `synchronized` is not an option, consider using an inner `static class` to hold the reference instead.
+Inner static classes are guaranteed to be initialized lazily.
 
-[source,java]
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-@NotThreadSafe
-public class DoubleCheckedLocking {
+public class ResourceFactory {
     private static Resource resource;
 
     public static Resource getInstance() {
         if (resource == null) {
-            synchronized (DoubleCheckedLocking.class) {
+            synchronized (DoubleCheckedLocking.class) { // Noncompliant, not thread-safe due to the use of double-checked locking.
                 if (resource == null)
                     resource = new Resource();
             }
         }
         return resource;
     }
-
-    static class Resource {
-
-    }
 }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-@ThreadSafe
-public class SafeLazyInitialization {
+public class ResourceFactory {
     private static Resource resource;
 
-    public static synchronized Resource getInstance() {
+    public static synchronized Resource getInstance() { // Compliant, the entire method is synchronized and hence thread-safe
         if (resource == null)
             resource = new Resource();
         return resource;
     }
-
-    static class Resource {
-    }
 }
 ----
-With inner static holder:
+
+==== Compliant solution
+
+Alternatively, a static inner class can be used.
+However, this solution is less explicit in its intention and hence should be used with care.
 
 [source,java]
 ----
-@ThreadSafe
 public class ResourceFactory {
     private static class ResourceHolder {
-        public static Resource resource = new Resource(); // This will be lazily initialised
+        public static Resource resource = new Resource(); // Compliant, as this will be lazily initialised by the JVM
     }
 
     public static Resource getResource() {
         return ResourceFactory.ResourceHolder.resource;
     }
-
-    static class Resource {
-    }
 }
 ----
-Using "volatile":
-
-[source,java]
-----
-class ResourceFactory {
-  private volatile Resource resource;
-
-  public Resource getResource() {
-    Resource localResource = resource;
-    if (localResource == null) {
-      synchronized (this) {
-        localResource = resource;
-        if (localResource == null) {
-          resource = localResource = new Resource();
-        }
-      }
-    }
-    return localResource;
-  }
-
-  static class Resource {
-  }
-}
-----
-
 
 == Resources
 

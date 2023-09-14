@@ -1,22 +1,174 @@
+Partially-initialized objects are surprising to the `class` users
+and might lead to hard-to-catch bugs.
+``class``es with constructors are expected to have all members initialized after their constructor finishes.
+
+This rule raises an issue when some members are left uninitialized after a constructor finishes.
+
 == Why is this an issue?
 
-In a {cpp} class, all member variables of a type with an implicit or explicit constructor will be automatically initialized. This is not the case for the others: if no initialization is explicitly written, the variable will be left uninitialized.
+In the following example, `PartInit::x` is left uninitialized after the constructor finishes.
+
+[source,cpp]
+----
+struct AutomaticallyInitialized {
+  int x;
+  AutomaticallyInitialized() : x(0) {}
+};
+
+struct PartInit {
+  AutomaticallyInitialized ai;
+  int x;
+  int y;
+  PartInit(int n) :y(n) {
+    // this->ai is initialized
+    // this->y is initialized
+    // Noncompliant: this->x is left uninitialized
+  }
+};
+----
+
+This leads to undefined behavior in benign-looking code like on the example below.
+In this particular case, garbage value may be printed,
+or a compiler may optimize away the print statement completely.
+
+[source,cpp]
+----
+PartInit pi(1);
+std::cout <<pi.y; // Undefined behavior
+----
+
+For this reason, constructors should always initialize all data members of a class.
+
+While in some cases data members are initialized by their default constructor,
+in others, they are left with garbage.
+
+Types with a ``++default++``ed or implicit trivial default constructor follow the aggregate initialization syntax:
+if you omit them in the initialization list, they will not be initialized.
+
+[source,cpp]
+----
+struct Trivial {
+  int x;
+  int y;
+};
+struct Container {
+  Trivial t;
+  int arr[2];
+  Container() {
+    // Noncompliant
+    // this->t is not initialized
+    // this->t.x and this->t.y contain garbage
+    // this->arr contains garbage
+  }
+  Container(int) :t{}, arr{} {
+    // Compliant
+    // this->t.x and this->t.y are initialized to 0
+    // this->arr is initialized to {0, 0}
+  }
+  Container(int, int) :t{1}, arr{1} {
+    // Compliant
+    // this->t.x is 1
+    // this->t.y is 0
+    // this->arr is initialized to {1, 0}
+  }
+};
+struct DefaultedContainer {
+  Trivial t;
+  int arr[2];
+  DefaultedContainer() = default; // Noncompliant
+  // this->t and this->arr are not initialized
+};
+----
+
+The same is true for a ``++default++``ed default constructor.
+[source,cpp]
+----
+struct Defaulted {
+  int x;
+  Defaulted() = default;
+};
+struct ContainerDefaulted {
+  Defaulted d;
+  ContainerDefaulted() {
+    // Noncompliant this->d.x is not initialized
+  }
+};
+----
 
 
-This comes with all the risks associated with uninitialized variables, and these risks propagate to all the classes using  the faulty class as a type. This is all the more surprising that most programmers expect a constructor to correctly initialize the members of its class (this is its raison d'être after all).
+Even if some of the members have class initializers,
+the other members are still not initialized by default.
 
+[source,cpp]
+----
+struct Partial {
+  int x;
+  int y = 1;
+  int z;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Noncompliant
+    // this->p.x is not initialized
+    // this->p.y is initialized to 1
+    // this->p.z is not initialized
+  }
+  ContainrePartial(bool) :p{3} {
+    // Compliant
+    // this->p.x is initialized to 3
+    // this->p.y is initialized to 1
+    // this->p.z is initialized to 0
+  }
+};
+----
 
-To avoid such situations, all non class type fields should always be initialized (in order of preference):
+=== What is the potential impact?
+
+It is a common expectation that an object be in a fully-initialized state after its construction.
+A partially initialized object breaks this assumption.
+
+This comes with all the risks associated with uninitialized variables,
+and these risks propagate to all the classes using the faulty class as a type
+as a base class or a data member.
+This is all the more surprising
+that most programmers expect a constructor to correctly initialize the members of its class.
+
+include::../../../shared_content/cfamily/garbage_value_impact.adoc[]
+
+=== Exceptions
+
+Aggregate classes do not initialize most of their data members
+(unless you explicitly value initialize them with `x{}` or `x()`)
+but allow their users to use nice and flexible initialization syntax.
+They will be ignored by this rule (but are the subject of rule S5558).
+
+== How to fix it
+
+To avoid partially-initialized objects,
+all non `+class+`-type fields should always be initialized (in order of preference):
 
 * With an in-class initializer
 * In the initialization list of a constructor
 * In the constructor body
 
-See S3230 for more details about this order.
+See rule S3230 for more details about this order.
 
-=== Noncompliant code example
+If none of the above places is a good fit for a data member,
+ask yourself whether it belongs to this class.
+Instead of a data member, it might be more appropriate to keep the value
 
-[source,cpp]
+- as part of the class of a data member
+  (delegating initialization to the constructor of the member type),
+- in a derived class (delegating initialization to the derived class),
+- in a (potentially `static`) local variable of a member function, or
+- in a parameter of a member function.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 class C {
   int val = 42;
@@ -48,9 +200,9 @@ public:
 };
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 class C {
   int val = 42;
@@ -68,7 +220,7 @@ public:
 
 class T_fixed {
 public:
-  S _fixed s;
+  S_fixed s;
 
   T_fixed() : s() {}  // Compliant
   T_fixed(bool b) : s(b) {}
@@ -82,13 +234,55 @@ public:
 };
 ----
 
-=== Exceptions
+==== Noncompliant code example
 
-Aggregate classes do not initialize most of their data members, but allow their users to use nice and flexible initialization syntax. They will be ignored by this rule (but are the subject of S5558).
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+struct Partial {
+  int x;
+  int y = 1;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Noncompliant: this->p.x is not initialized
+  }
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+struct Partial {
+  int x = 0;
+  int y = 1;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Compliant
+  }
+};
+----
 
 == Resources
 
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#c41-a-constructor-should-create-a-fully-initialized-object[{cpp} Core Guidelines C.41]: A constructor should create a fully initialized object
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#c41-a-constructor-should-create-a-fully-initialized-object[C.41: A constructor should create a fully initialized object]
+
+=== Related rules
+
+* S836 detects the uses of uninitialized variables.
+* S3230 describes the preferred place for initializing class data members.
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/aggregate_initialization[Aggregate initialization]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/direct_initialization[Direct initialization]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/value_initialization[Value initialization]
+
 
 ifdef::env-github,rspecator-view[]
 

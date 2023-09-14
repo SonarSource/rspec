@@ -1,53 +1,120 @@
+
 == Why is this an issue?
 
-User-provided data, such as URL parameters, POST data payloads, or cookies, should always be considered untrusted and tainted. Constructing HTML content directly from tainted data enables attacker(s) to inject special crafted values to abuse template engine's rendering process. Successful server side template injection (SSTI) attack can lead to arbitrary file read or operating system commands execution.
+Server-side template injections occur in an application when the application
+retrieves data from a user or a third-party service and inserts it into a
+template, without sanitizing it first.
+
+If an application contains a template that is vulnerable to injections, 
+it is exposed to attacks that target the underlying rendering server.
+
+A user with malicious intent can create requests that will cause
+the template to change its logic into unwanted behavior.
+
+After creating the malicious request, the attacker can attack the servers
+affected by this vulnerability without relying on any prerequisites.
+
+=== What is the potential impact?
+
+An attacker exploiting a server-side template injection vulnerability will be
+able to execute arbitrary commands on the underlying operating system.
+
+The impact depends on the access control measures taken on the target system
+OS. In the worst-case scenario, the process runs with root privileges, and
+therefore any OS commands or programs may be affected.
+
+Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.
+
+==== Denial of service and data leaks
+
+In this scenario, the attack aims to disrupt the organization's activities and
+profit from data leaks.
+
+An attacker could, for example:
+
+* download the internal server's data, most likely to sell it
+* modify data, send malware
+* stop services or exhaust resources (with fork bombs for example)
+
+This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).
+
+==== Root privilege escalation and pivot
+
+In this scenario, the attacker can do everything described in the previous
+section. The difference is that the attacker also manages to elevate their
+privileges to an administrative level and attacks other servers.
+
+Here, the impact depends on how much the target company focuses on its Defense
+In Depth. For example, the entire infrastructure can be compromised by a
+combination of OS injections and *misconfiguration* of:
+
+* Docker or Kubernetes clusters
+* cloud services
+* network firewalls and routing
+* OS access control
 
 
-Template engine are used by web server to render rich HTML content, generally web pages or emails. Template injection usually happens when the template content has been dynamically generated from unvalidated user inputs.
+== How to fix it
 
+=== Code examples
 
-This problem can be avoided by:
+==== Noncompliant code example
 
-* Using static template that are read from files rather than building templates dynamically
-* Using template variables to inject dynamic values at render time
-* Using template engine advanced control structure (like blocks or include) to dynamically build complex templates
+The following code is vulnerable to server-side template injection because it
+is inserting untrusted inputs into a string that is then processed for
+rendering. +
+This vulnerability arises because the rendering function does not validate the
+input, allowing attackers to potentially inject malicious Python code for
+execution.
 
-
-=== Noncompliant code example
-
-[source,python]
+[source,python,diff-id=1,diff-type=noncompliant]
 ----
 from flask import request, render_template_string
 
-# /hello?username={{config}} will display the entire flask configuration and potential secrets
-@app.route('/hello')
-def hello():
+@app.route('/example')
+def example():
     username = request.args.get('username')
-    template = f"<p>Hello {username}</p>" # User input is used directly in the string to be rendered
+    template = f"<p>Hello {username}</p>"
     return render_template_string(template) # Noncompliant
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,python]
+[source,python,diff-id=1,diff-type=compliant]
 ----
 from flask import request, render_template_string
 
-@app.route('/hello')
-def hello():
+@app.route('/example')
+def example():
     username = request.args.get('username')
-    template = "<p>Hello {{ name }}</p>"
-    return render_template_string(template, name=username) # Compliant
+    template = "<p>Hello {{ username }}</p>"
+    return render_template_string(template, username=username)
 ----
 
+=== How does this work?
+
+==== Use template variables
+
+The universal method to prevent path injection is to sanitize untrusted data.
+Manual sanitization is error-prone, so it is best to automate the process.
+
+Here, `render_template_string` automatically sanitizes template variables by
+escaping them. This means that any untrusted data will not be able to break out
+of the initially intended template logic.
 
 == Resources
+
+=== Articles & blog posts
+
+* https://medium.com/@nyomanpradipta120/ssti-in-flask-jinja2-20b068fdaeee[SSTI in Flask/Jinja2]
+
+=== Standards
 
 * https://owasp.org/Top10/A03_2021-Injection/[OWASP Top 10 2021 Category A3] - Injection
 * https://owasp.org/www-project-top-ten/2017/A1_2017-Injection[OWASP Top 10 2017 Category A1] - Injection
 * https://cwe.mitre.org/data/definitions/94[MITRE, CWE-94] - Improper Control of Generation of Code
-* https://medium.com/@nyomanpradipta120/ssti-in-flask-jinja2-20b068fdaeee[SSTI in Flask/Jinja2]
 
 ifdef::env-github,rspecator-view[]
 
@@ -59,5 +126,13 @@ ifdef::env-github,rspecator-view[]
 
 Change this code to not construct HTML content directly from user-controlled data.
 
+=== Highlighting
 
+"[varname]" is tainted (assignments and parameters)
+
+this argument is tainted (method invocations)
+
+the returned value is tainted (returns & method invocations results)
+
+'''
 endif::env-github,rspecator-view[]
