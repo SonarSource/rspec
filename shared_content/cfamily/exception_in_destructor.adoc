@@ -1,0 +1,45 @@
+== Why is this an issue?
+
+Throwing an exception from a destructor may result in a call to `std::terminate`.
+
+By default, compilers implicitly declare destructors as `noexcept`, so `std::terminate` is called when they exit with an exception.
+Destructors may still propagate an exception if they are explicitly declared as `noexcept(false)`.
+However, even a destructor declared as `noexcept(false)` calls `std::terminate` when it throws during stack unwinding.
+
+The following example illustrates the severity of the underlying problem:
+
+The destructor of a container needs to call the destructors for all managed objects.
+Suppose a call to an object's destructor throws an exception.
+In that case, there are only two _conceptual_ ways to proceed:
+
+1. Abort the destruction.
+   This results in a partially destroyed object and possibly many more objects whose destructors are never called.
+2. Ignore the exception and proceed with destroying the remaining objects.
+   However, this potentially results in more partially destroyed objects if further destructors throw an exception.
+
+Because both options are undesired, destructors should never `throw` exceptions.
+
+=== What is the potential impact?
+
+In most cases, throwing exceptions in destructors makes the program unreliable:
+
+ * If `std::terminate` is called, the program terminates in an implementation-defined, abrupt, and unclean manner.
+ * The program's behavior is undefined if a standard library component (a container, an algorithm, ...) manages a user-defined object that throws an exception from its destructor.
+
+include::{docdir}/how_to_fix_it.adoc[]
+
+== Resources
+
+=== Documentation
+
+include::{docdir}/documentation.adoc[]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#c36-a-destructor-may-not-fail[C.36 A destructor may not fail]
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#c37-make-destructors-noexcept[C.37 Make destructors noexcept]
+* MISRA {cpp}:2008, 15-5-1 - A class destructor shall not exit with an exception.
+
+=== Related rules
+
+include::{docdir}/related_rules.adoc[]

@@ -275,7 +275,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
       prUrl = metadataJSON.prUrl;
     }
     branch = metadataJSON.branch;
-    metadataJSON.languagesSupport.sort();
+    metadataJSON.languagesSupport.sort((a, b) => a.name.localeCompare(b.name));
     const ruleStates = metadataJSON.languagesSupport.map(({ name, status }) => ({
       name,
       ruleState: ruleStateInAnalyzer(name, metadataJSON!.allKeys, status)
@@ -322,12 +322,12 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
 }
 
 function getRspecPath(rspecId: string, language?: string) {
-  // TODO RULEAPI-742: If the given target `language` exists, the link should point to it.
   return '/rspec#/rspec/' + rspecId;
 }
 
 function useDescription(metadata: PageMetadata, ruleid: string, language?: string) {
-  const editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
+  const editOnGithubUrl =
+    `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
   function htmlReplacement(domNode: Element) {
     if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
