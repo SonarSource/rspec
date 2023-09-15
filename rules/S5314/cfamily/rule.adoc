@@ -1,20 +1,229 @@
+Blocking functions should not be called inside critical sections
+
 == Why is this an issue?
 
-When entering a critical section the program holds a lock that can be hold by a single entity at a time. It is then recommended that the critical section is reduced to the minimum required and executed without any interruption.
+Concurrent accesses to shared resources are guarded by synchronization
+primitives such as mutexes to prevent data races. The section of code
+where a mutex is held is called the critical section. Critical sections
+are generally designed to be as small as possible, allowing concurrent
+threads to progress.
 
-
-=== Noncompliant code example
+It's usually unintentional to perform blocking operations inside a
+critical section because the operation might block for long or even
+indefinitely, degrading performance or causing a deadlock.
 
 [source,cpp]
 ----
-void f() {
-  std::mutex m;
-  // ...
-  m.lock();
-  // ...
-  sleep(1); // Noncompliant
-  // ...
-  m.unlock();
+#include <cstdio>    // printf()
+#include <cstdlib>   // atoi()
+#include <mutex>
+#include <unistd.h>  // sleep()
+
+std::mutex m;
+int load_shared_resource(); // Guarded by mutex 'm'
+
+// Some time-intensive computation.
+void do_expensive_work(int value, FILE *fd) {
+  char buf[4] = "";
+  std::fgets(buf, sizeof(buf), fd);
+  int sum = value + std::atoi(buf);
+  std::printf("value + line: %d\n", sum);
+}
+
+void worker_thread(FILE *fd) {
+  std::scoped_lock guard(m);
+  int value = load_shared_resource();
+  // Mutex 'm' could have been released here.
+  do_expensive_work(value, fd);
+} // Mutex 'm' only released here, after 'do_expensive_work' is returned.
+----
+
+Usually, blocking operations involve I/O operations, such as reading or
+writing a file or socket or sleeping for some specified time.
+
+=== What is the potential impact?
+
+Doing time-intensive operations while holding one or multiple locks will
+prevent concurrent threads from making progress updating the shared resource.
+This can lead to "bottlenecks" and the under-utilization of the hardware
+capabilities.
+
+== How to fix it
+
+Usually, one can move blocking or expensive computations from critical sections.
+This leads to smaller and cleaner critical sections in general,
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <unistd.h>  // sleep()
+#include <mutex>
+#include <algorithm>
+
+int magic_number;
+std::mutex m;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed < 100; ++items_processed) {
+    std::scoped_lock guard(m);
+    current = magic_number;
+
+    sleep(std::clamp(current, 0, 10)); // Noncompliant: 'sleep' blocks while holding mutext 'm'
+  }
 }
 ----
 
+[source,c,diff-id=2,diff-type=noncompliant]
+----
+#include <unistd.h>  // sleep()
+#include <pthread.h> // pthread_mutex_*()
+
+int magic_number;
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed < 100; ++items_processed) {
+    pthread_mutex_lock(&m);
+    current = magic_number;
+    // Could have 'unlocked' mutex 'm' here.
+    sleep(current); // Noncompliant: 'sleep' blocks while holding mutex 'm'
+    pthread_mutex_unlock(&m);
+  }
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <unistd.h>  // sleep()
+#include <mutex>
+#include <algorithm>
+
+int magic_number;
+std::mutex m;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed < 100; ++items_processed) {
+    {
+      std::scoped_lock guard(m);
+      current = magic_number;
+    }
+
+    sleep(std::clamp(current, 0, 10)); // Ok, blocking without holding any mutexes.
+  }
+}
+----
+
+[source,c,diff-id=2,diff-type=compliant]
+----
+#include <unistd.h>  // sleep()
+#include <pthread.h> // pthread_mutex_*()
+
+int magic_number;
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed < 100; ++items_processed) {
+    pthread_mutex_lock(&m);
+    current = magic_number;
+    pthread_mutex_unlock(&m);
+    sleep(current); // Ok, blocking without holding any mutexes.
+  }
+}
+----
+
+=== Pitfalls
+
+It's important to note that not all operations can be moved out from the
+critical section without redesigning the algorithm.
+It's tempting to read, compute and commit back the result to some shared
+resource, but that coding pattern is vulnerable to
+Time-Of-Check-To-Time-Of-Use (TOCTOU) bugs.
+
+[source,cpp]
+----
+#include <unistd.h>  // sleep()
+#include <mutex>
+
+int input;
+std::mutex input_mutex;
+
+int output;
+std::mutex output_mutex;
+
+int expensive_computation(int in);
+
+void worker_thread() {
+  int previous_input = -1;
+  int previous_result = -1;
+
+  for (int items_processed = 0; items_processed < 100; ++items_processed) {
+    int current;
+    {
+      // Read an input.
+      std::scoped_lock guard(input_mutex);
+      current = input;
+    }
+
+    // Potentially perform an expensive computation.
+    // The 'input' might have changed during the computation,
+    // in which case, we just drop the result without committing it.
+    if (current != previous_input) {
+      previous_input = current;
+      previous_result = expensive_computation(current);
+
+      // Verify that the 'input' didn't change, and we can commit our result.
+      std::scoped_lock in_guard(input_mutex);
+      if (input == previous_input) {
+        std::scoped_lock out_guard(output_mutex);
+        output = previous_result; // Commit the result.
+      }
+    }
+  }
+}
+----
+
+It might not always be correct to commit the result even if the `input`
+didn't change since we last checked. It could be that it was changed
+but restored, as we are rechecking it. This is commonly known as
+the ABA problem, where `A` and `B` refers to the values of the resource.
+
+== Resources
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#cp43-minimize-time-spent-in-a-critical-section[CP.43: Minimize time spent in a critical section]
+
+=== Related rules
+
+* S5184 enforces that guard objects are not temporary.
+* S5506 detects direct calls to ``++lock++`` and ``++unlock++`` on mutexes.
+* S5524 detects individually locked mutexes.
+* S5997 advocates for using ``++std::scoped_lock++`` over ``++std::lock_guard++``.
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/thread/mutex[`std::mutex`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/thread/scoped_lock[`std::scoped_lock`]
+* https://cwe.mitre.org/data/definitions/367[MITRE, CWE-367] - Time-of-check Time-of-use (TOCTOU) Race Condition
+* https://en.wikipedia.org/wiki/ABA_problem[ABA problem]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Call to blocking function 'sleep' inside of critical section
+
+endif::env-github,rspecator-view[]

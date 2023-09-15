@@ -1,3 +1,4 @@
+import collections
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
@@ -29,22 +30,26 @@ HOTSPOT_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/hotspot
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
 # This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#2-education-format)
-SECTIONS = {
-  'Why is this an issue?': ['What is the potential impact?', 'Noncompliant code example', 'Compliant solution', 'Exceptions']
-}
+MANDATORY_SECTIONS = ['Why is this an issue?']
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
   'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
-  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'Benchmarks', 'Related rules']
+  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'External coding guidelines', 'Benchmarks', 'Related rules']
 }
 SUBSECTIONS = {
   'Code examples': ['Noncompliant code example', 'Compliant solution']
 }
 
-def intersection(lst1, lst2):
-  return list(set(lst1).intersection(lst2))
-def difference(lst1, lst2):
-  return list(set(lst1) - set(lst2))
+def validate_duplications(h2_titles, rule_language):
+  as_set = set(h2_titles)
+  if len(as_set) != len(h2_titles):
+    duplicates = [x for x in h2_titles if h2_titles.count(x) > 1]
+    raise RuleValidationError(f'Rule {rule_language.id} has duplicated {set(duplicates)} sections')
+
+def intersection(list1, list2):
+  return list(set(list1).intersection(list2))
+def difference(list1, list2):
+  return list(set(list1) - set(list2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
   """Validates all h2-level section names"""
@@ -52,11 +57,13 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-  education_titles = intersection(h2_titles, list(SECTIONS.keys()) + list(OPTIONAL_SECTIONS.keys()))
+  validate_duplications(h2_titles, rule_language)
+
+  education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()))
   if education_titles:
     # Using the education format.
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
-    missing_titles = difference(list(SECTIONS.keys()), education_titles)
+    missing_titles = difference(list(MANDATORY_SECTIONS), education_titles)
     if missing_titles:
       # All mandatory titles have to be present in the rule description.
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
@@ -76,9 +83,6 @@ def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h
 
   if HOW_TO_FIX_IT in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
     raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "{HOW_TO_FIX_IT}" or one or more "How to fix it in FRAMEWORK"')
-  duplicate_names = [x for x in how_to_fix_it_sections if how_to_fix_it_sections.count(x) > 1] # O(n*n) is fine, given n <= 6
-  if 0 < len(duplicate_names):
-    raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{HOW_TO_FIX_IT}" sections {set(duplicate_names)}')
   for section_name in how_to_fix_it_sections:
     validate_how_to_fix_it_framework(section_name, rule_language)
 
@@ -168,8 +172,6 @@ def validate_subsections(rule_language: LanguageSpecificRule):
       validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section], section_regex=HOW_TO_FIX_IT_REGEX)
     else:
       validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
-  for mandatory_section in list(SECTIONS.keys()):
-    validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
     if subsection_with_sub_subsection == 'Code examples':
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4, is_duplicate_allowed=True)

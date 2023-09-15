@@ -1,0 +1,93 @@
+include::../why-dotnet.adoc[]
+
+=== Noncompliant code example
+
+For https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?view=netframework-4.8[BinaryFormatter], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer?view=netframework-4.8[NetDataContractSerializer], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter?view=netframework-4.8[SoapFormatter] serializers:
+
+[source,vbnet]
+----
+Dim myBinaryFormatter = New BinaryFormatter()
+myBinaryFormatter.Deserialize(stream) ' Noncompliant: a binder is not used to limit types during deserialization
+----
+
+https://docs.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer?view=netframework-4.8[JavaScriptSerializer] should not use SimpleTypeResolver or other weak resolvers:
+
+[source,vbnet]
+----
+Dim serializer1 As JavaScriptSerializer = New JavaScriptSerializer(New SimpleTypeResolver()) ' Noncompliant: SimpleTypeResolver is unsecure (every types is resolved)
+serializer1.Deserialize(Of ExpectedType)(json)
+----
+
+https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.losformatter?view=netframework-4.8[LosFormatter] should not be used without MAC verification:
+
+[source,vbnet]
+----
+Dim formatter As LosFormatter = New LosFormatter() ' Noncompliant
+formatter.Deserialize(fs)
+----
+
+=== Compliant solution
+
+https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter?view=netframework-4.8[BinaryFormatter], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer?view=netframework-4.8[NetDataContractSerializer ], https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter?view=netframework-4.8[SoapFormatter] serializers should use a binder implementing a whitelist approach to limit types during deserialization (at least one exception should be thrown or a null value returned):
+
+[source,vbnet]
+----
+NotInheritable Class CustomBinder
+    Inherits SerializationBinder
+    Public Overrides Function BindToType(assemblyName As String, typeName As String) As Type
+        If Not (Equals(typeName, "type1") OrElse Equals(typeName, "type2") OrElse Equals(typeName, "type3")) Then
+            Throw New SerializationException("Only type1, type2 and type3 are allowed") ' Compliant
+        End If
+        Return Assembly.Load(assemblyName).[GetType](typeName)
+    End Function
+End Class
+
+Dim myBinaryFormatter = New BinaryFormatter()
+myBinaryFormatter.Binder = New CustomBinder()
+myBinaryFormatter.Deserialize(stream)
+----
+
+https://docs.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer?view=netframework-4.8[JavaScriptSerializer] should use a resolver implementing a whitelist to limit types during deserialization (at least one exception should be thrown or a null value  returned):
+
+[source,vbnet]
+----
+Public Class CustomSafeTypeResolver
+    Inherits JavaScriptTypeResolver
+    Public Overrides Function ResolveType(id As String) As Type
+        If Not Equals(id, "ExpectedType") Then
+            Throw New ArgumentNullException("Only ExpectedType is allowed during deserialization") ' Compliant
+        End If
+        Return Type.[GetType](id)
+    End Function
+End Class
+
+Dim serializer As JavaScriptSerializer = New JavaScriptSerializer(New CustomSafeTypeResolver()) ' Compliant
+serializer.Deserialize(Of ExpectedType)(json)
+----
+https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.losformatter?view=netframework-4.8[LosFormatter] serializer with MAC verification:
+
+[source,vbnet]
+----
+Dim formatter As LosFormatter = New LosFormatter(True, secret) ' Compliant
+formatter.Deserialize(fs)
+----
+
+include::../resources.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+include::../highlighting.adoc[]
+
+'''
+== Comments And Links
+(visible only on this page)
+
+include::../comments-and-links.adoc[]
+
+endif::env-github,rspecator-view[]

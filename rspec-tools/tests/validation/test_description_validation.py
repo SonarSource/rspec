@@ -107,10 +107,10 @@ def test_single_how_to_fix_it_allowed_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule abap:S200 is mixing "How to fix it" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "How to fix it" or one or more "How to fix it in FRAMEWORK"'):
     validate_section_names(rule)
 
-def test_duplicate_frameworks_in_how_to_fix_it_validation(invalid_rule):
-  '''Check that duplicate "How to fix it" subsections for the same framework breaks validation'''
+def test_duplicate_h2_sections_validation(invalid_rule):
+  '''Check that duplicate H2 sections breaks validation'''
   rule = invalid_rule('S200', 'javascript')
-  with pytest.raises(RuleValidationError, match='Rule javascript:S200 has duplicate "How to fix it" sections {\'How to fix it in Razor\'}'):
+  with pytest.raises(RuleValidationError, match='Rule javascript:S200 has duplicated {\'How to fix it in Razor\'} sections'):
     validate_section_names(rule)
 
 def test_wrong_format_how_to_fix_it_section_validation(invalid_rule):
@@ -180,4 +180,9 @@ def test_valid_optional_resources(rule_language):
 def test_subsections_without_a_framework_in_how_to_fix_it_validation(rule_language):
   '''Check that having subsections without a framework in "How to fix it" is considered valid'''
   rule = rule_language('S200', 'cobol')
+  validate_subsections(rule)
+
+def test_valid_why_is_this_an_issue_subsections_validation(rule_language):
+  '''Check that any substitle is considered valid in the "why is this an issue?" section'''
+  rule = rule_language('S200', 'java')
   validate_subsections(rule)
