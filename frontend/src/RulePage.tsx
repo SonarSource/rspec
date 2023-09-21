@@ -11,7 +11,7 @@ import Highlight from 'react-highlight';
 import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
-import { RuleMetadata } from './types';
+import RuleMetadata, { Version } from './types/RuleMetadata';
 import parse, { attributesToProps, domToReact, DOMNode, Element } from 'html-react-parser';
 
 import './hljs-humanoid-light.css';
@@ -242,7 +242,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
   }
 }
 
-function RuleThemeProvider({ children }: any) {
+const RuleThemeProvider: React.FC = ({ children }) => {
   useStyles();
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
@@ -253,7 +253,7 @@ interface PageMetadata {
   avoid: boolean;
   prUrl: string | undefined;
   branch: string;
-  coverage: any;
+  coverage: string | JSX.Element[];
   jsonString: string | undefined;
 }
 
@@ -261,7 +261,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
-  let coverage: any = 'Loading...';
+  let coverage: string | JSX.Element[] = 'Loading...';
   let title = 'Loading...';
   let avoid = false;
   let metadataJSONString;
@@ -287,14 +287,14 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
     avoid = !ruleStates.some(({ ruleState }) => ruleState === 'covered' || ruleState === 'targeted');
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
-    const coverageMapper = (key: any, range: any) => {
+    const coverageMapper = (key: string, range: Version ): JSX.Element => {
       if (typeof range === 'string') {
         return (
           <li key={key} >{key}: {range}</li>
         );
       } else {
         return (
-          <li>Not covered for {key} anymore. Was covered from {range['since']} to {range['until']}.</li>
+          <li>Not covered for {key} anymore. Was covered from {range.since} to {range.until}.</li>
         );
       }
     };
