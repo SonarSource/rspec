@@ -15,7 +15,8 @@ PROBING_SPREAD = 100 # minutes
 link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
-EXCEPTIONS = ['https://blogs.oracle.com/java-platform-group/diagnosing-tls,-ssl,-and-https']
+EXCEPTIONS = [
+]
 
 def show_files(filenames):
   for filename in filenames:
