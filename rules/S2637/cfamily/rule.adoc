@@ -1,20 +1,137 @@
+Pointers marked as "nonnull" may not be set to null.
+
 == Why is this an issue?
 
-Functions return values and parameters values marked ``++nonnull++`` are assumed to have non-null values and are not typically null-checked before use. Therefore setting one of these values to ``++null++``, could cause null pointer dereferences at runtime.
+A function's return value and parameters may be decorated with attributes to convey additional information to the compiler and/or other developers.
 
-=== Noncompliant code example
+A commonly used attribute is ``++nonnull++`` which can be used to mark a function's return value and parameters as shown in the following:
 
 [source,cpp]
 ----
 __attribute__((returns_nonnull))
-int* nonnull(__attribute__((nonnull)) int* parameter) {
-  parameter = 0; // Noncompliant - "parameter" is marked "nonnull" but is set to null.
-  nonnull(0); // Noncompliant - Parameter "parameter" to this call is marked "nonnull" but null is passed.
-  return 0; // Noncompliant - This function's return value is marked "nonnull" but null is returned.
+int* foo(__attribute__((nonnull)) int* x) {
+  x = 0; // Noncompliant: `x` is marked "nonnull" but is set to null
+  foo(0); // Noncompliant: null is passed as an argument marked as "nonnull"
+  return 0; // Noncompliant: return value is marked "nonnull" but null is returned
 }
 ----
 
+The ``++nonnull++`` attribute is meant for other developers and values marked as ``++nonnull++`` are assumed to have non-null values.
+In particular, the compiler does not enforce that values marked as ``++nonnull++`` are indeed non-null at runtime; it is the developers' responsibility to honor the attribute.
+These values are typically _not_ null-checked before use.
+Setting a value marked as ``++nonnull++`` to null (i.e., ``++NULL++``, ``++0++`` or ``++nullptr++``) is hence likely to cause null pointer dereferences at runtime.
+
+
+== What is the potential impact?
+
+The behavior of a program that dereferences a null pointer is undefined. In that case, the compiler no longer needs to adhere to the language standard and the program has no meaning assigned to it.
+
+In practice, dereferencing a null pointer may lead to program crashes, or the application may appear to execute correctly while losing data or producing incorrect results.
+
+Besides affecting the application’s availability, null pointer dereferences may lead to code execution, in rare circumstances. If null is equivalent to the 0x0 memory address that can be accessed by privileged code, writing, and reading memory is possible, which compromises the integrity and confidentiality of the application.
+
+
+== How to fix it
+
+Ensure not to use null values when non-null values are expected.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+__attribute__((returns_nonnull))
+int* foo(__attribute__((nonnull)) int* x) {
+  *x = 42;
+  return x;
+}
+
+void bar() {
+  int *p = nullptr;
+  int *q = foo(p); // Noncompliant: null value is passed as an argument marked "nonnull"
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+__attribute__((returns_nonnull))
+int* foo(__attribute__((nonnull)) int* x) {
+  *x = 42;
+  return x;
+}
+
+void bar() {
+  int i = 0;
+  int *p = &i;
+  int *q = foo(p); // Compliant: `p` points to a valid memory location
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+__attribute__((returns_nonnull))
+int* foo() {
+  return nullptr; // Noncompliant: function may not return a null pointer
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+__attribute__((returns_nonnull))
+int* foo() {
+  int *p = new int(0);
+  return p; // Noncompliant: `p` points to a valid memory location
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+void process(int *p);
+
+void foo(__attribute__((nonnull)) int *p) {
+  p = nullptr; // Noncompliant: `p` is marked "nonnull" but is set to null
+  process(p);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+void process(int *p);
+
+void foo(__attribute__((nonnull)) int *p) {
+  process(p);
+}
+----
+
+
+=== Going the extra mile
+
+include::../../../shared_content/cfamily/reference_over_nonnull_pointer.adoc[]
+
+
+== Resources
+
+=== Standards
+
 include::../see.adoc[]
+
+=== Related rules
+
+* S2259 detects null pointer dereferences
+* S3807 detects calls to C library functions that require valid, non-null pointers with null pointer arguments
+
 
 ifdef::env-github,rspecator-view[]
 
