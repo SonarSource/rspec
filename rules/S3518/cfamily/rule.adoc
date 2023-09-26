@@ -2,27 +2,21 @@ Ensure that integer division and remainder operations do not result in divide-by
 
 == Why is this an issue?
 
-The result of the ``++/++`` operator is the quotient from the division of the first arithmetic operand by the second arithmetic operand and the result of the ``++%++`` operator is the remainder from the division of the first arithmetic operand by the second arithmetic operand.
-Division operations are susceptible to divide-by-zero (and signed integer overflow) errors.
-
 If the denominator to a division or modulo operation is zero, the behavior of the application is undefined.
 
-Furthermore, when using signed integer division and the dividend is the minimum value for the signed integer type and the divisor is equal to ``++-1++`` an overflow is provoked due to two's complement representation.
+The result of the `/` operator is the quotient from the division of the first arithmetic operand by the second arithmetic operand and the result of the `%` operator is the remainder from the division of the first arithmetic operand by the second arithmetic operand.
+Division operations are susceptible to divide-by-zero (and signed integer overflow) errors.
+
+Furthermore, when using signed integer division and the dividend is the minimum value for the signed integer type and the divisor is equal to `-1` an overflow is provoked due to two's complement representation.
 This frequently causes hard-to-track bugs.
 
 [source,cpp]
 ----
-#include <limits>
-#include <optional>
-
-std::optional<int> unsafe_division(int a, int b) {
-  if ((a == std::numeric_limits<int>::min()) && (b == -1)) {
-    return std::nullopt;
+int foo(int a, int b) {
+  if (b == 0) {
+    a = 1;
   }
-  // Noncompliant: While the above check correctly prevents signed integer overflows,
-  // it fails to prevent divide-by-zero errors. If `b` is equal to `0`, the application
-  // emits undefined behavior.
-  return a / b;
+  return a / b; // Noncompliant: potential divide-by-zero error
 }
 ----
 
@@ -49,11 +43,21 @@ Employ adequate checks that prevent divide-by-zero errors when using integer div
 #include <limits>
 #include <optional>
 
-std::optional<int> unsafe_division(int a, int b) {
+std::optional<int> safe_division(int a, int b) {
+  // While the following check correctly prevents signed integer overflows,
+  // it fails to prevent divide-by-zero errors. If `b` is equal to `0`, the
+  // application emits undefined behavior.
   if ((a == std::numeric_limits<int>::min()) && (b == -1)) {
     return std::nullopt;
   }
   return a / b; // Noncompliant: causes undefined behavior if `b` is zero
+}
+
+std::optional<int> foo(int a, int b) {
+  if (b == 0) {
+    a = 1;
+  }
+  return safe_division(a, b);
 }
 ----
 
@@ -64,14 +68,40 @@ std::optional<int> unsafe_division(int a, int b) {
 #include <limits>
 #include <optional>
 
-std::optional<int> unsafe_division(int a, int b) {
+std::optional<int> safe_division(int a, int b) {
   if ((b == 0) || ((a == std::numeric_limits<int>::min()) && (b == -1))) {
     return std::nullopt;
   }
   return a / b; // Compliant: check correctly prevents divide-by-zero and signed integer overflows
 }
+
+std::optional<int> foo(int a, int b) {
+  if (b == 0) {
+    a = 1;
+  }
+  return safe_division(a, b);
+}
 ----
 
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <limits>
+#include <optional>
+
+std::optional<int> safe_division(int a, int b) {
+  if ((a == std::numeric_limits<int>::min()) && (b == -1)) {
+    return std::nullopt;
+  }
+  return a / b; // Compliant: check to prevent divide-by-zero in the caller
+}
+
+std::optional<int> foo(int a, int b) {
+  if (b == 0) {
+    return std::nullopt;
+  }
+  return safe_division(a, b);
+}
+----
 
 == Resources
 
