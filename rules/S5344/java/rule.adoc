@@ -1,10 +1,43 @@
+The improper storage of passwords poses a significant security risk to software applications. This vulnerability arises when passwords are stored in plain-text or with a fast hashing algorithm. To exploit this vulnerability, an attacker would typically require access to the stored passwords or the ability to intercept them during transmission. 
+
 == Why is this an issue?
 
-include::../description.adoc[]
+By obtaining these passwords, the attacker can gain unauthorized access to user accounts, potentially leading to various malicious activities.
 
-=== Noncompliant code example
+=== What is the potential impact?
 
-[source,java]
+Plain-text or weakly hashed password storage poses a significant security risk to software applications.
+
+==== Unauthorized Access
+
+When passwords are stored in plain-text or with weak hashing algorithms, an attacker who gains access to the password database can easily retrieve and use the passwords to gain unauthorized access to user accounts. This can lead to various malicious activities, such as unauthorized data access, identity theft, or even financial fraud.
+
+==== Credential Reuse
+
+Many users tend to reuse passwords across multiple platforms. If an attacker obtains plain-text passwords or weakly hashed passwords, they can potentially use these credentials to gain unauthorized access to other accounts held by the same user. This can have far-reaching consequences, as sensitive personal information or critical systems may be compromised.
+
+==== Regulatory Compliance
+
+Many industries and jurisdictions have specific regulations and standards in place to protect user data and ensure its confidentiality. Storing passwords in plain-text or with weak hashing algorithms can lead to non-compliance with these regulations, potentially resulting in legal consequences, financial penalties, and damage to the reputation of the software application and its developers.
+
+
+== How to fix it in Java EE
+
+A user password should never be stored in clear-text, instead a hash should be produced from it using a secure algorithm:
+
+* not vulnerable to brute force attacks.
+* not vulnerable to collision attacks (see rule S4790).
+* and a salt should be added to the password to lower the risk of rainbow table attacks (see rule S2053).
+
+Some algorithms, like MD5 or SHA-family functions are fast to compute hashes and therefore brute force attacks are possible especially with hardware like GPU, FPGA or ASIC. Modern password hashing algorithms such as bcrypt, PBKDF2 or argon2 are recommended.
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following code is vulnerable because it uses a legacy digest-based password encoding that is not considered secure.
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
 @Autowired
 public void configureGlobal(AuthenticationManagerBuilder auth, DataSource dataSource) throws Exception {
@@ -12,22 +45,12 @@ public void configureGlobal(AuthenticationManagerBuilder auth, DataSource dataSo
     .dataSource(dataSource)
     .usersByUsernameQuery("SELECT * FROM users WHERE username = ?")
     .passwordEncoder(new StandardPasswordEncoder()); // Noncompliant
-
-  // OR
-  auth.jdbcAuthentication()
-    .dataSource(dataSource)
-    .usersByUsernameQuery("SELECT * FROM users WHERE username = ?"); // Noncompliant; default uses plain-text
-
-  // OR 
-  auth.userDetailsService(...); // Noncompliant; default uses plain-text
-  // OR 
-  auth.userDetailsService(...).passwordEncoder(new StandardPasswordEncoder()); // Noncompliant
 }
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
 @Autowired
 public void configureGlobal(AuthenticationManagerBuilder auth, DataSource dataSource) throws Exception {
@@ -35,13 +58,35 @@ public void configureGlobal(AuthenticationManagerBuilder auth, DataSource dataSo
     .dataSource(dataSource)
     .usersByUsernameQuery("Select * from users where username=?")
     .passwordEncoder(new BCryptPasswordEncoder());
-
-  // or 
-  auth.userDetailsService(null).passwordEncoder(new BCryptPasswordEncoder());
 }
 ----
 
-include::../see.adoc[]
+=== How does this work?
+
+The ``BCryptPasswordEncoder`` is a password hashing function in Java that is designed to be secure and resistant to various types of attacks, including brute-force and rainbow table attacks. It is based on the Blowfish encryption algorithm and uses a technique called key stretching to make it computationally expensive to hash passwords. Here's how ``BCryptPasswordEncoder`` works:
+
+* Salt Generation: When a password is hashed using ``BCryptPasswordEncoder``, a random salt is generated. The salt is a random value that is added to the password before hashing, making it unique for each password. The salt is then stored along with the hashed password.
+
+* Password Hashing: The password, along with the salt, is then passed through the BCrypt hashing function. The function applies a series of iterations to the password and salt, creating a hash value that is unique to that combination.
+
+* Hash Comparison: When a user attempts to authenticate, the entered password is hashed using the same salt and number of iterations as the stored password. The generated hash is then compared with the stored hash. If they match, the password is considered valid.
+
+== Resources
+
+=== Documentation
+
+* Spring Framework Security Documentation - https://docs.spring.io/spring-security/site/docs/current/api/org/springframework/security/crypto/bcrypt/BCryptPasswordEncoder.html[Class BCryptPasswordEncoder]
+
+=== Standards
+
+* https://owasp.org/Top10/A02_2021-Cryptographic_Failures/[OWASP Top 10 2021 Category A2] - Cryptographic Failures
+* https://owasp.org/Top10/A04_2021-Insecure_Design/[OWASP Top 10 2021 Category A4] - Insecure Design
+* https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html[OWASP CheatSheet] - Password Storage Cheat Sheet
+* https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure[OWASP Top 10 2017 Category A3] - Sensitive Data Exposure
+* https://cwe.mitre.org/data/definitions/256[MITRE, CWE-256] - Plaintext Storage of a Password
+* https://cwe.mitre.org/data/definitions/916[MITRE, CWE-916] - Use of Password Hash With Insufficient Computational Effort
+* https://www.sans.org/top25-software-errors/#cat3[SANS Top 25] - Porous Defenses
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -49,7 +94,9 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::../message.adoc[]
+=== Message
+
+Use a secure password hashing algorithm.
 
 '''
 == Comments And Links
