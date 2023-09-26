@@ -1,4 +1,3 @@
-import collections
 from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Final
@@ -31,13 +30,14 @@ ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allo
 
 # This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#2-education-format)
 MANDATORY_SECTIONS = ['Why is this an issue?']
+CODE_EXAMPLES='Code examples'
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
-  'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
+  'How to fix it': [CODE_EXAMPLES, 'How does this work?', 'Pitfalls', 'Going the extra mile'],
   'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'External coding guidelines', 'Benchmarks', 'Related rules']
 }
 SUBSECTIONS = {
-  'Code examples': ['Noncompliant code example', 'Compliant solution']
+  CODE_EXAMPLES: ['Noncompliant code example', 'Compliant solution']
 }
 
 def validate_duplications(h2_titles, rule_language):
@@ -173,7 +173,7 @@ def validate_subsections(rule_language: LanguageSpecificRule):
     else:
       validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
-    if subsection_with_sub_subsection == 'Code examples':
+    if subsection_with_sub_subsection == CODE_EXAMPLES:
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4, is_duplicate_allowed=True)
     else:
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4)
