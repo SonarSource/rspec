@@ -4,7 +4,30 @@ Pointers marked as "nonnull" may not be set to null, since they are typically no
 
 A function's return value and parameters may be decorated with attributes to convey additional information to the compiler and/or other developers.
 
-A commonly used attribute is ``++nonnull++`` which can be used to mark a function's return value and parameters as shown in the following:
+A commonly used attribute is `nonnull` which can be used to mark a function's return value and parameters as shown in the following:
+
+[source,cpp]
+----
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+__attribute__((returns_nonnull)) int *
+make_array_copy(__attribute__((nonnull)) int *src, size_t len) {
+  int *dst = (int *)malloc(len * sizeof(int));
+  if (dst == NULL) {
+    perror("malloc failed");
+    exit(1);
+  }
+  memcpy(dst, src, len);
+  return dst;
+}
+----
+
+The `nonnull` attribute is meant for other developers and as a hint for compilers.
+Values marked as `nonnull` are assumed to have non-null values.
+
+However, developers may accidentally break the `nonnull` attribute as shown in the following code snippet:
 
 [source,cpp]
 ----
@@ -16,25 +39,51 @@ int* foo(__attribute__((nonnull)) int* x) {
 }
 ----
 
-The ``++nonnull++`` attribute is meant for other developers and values marked as ``++nonnull++`` are assumed to have non-null values.
-In particular, the compiler does not enforce that values marked as ``++nonnull++`` are indeed non-null at runtime; it is the developers' responsibility to honor the attribute.
+Failing to adhere to the attribute may introduce serious program errors.
+In particular, the compiler does not enforce that values marked as `nonnull` are indeed non-null at runtime; it is the developers' responsibility to honor the attribute.
 These values are typically _not_ null-checked before use.
-Setting a value marked as ``++nonnull++`` to null (i.e., ``++NULL++``, ``++0++`` or ``++nullptr++``) is hence likely to cause null-pointer dereferences at runtime.
+Setting a value marked as `nonnull` to null (i.e., `NULL`, `0` or `nullptr`) is hence likely to cause a null-pointer dereference.
+Compilers may even apply optimizations based on this attribute and might, for instance, _remove_ an explicit null-check if the parameter is declared as `nonnull`---even in code outside of the function with the attribute.
+
+Note that the `nonnull` attribute is a GNU extension (cf. https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-nonnull-function-attribute[nonnull] and https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-returns_005fnonnull-function-attribute[returns_nonnull]) which many compiler vendors have implemented.
 
 
 == What is the potential impact?
 
-The behavior of a program that dereferences a null pointer is undefined. In that case, the compiler no longer needs to adhere to the language standard and the program has no meaning assigned to it.
+In case a program dereferences a null pointer, it's behavior is undefined.
+For programs that exercise undefined behavior the compiler no longer needs to adhere to the language standard and the program has no meaning assigned to it.
 
 In practice, dereferencing a null pointer may lead to program crashes, or the application may appear to execute correctly while losing data or producing incorrect results.
 
-Besides affecting the application’s availability, null pointer dereferences may lead to malicious code execution, in rare circumstances.
+Besides affecting the application's availability, null pointer dereferences may lead to malicious code execution, in rare circumstances.
 If null is equivalent to the 0x0 memory address that can be accessed by privileged code, writing, and reading memory is possible, which compromises the integrity and confidentiality of the application.
+
+Because compilers may apply optimizations based on the `nonnull` attribute, not respecting `nonnull` can also introduce more complex bugs such as resource leaks or infinite loops as indicated in the following code snippet:
+
+[source,cpp]
+----
+struct Node {
+    int data;
+    Node *next;
+};
+
+size_t len(__attribute__((nonnull)) Node *n) {
+  size_t l = 0;
+  while (n) {
+    ++l;
+    n = n->next;
+  }
+  return l;
+}
+----
 
 
 == How to fix it
 
 Ensure not to pass null values when non-null arguments are expected.
+This especially holds for library functions such as the C standard library, for instance, which frequently requires `nonnull` pointer parameters.
+
+On other occasions, it might be more appropriate to remove the attribute.
 
 
 === Code examples
