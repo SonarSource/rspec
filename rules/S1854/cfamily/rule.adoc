@@ -2,33 +2,25 @@ Unused assignments should be removed.
 
 == Why is this an issue?
 
-Assigning a value to a local variable that is not read by any subsequent instruction is called a _dead store_.
+Computing or retrieving a value only to then immediately overwrite it or throw it away indicates serious logic errors in the code.
 
+Assigning a value to a local variable that is not read by any subsequent instruction is called a _dead store_.
 The following code snippet depicts a dead store.
 
 [source,cpp]
 ----
-int bar();
-int buz();
-
-int foo(bool b) {
+int foo() {
   int x = 0;
-  if (b) {
-    x = bar();
-    return x;
-  }
-  // More code ...
-  if (x != 0) {
-    // Noncompliant: the following two lines of code (and their enclosing if 
-    // statement) are superfluous since `y`'s value is never read.
-    int y = buz();
-    y += 9001; // Noncompliant: dead store.
-  }
-  return x;
+  x = 100; // Noncompliant: dead store
+  x = 200;
+  int y = 0;
+  y += 9001; // Noncompliant: dead store
+  int z = 300; // Noncompliant: dead store
+  z = 400;
+  return x + z * 2;
 }
 ----
 
-Computing or retrieving a value only to then immediately overwrite it or throw it away indicates serious logic errors in the code.
 Even if the unnecessary operations do not do any harm in terms of the program's correctness, they are---at best---a waste of computing resources.
 Therefore, unused values and superfluous code should be removed to prevent logic errors.
 
@@ -52,6 +44,28 @@ Remove unused values and superfluous code.
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
+int foo(int y) {
+  int x = 0;
+  x = 100; // Noncompliant: dead store
+  x = 200;
+  return x + y;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+int foo(int y) {
+  int x = 200; // Compliant: no unnecessary assignment
+  return x + y;
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
 int bar();
 int buz();
 
@@ -71,7 +85,7 @@ int foo(bool b) {
 
 ==== Compliant solution
 
-[source,cpp,diff-id=1,diff-type=compliant]
+[source,cpp,diff-id=2,diff-type=compliant]
 ----
 int bar();
 int buz();
@@ -87,44 +101,73 @@ int foo(bool b) {
 }
 ----
 
-[source,cpp,diff-id=2,diff-type=noncompliant]
+
+=== Pitfalls
+
+When removing unused values and superfluous code, make sure that the right-hand side of a given assignment has no side effects that update the program's state.
+
+While it is safe to remove the call to `square` in the following code since it has no side effects, removing the call to `fwrite` changes the program's behavior.
+Still, values that are never read such as `n_items` indicate code smells that should be mitigated.
+In this code example, the return value of `fwrite` should be checked and any potential error should be handled appropriately.
+
+[source,cpp]
 ----
-long factorial(const long n) {
-  long f = 1;
-  for (long i = 1; i <= n; ++i) {
-    f *= i;
-  }
-  return f;
+#include <stdio.h>
+#include <string.h>
+
+int square(int n) {
+  return n * n;
 }
 
-long foo(long n) {
-  // Noncompliant: `factorial`'s return value is unused and `factorial` has no side effects
-  factorial(n);
-}
-----
-
-==== Compliant solution
-
-[source,cpp,diff-id=2,diff-type=compliant]
-----
-#include <iostream>
-#include <format>
-
-long factorial(const long n) {
-  long f = 1;
-  for (long i = 1; i <= n; ++i) {
-    f *= i;
-  }
-  return f;
-}
-
-long foo(long n) {
-  long f = factorial(n); // Compliant: return value of `factorial` is used
-  std::cout << std::format("factorial({}) is {}\n", n, f);
-  return f;
+int foo(int i) {
+  int sq = square(i); // Noncompliant: dead store, assignment can be removed
+  const char* const str = "Hello, World!\n";
+  size_t n_items = fwrite(str, sizeof(char), strlen(str), stdout); // Noncompliant: `n_items` is never read, but the call has side effects
+  return i + 9001;
 }
 ----
 
+
+=== Going the extra mile
+
+In {cpp}17, the `nodiscard` attribute has been introduced which can be used to annotate functions, enumerations and classes.
+
+The attribute serves as a hint to the compiler and to other developers that a function's return value should not be ignored.
+A function that is marked `nodiscard` or that returns an enumeration or class declared `nodiscard` by value which is used in a discarded-value expression encourages the compiler to issue a warning.
+Example usages of the `nodiscard` attribute are shown in the following:
+
+[source,cpp]
+----
+[[nodiscard]] int foo() { return 100; }
+int bar() { return 200; }
+[[nodiscard("An explanation on why not to discard the return value")]] int buz() { return 300; }
+
+enum class [[nodiscard]] important_error_info { OK, WARN, CRITICAL };
+important_error_info compute() {
+  // More code ...
+  // In case of a critical error, return corresponding error info:
+  return important_error_info::CRITICAL;
+}
+
+void caller() {
+  foo(); // compiler warns on discarding a nodiscard value
+  bar(); // compiler will issue no warning
+  buz(); // compiler warns on discarding a nodiscard value
+  compute(); // compiler warns on discarding a nodiscard value
+}
+----
+
+In case, the return value of a function marked as `nodiscard` should be (exceptionally) ignored, a cast to `void` can be used to silence the compiler warning as shown in the following:
+
+[source,cpp]
+----
+[[nodiscard]] int foo() { return 100; }
+
+void caller() {
+  foo(); // compiler warns on discarding a nodiscard value
+  (void)foo(); // compiler will issue no warning
+}
+----
 
 == Resources
 
