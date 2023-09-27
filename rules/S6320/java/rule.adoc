@@ -17,49 +17,97 @@ You should try to identify the code responsible for these checks and fix it.
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-List<String> list = new LinkedList<>();
-if (someCondition) {
-  list = new ArrayList<>();
+String hexString(Object o) {
+  return Integer.toHexString((Integer) o); // Noncompliant if hexString is called with a String for example 
 }
-((LinkedList<String>) list).addLast("abc"); // Noncompliant, throws a ClassCastException when someCondition is true
 ----
 
 === Compliant solution
 
-[source,java,diff-id=1,diff-type=compliant]
-----
-List<String> list = new LinkedList<>();
-if (someCondition) {
-  list = new ArrayList<>();
-}
-if (list instanceof LinkedList) {
-  ((LinkedList<String>) list).addLast("abc");
-}
-----
-
-or
+One possible solution is to change `hexString` to only accept integers and adapt call sites.
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-List<String> list = new LinkedList<>();
-if (someCondition) {
-  list = new ArrayList<>();
+String hexString(Integer i) {
+  return Integer.toHexString(i);
 }
-list.add("abc");
 ----
 
-or
+Another one is to return a default value for types that are not `Integer`.
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-LinkedList<String> list = new LinkedList<>();
-list.addLast("abc");
+String hexString(Object o) {
+  if (o instanceof Integer) {
+    return Integer.toHexString((Integer) o);
+  }
+  return "0x0";
+}
 ----
+
+It depends on which part of the code should be responsible to handle non-Integer types.
 
 === Going the extra mile
 
-==== Consider polymorphism
-
 Casting is considered an anti-pattern in object-oriented programming.
-It is sometimes necessary, but you may want to evaluate whether your solution can use polymorphism instead.
+It is sometimes necessary, but there often is a better alternative.
+Consider:
 
+* Polymorphism
+* The visitor design pattern
+* Pattern matching
+
+They come with some garantees from the compiler, which makes your code more reliable.
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+int foo(Shape shape) {
+  if (shape instanceof Circle) {
+    Circle circle = (Circle) shape;
+    // Code for objects of type Circle
+  } else if (shape instanceof Square) {
+    Square square = (Square) shape;
+    // Code for objects of type Square
+  }
+  // Default
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+int foo(Shape shape) {
+  return shape.fooValue(...); // Code was moved in subclasses
+}
+----
+
+or
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+int foo(Shape shape) {
+  return shape.accept(new FooVisitor()); // Code was moved in FooVisitor
+}
+----
+
+or
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+// Java 14+ required
+int foo(Shape shape) {
+  if (shape instanceof Circle c) {
+    // Code for objects of type Circle
+  } else if (shape instanceof Square s) {
+    // Code for objects of type Square
+  }
+}
+----
+
+== More info
+
+* https://refactoring.guru/design-patterns/visitor[Refactoring Guru's page on the visitor pattern]
+* https://blogs.oracle.com/javamagazine/post/pattern-matching-for-instanceof-in-java-14[Oracle's blog post about pattern matching for instanceof in Java 14]
