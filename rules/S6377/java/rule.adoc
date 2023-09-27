@@ -1,10 +1,29 @@
+XML signatures are a method used to ensure the integrity and authenticity of XML documents. However, if XML signatures are not validated securely, it can lead to potential vulnerabilities.
+
 == Why is this an issue?
 
-include::../description.adoc[]
+Before Java 17, XML Digital Signature API does not apply restrictions on XML signature validation, unless the application runs with a security manager which is rare. This can have several consequences:
 
-=== Noncompliant code example
+=== Increased Vulnerability to Signature Spoofing
 
-[source,java]
+By disabling secure validation, the Java application becomes more susceptible to signature spoofing attacks. Attackers can potentially manipulate the XML signature in a way that bypasses the validation process, allowing them to forge or tamper with the signature. This can lead to the acceptance of invalid or maliciously modified signatures, compromising the integrity and authenticity of the XML documents.
+
+=== Risk of Injection Attacks
+
+Disabling secure validation can expose the application to injection attacks. Attackers can inject malicious code or entities into the XML document, taking advantage of the weakened validation process. In some cases, it can also expose the application to denial of service attacks. Attackers can exploit vulnerabilities in the validation process to cause excessive resource consumption or system crashes, leading to service unavailability or disruption.
+
+
+== How to fix it in Java SE
+
+=== Code examples
+
+For versions of Java before 17, secure validation is disabled by default unless the application runs with a security manager which is rare. It should be enabled explicitly by setting the ``org.jcp.xml.dsig.secureValidation`` attribute to true with the ``javax.xml.crypto.dsig.dom.DOMValidateContext.setProperty`` method.
+
+For Java 17 and higher, secure validation is enabled by default.
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
 NodeList signatureElement = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "Signature");
 
@@ -15,10 +34,9 @@ XMLSignature signature = fac.unmarshalXMLSignature(valContext);
 boolean signatureValidity = signature.validate(valContext);
 ----
 
-=== Compliant solution
-In order to benefit from this secure validation mode, set the DOMValidateContext's ``org.jcp.xml.dsig.secureValidation`` property to ``TRUE``.
+==== Compliant solution
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
 NodeList signatureElement = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "Signature");
 
@@ -30,12 +48,34 @@ XMLSignature signature = fac.unmarshalXMLSignature(valContext);
 boolean signatureValidity = signature.validate(valContext);
 ----
 
+=== How does this work?
+
+When XML Signature secure validation mode is enabled, XML Signatures are processed more securely. It enforces the following restrictions:
+
+* Forbids the use of XSLT transforms
+* Restricts the number of ``SignedInfo`` or ``Manifest Reference`` elements to 30 or less
+* Restricts the number of ``Reference`` transforms to 5 or less
+* Forbids the use of MD5-related signatures or MAC algorithms
+* Ensures that ``Reference`` IDs are unique to help prevent signature wrapping attacks
+* Forbids Reference URIs of type ``http``, ``https``, or ``file``
+* Does not allow a ``RetrievalMethod`` element to reference another ``RetrievalMethod`` element
+* Forbids RSA or DSA keys less than 1024 bits
+
+These restrictions can protect you from XML Signatures that may contain potentially hostile constructs that can cause denial-of-service or other types of security issues.
 
 == Resources
 
-* https://docs.oracle.com/en/java/javase/14/security/java-xml-digital-signature-api-overview-and-tutorial.html#GUID-DB46A001-6DBD-4571-BDBC-1BBC394BF61E[Oracle Java Documentation] - XML Digital Signature API Overview and Tutorial
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/21/security/java-xml-digital-signature-api-overview-and-tutorial.html[Oracle Java Documentation] - XML Digital Signature API Overview and Tutorial
+
+=== Standards
+
+* https://owasp.org/Top10/A02_2021-Cryptographic_Failures/[OWASP
+ Top 10:2021 A02:2021] - Cryptographic Failures
 * https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure[OWASP Top 10 2017 Category A3] - Sensitive Data Exposure
 * https://cwe.mitre.org/data/definitions/347[MITRE, CWE-347] - Improper Verification of Cryptographic Signature
+
 
 ifdef::env-github,rspecator-view[]
 
