@@ -31,9 +31,6 @@ The following code snippet demonstrates the creation of a file with a private
 key and a public key, which are then stored in the metadata of the container. +
 This is non-compliant, as the private key should not be exposed anywhere.
 
-Afterwards, the code uses a seemingly-hidden password which is actually leaked
-after the container is built.
-
 
 [source,docker, diff-id=1, diff-type=noncompliant]
 ----
@@ -43,6 +40,18 @@ FROM example
 RUN ssh-keygen -N "passphrase" -t rsa -b 2048 -f /etc/ssh/rsa_key
 
 RUN /example.sh --ssh /etc/ssh/rsa_key
+----
+
+In the following sample, the code uses a seemingly-hidden password which is
+actually leaked after the container is built.
+
+[source,docker, diff-id=2, diff-type=noncompliant]
+----
+FROM example
+ARG PASSWORD
+
+# Noncompliant
+RUN wget --user=guest --password="$PASSWORD" https://example.com
 ----
 
 === Compliant solution
@@ -56,6 +65,14 @@ FROM example
 
 RUN --mount=type=secret,id=ssh,target=/etc/ssh/rsa_key \
     /example.sh --ssh /etc/ssh/rsa_key
+----
+
+[source,docker, diff-id=2, diff-type=compliant]
+----
+FROM example
+
+RUN --mount=type=secret,id=wget_passwd \
+    wget --user=guest --password="$(cat /run/secrets/wget_passwd)" https://example.com
 ----
 
 For runtime secrets, leave the environment variables empty in the Dockerfile.
