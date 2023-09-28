@@ -22,7 +22,7 @@ In case a user of the program can control the contents of a buffer, for instance
 
 == How to fix it
 
-Ensure that memory access are within the bounds of the allocated array or buffer.
+Ensure that memory accesses are within the bounds of the allocated array or buffer.
 
 If {cpp} is available, use the `std::array` or `std::vector` types to manage stack or heap-based arrays, respectively and use `std::string` to manage string buffers.
 
@@ -31,43 +31,45 @@ If {cpp} is available, use the `std::array` or `std::vector` types to manage sta
 
 ==== Noncompliant code example
 
-[source,cpp,diff-id=1,diff-type=noncompliant]
+[source,c,diff-id=1,diff-type=noncompliant]
 ----
 #include <stdio.h>
 
-int main() {
+int fun(void) {
   char buffer[64] = {0};
   if (fgets(buffer, 2048, stdin) != NULL) { // Noncompliant: target buffer may overflow
     printf("buffer contents: %s", buffer);
+    return 0;
   }
-  return 0;
+  return 1;
 }
 ----
 
 ==== Compliant solution
 
-[source,cpp,diff-id=1,diff-type=compliant]
+[source,c,diff-id=1,diff-type=compliant]
 ----
 #include <stdio.h>
 
-int main() {
+int fun(void) {
   char buffer[64] = {0};
   if (fgets(buffer, 64, stdin) != NULL) { // Compliant: reads at most 64 - 1 characters
     printf("buffer contents: %s", buffer);
+    return 0;
   }
-  return 0;
+  return 1;
 }
 ----
 
 ==== Noncompliant code example
 
-[source,cpp,diff-id=2,diff-type=noncompliant]
+[source,c,diff-id=2,diff-type=noncompliant]
 ----
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-void foo() {
+void foo(void) {
   char *buf1 = (char *)malloc(17);
   char *buf2 = (char *)malloc(8);
   memset(buf1, 0, 17);
@@ -87,13 +89,13 @@ void foo() {
 
 ==== Compliant solution
 
-[source,cpp,diff-id=2,diff-type=compliant]
+[source,c,diff-id=2,diff-type=compliant]
 ----
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-void foo() {
+void foo(void) {
   char *buf1 = (char *)malloc(17);
   char *buf2 = (char *)malloc(8);
   memset(buf1, 0, 17);
@@ -115,34 +117,109 @@ void foo() {
 
 ==== Noncompliant code example
 
-[source,cpp,diff-id=3,diff-type=noncompliant]
+[source,c,diff-id=3,diff-type=noncompliant]
 ----
 #include <stdio.h>
 
-void foo() {
-  char txt[16] = "Hello, World!";
-  for (size_t i = 0; i <= sizeof(txt); ++i) { // Noncompliant: index should be between 0 and 15
-    printf("%c\n", txt[i]);
+void bar(void) {
+  int array[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  array[8] = 42; // Noncompliant: index should be between 0 and 7
+  for (size_t i = 0; i < 8; ++i) { // Compliant: index is between 0 and 7
+    printf("%d\n", array[i]);
   }
 }
 ----
 
 ==== Compliant solution
 
-[source,cpp,diff-id=3,diff-type=compliant]
+[source,c,diff-id=3,diff-type=compliant]
 ----
-void foo() {
-  char txt[16] = "Hello, World!";
-  for (size_t i = 0; i < sizeof(txt); ++i) { // Compliant: index is between 0 and 15
-    printf("%c\n", txt[i]);
+#include <stdio.h>
+
+void bar(void) {
+  int array[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  array[7] = 42; // Compliant: index is between 0 and 7
+  for (size_t i = 0; i < 8; ++i) { // Compliant: index is between 0 and 7
+    printf("%d\n", array[i]);
   }
 }
 ----
 
+=== Pitfalls
+
+When managing and manipulating string buffers one needs to take great care that the buffers are correctly terminated with a null byte (`'\0'`).
+Failing to correctly null terminate string buffers almost always causes buffer overruns and introduces undefined behavior.
+
+The following faulty program aims at creating a string copy.
+However, the heap-allocated memory buffer for holding the copy is too small since `strlen` calculates the length of its input string but exclude the "invisible" terminating null byte ('\0').
+The call to `strncpy` also uses the string length computed by `strlen` and the string copy hence lacks a null terminator.
+This causes out-of-bounds reads and introduces undefined behavior in the subsequent processing steps.
+In this example, the call to `printf` will eventually trigger such erroneous behavior.
+
+[source,c]
+----
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+char *make_str_copy(const char *const src) {
+  size_t src_len = strlen(src);
+  char *dst = (char *)malloc(src_len); // buffer too small to hold null terminator
+  if (dst == NULL) {
+    perror("malloc failed");
+    exit(1);
+  }
+  strncpy(dst, src, src_len); // null terminator is not (implicitly) copied either
+  return dst;
+}
+
+int main(void) {
+  const char str[] = "Hello, World!";
+  char *str_copy = make_str_copy(str);
+  // call to `printf` will trigger undefined behavior due to missing null terminator
+  printf("%s\n", str_copy); // Noncompliant: `str_copy` has not been null terminated
+  free(str_copy);
+  return 0;
+}
+----
+
+The following fixed version of the program does correctly allocate a heap-based buffer of sufficient size _and_ (explicitly) terminates it with a null byte (`'\0'`):
+
+[source,c]
+----
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+char *make_str_copy(const char *const src) {
+  size_t src_len = strlen(src);
+  // `src_len + 1` since `strlen` _excludes_ the terminating null byte
+  char *dst = (char *)malloc(src_len + 1);
+  if (dst == NULL) {
+    perror("malloc failed");
+    exit(1);
+  }
+  dst[src_len] = '\0'; // explicitly add a null terminator
+  strncpy(dst, src, src_len);
+  return dst;
+}
+
+int main(void) {
+  const char str[] = "Hello, World!";
+  char *str_copy = make_str_copy(str);
+  printf("%s\n", str_copy); // Compliant: `str_copy` has been correctly null terminated
+  // More code that processes `str_copy` ...
+  free(str_copy);
+  return 0;
+}
+----
+
+
 === Going the extra mile
 
 Buffer overflows occur when a program writes data beyond the boundaries of a buffer and can lead to memory corruption and potential security vulnerabilities.
-To mitigate this risk, developers must carefully manage array and buffer sizes (, use secure coding practices, and employ techniques like input validation and bounds checking).
+To mitigate this risk, developers must carefully manage array and buffer sizes.
+This includes using secure coding practices, and employing techniques like input validation and bounds checking.
 
 In {cpp}, manual array or string, i.e., buffer manipulations are considered a code smell.
 
@@ -217,8 +294,8 @@ void tar(std::string const &s) {
 * CERT - https://wiki.sei.cmu.edu/confluence/x/wtYxBQ[ARR30-C. Do not form or use out-of-bounds pointers or array subscripts]
 * CERT - https://wiki.sei.cmu.edu/confluence/x/i3w-BQ[STR50-CPP. Guarantee that storage for strings has sufficient space for character data and the null terminator]
 * CWE - https://cwe.mitre.org/data/definitions/119[119 Improper Restriction of Operations within the Bounds of a Memory Buffer]
-* CWE - https://cwe.mitre.org/data/definitions/121.html[121 Stack-based Buffer Overflow]
-* CWE - https://cwe.mitre.org/data/definitions/122.html[122 Heap-based Buffer Overflow]
+* CWE - https://cwe.mitre.org/data/definitions/121[121 Stack-based Buffer Overflow]
+* CWE - https://cwe.mitre.org/data/definitions/122[122 Heap-based Buffer Overflow]
 * CWE - https://cwe.mitre.org/data/definitions/131[131 Incorrect Calculation of Buffer Size]
 * CWE - https://cwe.mitre.org/data/definitions/788[788 Access of Memory Location After End of Buffer]
 
