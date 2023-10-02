@@ -1,28 +1,157 @@
+
+Recursive methods always need to reach a base case where the recursion is
+stopped.
+Infinite recursion indicates a logical error that will crash your application.
+
 == Why is this an issue?
 
-Recursion is a method of solving a computational problem where a method calls itself with smaller instances of the same input. This can happen when a method invokes itself or when a pair of methods invoke each other. It can be a useful tool, but unless the method includes a provision to break out of the recursion and ``++return++``, the recursion will continue until the stack overflows and the program crashes.
+Recursion is a technique to solve a computational problem by splitting it into
+smaller problems.
+It is implemented by creating a method that splits its input into smaller
+instances and calls itself on these instances.
+This continues until a smallest input, a *base case* is reached, that can no
+longer be split.
+Similarly, recursion can also occur when multiple methods invoke each other.
 
-=== Noncompliant code example
+Recursion can be a useful tool, unless the method does not correctly detect base
+cases that let it break out of the recursion and ``++return++``.
+If this happens, the recursion will continue until the stack overflows and the
+program crashes due to a `StackOverflowError`.
+
+=== What is the potential impact?
+
+include::../../../shared_content/layc/exception-impact.adoc[]
+
+== How to fix it
+
+To correctly implement recursion, you must ensure the following conditions are
+met:
+
+1. On every recursive call, the input to the call needs to become smaller,
+   i.e. be brought closer to the base case.
+   For instance, if you are operating on a list, you can split it into smaller
+   segments.
+   If the input is numerical, you can ensure that you only make recursive calls
+   on numbers that are strictly smaller.
+
+2. The recursive method needs to contain a *termination condition* that checks
+   whether the base case has been reached.
+   If so, it must not perform another recursive call.
+   For example, a base case can be that the input is an empty list.
+
+3. You need to ensure, that your method of splitting the input into smaller
+   instances will actually lead to the base case.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+int myPow(int num, int exponent) {
+  num = num * myPow(num, exponent - 1); // Noncompliant
+  return num;  // this is never reached
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+int myPow(int num, int exponent) {
+  if (exponent == 0) { // <- termination condition
+    return 1;
+  }
+
+  if (exponent < 0) {
+    throw new IllegalArgumentException("Negative exponents are not supported.");
+  }
+
+  num = num * myPow(num, exponent - 1);
+  return num;
+}
+----
+
+=== How does it work?
+
+In the example, `myPow` computes the power of `num` to the given `exponent`.
+The problem is solved recursively by computing the power of `num` to
+`exponent - 1` first, and then multiplying the result with `num`.
+
+Thus, the problem is correctly being reduced to a recursive call to a strictly
+smaller input
+However, the noncompliant implementation is lacking a base, i.e. the input
+`exponent` will eventually become negative and the recursion never stops.
+This is solved by introducing the termination condition `exponent == 0` which
+immediately stops the recursion.
+
+This will solve the infinite recursion problem for all valid, non-negative input
+values for `exponent`.
+However, it would still allow for infinite recursion on negative exponents.
+Hence, for additional safety, we add an additional check for this case that
+leads to an `IllegalArgumentException`.
+Throwing this exception would still crash the program, but it documents the
+intended usage of the method, and gives useful debugging information to the
+programmer.
+
+=== Pitfalls
+
+Even when correctly implemented, recursion can still lead to a
+`StackOverflowError`.
+Every recursive call consumes memory on the stack.
+If the number of recursive calls is large enough, the available stack memory can
+be exhausted, even for finite recursions.
+Thus, for large input sizes, recursion should be avoided.
+
+=== Going the extra mile
+
+There are techniques for converting any recursive method into a loop-based,
+iterative method.
+This can utilized when running into the pitfall of recursion on large inputs.
+
+For instance, the following is an iterative version of the above example:
 
 [source,java]
 ----
 int myPow(int num, int exponent) {
-    num = num * myPow(num, exponent - 1); // Noncompliant
-    return num;  // this is never reached
+  if (exponent < 0) {
+    throw new IllegalArgumentException("Negative exponents are not supported.");
+  }
+
+  int result = 1;
+  while (exponent > 0) {
+    result *= num;
+    --exponent;
+  }
+
+  return result;
 }
 ----
 
-=== Compliant solution
+As the conversion of recursive methods into iterative methods is a complex
+topic, we refer to external articles on the topic, see <<articles>> under the
+tab *More Info*.
 
-[source,java]
-----
-int myPow(int num, int exponent) {
-    if(exponent > 1) {
-      num = num * myPow(num, exponent - 1);
-    }
-    return num;
-}
-----
+// Tail-recursion is also a common approach to optimizing deep recustions.
+// However, it is currently not supported by Java, so it does provide little
+// value to the reader to mention it here.
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/StackOverflowError.html[StackOverflowError]
+
+=== Articles & blog posts [[articles]]
+
+* https://www.baeldung.com/cs/convert-recursion-to-iteration[From Recursive to Iterative Functions] by Baeldung.
+
+=== Standards
+
+* The JVMS on https://docs.oracle.com/javase/specs/jvms/se17/html/jvms-2.html#jvms-2.5.2[Stacks]
+
+=== Articles & blog posts
+
 ifdef::env-github,rspecator-view[]
 
 '''
