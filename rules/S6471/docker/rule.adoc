@@ -105,10 +105,28 @@ RUN net user /add nonroot
 USER nonroot
 ----
 
+For multi-stage builds, the non-root user should be on the last layer:
+[source,docker]
+----
+FROM alpine as builder
+COPY Makefile ./src /
+RUN make build
+
+FROM alpine as runtime
+RUN addgroup -S nonroot \
+    && adduser -S nonroot -G nonroot
+COPY --from=builder bin/production /app
+USER nonroot
+ENTRYPOINT ["/app/production"]
+----
+
 If the `scratch` Dockerfile untars a Linux distribution, the "Linux image"
-solution should be applied. Else, you have a choice between using a pre-written
-`/etc/passwd` file (regardless of the host operating system) or using a
-multi-stage build.
+solution should be applied. +
+Otherwise, it is possible to generate a user with a hardcoded `/etc/passwd` file
+(regardless of the host operating system).
+
+Here is a solution where a `passwd` file is stored right next to the source
+code and copied into the resulting image:
 
 [source,docker]
 ----
@@ -124,7 +142,8 @@ COPY production_binary /app
 ENTRYPOINT ["/app/production_binary"]
 ----
 
-or you can use a multi-stage build:
+And here is a solution copying a `passwd` file generated with `adduser` on a
+previous build stage:
 
 [source,docker]
 ----
@@ -140,20 +159,6 @@ ENTRYPOINT ["/app/production_binary"]
 ----
 
 
-For multi-stage builds:
-[source,docker]
-----
-FROM alpine as builder
-COPY Makefile ./src /
-RUN make build
-
-FROM alpine as runtime
-RUN addgroup -S nonroot \
-    && adduser -S nonroot -G nonroot
-COPY --from=builder bin/production /app
-USER nonroot
-ENTRYPOINT ["/app/production"]
-----
 
 == See
 
