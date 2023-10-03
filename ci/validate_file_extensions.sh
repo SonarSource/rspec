@@ -5,14 +5,13 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 TOPLEVEL="$(realpath "${TOPLEVEL}")"
 RULES_DIR="${TOPLEVEL}/rules"
 
-CS_FILES=$(find "${RULES_DIR}" -type f -name "*.cs")
-VB_FILES=$(find "${RULES_DIR}" -type f -name "*.vb")
+CSVB_FILES=$(find "${RULES_DIR}" -type f -name "*.cs" -o -name "*.vb")
 
-if [[ ${#CS_FILES[@]} -gt 0 ]] || [[ ${#VB_FILES[@]} -gt 0 ]]; then
+if [[ ${#CSVB_FILES[@]} -gt 0 ]]; then
     echo "ERROR: '.cs' and/or '.vb' files are detected."
-    echo $CS_FILES
-    echo $VB_FILES
+    echo $CSVB_FILES
     exit 1
+else 
+    echo "SUCCESS: no '.cs' or '.vb' files detected."
+    exit 0
 fi
-echo "SUCCESS: no '.cs' or '.vb' files detected."
-exit 0
