@@ -1,8 +1,7 @@
 #!/bin/bash
 set -euxo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-TOPLEVEL="$(realpath "${TOPLEVEL}")"
+TOPLEVEL="$(realpath .)"
 RULES_DIR="${TOPLEVEL}/rules"
 
 CSVB_FILES=$(find "${RULES_DIR}" -type f -name "*.cs" -o -name "*.vb")
