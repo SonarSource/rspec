@@ -1,9 +1,8 @@
 #!/bin/bash
-set -euxo pipefail
+set -exo pipefail
 
 TOPLEVEL="$(realpath .)"
 RULES_DIR="${TOPLEVEL}/rules"
-
 CSVB_FILES=$(find "${RULES_DIR}" -type f -name "*.cs" -o -name "*.vb")
 
 if [ "${#CSVB_FILES[@]}" -gt 0 ]; then
