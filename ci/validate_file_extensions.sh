@@ -1,11 +1,9 @@
 #!/bin/bash
-set -exo pipefail
+set -euxo pipefail
 
 TOPLEVEL="$(realpath .)"
 RULES_DIR="${TOPLEVEL}/rules"
 CSVB_FILES=($(find "${RULES_DIR}" -type f -name "*.cs" -o -name "*.vb"))
-
-echo ${#CSVB_FILES[@]}
 
 if [ ${#CSVB_FILES[@]} -gt 0 ]; then
     echo "ERROR: '.cs' and/or '.vb' files are detected."
