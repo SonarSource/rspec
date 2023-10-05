@@ -33,6 +33,73 @@ If {cpp} is available, use the `std::array` or `std::vector` types to manage sta
 
 [source,c,diff-id=1,diff-type=noncompliant]
 ----
+void access_exceeds(void) {
+  int id_sequence[3];
+  id_sequence[0] = 100;
+  id_sequence[1] = 200;
+  id_sequence[2] = 300;
+  id_sequence[3] = 400; // Noncompliant: memory access is out of bounds
+  // Accessed memory exceeds upper limit of memory block
+}
+
+void access_precedes(int x) {
+  int buf[100];
+  int *p = buf;
+  --p;
+  p[0] = 9001; // Noncompliant: memory access is out of bounds
+  // Accessed memory precedes memory block
+}
+----
+
+==== Compliant solution
+
+[source,c,diff-id=1,diff-type=compliant]
+----
+void access_exceeds(void) {
+  int id_sequence[3];
+  // Compliant: all memory accesses are within valid bounds between 0 and 2
+  id_sequence[0] = 100;
+  id_sequence[1] = 200;
+  id_sequence[2] = 300;
+}
+
+void access_precedes(int x) {
+  int buf[100];
+  int *p = buf;
+  p[0] = 9001; // Compliant: memory access within valid bounds
+}
+----
+
+==== Noncompliant code example
+
+[source,c,diff-id=2,diff-type=noncompliant]
+----
+#include <string.h>
+
+void memcpy_fun(void) {
+  char src[] = {1, 2, 3, 4};
+  char dst[10];
+  memcpy(dst, src, 5); // Noncompliant: memory copy function accesses out-of-bound array element
+}
+----
+
+==== Compliant solution
+
+[source,c,diff-id=2,diff-type=compliant]
+----
+#include <string.h>
+
+void memcpy_fun(void) {
+  char src[] = {1, 2, 3, 4};
+  char dst[10];
+  memcpy(dst, src, sizeof(src)); // Compliant: memory copy function accesses only valid array elements
+}
+----
+
+==== Noncompliant code example
+
+[source,c,diff-id=3,diff-type=noncompliant]
+----
 #include <stdio.h>
 
 int fun(void) {
@@ -47,7 +114,7 @@ int fun(void) {
 
 ==== Compliant solution
 
-[source,c,diff-id=1,diff-type=compliant]
+[source,c,diff-id=3,diff-type=compliant]
 ----
 #include <stdio.h>
 
@@ -63,7 +130,7 @@ int fun(void) {
 
 ==== Noncompliant code example
 
-[source,c,diff-id=2,diff-type=noncompliant]
+[source,c,diff-id=4,diff-type=noncompliant]
 ----
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,7 +142,7 @@ int foo(void) {
                           "CCCC"
                           "DDDD";
   size_t str_len = strlen(str);
-  char *buf1 = (char *)malloc(str_len + 1);
+  char *buf1 = (char *)malloc(str_len + /*null terminator*/ 1);
   if (buf1 == NULL) { return 1; }
   memset(buf1, 0, str_len + 1);
   strncpy(buf1, str, str_len);
@@ -90,7 +157,7 @@ int foo(void) {
 
 ==== Compliant solution
 
-[source,c,diff-id=2,diff-type=compliant]
+[source,c,diff-id=4,diff-type=compliant]
 ----
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,7 +169,7 @@ int foo(void) {
                           "CCCC"
                           "DDDD";
   size_t str_len = strlen(str);
-  char *buf1 = (char *)malloc(str_len + 1);
+  char *buf1 = (char *)malloc(str_len + /*null terminator*/ 1);
   if (buf1 == NULL) { return 1; }
   memset(buf1, 0, str_len + 1);
   strncpy(buf1, str, str_len + 1);
@@ -120,7 +187,7 @@ int foo(void) {
 
 ==== Noncompliant code example
 
-[source,c,diff-id=3,diff-type=noncompliant]
+[source,c,diff-id=5,diff-type=noncompliant]
 ----
 #include <stdio.h>
 
@@ -135,7 +202,7 @@ void bar(void) {
 
 ==== Compliant solution
 
-[source,c,diff-id=3,diff-type=compliant]
+[source,c,diff-id=5,diff-type=compliant]
 ----
 #include <stdio.h>
 
@@ -154,12 +221,12 @@ When managing and manipulating string buffers one needs to take great care that 
 Failing to correctly null terminate string buffers almost always causes buffer overruns and introduces undefined behavior.
 
 The following faulty program aims at creating a string copy.
-However, the heap-allocated memory buffer for holding the copy is too small since `strlen` calculates the length of its input string but exclude the "invisible" terminating null byte (`'\0'`).
-The call to `strncpy` also uses the string length computed by `strlen` and the string copy hence lacks a null terminator.
+However, the heap-allocated memory buffer for holding the copy is too small since `strlen` calculates the length of its input string but excludes the "invisible" terminating null byte (`'\0'`).
+The call to `strncpy` also uses the string length computed by `strlen` and the string copy hence lacks an implicitly copied null terminator.
 This causes out-of-bounds reads and introduces undefined behavior in the subsequent processing steps.
 In this example, the call to `printf` will eventually trigger such erroneous behavior.
 
-[source,c,diff-id=4,diff-type=compliant]
+[source,c,diff-id=6,diff-type=compliant]
 ----
 #include <stdio.h>
 #include <stdlib.h>
@@ -181,6 +248,7 @@ int main(void) {
   char *str_copy = make_str_copy(str);
   // call to `printf` will trigger undefined behavior due to missing null terminator
   printf("%s\n", str_copy); // Noncompliant: `str_copy` has not been null terminated
+  // More code that processes `str_copy` ...
   free(str_copy);
   return 0;
 }
@@ -188,7 +256,7 @@ int main(void) {
 
 The following fixed version of the program does correctly allocate a heap-based buffer of sufficient size _and_ (explicitly) terminates it with a null byte (`'\0'`):
 
-[source,c,diff-id=4,diff-type=noncompliant]
+[source,c,diff-id=6,diff-type=noncompliant]
 ----
 #include <stdio.h>
 #include <stdlib.h>
@@ -223,6 +291,16 @@ int main(void) {
 Buffer overflows occur when a program writes data beyond the boundaries of a buffer and can lead to memory corruption and potential security vulnerabilities.
 To mitigate this risk, developers must carefully manage array and buffer sizes.
 This includes using secure coding practices, and employing techniques like input validation and bounds checking.
+
+Various modern C and C++ compilers allow one to automatically instrument a program during compilation using so-called _sanitizers_.
+The address and undefined behavior sanitizers, for instance, aim at detecting out-of-bound memory accesses and undefined behavior, respectively.
+If the instrumentation detects an error at runtime, the program will abort with an error message that provides valuable information for identifying and fixing the error.
+
+Additional capabilities of modern compilers that aim at hardening the binary include the `FORTIFY_SOURCE` compilation flag, or features such as stack canaries or address space layout randomization (ASLR).
+These hardening features provide some lightweight support for detecting buffer overflows.
+
+Yet another programming tool for memory debugging is Valgrind.
+Valgrind inspects a programming during its execution and is capable of detecting various memory-related issues including buffer overflows.
 
 In {cpp}, manual array or string, i.e., buffer manipulations are considered a code smell.
 
@@ -288,9 +366,18 @@ void tar(std::string const &s) {
 
 == Resources
 
+=== Articles & blog posts
+
+* Clang Hardening - https://blog.quarkslab.com/clang-hardening-cheat-sheet.html[Clang Hardening Cheat Sheet]
+* FORTIFY_SOURCE - https://www.redhat.com/en/blog/enhance-application-security-fortifysource[Enhance application security with FORTIFY_SOURCE]
+* Stack Protection - https://developers.redhat.com/articles/2022/06/02/use-compiler-flags-stack-protection-gcc-and-clang#:~:text=Stack%20canary&text=A%20modification%20indicates%20the%20detection,%2Dfstack%2Dprotector%2Dstrong[Use compiler flags for stack protection in GCC and Clang]
+* Valgrind - https://valgrind.org/docs/manual/quick-start.html[The Valgrind Quick Start Guide]
+
 === Conference presentations
 
-* CppCon 2018 - https://www.youtube.com/watch?v=0S0QgQd75Sw&ab_channel=CppCon[Software Vulnerabilities in C and C++]
+* CppCon 2014 - https://youtu.be/V2_80g0eOMc?si=U_qv9iBKI5B3a_EL[Sanitize your C++ code]
+* CppCon 2018 - https://youtu.be/0S0QgQd75Sw?si=AW9mA09L5PEbkqXc[Software Vulnerabilities in C and C++]
+* CppCon 2020 - https://youtu.be/xEzfnbTabyE?si=9yJQkrcRKn6tuPaV[2020: The Year of Sanitizers?]
 
 === Standards
 
@@ -300,6 +387,7 @@ void tar(std::string const &s) {
 * CWE - https://cwe.mitre.org/data/definitions/121[121 Stack-based Buffer Overflow]
 * CWE - https://cwe.mitre.org/data/definitions/122[122 Heap-based Buffer Overflow]
 * CWE - https://cwe.mitre.org/data/definitions/131[131 Incorrect Calculation of Buffer Size]
+* CWE - https://cwe.mitre.org/data/definitions/193[193 Off-by-one Error]
 * CWE - https://cwe.mitre.org/data/definitions/788[788 Access of Memory Location After End of Buffer]
 
 === Related rules
