@@ -25,8 +25,57 @@ For example, the comparison of ``++2U++`` and ``++-1++`` using ``++std::cmp_less
 
 Comparisons between ``++signed++`` and ``++unsigned++`` integer types produce counterintuitive results.
 
-Failing to understand integer conversion rules can lead to tricky bugs and to exploitable vulnerabilities.
+Failing to understand integer conversion rules can lead to tricky bugs and security vulnerabilities.
 The major integer conversion risks include narrowing types, converting from unsigned to signed and from negative to unsigned.
+
+The following program is vulnerable to buffer overflows due to a signed/unsigned integer conversion:
+
+[source,c]
+----
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  if (argc != 3) {
+    printf("usage: <prog> <string length - int> <string - const char *>\n");
+    return 1;
+  }
+  const int buf_size = 16;
+  char buf[buf_size];
+  int user_input = atoi(argv[1]);
+  if (user_input >= buf_size) {
+    return 1;
+  }
+  // Because `sizeof(*)` returns an unsigned integer, both operands are first
+  // converted to unsigned integers, the multiplication is performed and the
+  // result is of type unsigned integer.
+  memcpy(buf, argv[2], user_input * sizeof(char));
+  if (user_input == 0x2A) {
+    printf("Whoopsie daisy, ...\n");
+    // A malicious user can craft input arguments such that the flow of control
+    // passes through this call to `execl` which opens a new shell with this
+    // program's (possibly elevated) permissions.
+    int err_code = execl("/bin/bash", "bash", (char *)NULL);
+    if (err_code == -1) {
+      perror("execl failed");
+      return 1;
+    }
+  } else {
+    printf("Not so fast!\n");
+  }
+  return 0;
+}
+----
+
+The program takes as arguments a string and its size, and uses these arguments to copy the string argument into an internal buffer.
+Before copying the string into its internal buffer it checks whether the user-provided string fits into the buffer.
+However, the respective check only validates if the provided string length is smaller or equal to the buffer's size.
+Since the `atoi` function returns a signed integer, a user may provide a negative number to withstand that check.
+The result of `sizeof(*)` on the other hand returns an unsigned integer which causes the expression `user_input * sizeof(char)` to be evaluated by (i) converting both operands to unsigned integers, (ii) performing the multiplication, and (iii) returning the result as an unsigned integer type.
+A malicious user is hence able to provide a carefully crafted negative integer and string to bypass the size check while still providing a valid size argument for the call to `memcpy`.
+This, in turn, enables the malicious user to overflow the buffer variable `buf` to override the `user_input` variable which allows the second `if` statement to be evaluated to true, eventually opening a new shell with the target program's possibly elevated permissions.
 
 
 == How to fix it
