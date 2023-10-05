@@ -29,8 +29,8 @@ int* bar(int **out) {
 
 == What is the potential impact?
 
-Persisting addresses of objects with automatic storage past their lifetime is dangerous as it may create invalid addresses.
-Attempts to access such invalidated addresses result in undefined behavior.
+Persisting addresses of objects with automatic storage past their lifetime is dangerous as it creates invalid addresses.
+Attempts to access objects that no longer exist through such invalid addresses result in undefined behavior.
 
 For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
 The application may crash or, even worse, the application may appear to execute correctly while losing data or producing incorrect results.
@@ -40,9 +40,9 @@ The application may crash or, even worse, the application may appear to execute 
 
 There are multiple approaches to avoid persisting addresses of objects with automatic storage after their lifetime ended:
 
-* Make a full copy of the object instead of using an address.
-* Allocate the address on the heap and deallocate it once done.
-* Create the automatic object in a larger scope where it outlives all storages of its address.
+* Make a full copy of the object instead of using its address.
+* Allocate the object on the heap and deallocate it once done.
+* Create the automatic object in a larger scope where it outlives all accesses through its address.
 * Reduce the scope of objects that store the address of the original automatic object.
 
 
@@ -98,6 +98,16 @@ void bar() {
 }
 ----
 
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <string>
+
+std::string bar() {
+  std::string str = "This will change";
+  return str; // Compliant: `str` will be moved to the caller (using C++ move semantics)
+}
+----
+
 ==== Noncompliant code example
 
 [source,cpp,diff-id=3,diff-type=noncompliant]
@@ -106,11 +116,11 @@ void bar() {
 #include <cstddef>
 
 int *buz() {
-  int array[256];
-  for (size_t i = 0; i < std::size(array); ++i) {
-    array[i] = i;
+  int buf[256];
+  for (size_t i = 0; i < std::size(buf); ++i) {
+    buf[i] = i;
   }
-  return array; // Noncompliant: returns address of stack-allocated object
+  return buf; // Noncompliant: returns address of stack-allocated object
 }
 ----
 
@@ -122,13 +132,35 @@ int *buz() {
 #include <cstddef>
 #include <numeric>
 
-void buz(int *array, size_t length) {
-  std::iota(&array[0], &array[length], 0);
+void buz(int *buf, size_t length) {
+  std::iota(&buf[0], &buf[length], 0);
 }
 
 void caller() {
-  int array[256];
-  buz(array, std::size(array));
+  int buf[256];
+  buz(buf, std::size(buf));
+}
+----
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <array>
+
+std::array<int, 3> buz() {
+  std::array<int, 3> buf = {1, 2, 3};
+  return buf; // Compliant: `buf` will by copied to the caller; return-value optimization (RVO) might be invoked
+}
+----
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <numeric>
+#include <vector>
+
+std::vector<int> buz() {
+  std::vector<int> buf;
+  std::iota(buf.begin(), buf.end(), 0);
+  return buf; // Compliant: `buf` will be moved to the caller (using C++ move semantics)
 }
 ----
 
@@ -168,6 +200,20 @@ void fun(char **out) {
 void caller() {
   char *p;
   fun(&p);
+}
+----
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+#include <vector>
+
+std::vector<int> fun() {
+  std::vector<int> buf(/* count */ 64, /* initial value */ 42);
+  return buf;
+}
+
+void caller() {
+  auto buf = fun();
 }
 ----
 
