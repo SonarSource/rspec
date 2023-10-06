@@ -1,4 +1,14 @@
 #!/bin/bash
+#
+# Validates that there are no files with .cs and .vb extensions present inside rules folder.
+#
+# As part of the new DotNet squad rule specification sprint guidelines, test case files similar to the ones 
+# used for unit tests in sonar-dotnet should be temporarely added under the rule folder on RSPEC repository. 
+# Those files can be of any number for both C# (*.cs) and VB.NET (.*vb).
+# The test case files will be copied to the sonar-dotnet repository during the initial phases of implementation 
+# and will serve as an initial test bed.
+# Before merging the PR on the RSPEC side, it is important to ensure that these test case files are deleted.
+# The script make sure to fail the CI if any of those previously mentioned files are present inside the rules folder.
 set -euxo pipefail
 
 TOPLEVEL="$(realpath .)"
