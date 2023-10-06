@@ -13,10 +13,10 @@ set -euxo pipefail
 
 TOPLEVEL="$(realpath .)"
 RULES_DIR="${TOPLEVEL}/rules"
-CSVB_FILES=($(find "${RULES_DIR}" -type f -name "*.cs" -o -name "*.vb"))
+CSVB_FILES=($(find "${RULES_DIR}" -type f -name "*.cs" -o -name "*.vb" -o -name "*.razor" -o -name "*.cshtml"))
 
 if [ ${#CSVB_FILES[@]} -gt 0 ]; then
-    echo "ERROR: '.cs' and/or '.vb' files are detected."
+    echo "ERROR: '.cs','.vb','.razor' or '.cshtml' files are detected."
     printf '%s\n' "${CSVB_FILES[@]}"
     exit 1
 else 
