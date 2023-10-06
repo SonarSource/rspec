@@ -28,7 +28,8 @@ Comparisons between ``++signed++`` and ``++unsigned++`` integer types produce co
 Failing to understand integer conversion rules can lead to tricky bugs and security vulnerabilities.
 The major integer conversion risks include narrowing types, converting from unsigned to signed and from negative to unsigned.
 
-The following program is vulnerable to buffer overflows due to a signed/unsigned integer conversion:
+The following program shall demonstrate the subtlety of the kind of vulnerabilities that integer conversions may introduce.
+The program is vulnerable to buffer overflows due to signed/unsigned integer conversion.
 
 [source,c]
 ----
@@ -67,9 +68,17 @@ int main(int argc, char **argv) {
 
 The program takes as arguments a string and its size, and uses these arguments to copy the string argument into an internal buffer.
 Before copying the string into its internal buffer it checks whether the user-provided string fits into the buffer.
-However, the respective check only validates if the provided string length is smaller or equal to the buffer's size.
+The program also comprises a call to `execl` that opens a shell with the program's possibly elevated permissions -- a potentially dangerous endeavour.
+Even though the call to `execl` seems unreachable at a first glance, it can actually be reached due to signed/unsigned integer conversion.
+
+The check for the buffer size only validates that the provided string length (`user_input`) is smaller or equal to the buffer's size.
 Since the `atoi` function returns a signed integer, a user may provide a negative number to withstand that check.
-The result of `sizeof(*)` on the other hand returns an unsigned integer which causes the expression `user_input * sizeof(char)` to be evaluated by (i) converting both operands to unsigned integers, (ii) performing the multiplication, and (iii) returning the result as an unsigned integer type.
+The result of `sizeof(*)` on the other hand returns an unsigned integer which causes the expression `user_input * sizeof(char)` to be evaluated by
+
+  . converting both operands to unsigned integers,
+  . performing the multiplication, and
+  . returning the result as an unsigned integer type.
+
 A malicious user is hence able to provide a carefully crafted negative integer and string to bypass the size check while still providing a valid size argument for the call to `memcpy`.
 This, in turn, enables the malicious user to overflow the buffer variable `buf` to override the `user_input` variable which allows the second `if` statement to be evaluated to true, eventually opening a new shell with the target program's possibly elevated permissions.
 
@@ -78,14 +87,56 @@ This, in turn, enables the malicious user to overflow the buffer variable `buf` 
 
 Use the appropriate function from the ``++std::cmp_*++`` family to conduct comparisons between signed and unsigned integer types.
 
-Note that this rule (S6183) deliberately avoids intersection with S6214.
-
 
 === Code examples
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
+----
+bool foo(unsigned x, int y) {
+  return x < y; // Noncompliant: y might be negative
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+bool foo(unsigned x, int y) {
+  return std::cmp_less(x, y); // Compliant
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+bool fun(int x, std::vector<int> const& v) {
+  return x < v.size(); // Noncompliant: x might be negative
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+bool fun(int x, std::vector<int> const& v) {
+  return std::cmp_less(x, v.size()); // Compliant
+}
+----
+
+
+== Interactions with associated rule S6214
+
+Note that this rule (S6183) deliberately avoids intersection with S6214.
+
+While S6183 triggers when detecting comparisons between signed and unsigned integers, S6214 will raise an issue if the signed value can be proven to be negative -- in which case it is definitely a bug.
+Therefore, if this rule is enabled, S6214 should be enabled too.
+
+The following code snippet is hence compliant with S6183, but noncompliant with S6214 which will raise an issue on this definite bug.
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
 ----
 #include <iostream>
 
@@ -98,9 +149,9 @@ void foo() {
 }
 ----
 
-==== Compliant solution
+The fixed version of the code shown in the following is compliant with both rules, S6183 and S6214.
 
-[source,cpp,diff-id=1,diff-type=compliant]
+[source,cpp,diff-id=3,diff-type=compliant]
 ----
 #include <iostream>
 
@@ -110,42 +161,6 @@ void foo() {
   } else {
     std::cout << "2 is not less than -1\n";
   }
-}
-----
-
-==== Noncompliant code example
-
-[source,cpp,diff-id=2,diff-type=noncompliant]
-----
-bool foo(unsigned x, int y) {
-  return x < y; // Noncompliant: y might be negative
-}
-----
-
-==== Compliant solution
-
-[source,cpp,diff-id=2,diff-type=compliant]
-----
-bool foo(unsigned x, int y) {
-  return std::cmp_less(x, y); // Compliant
-}
-----
-
-==== Noncompliant code example
-
-[source,cpp,diff-id=3,diff-type=noncompliant]
-----
-bool fun(int x, std::vector<int> const& v) {
-  return x < v.size(); // Noncompliant: x might be negative
-}
-----
-
-==== Compliant solution
-
-[source,cpp,diff-id=3,diff-type=compliant]
-----
-bool fun(int x, std::vector<int> const& v) {
-  return std::cmp_less(x, v.size()); // Compliant
 }
 ----
 
