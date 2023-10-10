@@ -1,31 +1,20 @@
+This rule raises an issue when a generic exception (such as `Error`, `RuntimeException`, `Throwable`, or `Exception`) is thrown.
+
 == Why is this an issue?
 
-Using such generic exceptions as ``++Error++``, ``++RuntimeException++``, ``++Throwable++``, and ``++Exception++`` prevents calling methods from handling true, system-generated exceptions differently than application-generated errors.
+Throwing generic exceptions such as ``++Error++``, ``++RuntimeException++``, ``++Throwable++``, and ``++Exception++`` will have a negative impact on any code trying to catch these exceptions.
 
+When working with a generic type of exception, the only way to distinguish between multiple exceptions is to check either their message or their cause, which is error-prone and difficult to maintain.
 
-=== Noncompliant code example
+From a consumer perspective, it is generally a best practice to only catch exceptions you intend to handle. Other exceptions should ideally be let to propagate up the stack trace so that they can be dealt with appropriately. When a generic exception is thrown, it forces consumers to catch exceptions they do not intend to handle, which they then have to re-throw.
 
-[source,java]
-----
-public void foo(String bar) throws Throwable {  // Noncompliant
-  throw new RuntimeException("My Message");     // Noncompliant
-}
-----
+At best, this makes the code hard to understand and maintain. At worst, legitimate exceptions may be swallowed and errors may be hidden. For instance, when  a `Throwable` is caught and not re-thrown, it may mask errors such as `OutOfMemoryError` and prevent the program from terminating gracefully.
 
-
-=== Compliant solution
-
-[source,java]
-----
-public void foo(String bar) {
-  throw new MyOwnRuntimeException("My Message"); 
-}
-----
-
+When throwing an exception, it is therefore recommended to throw the most specific exception possible so that it can be handled intentionally by consumers.
 
 === Exceptions
 
-Generic exceptions in the signatures of overriding methods are ignored, because overriding method has to follow signature of the throw declaration in the superclass. The issue will be raised on superclass declaration of the method (or won't be raised at all if superclass is not part of the analysis).
+Generic exceptions in the signatures of overriding methods are ignored, because an overriding method has to follow the signature of the throw declaration in the superclass. The issue will be raised on superclass declaration of the method (or won't be raised at all if superclass is not part of the analysis).
 
 [source,java]
 ----
@@ -37,8 +26,40 @@ Generic exceptions are also ignored in the signatures of methods that make calls
 
 [source,java]
 ----
-public void myOtherMethod throws Exception {
+public void myOtherMethod() throws Exception {
   doTheThing();  // this method throws Exception
+}
+----
+
+== How to fix it
+
+To fix this issue, make sure to throw specific exceptions that are relevant to the context in which they arise. It is recommended to either:
+
+* Raise a specific exception from the Java standard library when one matches. For example an ``++IllegalArgumentException++`` should be thrown when a method receives an invalid argument.
+* Create a custom exception class deriving from ``++Exception++`` or one of its subclasses.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+void checkValue(int value) throws Throwable { // Noncompliant: signature is too broad
+    if (value == 42) {
+        throw new RuntimeException("Value is 42"); // Noncompliant: This will be difficult for consumers to handle
+    }
+}
+----
+
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+void checkValue(int value) {
+    if (value == 42) {
+        throw new IllegalArgumentException("Value is 42"); // Compliant
+    }
 }
 ----
 
