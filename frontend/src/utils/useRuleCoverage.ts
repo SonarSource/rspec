@@ -1,7 +1,6 @@
 import { useFetch } from './useFetch';
-import { Status } from '../types/RuleMetadata';
+import { Status, Version, Mapper, Coverage } from '../types/RuleMetadata';
 
-type Version = string | { since: string, until: string };
 type RuleCoverage = Record<string, Record<string, Version>>;
 
 const languageToSonarpedia = new Map<string, string[]>(Object.entries({
@@ -43,7 +42,7 @@ export function useRuleCoverage() {
   const coveredRulesUrl = `${process.env.PUBLIC_URL}/covered_rules.json`;
   const [coveredRules, coveredRulesError, coveredRulesIsLoading] = useFetch<RuleCoverage>(coveredRulesUrl);
 
-  function ruleCoverageForSonarpediaKeys(languageKeys: string[], ruleKeys: string[], mapper: any) {
+  function ruleCoverageForSonarpediaKeys(languageKeys: string[], ruleKeys: string[], mapper: Mapper): Coverage {
     if (coveredRulesError) {
       return 'Failed Loading';
     }
@@ -53,7 +52,7 @@ export function useRuleCoverage() {
     if (!coveredRules) {
       throw new Error('coveredRules is empty');
     }
-    const result: any[] = [];
+    const result: JSX.Element[] = [];
     languageKeys.forEach(language => {
       ruleKeys.forEach(ruleKey => {
         if (language in coveredRules && ruleKey in coveredRules[language]) {
@@ -68,7 +67,7 @@ export function useRuleCoverage() {
     }
   }
 
-  function ruleCoverage(language: string, ruleKeys: string[], mapper: any) {
+  function ruleCoverage(language: string, ruleKeys: string[], mapper: Mapper): Coverage {
     const languageKeys = languageToSonarpedia.get(language);
     if (!languageKeys) {
       return 'Nonsupported language';
@@ -76,7 +75,7 @@ export function useRuleCoverage() {
     return ruleCoverageForSonarpediaKeys(languageKeys, ruleKeys, mapper);
   }
 
-  function allLangsRuleCoverage(ruleKeys: string[], mapper: any) {
+  function allLangsRuleCoverage(ruleKeys: string[], mapper: Mapper): Coverage {
     const allLanguageKeys = Array.from(languageToSonarpedia.values()).flat();
     return ruleCoverageForSonarpediaKeys(allLanguageKeys, ruleKeys, mapper);
   }

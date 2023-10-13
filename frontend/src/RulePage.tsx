@@ -11,7 +11,7 @@ import Highlight from 'react-highlight';
 import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
-import { RuleMetadata } from './types';
+import RuleMetadata, { Version, Coverage } from './types/RuleMetadata';
 import parse, { attributesToProps, domToReact, DOMNode, Element } from 'html-react-parser';
 
 import './hljs-humanoid-light.css';
@@ -242,7 +242,7 @@ function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, lan
   }
 }
 
-function RuleThemeProvider({ children }: any) {
+const RuleThemeProvider: React.FC = ({ children }) => {
   useStyles();
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
@@ -253,7 +253,7 @@ interface PageMetadata {
   avoid: boolean;
   prUrl: string | undefined;
   branch: string;
-  coverage: any;
+  coverage: Coverage;
   jsonString: string | undefined;
 }
 
@@ -261,7 +261,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
-  let coverage: any = 'Loading...';
+  let coverage: Coverage = 'Loading...';
   let title = 'Loading...';
   let avoid = false;
   let metadataJSONString;
@@ -275,7 +275,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
       prUrl = metadataJSON.prUrl;
     }
     branch = metadataJSON.branch;
-    metadataJSON.languagesSupport.sort();
+    metadataJSON.languagesSupport.sort((a, b) => a.name.localeCompare(b.name));
     const ruleStates = metadataJSON.languagesSupport.map(({ name, status }) => ({
       name,
       ruleState: ruleStateInAnalyzer(name, metadataJSON!.allKeys, status)
@@ -287,14 +287,14 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
     avoid = !ruleStates.some(({ ruleState }) => ruleState === 'covered' || ruleState === 'targeted');
     metadataJSONString = JSON.stringify(metadataJSON, null, 2);
 
-    const coverageMapper = (key: any, range: any) => {
+    const coverageMapper = (key: string, range: Version ): JSX.Element => {
       if (typeof range === 'string') {
         return (
           <li key={key} >{key}: {range}</li>
         );
       } else {
         return (
-          <li>Not covered for {key} anymore. Was covered from {range['since']} to {range['until']}.</li>
+          <li key={key} >Not covered for {key} anymore. Was covered from {range.since} to {range.until}.</li>
         );
       }
     };
@@ -322,12 +322,12 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
 }
 
 function getRspecPath(rspecId: string, language?: string) {
-  // TODO RULEAPI-742: If the given target `language` exists, the link should point to it.
   return '/rspec#/rspec/' + rspecId;
 }
 
 function useDescription(metadata: PageMetadata, ruleid: string, language?: string) {
-  const editOnGithubUrl = `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
+  const editOnGithubUrl =
+    `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
   function htmlReplacement(domNode: Element) {
     if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
