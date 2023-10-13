@@ -1,3 +1,5 @@
+Failing to properly initialize or destroy a pthread mutex can lead to undefined behavior.
+
 == Why is this an issue?
 
 _Mutexes_ are synchronization primitives that allow managing concurrency.
@@ -7,10 +9,10 @@ Their use requires following a well-defined life cycle.
 * _Mutexes_ need to be initialized (``++pthread_mutex_init++``) before being used. Once it is initialized, a _mutex_ is in an _unlocked_ state.
 * _Mutexes_ need to be destroyed (``++pthread_mutex_destroy++``) to free the associated internal resources. Only _unlocked_ _mutexes_ can be safely destroyed.
 
-Before initialization or after destruction, a mutex is in an uninitialized state.
+Before the initialization or after destruction, a mutex is in an uninitialized state.
 
-
-About this life cycle, the following patterns should be avoided as they result in undefined behavior:
+During this life cycle,
+the following patterns should be avoided as they result in undefined behavior:
 
 * trying to initialize an already initialized _mutex_
 * trying to destroy an initialized _mutex_ that is in a _locked_ state
@@ -28,42 +30,42 @@ In {cpp}03, it is recommended to wrap mutex creation/destruction in an RAII clas
 
 ==== Noncompliant code example
 
-[source,cpp]
+[source,c]
 ----
 pthread_mutex_t mtx1;
 
 void double_initialization(void)
 {
   pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_init(&mtx1, NULL); // Noncompliant
+  pthread_mutex_init(&mtx1, NULL); // Noncompliant: initializing an already initialized mutex
 }
 
 void destroy_locked(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_lock(&mtx1);
-  pthread_mutex_destroy(&mtx1); // Noncompliant
+  pthread_mutex_destroy(&mtx1); // Noncompliant: destroying a locked mutex
 }
 
 void double_destruction(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
-  pthread_mutex_destroy(&mtx1); // Noncompliant
+  pthread_mutex_destroy(&mtx1); // Noncompliant: destroying an uninitialized mutex
 }
 
 void lock_destroyed(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
-  pthread_mutex_lock(&mtx1); // Noncompliant
+  pthread_mutex_lock(&mtx1); // Noncompliant: locking an uninitialized mutex
 }
 
 void unlock_destroyed(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
-  pthread_mutex_unlock(&mtx1); // Noncompliant
+  pthread_mutex_unlock(&mtx1); // Noncompliant: unlocking an uninitialized mutex
 }
 ----
 
@@ -76,18 +78,34 @@ C solution:
 ----
 pthread_mutex_t mtx1;
 
-void ok1(void)
+void destroy_initialized(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_destroy(&mtx1);
 }
 
-void ok2(void)
+void use_and_destroy_initialized(void)
 {
   pthread_mutex_init(&mtx1, NULL);
   pthread_mutex_lock(&mtx1);
   pthread_mutex_unlock(&mtx1);
   pthread_mutex_destroy(&mtx1);
+}
+----
+
+{cpp}11 and higher solution:
+
+[source,cpp]
+----
+std::mutex mtx1;
+
+void use_lock_guard(bool condition) {
+  std::lock_guard<std::mutex> lock(mtx1);
+  if (condition) {
+    // Compliant: mutex will unlock automatically even in case of an exception
+    throw std::invalid_argument("Expected false");
+  }
+  // Compliant: mutex will unlock automatically at the end of the scope
 }
 ----
 
@@ -97,7 +115,8 @@ void ok2(void)
 ----
 pthread_mutex_t mtx1;
 
-struct Mutex {
+class Mutex {
+public:
   Mutex(pthread_mutex_t* mtx) : pmtx(mtx) {
     pthread_mutex_init(pmtx, NULL);
   }
@@ -105,6 +124,9 @@ struct Mutex {
     pthread_mutex_destroy(pmtx);
   }
   pthread_mutex_t* pmtx;
+private:
+  // Forbid the copying of the mutex to avoid double-free
+  Mutex(Mutex const& other);
 };
 
 struct LockGuard {
@@ -117,28 +139,20 @@ struct LockGuard {
   Mutex &mtx;
 }
 
-void ok1()
+void destroy_initialized()
 {
   Mutex m(&mtx1);
+  // Compliant: mtx1 will be properly initialized and destroyed
 }
 
-void ok2()
+void use_and_destroy_initialized()
 {
   Mutex m(&mtx1);
-  LockGuard lock(m);
-  // mutex will unlock automatically at the end of the scope
-}
-----
-
-{cpp}11 and higher solution:
-
-[source,cpp]
-----
-std::mutex mtx1;
-
-void ok() {
-  std::lock_guard<std::mutex> lock(mtx1);
-  // mutex will unlock automatically at the end of the scope
+  {
+    LockGuard lock(m);
+    // Compliant: mutex will unlock automatically at the end of the scope
+  }
+  // Compliant: mtx1 will be destroyed properly
 }
 ----
 
