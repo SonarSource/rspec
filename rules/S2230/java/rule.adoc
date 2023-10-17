@@ -1,27 +1,32 @@
 == Why is this an issue?
 
-Marking a non-`public` method `@Transactional` is both useless and misleading because Spring does not recognize non-`public` methods, and so makes no provision for their proper invocation.
-Nor does Spring make provision for the methods invoked by the method it called.
+A method annotated with Spring's `@Async` or `@Transactional` annotations will not work as expected
+if invoked directly from within its class.
 
+This is because Spring generates a proxy class with wrapper code to manage the method's asynchronicity (`@Async`)
+or to handle the transaction (`@Transactional`).
+However, when called using `this`, the proxy instance is bypassed, and the method is invoked directly
+without the required wrapper code.
 
-Therefore marking a `private` method, for instance, `@Transactional` can only result in a runtime error or exception if the method is annotated as `@Transactional`.
+When an `@Async` or `@Transactional` method is declared `private`, it can only be called from inside the class,
+making the correct use of the method impossible.
+Also, Spring's proxy generator ignores anything but `public` methods.
 
 == How to fix it
-Make the method public or remove the `@Transactional` annotation.
+
+Declare the method `public`.
+Note that this action alone does not resolve the issue of direct instance calls from within the same class (see rule S6809),
+but it is a required precondition to fix it.
 
 === Code examples
+
 ==== Noncompliant code example
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-@Transactional  // Noncompliant
-void doTheThing(ArgClass arg) {
-  // ...
-}
-
-@Transactional  // Noncompliant
-private void doTheOtherThing(ArgClass arg) {
-  // ...
+@Async
+private Future<String> asyncMethodWithReturnType() { // Noncompliant, no proxy generated and
+    return "Hellow, world!";                         // can only be invoked from same class
 }
 ----
 
@@ -29,29 +34,26 @@ private void doTheOtherThing(ArgClass arg) {
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-@Transactional
-public void doTheThing(ArgClass arg) {
-  // ...
-}
-
-private void doTheOtherThing(ArgClass arg) {
-  // ...
+@Async
+public Future<String> asyncMethodWithReturnType() { // Compliant
+    return "Hellow, world!";
 }
 ----
 
 
-ifdef::env-github,rspecator-view[]
+== Resources
 
-'''
-== Implementation Specification
-(visible only on this page)
+=== Documentation
 
-=== Message
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/scheduling/annotation/Async.html[Spring Framework API - Annotation Interface Async]
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html[Spring Framework API - Annotation Interface Transactional]
 
-Make this method "public" or remove the "@Transactional" annotation
+=== Articles & blog posts
 
+- https://www.baeldung.com/spring-async[Baeldung - How To Do @Async in Spring]
+- https://stackoverflow.com/questions/22561775/spring-async-ignored[Stack Overflow - Spring @Async ignored]
+- https://stackoverflow.com/questions/4396284/does-spring-transactional-attribute-work-on-a-private-method[Stack Overflow - Does Spring @Transactional attribute work on a private method?]
 
-'''
 == Comments And Links
 (visible only on this page)
 
