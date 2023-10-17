@@ -23,7 +23,7 @@ import { useHistory } from 'react-router-dom';
 
 function correctResultsOrder(results: IndexedRule[], query: string): IndexedRule[] {
   const upperCaseQuery = query.toLocaleUpperCase();
-  let reorderedResults: IndexedRule[] = [];
+  const reorderedResults: IndexedRule[] = [];
   results.forEach(indexedRule => {
     if (indexedRule.all_keys.includes(upperCaseQuery)) {
       reorderedResults.unshift(indexedRule);
