@@ -42,7 +42,7 @@ class Checker:
                 self._process_close(line_number, line)
 
         if self._is_env_open:
-            self._on_error(len(line), "The ifdef command is not closed.")
+            self._on_error(len(lines), "The ifdef command is not closed.")
 
         return self._is_valid
 
