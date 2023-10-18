@@ -12,53 +12,158 @@ include::../how.adoc[]
 
 === Code examples
 
+**Extraction of a complex condition in a new function.**
+
 ==== Noncompliant code example
 
-From org.sonar.api.utils.WildcardPattern.java in SonarQube
-
-As shown below, the more a condition is nested, the more it increases complexity.
-
-[source,java]
+The code is using a complex condition and has a cognitive cost of 3.
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+double calculateFinalPrice(User user, Cart cart) {
+  double total = calculateTotal(cart);
+  if (user.hasMembership()                            // +1 (if)
+    && user.ordersCount() > 10                        // +1 (more than one condition)
+    && user.isAccountActive()
+    && !user.hasDiscount()
+    || user.ordersCount() == 1) {                    // +1 (change of operator in condition)
+    total = applyDiscount(user, total);
+  }
+  return total;
+}
 ----
 
-  private static String toRegexp(String antPattern,
-                                 String directorySeparator) {
-    final String escapedDirectorySeparator = '\\' + directorySeparator;
-    final StringBuilder sb = new StringBuilder(antPattern.length());
-    sb.append('^');
-    int i = antPattern.startsWith("/") ||                                  // +1
-    antPattern.startsWith("\\") ? 1 : 0;                                   // +1
-    while (i < antPattern.length()) {                                      // +1
-      final char ch = antPattern.charAt(i);
-      if (SPECIAL_CHARS.indexOf(ch) != -1) {                               // +2 (nesting = 1)
-        sb.append('\\').append(ch);
-      } else if (ch == '*') {                                              // +1
-        if (i + 1 < antPattern.length()                                    // +3 (nesting = 2)
-          && antPattern.charAt(i + 1) == '*') {                            // +1
-          if (i + 2 < antPattern.length()                                  // +4 (nesting = 3)
-            && isSlash(antPattern.charAt(i + 2))) {                        // +1
-            sb.append("(?:.*")
-                 .append(escapedDirectorySeparator).append("|)");
-            i += 2;
-          } else {                                                         // +1
-            sb.append(".*");
-            i += 1;
-          }
-        } else {                                                           // +1
-          sb.append("[^").append(escapedDirectorySeparator).append("]*?");
-        }
-      } else if (ch == '?') {                                              // +1
-        sb.append("[^").append(escapedDirectorySeparator).append("]");
-      } else if (isSlash(ch)) {                                            // +1
-        sb.append(escapedDirectorySeparator);
-      } else {                                                             // +1
-        sb.append(ch);
-      }
-      i++;
+==== Compliant solution
+
+Even if the cognitive complexity of the whole program did not change, it is easier for a reader to understand the code of the `calculateFinalPrice` function, which now only has a cognitive cost of 1.
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+
+double calculateFinalPrice(User user, Cart cart) {
+  double total = calculateTotal(cart);
+  if (isEligibleForDiscount(user)) {                  // +1 (if)          
+    total = applyDiscount(user, total);
+  }
+  return total;
+}
+
+boolean isEligibleForDiscount(User user) {
+  return user.hasMembership()                        
+    && user.ordersCount() > 10                        // +1 (more than one condition)
+    && user.isAccountActive()
+    && !user.hasDiscount()
+    || user.ordersCount() == 1;                       // +1 (change of operator in condition)
+}
+----
+
+**Break down large functions.**
+
+==== Noncompliant code example
+
+For example, consider a function that calculates the total price of a shopping cart, including sales tax and shipping. +
+__Note:__ The code is simplified here, to illustrate the purpose. Please imagine there is more happening in the `for` loops.
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+
+double calculateTotal(Cart cart) {
+  double total = 0;
+  for (Item item : cart.items()) {       // +1 (for)
+    total += item.price;
+  }
+
+  // calculateSalesTax
+  for (Item item : cart.items()) {       // +1 (for)
+    total += 0.2 * item.price;
+  }
+
+  //calculateShipping
+  total += 5 * cart.items().size();
+
+  return total;
+}
+
+----
+
+This function could be refactored into smaller functions:
+The complexity is spread over multiple functions and the complex `calculateTotal` has now a complexity score of zero.
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+
+double calculateTotal(Cart cart) {
+  double total = 0;
+  total = calculateSubtotal(cart, total);
+  total += calculateSalesTax(cart, total);
+  total += calculateShipping(cart, total);
+
+  return total;
+}
+
+double calculateShipping(Cart cart, double total) {
+  total += 5 * cart.items().size();
+  return total;
+}
+
+double calculateSalesTax(Cart cart, double total) {
+  for (Item item : cart.items()) {       // +1 (for)
+    total += 0.2 * item.price;
+  }
+  return total;
+}
+
+double calculateSubtotal(Cart cart, double total) {
+  for (Item item : cart.items()) {       // +1 (for)
+    total += item.price;
+  }
+  return total;
+}
+----
+
+**Avoid deep nesting by returning early.**
+
+
+==== Noncompliant code example
+
+The below code has a cognitive complexity of 6.
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+double calculateDiscount(double price, User user) {
+  if (isEligibleForDiscount(user)) {      // +1 ( if )
+    if (user.hasMembership()) {           // +2 ( nested if )
+      return price * 0.9;
+    } else if (user.ordersCount() == 1) { // +1 ( else )
+      return price * 0.95;
+    } else {                              // +1 ( else )
+      return price;
     }
-    sb.append('$');
-    return sb.toString();
-  }                                                                        // total complexity = 20
+  } else {                                // +1 ( else )
+    return price;
+  }
+}
+----
+
+==== Compliant solution
+
+Checking for the edge case first flattens the `if` statements and reduces the cognitive complexity to 3.
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+double calculateDiscount(double price, User user) {
+  if (!isEligibleForDiscount(user)) {     // +1 ( if )
+    return price;
+  }
+  if (user.hasMembership()) {             // +1
+    return price * 0.9;
+  }
+  if (user.ordersCount() == 1) {          // +1 ( if )
+    return price * 0.95;
+  }
+  return price;
+}
 ----
 
 === Pitfalls
