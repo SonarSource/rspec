@@ -32,15 +32,18 @@ class Checker:
 
     def process(self):
         content = self.file.read_text(encoding="utf-8")
-        for line_index, line in enumerate(content.splitlines(keepends=False)):
+        lines = content.splitlines(keepends=False)
+        for line_index, line in enumerate(lines):
             if line.startswith("ifdef::"):
                 self._process_open(line_index + 1, line)
             if line.startswith("endif::"):
                 self._process_close(line_index + 1, line)
+        if self.is_env_open:
+            self._on_error(len(line), "The ifdef command is not closed.")
 
     def _process_open(self, line_number: int, line: str):
         if self.has_env:
-            self._on_error(line_number, "Only one ifdef command is allowed per file")
+            self._on_error(line_number, "Only one ifdef command is allowed per file.")
 
         self.has_env = True
         self.is_env_open = True
@@ -63,7 +66,7 @@ class Checker:
 
     def _process_close(self, line_number: int, line: str):
         if not self.is_env_open:
-            self._on_error(line_number, "Unexpected endif command")
+            self._on_error(line_number, "Unexpected endif command.")
 
         self.is_env_open = False
 
