@@ -91,7 +91,7 @@ class Checker:
 
 def main():
     files = sys.argv[1:]
-    if len(files) < 2:
+    if not files:
         sys.exit("Missing input files")
 
     valid = True
