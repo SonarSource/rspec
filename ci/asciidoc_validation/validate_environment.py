@@ -1,5 +1,5 @@
 # Validate the asciidoc environment directives in the given file.
-# Errors are printed to the standard error stream.
+# Errors are printed to the standard output stream.
 #
 # "ifdef" commands has to start the line without any leading spaces,
 # as per asciidoc format.
@@ -29,21 +29,29 @@ class Checker:
         self.file = file
         self.is_env_open = False
         self.has_env = False
+        self.is_valid = True
 
-    def process(self):
+    def process(self) -> bool:
         content = self.file.read_text(encoding="utf-8")
         lines = content.splitlines(keepends=False)
         for line_index, line in enumerate(lines):
+            line_number = line_index + 1
             if line.startswith("ifdef::"):
-                self._process_open(line_index + 1, line)
+                self._process_open(line_number, line)
             if line.startswith("endif::"):
-                self._process_close(line_index + 1, line)
+                self._process_close(line_number, line)
+
         if self.is_env_open:
             self._on_error(len(line), "The ifdef command is not closed.")
+
+        return self.is_valid
 
     def _process_open(self, line_number: int, line: str):
         if self.has_env:
             self._on_error(line_number, "Only one ifdef command is allowed per file.")
+
+        if self.is_env_open:
+            self._on_error(line_number, "The previous ifdef command was not closed.")
 
         self.has_env = True
         self.is_env_open = True
@@ -77,14 +85,16 @@ class Checker:
             )
 
     def _on_error(self, line_number: int, message: str):
-        sys.exit(f"{self.file}:{line_number} {message}")
+        print(f"{self.file}:{line_number} {message}")
+        self.is_valid = False
 
 
 def main():
     assert len(sys.argv) == 2
     file = Path(sys.argv[1])
-    Checker(file).process()
-
+    valid = Checker(file).process()
+    if not valid:
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
