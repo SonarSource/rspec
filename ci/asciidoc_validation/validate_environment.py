@@ -26,13 +26,13 @@ class Checker:
         assert file.exists()
         assert file.is_file()
 
-        self.file = file
-        self.is_env_open = False
-        self.has_env = False
-        self.is_valid = True
+        self._file = file
+        self._is_env_open = False
+        self._has_env = False
+        self._is_valid = True
 
     def process(self) -> bool:
-        content = self.file.read_text(encoding="utf-8")
+        content = self._file.read_text(encoding="utf-8")
         lines = content.splitlines(keepends=False)
         for line_index, line in enumerate(lines):
             line_number = line_index + 1
@@ -41,20 +41,20 @@ class Checker:
             if line.startswith("endif::"):
                 self._process_close(line_number, line)
 
-        if self.is_env_open:
+        if self._is_env_open:
             self._on_error(len(line), "The ifdef command is not closed.")
 
-        return self.is_valid
+        return self._is_valid
 
     def _process_open(self, line_number: int, line: str):
-        if self.has_env:
+        if self._has_env:
             self._on_error(line_number, "Only one ifdef command is allowed per file.")
 
-        if self.is_env_open:
+        if self._is_env_open:
             self._on_error(line_number, "The previous ifdef command was not closed.")
 
-        self.has_env = True
-        self.is_env_open = True
+        self._has_env = True
+        self._is_env_open = True
 
         # IDEs should be configured to properly display the description,
         # not the other way around.
@@ -73,10 +73,10 @@ class Checker:
             )
 
     def _process_close(self, line_number: int, line: str):
-        if not self.is_env_open:
+        if not self._is_env_open:
             self._on_error(line_number, "Unexpected endif command.")
 
-        self.is_env_open = False
+        self._is_env_open = False
 
         if line != VALID_ENDIF:
             self._on_error(
@@ -85,8 +85,8 @@ class Checker:
             )
 
     def _on_error(self, line_number: int, message: str):
-        print(f"{self.file}:{line_number} {message}")
-        self.is_valid = False
+        print(f"{self._file}:{line_number} {message}")
+        self._is_valid = False
 
 
 def main():
