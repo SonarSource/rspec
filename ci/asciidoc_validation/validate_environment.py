@@ -1,4 +1,4 @@
-# Validate the asciidoc environment directives in the given file.
+# Validate the asciidoc environment directives in the given file(s).
 # Errors are printed to the standard output stream.
 #
 # "ifdef" commands has to start the line without any leading spaces,
@@ -90,9 +90,14 @@ class Checker:
 
 
 def main():
-    assert len(sys.argv) == 2
-    file = Path(sys.argv[1])
-    valid = Checker(file).process()
+    files = sys.argv[1:]
+    if len(files) < 2:
+        sys.exit("Missing input files")
+
+    valid = True
+    for file in files:
+        if not Checker(Path(file)).process():
+            valid = False
     if not valid:
         sys.exit(1)
 

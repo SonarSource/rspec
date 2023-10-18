@@ -88,7 +88,7 @@ do
 
     # Validate modified files' ifdef/endif commands.
     find "${dir}" -name '*.adoc' \
-      -exec python3 "./ci/asciidoc_validation/validate_environment.py" '{}' ';' \
+      -exec python3 "./ci/asciidoc_validation/validate_environment.py" '{}' '+' \
       >validate_env_commands 2>&1
     if [ -s validate_env_commands ]; then
       echo "ERROR: Some ifdef/endif commands are misused."
