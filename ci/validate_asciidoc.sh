@@ -88,14 +88,14 @@ do
 
     # Validate modified files' ifdef/endif commands.
     find "${dir}" -name '*.adoc' \
-      -exec python3 "./ci/asciidoc_validation/validate_environment.py" '{}' '+' \
-      >validate_env_commands 2>&1
-    if [ -s validate_env_commands ]; then
-      echo "ERROR: Some ifdef/endif commands are misused."
-      cat validate_env_commands
+      -exec python3 "./ci/asciidoc_validation/sanitize_asciidoc.py" '{}' '+' \
+      >validate_asciidoc 2>&1
+    if [ -s validate_asciidoc ]; then
+      echo "ERROR: Invalid asciidoc description:"
+      cat validate_asciidoc
       exit_code=1
     fi
-    rm -f validate_env_commands
+    rm -f validate_asciidoc
 
     for language in "${dir}"/*/
     do
