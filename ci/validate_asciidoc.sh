@@ -86,44 +86,47 @@ do
     fi
     rm -f stuck
 
-    # Validate modified files' ifdef/endif commands.
-    find "${dir}" -name '*.adoc' \
-      -exec python3 "./ci/asciidoc_validation/sanitize_asciidoc.py" '{}' '+' \
-      >validate_asciidoc 2>&1
-    if [ -s validate_asciidoc ]; then
-      echo "ERROR: Invalid asciidoc description:"
-      cat validate_asciidoc
-      exit_code=1
-    fi
-    rm -f validate_asciidoc
+    find ~+/"${dir}" -name '*.adoc' >> all_asciidocs
 
-    for language in "${dir}"/*/
-    do
-      language=${language%*/}
-      if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
-        if [[ ! "${ALLOWED_RULE_SUB_FOLDERS[*]}" == *"${language##*/}"* ]]; then
-          echo "ERROR: ${language##*/} is not a supported language"
-          exit_code=1
-        fi
-      else
-        RULE="$language/rule.adoc"
-        if test -f "$RULE"; then
-          # Errors emitted by asciidoctor don't include the full path.
-          # https://github.com/asciidoctor/asciidoctor/issues/3414
-          # To ease debugging, we copy the rule.adoc into tmp_SXYZ_language.adoc
-          # and run asciidoctor on them instead.
-          # We add the implicit header "Description" to prevent an asciidoctor warning.
-          TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
-          echo "== Description" > "$TMP_ADOC"
-          cat "$RULE" >> "$TMP_ADOC"
-        else
-          echo "ERROR: no asciidoc file $RULE"
-          exit_code=1
-        fi
-      fi
-    done
+   for language in "${dir}"/*/
+   do
+     language=${language%*/}
+     if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
+       if [[ ! "${ALLOWED_RULE_SUB_FOLDERS[*]}" == *"${language##*/}"* ]]; then
+         echo "ERROR: ${language##*/} is not a supported language"
+         exit_code=1
+       fi
+     else
+       RULE="$language/rule.adoc"
+       if test -f "$RULE"; then
+         # Errors emitted by asciidoctor don't include the full path.
+         # https://github.com/asciidoctor/asciidoctor/issues/3414
+         # To ease debugging, we copy the rule.adoc into tmp_SXYZ_language.adoc
+         # and run asciidoctor on them instead.
+         # We add the implicit header "Description" to prevent an asciidoctor warning.
+         TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
+         echo "== Description" > "$TMP_ADOC"
+         cat "$RULE" >> "$TMP_ADOC"
+       else
+         echo "ERROR: no asciidoc file $RULE"
+         exit_code=1
+       fi
+     fi
+   done
   fi
 done
+
+cd rspec-tools
+cat ../all_asciidocs | xargs pipenv run rspec-tools check-asciidoc >validate_asciidoc 2>&1
+if [ -s validate_asciidoc ]; then
+  echo "ERROR: Invalid asciidoc description:"
+  cat validate_asciidoc
+  exit_code=1
+fi
+rm -f validate_asciidoc ../all_asciidocs
+cd ..
+
+
 
 # Run asciidoctor and fail if a warning is emitted.
 # Use the tmp_SXYZ_language.adoc files (see note above).
