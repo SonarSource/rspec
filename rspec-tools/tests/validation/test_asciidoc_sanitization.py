@@ -1,0 +1,68 @@
+import re
+from pathlib import Path
+
+import pytest
+from rspec_tools.validation.sanitize_asciidoc import sanitize_asciidoc
+
+def test_unbalanced_single_backquotes(mockinvalidasciidoc: Path):
+  '''Check that we detect unbalanced single backquotes.'''
+  path = mockinvalidasciidoc / 'unbalanced_single_backquotes.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_unbalanced_double_backquotes(mockinvalidasciidoc: Path):
+  '''Check that we detect unbalanced double backquotes.'''
+  path = mockinvalidasciidoc / 'unbalanced_double_backquotes.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_triple_backquote(mockinvalidasciidoc: Path):
+  '''Check that we detect triple backquotes.'''
+  path = mockinvalidasciidoc / 'triple_backquotes.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_unprotected_formatting(mockinvalidasciidoc: Path):
+  '''Check that we detect unprotected formatting tags.'''
+  path = mockinvalidasciidoc / 'unprotected_formatting.adoc'
+  assert sanitize_asciidoc(path) == 4
+
+
+def test_unclosed_ifdef(mockinvalidasciidoc: Path):
+  '''Check that we detect unclosed ifdef'''
+  path = mockinvalidasciidoc / 'unclosed_ifdef.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_two_ifdef(mockinvalidasciidoc: Path):
+  '''Check that we detect too many ifdef'''
+  path = mockinvalidasciidoc / 'two_ifdef.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_vscode_ifdef(mockinvalidasciidoc: Path):
+  '''Check that we detect ifdef with VSCode flags'''
+  path = mockinvalidasciidoc / 'vscode_ifdef.adoc'
+  # We will get 3 errors:
+  # * Don't use VS Code flags
+  # * Wrong ifdef
+  # * Wrong endif
+  assert sanitize_asciidoc(path) == 3
+
+
+def test_wrong_ifdef(mockinvalidasciidoc: Path):
+  '''Check that we detect ifdef with invalid form'''
+  path = mockinvalidasciidoc / 'wrong_ifdef.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_wrong_endif(mockinvalidasciidoc: Path):
+  '''Check that we detect endif with invalid form'''
+  path = mockinvalidasciidoc / 'wrong_endif.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_correctly_sanitized(mockasciidoc: Path):
+  '''Check that we raise no issue on correctly sanitized asciidoc'''
+  path = mockasciidoc / 'valid.adoc'
+  assert sanitize_asciidoc(path) == 0
