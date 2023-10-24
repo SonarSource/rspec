@@ -1,4 +1,4 @@
-In Spring Boot the scope of a bean defines the lifecycle and visibility of that bean in the Spring container.
+In Spring the scope of a bean defines the lifecycle and visibility of that bean in the Spring container.
 There are six scopes:
 
 - *Singleton*: default, one instance per Spring container
@@ -7,21 +7,21 @@ There are six scopes:
 - *Session*: a new instance per HTTP session
 - *Application*: a new instance per ServletContext
 - *Websocket*: a new instance per Websocket session
+
 The last four scopes mentioned, request, session, application and websocket, are only available in a web-aware application.
 
 == Why is this an issue?
 
-In Spring Boot, Singleton beans and their dependencies are initialized when the application context is created.
+In Spring, singleton beans and their dependencies are initialized when the application context is created.
 
-If a Singleton bean depends on a bean with a shorter-lived scope (like a Request or Session scoped bean),
-it retains the same instance of that bean, even when new instances are created for each Request or Session.
+If a `Singleton` bean depends on a bean with a shorter-lived scope (like `Request` or `Session` beans), it retains the same instance of that bean, even when new instances are created for each Request or Session.
 This mismatch can cause unexpected behavior and bugs, as the Singleton bean doesn't interact correctly with the new instances of the shorter-lived bean.
 
 This rule raises an issue when non-singleton beans are injected into a singleton bean.
 
 === What is the potential impact?
 
-When a Singleton bean has a dependency on a bean with a shorter-lived scope, it can lead to the following issues:
+When a `Singleton` bean has a dependency on a bean with a shorter-lived scope, it can lead to the following issues:
 
 - *Data inconsistency*: any state change in the shorter-lived bean will not be reflected in the Singleton bean.
 
@@ -31,13 +31,13 @@ When a Singleton bean has a dependency on a bean with a shorter-lived scope, it 
 
 == How to fix it
 
-Inject a shorter-lived bean into a Singleton bean using *ApplicationContext*, *Factories* or *Providers*.
+Inject a shorter-lived bean into a `Singleton` bean using *ApplicationContext*, *Factories* or *Providers*.
 
 === Code examples
 
 ==== Noncompliant code example
 
-When a Singleton bean auto-wires a Request scoped bean, the dependency is resolved at instantiation time and thus the same instance is used for each HTTP request.
+When a `Singleton` bean auto-wires a `Request` bean, the dependency is resolved at instantiation time and thus the same instance is used for each HTTP request.
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
@@ -46,9 +46,11 @@ When a Singleton bean auto-wires a Request scoped bean, the dependency is resolv
 public class RequestBean {
     //...
 }
+
 public class SingletonBean {
     @Autowired
     private final RequestBean requestBean; // Noncompliant, the same instance of RequestBean is used for each HTTP request.
+
     public RequestBean getRequestBean() {
         return requestBean;
     }
@@ -57,7 +59,7 @@ public class SingletonBean {
 
 ==== Compliant solution
 
-Instead use a `ObjectFactory<RequestBean>`, `ObjectProvider<RequestBean>`, or `Provider<RequestBean>` as injection point (as for JSR-330).
+Instead, use a `ObjectFactory<RequestBean>`, `ObjectProvider<RequestBean>`, or `Provider<RequestBean>` as injection point (as for https://docs.spring.io/spring-framework/reference/core/beans/standard-annotations.html#beans-inject-named[JSR-330]).
 
 Such a dependency is resolved at runtime, allowing for actual injection of a new instance of the shorter-lived bean on each HTTP request.
 
@@ -68,12 +70,15 @@ Such a dependency is resolved at runtime, allowing for actual injection of a new
 public class RequestBean {
     //...
 }
+
 public class SingletonBean {
     private final ObjectFactory<RequestBean> requestBeanFactory;
+
     @Autowired
     public SingletonBean(ObjectFactory<RequestBean> requestBeanFactory) {
         this.requestBeanFactory = requestBeanFactory;
     }
+
     public RequestBean getRequestBean() {
         return requestBeanFactory.getObject();
     }
@@ -83,7 +88,7 @@ public class SingletonBean {
 
 ==== Noncompliant code example
 
-When a Singleton bean auto-wires a Prototype bean, the dependency is resolved at instantiation time and thus the same instance is used for each bean request.
+When a `Singleton` bean auto-wires a `Prototype` bean, the dependency is resolved at instantiation time and thus the same instance is used for each bean request.
 
 [source,java,diff-id=2,diff-type=noncompliant]
 ----
@@ -94,12 +99,15 @@ public class PrototypeBean {
       //...
     }
 }
+
 public class SingletonBean {
     private PrototypeBean prototypeBean;
+
     @Autowired
     public SingletonBean(PrototypeBean prototypeBean) { // Noncompliant, the same instance of PrototypeBean is used for each bean request.
       this.prototypeBean = prototypeBean;
     }
+
     public Object process() {
         return prototypeBean.execute();
     }
@@ -108,7 +116,7 @@ public class SingletonBean {
 
 ==== Compliant solution
 
-Using the `ApplicationContext` to retrieve a new instance of a Prototype bean on each bean request.
+Using the `ApplicationContext` to retrieve a new instance of a `Prototype` bean on each bean request.
 
 [source,java,diff-id=2,diff-type=compliant]
 ----
@@ -119,16 +127,20 @@ public class PrototypeBean {
       //...
     }
 }
+
 public class SingletonBean implements ApplicationContextAware {
     private ApplicationContext applicationContext;
+
     @Autowired
     public SingletonBean(ApplicationContext applicationContext) {
       this.applicationContext = applicationContext;
     }
+
     public Object process() {
         PrototypeBean prototypeBean = createPrototypeBean();
         return prototypeBean.execute();
     }
+
     protected PrototypeBean createPrototypeBean() {
         return this.applicationContext.getBean("prototypeBean", PrototypeBean.class);
     }
