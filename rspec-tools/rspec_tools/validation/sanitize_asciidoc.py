@@ -20,6 +20,9 @@ import re
 VALID_IFDEF = "ifdef::env-github,rspecator-view[]"
 VALID_ENDIF = "endif::env-github,rspecator-view[]"
 
+VARIABLE_DECL = re.compile(r':\w+: ')
+
+INCLUDE = re.compile(r'include::')
 
 FORMATTING_CHARS = ['_', r'\*', r'\#']
 WORD_FORMATTING_CHARS = [r'\~', r'\^']
@@ -44,8 +47,6 @@ NEED_PROTECTION = re.compile('[^+]*('
 CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'\w\+\b')
 
 BACKQUOTE = re.compile(r'((\`\`+)|(?<![\\\w])(\`)(?!\s))')
-
-VARIABLE_DECL = re.compile(r':\w+: ')
 
 
 def close_passthrough(count, pos, line):
@@ -87,6 +88,8 @@ class Sanitizer:
         self._has_env = False
         self._error_count = 0
         self._code = False
+        self._empty_line = True
+        self._was_include = False
 
     def process(self) -> bool:
         content = self._file.read_text(encoding="utf-8")
@@ -101,18 +104,21 @@ class Sanitizer:
                 continue
             line_number = line_index + 1
             if line.startswith("ifdef::"):
-                self._process_open(line_number, line)
+                self._process_open_ifdef(line_number, line)
             elif line.startswith("endif::"):
-                self._process_close(line_number, line)
+                self._process_close_ifdef(line_number, line)
+            elif not line.strip():
+                self._empty_line = True
             else:
                 self._process_description(line_number, line)
+                self._empty_line = False
 
         if self._is_env_open:
             self._on_error(len(lines), "An ifdef command is opened but never closed.")
 
         return self._error_count
 
-    def _process_open(self, line_number: int, line: str):
+    def _process_open_ifdef(self, line_number: int, line: str):
         if self._has_env:
             message = "Only one ifdef command is allowed per file."
             if self._is_env_open:
@@ -138,7 +144,7 @@ class Sanitizer:
                 f'Incorrect asciidoc environment. "{VALID_IFDEF}" should be used instead.',
             )
 
-    def _process_close(self, line_number: int, line: str):
+    def _process_close_ifdef(self, line_number: int, line: str):
         if not self._is_env_open:
             self._on_error(line_number, "Unexpected endif command.")
 
@@ -153,6 +159,15 @@ class Sanitizer:
     def _process_description(self, line_number: int, line: str):
         if VARIABLE_DECL.match(line):
             return
+        if INCLUDE.match(line) or (self._was_include and not self._empty_line):
+            self._was_include = True
+            if not self._empty_line:
+                self._on_error(line_number, '''An include is stuck to other content.
+This may result in broken tags and other display issues.
+Make sure there is an empty line before and after each include''')
+            return
+        else:
+            self._was_include = False
         pos = 0
         res = BACKQUOTE.search(line, pos)
         while res:

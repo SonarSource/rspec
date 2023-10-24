@@ -72,47 +72,33 @@ do
       exit_code=1
     fi
   else
-    # Make sure include:: clauses are always more than one line away from the previous content
-    # Detect includes stuck to the line before
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "\S[ \t]*\ninclude::" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; > stuck
-    # Detect includes stuck to the line after
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "include::[^\[]+\[\]\n[ \t]*[^\n]" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> stuck
-    if [ -s stuck ]; then
-      echo "ERROR: These adoc files contain an include that is stuck to other content."
-      echo "This may result in broken tags and other display issues."
-      echo "Make sure there is an empty line before and after each include:"
-      cat stuck
-      exit_code=1
-    fi
-    rm -f stuck
-
     find ~+/"${dir}" -name '*.adoc' >> all_asciidocs
 
-   for language in "${dir}"/*/
-   do
-     language=${language%*/}
-     if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
-       if [[ ! "${ALLOWED_RULE_SUB_FOLDERS[*]}" == *"${language##*/}"* ]]; then
-         echo "ERROR: ${language##*/} is not a supported language"
-         exit_code=1
-       fi
-     else
-       RULE="$language/rule.adoc"
-       if test -f "$RULE"; then
-         # Errors emitted by asciidoctor don't include the full path.
-         # https://github.com/asciidoctor/asciidoctor/issues/3414
-         # To ease debugging, we copy the rule.adoc into tmp_SXYZ_language.adoc
-         # and run asciidoctor on them instead.
-         # We add the implicit header "Description" to prevent an asciidoctor warning.
-         TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
-         echo "== Description" > "$TMP_ADOC"
-         cat "$RULE" >> "$TMP_ADOC"
-       else
-         echo "ERROR: no asciidoc file $RULE"
-         exit_code=1
-       fi
-     fi
-   done
+    for language in "${dir}"/*/
+    do
+      language=${language%*/}
+      if [[ ! "${supportedLanguages[*]}" == *"${language##*/}"* ]]; then
+        if [[ ! "${ALLOWED_RULE_SUB_FOLDERS[*]}" == *"${language##*/}"* ]]; then
+          echo "ERROR: ${language##*/} is not a supported language"
+          exit_code=1
+        fi
+      else
+        RULE="$language/rule.adoc"
+        if test -f "$RULE"; then
+          # Errors emitted by asciidoctor don't include the full path.
+          # https://github.com/asciidoctor/asciidoctor/issues/3414
+          # To ease debugging, we copy the rule.adoc into tmp_SXYZ_language.adoc
+          # and run asciidoctor on them instead.
+          # We add the implicit header "Description" to prevent an asciidoctor warning.
+          TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
+          echo "== Description" > "$TMP_ADOC"
+          cat "$RULE" >> "$TMP_ADOC"
+        else
+          echo "ERROR: no asciidoc file $RULE"
+          exit_code=1
+        fi
+      fi
+    done
   fi
 done
 

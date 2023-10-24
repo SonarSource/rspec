@@ -62,6 +62,24 @@ def test_wrong_endif(mockinvalidasciidoc: Path):
   assert sanitize_asciidoc(path) == 1
 
 
+def test_include_stuck_before(mockinvalidasciidoc: Path):
+  '''Check that we detect when an include has no empty line before'''
+  path = mockinvalidasciidoc / 'include_stuck_before.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_include_stuck_after(mockinvalidasciidoc: Path):
+  '''Check that we detect when an include has no empty line after'''
+  path = mockinvalidasciidoc / 'include_stuck_after.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
+def test_two_stuck_includes(mockinvalidasciidoc: Path):
+  '''Check that we detect when two includes are stuck together'''
+  path = mockinvalidasciidoc / 'two_stuck_includes.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
 def test_correctly_sanitized(mockasciidoc: Path):
   '''Check that we raise no issue on correctly sanitized asciidoc'''
   path = mockasciidoc / 'valid.adoc'
