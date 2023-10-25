@@ -1,20 +1,22 @@
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
 The `@Autowired` annotation ensures that beans are correctly injected into fields.
-However, the order of initialization of fields can make it so that at given time, an instance field still has a default null value.
+However,  Java field initialization has precedence over Spring's auto-wiring mechanism.
 
 == Why is this an issue?
 
-Relying on the default value without checking it can lead to crashes at load time or unexpected behavior at runtime.
+The inline initialization of a field depending on the value of another `autowired` field will recover a null value and/or potentially throw a `NullPointerException`.
 
 === What is the potential impact?
-The runtime of your application may be affected if:
 
-* at startup time, if a bean depends on the class whose initialization fails
+Your application may fail:
+
+* at startup time, if a bean depends on an object with a field depending on another auto-wired field
+* at request time, if your request handler creates an object with a field depending on another auto-wired field
 
 
 == How to fix it
-Do not rely on `@Autowired` for initialization fields or check them for potential null values.
+
+Do not rely on `@Autowired` values for the initialization of other instance fields.
+Prefer setting the field value within the constructor.
 
 === Code examples
 
@@ -22,12 +24,13 @@ Do not rely on `@Autowired` for initialization fields or check them for potentia
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-@Service
-class BrickAndMortarStore {
+class Connection {
     @Autowired
-    private StoreConfiguration configuration;
+    private NetworkConfiguration configuration;
 
-    private String address = configuration.getAddress(); // Noncompliant, will loading the class
+    private String address = configuration.getAddress(); // Noncompliant, will throw an NPE
+
+    private int port = configuration.getPort(); // Noncompliant, will throw an NPE
 }
 ----
 
@@ -35,7 +38,18 @@ class BrickAndMortarStore {
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-FIXME
+class Connection {
+    private NetworkConfiguration configuration;
+    private String address;
+    private int port;
+
+    @Autowired
+    public Connection(NetworkConfiguration configuration) {
+        this.configuration = configuration;
+        this.address = configuration.getAddress();
+        this.port = configuration.getPort();
+    }
+}
 ----
 
 //=== How does this work?
@@ -45,8 +59,9 @@ FIXME
 //=== Going the extra mile
 
 
-//== Resources
-//=== Documentation
+== Resources
+=== Documentation
+https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/beans/factory/annotation/Autowired.html[Autowired javadoc]
 //=== Articles & blog posts
 //=== Conference presentations
 //=== Standards
