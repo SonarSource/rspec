@@ -52,6 +52,12 @@ def test_two_ifdef(mockinvalidasciidoc: Path):
   assert sanitize_asciidoc(path) == 1
 
 
+def test_two_ifdef_unclosed(mockinvalidasciidoc: Path):
+  '''Check that we detect too many ifdef when the first one is still open'''
+  path = mockinvalidasciidoc / 'two_ifdef_unclosed.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
 def test_vscode_ifdef(mockinvalidasciidoc: Path):
   '''Check that we detect ifdef with VSCode flags'''
   path = mockinvalidasciidoc / 'vscode_ifdef.adoc'
