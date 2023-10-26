@@ -28,6 +28,12 @@ def test_unprotected_formatting(mockinvalidasciidoc: Path):
   assert sanitize_asciidoc(path) == 4
 
 
+def test_unprotected_formatting_with_plusses(mockinvalidasciidoc: Path):
+  '''Check that we detect unprotected formatting tags even when there are plusses.'''
+  path = mockinvalidasciidoc / 'unprotected_formatting_with_plusses.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
 def test_unclosed_ifdef(mockinvalidasciidoc: Path):
   '''Check that we detect unclosed ifdef'''
   path = mockinvalidasciidoc / 'unclosed_ifdef.adoc'

@@ -29,25 +29,35 @@ FORMATTING_CLOSING = '|'.join(r'\w' + x + r'(\W|$)' for x in FORMATTING_CHARS)
 WORD_FORMATTING = "|".join(x + r'\S+' + x for x in WORD_FORMATTING_CHARS)
 
 # We combine all the matchers
-NEED_PROTECTION = re.compile('[^+]*('
+NEED_PROTECTION = re.compile('('
                              f'{UNCONSTRAINED_FORMATTING}|'
                              f'{FORMATTING_OPENING}|'
                              f'{FORMATTING_CLOSING}|'
                              f'{WORD_FORMATTING}'
-                             ')[^+]*')
+                             ')')
 
-CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'\w\+\b')
+CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'(?<!\s)\+(?=\`)')
 
-BACKQUOTE = re.compile(r'((\`\`+)|(?<![\\\w])(\`)(?!\s))')
+PASSTHROUGH_MACRO_TEXT = r'pass:\w*\[[^\]]*\]'
 
+PASSTHROUGH_MACRO = re.compile(PASSTHROUGH_MACRO_TEXT)
+
+# There is a regex trick here:
+# We want to skip passthrough macros, to not find pass:[``whatever``]
+# We do that by matching passthrough macros including their ignored backquotes OR backquotes
+# Then we'll ignore any match of PASSTHROUGH_MACRO
+BACKQUOTE = re.compile('(' + PASSTHROUGH_MACRO_TEXT + r'|(\`\`+)|(?<![\\\w])(\`)(?!\s))')
 
 def close_passthrough(count, pos, line):
     """Find the end of a passthrough block marked by *count* plus signs"""
     while count > 0:
         # `+++a++` will display '+a' in case of inbalance, we try to find the biggest closing block
-        if count == 1 and line[pos + count].isalnum() and not line[pos - 1].isalnum():
-            #constrained '+'. It is a passthrough only if it is directly around text and surrounded by spaces: \b+\w.*\w+\b
-            close_pattern = CLOSE_CONSTRAINED_PASSTHROUGH
+        if count == 1:
+            if not line[pos + count].isspace() and line[pos - 1] == '`':
+                #constrained '+'. It is a passthrough only if it is directly around text and surrounded by backquotes: `+Some Content+`
+                close_pattern = CLOSE_CONSTRAINED_PASSTHROUGH
+            else:
+                return pos
         else:
             close_pattern = re.compile(r'\+' * count)
         end = close_pattern.search(line, pos + count)
@@ -59,17 +69,24 @@ def close_passthrough(count, pos, line):
 
 def close_inline_block(line: str, pos: int, pattern: str):
     """Find the end of an inline block started with *pattern*"""
+    content = ""
     max_pos = len(line)
     while pos < max_pos:
+        if line[pos] == 'p':
+            # This might be the passthrough macro
+            pm = PASSTHROUGH_MACRO.match(line, pos)
+            if pm:
+                pos = pm.end()
         if line[pos] == '+':
             count = 1
             while pos + count < max_pos and line[pos + count] == '+':
                 count += 1
             pos = close_passthrough(count, pos, line)
         if line[pos] == '`' and ((len(pattern) == 1 and (pos == max_pos -1 or not line[pos + 1].isalnum())) or (pos < max_pos - 1 and line[pos + 1] == '`')):
-            return pos
+            return pos, content
+        content += line[pos]
         pos += 1
-    return -1
+    return -1, content
 
 
 class Sanitizer:
@@ -163,7 +180,8 @@ Make sure there is an empty line before and after each include''')
             self._was_include = False
         pos = 0
         res = BACKQUOTE.search(line, pos)
-        while res:
+        # We filter out matches for passthrough. See comment near the BACKQUOTE declaration
+        while res and (res.group(2) or res.group(3)):
             pos = self._check_inlined_code(line_number, res.end(), line, res.group(1))
             res = BACKQUOTE.search(line, pos)
 
@@ -173,7 +191,7 @@ Make sure there is an empty line before and after each include''')
             self._on_error(line_number, 'Use "++" to isolate the backquotes you want to display from the ones that should be interpreted by AsciiDoc.')
             return pos
 
-        content_end = close_inline_block(line, pos, pattern)
+        content_end, content = close_inline_block(line, pos, pattern)
         if content_end < 0:
             message='Unbalanced code inlining tags.'
             if len(pattern) == 1:
@@ -186,14 +204,15 @@ Will not display correctly. You need to write:
 '''
             self._on_error(line_number, message)
             return len(line)
-        content = line[pos: content_end]
         pos = content_end + len(pattern)
-        if NEED_PROTECTION.fullmatch(content):
+        if NEED_PROTECTION.search(content):
             self._on_error (line_number, f'''
 Using backquotes does not protect against asciidoc interpretation. Starting or
 ending a word with '*', '#', '_' or having two of them consecutively will
 trigger unintended behavior with the rest of the text.
 Use ``++{content}++`` to avoid that.
+If you really want to have formatting inside your code, you can write
+``pass:n[{content}]``
 ''')
             return pos
         return pos
