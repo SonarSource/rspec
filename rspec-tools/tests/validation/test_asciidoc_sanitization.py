@@ -55,7 +55,7 @@ def test_two_ifdef(mockinvalidasciidoc: Path):
 def test_vscode_ifdef(mockinvalidasciidoc: Path):
   '''Check that we detect ifdef with VSCode flags'''
   path = mockinvalidasciidoc / 'vscode_ifdef.adoc'
-  # We will get 3 errors:
+  # We will get 2 errors:
   # * Don't use VS Code flags
   # * Wrong corresponding endif
   assert sanitize_asciidoc(path) == 2
