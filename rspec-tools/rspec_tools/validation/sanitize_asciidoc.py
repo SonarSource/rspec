@@ -67,22 +67,42 @@ def close_passthrough(count, pos, line):
     return pos
 
 
+def skip_passthrough_macro(line, pos):
+    '''If this is a passthrough macro, skip to the end'''
+    if line[pos] == 'p':
+        pm = PASSTHROUGH_MACRO.match(line, pos)
+        if pm:
+            return pm.end()
+    return pos
+
+
+def skip_passthrough_plus(line, pos):
+    '''If this is a passthrough +, skip to the end'''
+    if line[pos] == '+':
+        count = 1
+        while pos + count < len(line) and line[pos + count] == '+':
+            count += 1
+        return close_passthrough(count, pos, line)
+    return pos
+
+
+def is_end_of_inline_block(line, pos, pattern):
+    '''Recognize if we are at end of the code'''
+    max_pos = len(line)
+    if line[pos] != '`':
+        return False
+    if (len(pattern) == 1):
+        return pos == max_pos -1 or not line[pos + 1].isalnum()
+    return pos < max_pos - 1 and line[pos + 1] == '`'
+
+
 def close_inline_block(line: str, pos: int, pattern: str):
     """Find the end of an inline block started with *pattern*"""
     content = ""
-    max_pos = len(line)
-    while pos < max_pos:
-        if line[pos] == 'p':
-            # This might be the passthrough macro
-            pm = PASSTHROUGH_MACRO.match(line, pos)
-            if pm:
-                pos = pm.end()
-        if line[pos] == '+':
-            count = 1
-            while pos + count < max_pos and line[pos + count] == '+':
-                count += 1
-            pos = close_passthrough(count, pos, line)
-        if line[pos] == '`' and ((len(pattern) == 1 and (pos == max_pos -1 or not line[pos + 1].isalnum())) or (pos < max_pos - 1 and line[pos + 1] == '`')):
+    while pos < len(line):
+        pos = skip_passthrough_macro(line, pos)
+        pos = skip_passthrough_plus(line, pos)
+        if is_end_of_inline_block(line, pos, pattern):
             return pos, content
         content += line[pos]
         pos += 1
