@@ -1,21 +1,112 @@
+This vulnerability makes it possible to store malformed data and lead to
+failures in parts of the code that are expected to use this keyed data.
+
 == Why is this an issue?
 
-The ``++ACCEPT++`` keyword does no editing or error checking of the data it stores, therefore its use can be dangerous. For this reason, ``++ACCEPT++`` should be avoided. 
+The `ACCEPT` statement causes data keyed at the console or supplied by the
+operating system to be made available to the program in a specified data item,
+without any validation or sanitization.
 
+As a result, when this data is assumed to be a certain format and used by other 
+procedures, the system is exposed to attacks or failures.
 
-=== Noncompliant code example
+=== What is the potential impact?
 
-[source,cobol]
+The lack of data validation and error checking when using the ACCEPT keyword in
+COBOL can lead to a variety of security issues.
+
+==== Data Integrity Issues
+
+Without any form of validation, the ACCEPT keyword can store any input data,
+even if it doesn't adhere to the expected format or type. This can lead to data
+corruption, causing the program to behave unpredictably, crash or corrupt
+customer data.
+
+==== Injection Attacks
+
+Malicious users can input data that includes commands or queries that other
+procedures will then execute. This can lead to unauthorized access, data leaks,
+or intrusions.
+
+==== Denial of Service (DoS) Attacks
+
+An attacker could exploit this vulnerability to overload the system with large
+amounts of data or special characters, causing the program to slow down or even
+stop functioning, resulting in a Denial of Service.
+
+== How to fix it
+
+=== Code examples
+
+In this specific example, `USER-INPUT` is expected to be numeric by the system.
+
+==== Noncompliant code example
+
+[source,cobol,diff-id=1,diff-type=noncompliant]
 ----
- 01 USER-INPUT PIC X(4). 
+IDENTIFICATION DIVISION.
+PROGRAM-ID. EXAMPLE.
 
-  GET-USER-INPUT. 
-       MOVE 'N' TO WS-NUMERIC. 
-       PERFORM UNTIL WS-NUMERIC = 'Y' 
-           DISPLAY 'ENTER YOUR 4 DIGIT RECORD NUMBER: ' NO ADVANCING 
-           ACCEPT USER-RECORD *> Noncompliant 
+DATA DIVISION.
+WORKING-STORAGE SECTION.
+01 USER-INPUT PIC X(4).
+
+PROCEDURE DIVISION.
+EXAMPLE-PROCEDURE.
+    MOVE 'N' TO WS-NUMERIC.
+    PERFORM UNTIL WS-NUMERIC = 'Y'
+        DISPLAY 'ENTER YOUR 4 DIGIT RECORD NUMBER: ' NO ADVANCING
+        ACCEPT USER-INPUT FROM CONSOLE *> Noncompliant
+        MOVE 'Y' TO WS-NUMERIC
+    END-PERFORM
+    STOP RUN.
 ----
 
+==== Compliant solution
+
+[source,cobol,diff-id=1,diff-type=compliant]
+----
+IDENTIFICATION DIVISION.
+PROGRAM-ID. EXAMPLE.
+
+DATA DIVISION.
+WORKING-STORAGE SECTION.
+01 WS-NUMERIC PIC X VALUE 'N'.
+01 USER-INPUT PIC X(4).
+
+PROCEDURE DIVISION.
+EXAMPLE-PROCEDURE.
+    MOVE 'N' TO WS-NUMERIC.
+    PERFORM UNTIL WS-NUMERIC = 'Y'
+        DISPLAY 'ENTER YOUR 4 DIGIT RECORD NUMBER: ' NO ADVANCING
+        ACCEPT USER-INPUT FROM CONSOLE
+        IF USER-INPUT IS NUMERIC THEN
+            MOVE 'Y' TO WS-NUMERIC
+        ELSE
+            DISPLAY 'INVALID INPUT. PLEASE ENTER A NUMERIC VALUE.'
+        END-IF
+    END-PERFORM
+    STOP RUN.
+----
+
+=== How does that work?
+
+To mitigate the risks associated with the ACCEPT keyword in COBOL, you should
+implement data validation and error checking, or directly avoid using `ACCEPT`
+altogether.
+
+==== Data Validation Routines
+
+Before using the ACCEPT keyword to store data, validate the data using custom
+routines. These routines should check if the data meets the expected format and
+type. For example, if you're expecting a date, the routine should check if the
+input data is indeed a date.
+
+==== Limit Data Size
+
+To prevent potential DoS attacks, limit the size of the data that can be
+accepted and make sure that the exact same size is assumed and expected while
+the data transmit from `ACCEPT` to other routines.
 
 === Exceptions
 
@@ -24,8 +115,8 @@ This rule ignores uses of ``++ACCEPT FROM++`` with date/time-related inputs.
 
 == Resources
 
-* https://owasp.org/Top10/A03_2021-Injection/[OWASP Top 10 2021 Category A3] - Injection
-* https://owasp.org/www-project-top-ten/2017/A1_2017-Injection[OWASP Top 10 2017 Category A1] - Injection
+* OWASP - https://owasp.org/Top10/A03_2021-Injection/[OWASP Top 10 2021 Category A3] - Injection
+* OWASP - https://owasp.org/www-project-top-ten/2017/A1_2017-Injection[OWASP Top 10 2017 Category A1] - Injection
 
 
 ifdef::env-github,rspecator-view[]
