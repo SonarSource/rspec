@@ -86,7 +86,7 @@ def skip_passthrough_plus(line, pos):
     return pos
 
 
-def is_end_of_inline_block(line, pos, pattern):
+def is_closing_pattern(line, pos, pattern):
     '''Recognize if we are at end of the code'''
     max_pos = len(line)
     if line[pos] != '`':
@@ -102,7 +102,7 @@ def close_inline_block(line: str, pos: int, pattern: str):
     while pos < len(line):
         pos = skip_passthrough_macro(line, pos)
         pos = skip_passthrough_plus(line, pos)
-        if is_end_of_inline_block(line, pos, pattern):
+        if is_closing_pattern(line, pos, pattern):
             return pos, content
         content += line[pos]
         pos += 1
