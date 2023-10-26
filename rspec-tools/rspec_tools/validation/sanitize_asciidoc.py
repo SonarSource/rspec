@@ -1,18 +1,10 @@
-# Validate the asciidoc environment directives in the given file(s).
-# Errors are printed to the standard output stream.
-#
-# "ifdef" commands has to start the line without any leading spaces,
-# as per asciidoc format.
-#
-# Only one form is allowed:
-# ifdef::env-github,rspecator-view[]
-#
-# The closing command is:
-# endif::env-github,rspecator-view[]
-#
-# It must be in the same file.
-# Only one such environment is allowed per file.
+""" Ensure the asciidoc code for a rule description follows best practices
 
+Checks are:
+* "ifdef"/"endif" blocks should be well-formed for RSPEC
+* Inline code with backquotes is correctly escaped and balanced
+* Include commands are not appended to other code
+"""
 from pathlib import Path
 import re
 
@@ -50,6 +42,7 @@ BACKQUOTE = re.compile(r'((\`\`+)|(?<![\\\w])(\`)(?!\s))')
 
 
 def close_passthrough(count, pos, line):
+    """Find the end of a passthrough block marked by *count* plus signs"""
     while count > 0:
         # `+++a++` will display '+a' in case of inbalance, we try to find the biggest closing block
         if count == 1 and line[pos + count].isalnum() and not line[pos - 1].isalnum():
@@ -65,6 +58,7 @@ def close_passthrough(count, pos, line):
 
 
 def close_inline_block(line: str, pos: int, pattern: str):
+    """Find the end of an inline block started with *pattern*"""
     max_pos = len(line)
     while pos < max_pos:
         if line[pos] == '+':
@@ -137,8 +131,7 @@ class Sanitizer:
                 line_number,
                 "Configure VS Code to display rspecator-view by setting the asciidoctor attribute.",
             )
-
-        if line != VALID_IFDEF:
+        elif line != VALID_IFDEF:
             self._on_error(
                 line_number,
                 f'Incorrect asciidoc environment. "{VALID_IFDEF}" should be used instead.',
@@ -211,4 +204,5 @@ Use ``++{content}++`` to avoid that.
 
 
 def sanitize_asciidoc(file_path: Path):
+    """Called by the CLI"""
     return Sanitizer(file_path).process()

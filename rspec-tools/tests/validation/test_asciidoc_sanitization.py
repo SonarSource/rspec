@@ -34,6 +34,12 @@ def test_unclosed_ifdef(mockinvalidasciidoc: Path):
   assert sanitize_asciidoc(path) == 1
 
 
+def test_close_unopened_ifdef(mockinvalidasciidoc: Path):
+  '''Check that we detect calls to endif without a ifdef'''
+  path = mockinvalidasciidoc / 'close_unopened_ifdef.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
 def test_two_ifdef(mockinvalidasciidoc: Path):
   '''Check that we detect too many ifdef'''
   path = mockinvalidasciidoc / 'two_ifdef.adoc'
@@ -45,9 +51,8 @@ def test_vscode_ifdef(mockinvalidasciidoc: Path):
   path = mockinvalidasciidoc / 'vscode_ifdef.adoc'
   # We will get 3 errors:
   # * Don't use VS Code flags
-  # * Wrong ifdef
-  # * Wrong endif
-  assert sanitize_asciidoc(path) == 3
+  # * Wrong corresponding endif
+  assert sanitize_asciidoc(path) == 2
 
 
 def test_wrong_ifdef(mockinvalidasciidoc: Path):
