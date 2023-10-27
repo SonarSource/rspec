@@ -72,6 +72,7 @@ do
       exit_code=1
     fi
   else
+    # Add the full path of all adoc files that were affected for sanitization
     find ~+/"${dir}" -name '*.adoc' >> all_asciidocs
 
     for language in "${dir}"/*/
