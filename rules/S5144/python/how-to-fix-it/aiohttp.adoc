@@ -8,15 +8,13 @@ include::../../common/fix/code-rationale.adoc[]
 
 [source,python,diff-id=21,diff-type=noncompliant]
 ----
-from fastapi import FastAPI, Query
-from pydantic.networks import Url
-from typing import Annotated
+from fastapi import FastAPI
 import aiohttp
 
 app = FastAPI()
 @app.get('/example')
-async def example(url: Annotated[Url, Query()]):
-    async with aiohttp.request('GET', url.unicode_string()) as response: # Noncompliant
+async def example(url: str):
+    async with aiohttp.request('GET', url) as response: # Noncompliant
         return {"response": await response.text()}
 ----
 
@@ -24,22 +22,21 @@ async def example(url: Annotated[Url, Query()]):
 
 [source,python,diff-id=21,diff-type=compliant]
 ----
-from fastapi import FastAPI, Query
-from pydantic.networks import Url
-from typing import Annotated
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 import aiohttp
+from urllib.parse import urlparse
 
-SCHEMES_ALLOWLIST = ['https']
-DOMAIN_ALLOWLIST = ['trusted1.example.com', 'trusted2.example.com'];
-
+DOMAINS_ALLOWLIST = ['trusted1.example.com', 'trusted2.example.com'];
 app = FastAPI()
 
 @app.get('/example')
-async def example(url: Annotated[Url, Query()]):
-    if url.host in DOMAIN_ALLOWLIST and url.scheme in SCHEMES_ALLOWLIST:
-        async with aiohttp.request('GET', url.unicode_string()) as response:
-            return {"response": await response.text()}
-    return {"error": f"URL {url} is not in whitelist"}
+async def example(url: str):
+    if urlparse(url).hostname not in DOMAINS_ALLOWLIST:
+        return JSONResponse({"error": f"URL {url} is not whitelisted."}, 400)
+
+    async with aiohttp.request('GET', url.unicode_string()) as response:
+        return {"response": await response.text()}
 ----
 
 === How does this work?
