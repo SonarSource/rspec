@@ -40,17 +40,22 @@ NEED_PROTECTION = re.compile('('
 # We want to stop the search if there is a backquote
 # We do that by matching backquote OR the closing passthrough
 # Then we'll ignore any match of backquote
-CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'\`|((?<!\s)\+(?=\`))')
+CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'`|((?<!\s)\+(?=`))')
 
-PASSTHROUGH_MACRO_TEXT = r'pass:\w*\[[^\]]*\]'
+CLOSE_CONSTRAINED_BACKQUOTE = re.compile(r'`(?!\w)')
+CLOSE_UNCONSTRAINED_BACKQUOTE = re.compile('``')
+
+PASSTHROUGH_MACRO_TEXT = r'pass:\w*\[(\\\]|[^\]])*\]'
 
 PASSTHROUGH_MACRO = re.compile(PASSTHROUGH_MACRO_TEXT)
 
 # There is a regex trick here:
 # We want to skip passthrough macros, to not find pass:[``whatever``]
-# We do that by matching passthrough macros including their ignored backquotes OR backquotes
+# We do that by matching
+# * EITHER passthrough macros including their ignored backquotes
+# * OR backquotes
 # Then we'll ignore any match of PASSTHROUGH_MACRO
-BACKQUOTE = re.compile('(' + PASSTHROUGH_MACRO_TEXT + r'|(\`\`+)|(?<![\\\w])(\`)(?!\s))')
+BACKQUOTE = re.compile(PASSTHROUGH_MACRO_TEXT + r'|(?P<backquote>(``+)|(?<![\\\w])(`)(?!\s))')
 
 def close_passthrough(count, pos, line):
     """Find the end of a passthrough block marked by *count* plus signs"""
@@ -90,23 +95,13 @@ def skip_passthrough_plus(line, pos):
     return pos
 
 
-def is_closing_pattern(line, pos, pattern):
-    '''Recognize if we are at end of the code'''
-    max_pos = len(line)
-    if line[pos] != '`':
-        return False
-    if (len(pattern) == 1):
-        return pos == max_pos -1 or not line[pos + 1].isalnum()
-    return pos < max_pos - 1 and line[pos + 1] == '`'
-
-
-def close_inline_block(line: str, pos: int, pattern: str):
+def close_inline_block(line: str, pos: int, closing_pattern: re.Pattern[str]):
     """Find the end of an inline block started with *pattern*"""
     content = ""
     while pos < len(line):
         pos = skip_passthrough_macro(line, pos)
         pos = skip_passthrough_plus(line, pos)
-        if is_closing_pattern(line, pos, pattern):
+        if closing_pattern.match(line, pos):
             return pos, content
         content += line[pos]
         pos += 1
@@ -122,20 +117,20 @@ class Sanitizer:
         self._is_env_open = False
         self._has_env = False
         self._error_count = 0
-        self._code = False
+        self._is_inside_code = False
         self._empty_line = True
-        self._was_include = False
+        self._previous_line_was_include = False
 
     def process(self) -> bool:
         content = self._file.read_text(encoding="utf-8")
         lines = content.splitlines(keepends=False)
         for line_index, line in enumerate(lines):
-            if self._code:
+            if self._is_inside_code:
                 if line == '----':
-                    self._code = False
+                    self._is_inside_code = False
                 continue
             if line == '----':
-                self._code = True
+                self._is_inside_code = True
                 continue
             line_number = line_index + 1
             if line.startswith("ifdef::"):
@@ -193,32 +188,40 @@ class Sanitizer:
     def _process_description(self, line_number: int, line: str):
         if VARIABLE_DECL.match(line):
             return
-        if INCLUDE.match(line) or (self._was_include and not self._empty_line):
-            self._was_include = True
-            if not self._empty_line:
-                self._on_error(line_number, '''An include is stuck to other content.
+        if self._previous_line_was_include and not self._empty_line:
+            self._on_error(line_number - 1, '''An empty line is missing after the include.
 This may result in broken tags and other display issues.
-Make sure there is an empty line before and after each include''')
+Make sure there are always empty lines before and after each include''')
+        if INCLUDE.match(line):
+            self._previous_line_was_include = True
+            if not self._empty_line:
+                self._on_error(line_number, '''An empty line is missing before the include.
+This may result in broken tags and other display issues.
+Make sure there are always empty lines before and after each include''')
             return
         else:
-            self._was_include = False
+            self._previous_line_was_include = False
         pos = 0
         res = BACKQUOTE.search(line, pos)
         # We filter out matches for passthrough. See comment near the BACKQUOTE declaration
-        while res and (res.group(2) or res.group(3)):
-            pos = self._check_inlined_code(line_number, res.end(), line, res.group(1))
+        while res and res.group('backquote'):
+            pos = self._check_inlined_code(line_number, res.end(), line, res.group('backquote'))
             res = BACKQUOTE.search(line, pos)
 
-    def _check_inlined_code(self, line_number: int, pos: int, line: str, pattern: str):
-        if len(pattern) > 2:
+    def _check_inlined_code(self, line_number: int, pos: int, line: str, opening_pattern: str):
+        if len(opening_pattern) > 2:
             # Part of the backquotes are displayed as backquotes.
             self._on_error(line_number, 'Use "++" to isolate the backquotes you want to display from the ones that should be interpreted by AsciiDoc.')
             return pos
+        elif len(opening_pattern) == 2:
+            closing_pattern = CLOSE_UNCONSTRAINED_BACKQUOTE
+        else:
+            closing_pattern = CLOSE_CONSTRAINED_BACKQUOTE
 
-        content_end, content = close_inline_block(line, pos, pattern)
+        content_end, content = close_inline_block(line, pos, closing_pattern)
         if content_end < 0:
             message='Unbalanced code inlining tags.'
-            if len(pattern) == 1:
+            if len(opening_pattern) == 1:
                 message += '''
 If you are trying to write inline code that is glued to text without a space,
 you need to use double backquotes:
@@ -228,7 +231,7 @@ Will not display correctly. You need to write:
 '''
             self._on_error(line_number, message)
             return len(line)
-        pos = content_end + len(pattern)
+        pos = content_end + len(opening_pattern)
         if NEED_PROTECTION.search(content):
             self._on_error (line_number, f'''
 Using backquotes does not protect against asciidoc interpretation. Starting or
