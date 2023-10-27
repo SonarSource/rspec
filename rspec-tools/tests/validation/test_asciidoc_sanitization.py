@@ -34,6 +34,12 @@ def test_unprotected_formatting_with_plusses(mockinvalidasciidoc: Path):
   assert sanitize_asciidoc(path) == 1
 
 
+def test_wrong_constrained_passthrough(mockinvalidasciidoc: Path):
+  '''Check that we detect constrained passthrough broken by backquotes.'''
+  path = mockinvalidasciidoc / 'wrong_constrained_passthrough.adoc'
+  assert sanitize_asciidoc(path) == 1
+
+
 def test_unclosed_ifdef(mockinvalidasciidoc: Path):
   '''Check that we detect unclosed ifdef'''
   path = mockinvalidasciidoc / 'unclosed_ifdef.adoc'

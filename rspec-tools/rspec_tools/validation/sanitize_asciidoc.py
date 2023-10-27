@@ -36,7 +36,11 @@ NEED_PROTECTION = re.compile('('
                              f'{WORD_FORMATTING}'
                              ')')
 
-CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'(?<!\s)\+(?=\`)')
+# There is a regex trick here:
+# We want to stop the search if there is a backquote
+# We do that by matching backquote OR the closing passthrough
+# Then we'll ignore any match of backquote
+CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'\`|((?<!\s)\+(?=\`))')
 
 PASSTHROUGH_MACRO_TEXT = r'pass:\w*\[[^\]]*\]'
 
@@ -59,9 +63,9 @@ def close_passthrough(count, pos, line):
             else:
                 return pos
         else:
-            close_pattern = re.compile(r'\+' * count)
+            close_pattern = re.compile('(' + r'\+' * count + ')')
         end = close_pattern.search(line, pos + count)
-        if end:
+        if end and end.group(1):
             return end.end()
         count -= 1
     return pos
