@@ -4,14 +4,14 @@ Failing to properly initialize or destroy a `pthread` mutex can lead to undefine
 
 _Mutexes_ are synchronization primitives that allow managing concurrency.
 
-Their use requires following a well-defined life cycle.
+Their use requires following a well-defined life cycle:
 
-* _Mutexes_ need to be initialized (``++pthread_mutex_init++``) before being used. Once it is initialized, a _mutex_ is in an _unlocked_ state.
-* _Mutexes_ need to be destroyed (``++pthread_mutex_destroy++``) to free the associated internal resources. Only _unlocked_ _mutexes_ can be safely destroyed.
+* _Mutexes_ need to be initialized (using ``++pthread_mutex_init++``) before being used. Once it is initialized, a _mutex_ is in an _unlocked_ state.
+* _Mutexes_ need to be destroyed (using ``++pthread_mutex_destroy++``) to free the associated internal resources. Only _unlocked_ _mutexes_ can be safely destroyed.
 
-Before the initialization or after destruction, a mutex is in an uninitialized state.
+Before initialization and after destruction, a mutex is in an uninitialized state.
 
-During this life cycle,
+During a _mutex_' life cycle,
 the following patterns should be avoided as they result in undefined behavior:
 
 * trying to initialize an already initialized _mutex_
@@ -35,46 +35,53 @@ In a multi-threaded context, additionally, the application may experience spurio
 
 == How to fix it
 
+Ensure that all mutexes follow the well-defined life cycle.
+
+If {cpp}11 (or higher) is available, use `std::mutex` and `std::lock_guard`, instead, to avoid invalid usage patterns that lead to undefined behavior.
+
+
 === Code examples
 
 ==== Noncompliant code example
 
 [source,c]
 ----
-pthread_mutex_t mtx1;
+#include <pthread.h>
+
+pthread_mutex_t mtx;
 
 void double_initialization(void)
 {
-  pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_init(&mtx1, NULL); // Noncompliant: initializing an already initialized mutex
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL); // Initializes the mutex using an implementation-defined default attribute.
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL); // Noncompliant: initializing an already initialized mutex
 }
 
 void destroy_locked(void)
 {
-  pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_lock(&mtx1);
-  pthread_mutex_destroy(&mtx1); // Noncompliant: destroying a locked mutex
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_lock(&mtx);
+  pthread_mutex_destroy(&mtx); // Noncompliant: destroying a locked mutex
 }
 
 void double_destruction(void)
 {
-  pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_destroy(&mtx1);
-  pthread_mutex_destroy(&mtx1); // Noncompliant: destroying an uninitialized mutex
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&mtx);
+  pthread_mutex_destroy(&mtx); // Noncompliant: destroying an uninitialized mutex
 }
 
 void lock_destroyed(void)
 {
-  pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_destroy(&mtx1);
-  pthread_mutex_lock(&mtx1); // Noncompliant: locking an uninitialized mutex
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&mtx);
+  pthread_mutex_lock(&mtx); // Noncompliant: locking an uninitialized mutex
 }
 
 void unlock_destroyed(void)
 {
-  pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_destroy(&mtx1);
-  pthread_mutex_unlock(&mtx1); // Noncompliant: unlocking an uninitialized mutex
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&mtx);
+  pthread_mutex_unlock(&mtx); // Noncompliant: unlocking an uninitialized mutex
 }
 ----
 
@@ -85,20 +92,23 @@ C solution:
 
 [source,c]
 ----
-pthread_mutex_t mtx1;
+#include <pthread.h>
+
+pthread_mutex_t mtx;
 
 void destroy_initialized(void)
 {
-  pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_destroy(&mtx1);
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&mtx);
 }
 
 void use_and_destroy_initialized(void)
 {
-  pthread_mutex_init(&mtx1, NULL);
-  pthread_mutex_lock(&mtx1);
-  pthread_mutex_unlock(&mtx1);
-  pthread_mutex_destroy(&mtx1);
+  pthread_mutex_init(&mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_lock(&mtx);
+  // Critical code that processes a shared resource (e.g. memory).
+  pthread_mutex_unlock(&mtx);
+  pthread_mutex_destroy(&mtx);
 }
 ----
 
@@ -106,12 +116,15 @@ For static mutex variables:
 
 [source,c]
 ----
-pthread_mutex_t mtx1 = PTHREAD_MUTEX_INITIALIZER;
+#include <pthread.h>
+
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
 void use_statically_initialized(void)
 {
-  pthread_mutex_lock(&mtx1); // Compliant: mutex is initialized statically
-  pthread_mutex_unlock(&mtx1);
+  pthread_mutex_lock(&mtx); // Compliant: mutex is initialized statically
+  // Critical code that processes a shared resource (e.g. memory).
+  pthread_mutex_unlock(&mtx);
 }
 ----
 
@@ -119,10 +132,14 @@ void use_statically_initialized(void)
 
 [source,cpp]
 ----
-std::mutex mtx1;
+#include <mutex>
+#include <stdexcept>
+
+std::mutex mtx;
 
 void use_lock_guard(bool condition) {
-  std::lock_guard<std::mutex> lock(mtx1);
+  std::lock_guard<std::mutex> lock(mtx);
+  // Critical code that processes a shared resource (e.g. memory).
   if (condition) {
     // Compliant: mutex will unlock automatically even in case of an exception
     throw std::invalid_argument("Expected false");
@@ -135,19 +152,21 @@ void use_lock_guard(bool condition) {
 
 [source,cpp]
 ----
-pthread_mutex_t mtx1;
+#include <pthread.h>
+
+pthread_mutex_t mtx;
 
 class Mutex {
 public:
   Mutex(pthread_mutex_t* mtx) : pmtx(mtx) {
-    pthread_mutex_init(pmtx, NULL);
+    pthread_mutex_init(pmtx, /*mutex attribute=*/NULL);
   }
   ~Mutex() {
     pthread_mutex_destroy(pmtx);
   }
   pthread_mutex_t* pmtx;
 private:
-  // Forbid the copying of the mutex to avoid double-free
+  // Disallow copy operations to avoid double-free issues.
   Mutex(Mutex const& other);
   Mutex& operator=(Mutex const& other);
 };
@@ -164,32 +183,38 @@ struct LockGuard {
 
 void destroy_initialized()
 {
-  Mutex m(&mtx1);
-  // Compliant: mtx1 will be properly initialized and destroyed
+  Mutex m(&mtx);
+  // Compliant: mtx will be properly initialized and destroyed
 }
 
 void use_and_destroy_initialized()
 {
-  Mutex m(&mtx1);
+  Mutex m(&mtx);
   {
     LockGuard lock(m);
+    // Critical code that processes a shared resource (e.g. memory).
     // Compliant: mutex will unlock automatically at the end of the scope
   }
-  // Compliant: mtx1 will be destroyed properly
+  // Compliant: mtx will be destroyed properly
 }
 ----
 
 == Resources
 
+=== Documentation
+
+* The Open Group - https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_mutex_init.html[``++pthread_mutex_init++``, ``++pthread_mutex_destroy++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/thread/lock_guard[``++std::lock_guard++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/thread/mutex[``++std::mutex++``]
+
+=== Conference presentations
+
+* CppCon 2020 - https://youtu.be/A7sVFJLJM-A?si=v76jhmv3XnHExZYU[An Introduction to Multithreading in C++20]
+
 === Related rules
 
 * S5486 enforces the proper locking and unlocking of `pthread` mutexes.
 * S5489 enforces unlocking multiple held `pthread` mutexes in reverse order.
-
-=== Documentation
-
-* The Open Group - https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_mutex_init.html[``++pthread_mutex_init++``, ``++pthread_mutex_destroy++``]
-* {cpp} reference - https://en.cppreference.com/w/cpp/thread/lock_guard[`std::lock_guard`]
 
 
 ifdef::env-github,rspecator-view[]
