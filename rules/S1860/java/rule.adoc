@@ -1,13 +1,45 @@
 == Why is this an issue?
 
-Instances of value-based classes, which are pooled and potentially reused, should not be used for synchronization. If they are, it can cause unrelated threads to deadlock with unhelpful stacktraces.
+In Java, value-based classes are those for which instances are final and immutable, like `String`, `Integer` and so on, and their identity relies on their value and not their reference.
+When a variable of one of these types is instantiated, the JVM caches its value, and the variable is just a reference to that value.
+For example, multiple `String` variables with the same value "Hello world!" will refer to the same cached string literal in memory.
+
+The `synchronized` keyword tells the JVM to only allow the execution of the code contained in the following block to one `Thread` at a time.
+This mechanism relies on the identity of the object that is being synchronized between threads, to prevent that if object X is locked, it will still be possible to lock another object Y.
+
+It means that the JVM will fail to correctly synchronize threads on instances of the aforementioned value-based classes, for instance:
+
+[source,java]
+----
+// These variables "a" and "b" will effectively reference the same object in memory
+Integer a = 0;
+Integer b = 0;
+
+// This means that in the following code, the JVM could try to lock and execute
+// on the variable "a" because "b" was notified to be released, as the two Integer variables
+// are the same object to the JVM
+void syncMethod(int x) {
+    synchronized (a) {
+        if (a == x) {
+        // ... do something here
+        }
+    }
+    synchronized (b) {
+        if (b == x) {
+        // ... do something else
+        }
+    }
+}
+----
+
+This behavior can cause unrelated threads to deadlock with unclear stacktraces.
 
 Within the JDK, types which should not be used for synchronization include:
 
 * `String` literals
 * Primitive wrapper classes in `java.lang` (such as `Boolean` with `Boolean.FALSE` and `Boolean.TRUE`)
 * The class `java.lang.Runtime.Version`
-* The `Optional*` classes in `java.util`: `Optional`, `OptionalInt`, `OptionalLong`, and `OptionalDouble`
+* The ``++Optional*++`` classes in `java.util`: `Optional`, `OptionalInt`, `OptionalLong`, and `OptionalDouble`
 * Various classes in the `java.time` API: `Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `ZonedDateTime`, `ZoneId`, `OffsetTime`, `OffsetDateTime`, `ZoneOffset`, `Duration`, `Period`, `Year`, `YearMonth`, and `MonthDay`
 * Various classes in the `java.time.chrono` API: `MinguoDate`, `HijrahDate`, `JapaneseDate`, and `ThaiBuddhistDate`
 * The interface `java.lang.ProcessHandle` and its implementation classes
@@ -17,9 +49,9 @@ Within the JDK, types which should not be used for synchronization include:
 
 Replace instances of value-based classes with a new object instance to synchronize on.
 
-== Code examples
+=== Code examples
 
-=== Noncompliant code example
+==== Noncompliant code example
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
@@ -45,27 +77,27 @@ public void doSomething() {
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
 private static final Object lock1 = new Object();
-private static final Object lock2 = new Object();
-private static final Object lock3 = new Object();
-private static final Object lock4 = new Object();
+private static final Integer iLock = new Integer(42);
+private static final String sLock = new String("A brand new string in memory!");
+private static final List<String> listLock = new ArrayList<>();
 
 public void doSomething() {
 
   synchronized(lock1) { // Compliant
       ...
   }
-  synchronized(lock2) { // Compliant
+  synchronized(iLock) { // Compliant
       ...
   }
-  synchronized(lock3) { // Compliant
+  synchronized(sLock) { // Compliant
       ...
   }
-  synchronized(lock4) { // Compliant
+  synchronized(listLock) { // Compliant
       ...
   }
 ----
@@ -73,9 +105,9 @@ public void doSomething() {
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/1zdGBQ[Do not synchronize on objects that may be reused - CERT, LCK01-J.]
-* https://openjdk.java.net/jeps/390[JEP 390: Warnings for Value-Based Classes - OpenJDK]
-* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/doc-files/ValueBased.html[Value-based Classes - Java SE 17 API Documentation]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/1zdGBQ[Do not synchronize on objects that may be reused]
+* OpenJDK - https://openjdk.java.net/jeps/390[JEP 390: Warnings for Value-Based Classes]
+* Java Documentation - https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/doc-files/ValueBased.html[Value-based Classes]
 
 
 ifdef::env-github,rspecator-view[]
@@ -90,9 +122,5 @@ Synchronize on a new "Object" instead.
 
 
 '''
-== Comments And Links
-(visible only on this page)
-
-=== relates to: S2445
 
 endif::env-github,rspecator-view[]
