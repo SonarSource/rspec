@@ -1,51 +1,109 @@
-include::../description.adoc[]
+include::../common/summary.adoc[]
 
-include::../ask-yourself.adoc[]
+== Why is this an issue?
 
-include::../recommended.adoc[]
+include::../common/description.adoc[]
 
-== Sensitive Code Example
+Note that, due to improvements to the matching algorithm, some cases of exponential runtime complexity have become impossible when run using JDK 9 or later. In such cases, an issue will only be reported if the project's target Java version is 8 or earlier.
 
-The first regex evaluation will never end in ``++JDK++`` +<=+ 9 and the second regex evaluation will never end in any versions of the ``++JDK++``:
+== How to fix it
 
+include::../common/fix/how-to-fix-it.adoc[]
+
+Note that when performing a full match (e.g. using ``++String.matches++``), the end of the regex counts as a pattern that can fail because it will only succeed when the end of the string is reached.
+
+Sometimes it's not possible to rewrite the regex to be linear while still matching what you want it to match. This can be especially difficult when matching only part of the input. If you cannot simplify the regular expression, consider one of the following approaches:
+
+* Solve the problem without regular expressions.
+* Use an alternative non-backtracking engine such as Google's https://github.com/google/re2[RE2] or https://github.com/google/re2j[RE2/J].
+* Use multiple passes. This could mean pre- and/or post-processing the string manually before/after applying the regular expression to it or using multiple regular expressions.
+** For example, replace `str.split("\\s*,\\s*")` with `str.split(",")` and then trim the spaces from the strings as a second step.
+* When using `Matcher.find()`, it is often possible to make the regex infallible by making all the parts that could fail optional. This prevents backtracking but could result in matching values that are not acceptable. Further processing will be needed to find the acceptable values.
+** For example the regex `x*y` could be replaced with `x*(y)?` and then the call to `matcher.find()` could be replaced with `matcher.find() && matcher.group(1) != null`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+This regular expression will suffer catastrophic backtracking with JDK versions +<=+ 9.
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-java.util.regex.Pattern.compile("(a+)+").matcher(
-"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
-"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
-"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
-"aaaaaaaaaaaaaaa!").matches(); // Sensitive
+import java.util.regex.Pattern;
 
-java.util.regex.Pattern.compile("(h|h|ih(((i|a|c|c|a|i|i|j|b|a|i|b|a|a|j))+h)ahbfhba|c|i)*").matcher(
+Pattern pattern = Pattern.compile("(a+)+");  // Noncompliant
+pattern.matcher(
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaa!").matches();
+----
+
+This regular expression will suffer catastrophic backtracking with all versions of the JDK.
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+import java.util.regex.Pattern;
+
+Pattern pattern = Pattern.compile("(h|h|ih(((i|a|c|c|a|i|i|j|b|a|i|b|a|a|j))+h)ahbfhba|c|i)*");  // Noncompliant
+pattern.matcher(
 "hchcchicihcchciiicichhcichcihcchiihichiciiiihhcchi"+
 "cchhcihchcihiihciichhccciccichcichiihcchcihhicchcciicchcccihiiihhihihihi"+
 "chicihhcciccchihhhcchichchciihiicihciihcccciciccicciiiiiiiiicihhhiiiihchccch"+
 "chhhhiiihchihcccchhhiiiiiiiicicichicihcciciihichhhhchihciiihhiccccccciciihh"+
 "ichiccchhicchicihihccichicciihcichccihhiciccccccccichhhhihihhcchchihih"+
-"iihhihihihicichihiiiihhhhihhhchhichiicihhiiiiihchccccchichci").matches(); // Sensitive
+"iihhihihihicichihiiiihhhhihhhchhichiicihhiiiiihchccccchichci").matches();
 ----
 
-== Compliant Solution
+==== Compliant solution
 
-Possessive quantifiers do not keep backtracking positions, thus can be used, if possible, to avoid performance issues:
+Possessive quantifiers do not keep backtracking positions, so can be used to avoid performance issues.
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-java.util.regex.Pattern.compile("(a+)++").matcher(
-"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
-"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
-"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
-"aaaaaaaaaaaaaaa!").matches(); // Compliant
+import java.util.regex.Pattern;
 
-java.util.regex.Pattern.compile("(h|h|ih(((i|a|c|c|a|i|i|j|b|a|i|b|a|a|j))+h)ahbfhba|c|i)*+").matcher(
+Pattern pattern = Pattern.compile("(a+)++");
+pattern.matcher(
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaa!").matches();
+----
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+import java.util.regex.Pattern;
+
+Pattern pattern = Pattern.compile("(h|h|ih(((i|a|c|c|a|i|i|j|b|a|i|b|a|a|j))+h)ahbfhba|c|i)*+");
+pattern.matcher(
 "hchcchicihcchciiicichhcichcihcchiihichiciiiihhcchi"+
 "cchhcihchcihiihciichhccciccichcichiihcchcihhicchcciicchcccihiiihhihihihi"+
 "chicihhcciccchihhhcchichchciihiicihciihcccciciccicciiiiiiiiicihhhiiiihchccch"+
 "chhhhiiihchihcccchhhiiiiiiiicicichicihcciciihichhhhchihciiihhiccccccciciihh"+
 "ichiccchhicchicihihccichicciihcichccihhiciccccccccichhhhihihhcchchihih"+
-"iihhihihihicichihiiiihhhhihhhchhichiicihhiiiiihchccccchichci").matches(); // Compliant
+"iihhihihihicichihiiiihhhhihhhchhichiicihhiiiiihchccccchichci").matches();
 ----
 
-include::../see.adoc[]
+=== How does this work?
+
+include::../common/fix/how-does-it-work.adoc[]
+
+
+== Resources
+
+=== Articles & blog posts
+
+include::../common/resources/articles.adoc[]
+
+=== Standards
+
+include::../common/resources/standards.adoc[]
+
+=== External coding guidelines
+
+include::../common/resources/external-guidelines.adoc[]
+
 
 ifdef::env-github,rspecator-view[]
 
