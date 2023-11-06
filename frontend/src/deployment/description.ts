@@ -27,17 +27,18 @@ function generateAutoRspecLinks(html: string) {
 
   function visitNode(node: Node) {
     switch (node.nodeType) {
-      case NodeType.ELEMENT_NODE:
+      case NodeType.ELEMENT_NODE: {
         const element = node as HTMLElement;
         if (!/^(code|pre|a)$/.test(element.rawTagName)) {
           visitChildren(node);
         }
         break;
-
-      case NodeType.TEXT_NODE:
+      }
+      case NodeType.TEXT_NODE: {
         const text = node as TextNode;
         text.rawText = processText(text.rawText);
         break;
+      }
     }
   }
 
