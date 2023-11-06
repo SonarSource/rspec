@@ -57,9 +57,17 @@ const winstonLogger = asciidoc.LoggerManager.newLogger('WinstonLogger', {
   },
   add: function (severity: any, _: any, message: any) {
     const level = severity >= 3 ? 'error' : 'warning';
+    if (typeof message === "string") {
+      this.logger.log({
+        level,
+        message,
+        source: path.basename(__filename)
+      });
+      return;
+    }
     const location = message.getSourceLocation();
     this.logger.log({
-      level: level,
+      level,
       message: message.getText(),
       source: path.basename(__filename),
       file: location.getFile(),
