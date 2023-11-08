@@ -1,54 +1,78 @@
 == Why is this an issue?
 
-The functions ``++memcpy++``, ``++memmove++`` and ``++memset++`` can only be used for objects of trivially copyable types. This includes scalar types, arrays, and trivially copyable classes.
+The behavior is undefined when `memcpy`, `memmove`, or `memset` are invoked with objects of non-trivially copyable types.
 
+include::../../../shared_content/cfamily/trivially_copyable_types.adoc[]
 
-A class type is trivially copyable if:
+== How to fix it
 
-* One or more of the following special member functions is trivial and the rest are deleted: copy constructor, move constructor, copy assignment operator, and move assignment operator, 
-* It has a trivial, non-deleted destructor,
-* It has trivially copyable members and base classes,
-* It has no virtual functions.
+`memcpy`, `memmove`, and `memset` should only be called on trivially-copyable objects.
+Fixing this code defect may require non-trivial refactoring, as illustrated in the following example.
 
-_Note: a default implementation, both explicit (with ``++=default++``) or implicit (if the special member function is omitted), is considered trivial._
+=== Code examples
 
+==== Noncompliant code example
 
-=== Noncompliant code example
+Here, `copy` is incorrect because it calls `memcpy` on non-trivial objects.
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class Shape {
+class Resource {
+  Handle* resource_handle;
+
 public:
-  int x;
-  int y;
-  virtual ~Shape(); // This makes the class non trivially copyable
+  Resource() {
+    // Acquire the resource handle.
+  }
+
+  ~Resource() {
+    // Release the resource handle.
+  }
 };
 
-void f(Shape *dest, Shape *source)
-{
-    memcpy(dest, source, sizeof Shape); // Noncompliant
+void copy(Resource* dest, Resource const* source) {
+  memcpy(dest, source, sizeof(Resource)); // Noncompliant
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
+Instead, the `Resource` class can provide a copy assignment operator.
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-class Shape {
+class Resource {
+  Handle* resource_handle;
+
 public:
-  int x;
-  int y;
-  virtual ~Shape(); // This makes the class non trivially copyable
+  Resource() {
+    // Acquire the resource handle.
+  }
+
+  ~Resource() {
+    // Release the resource handle.
+  }
+
+  Resource& operator=(Resource const& other) {
+    // Non-trivial copy assignement:
+    // copy the handle and update the reference count, etc...
+  }
 };
 
-void f(Shape *dest, Shape *source)
-{
-    (*dest) = (*source);
+void copy(Resource* dest, Resource const* source) {
+  (*dest) = (*source);
 }
 ----
 
+== Resources
 
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/classes#Trivially_copyable_class[Definition of a trivially copyable class].
+
+=== Related rules
+
+* S5000 - "memcmp" should only be called with pointers to trivially copyable types with no padding
 
 ifdef::env-github,rspecator-view[]
 
@@ -56,11 +80,16 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Use constructors or assignment operators, XXX is not trivially copyable.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 6 Nov 2018, 20:32:24 Ann Campbell wrote:
+Double-check my changes please, [~loic.joly]
+
 endif::env-github,rspecator-view[]

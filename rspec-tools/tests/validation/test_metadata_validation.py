@@ -67,6 +67,31 @@ def test_rule_with_invalid_education_principles(invalid_rules: RulesRepository):
   with pytest.raises(RuleValidationError, match=re.escape("Rule S503 failed validation for these reasons:\n - Rule scala:S503 has invalid metadata in 0: 'invalid' is not one of ['defense_in_depth', 'never_trust_user_input']")):
     validate_rule_metadata(s503)
 
+
+def test_rule_with_no_impacts(invalid_rules: RulesRepository):
+  s504 = invalid_rules.get_rule('S504')
+  with pytest.raises(RuleValidationError, match=re.escape("Rule S504 failed validation for these reasons:\n - Rule scala:S504 has invalid metadata in impacts: {} does not have enough properties")):
+    validate_rule_metadata(s504)
+
+
+def test_rule_with_invalid_impacts(invalid_rules: RulesRepository):
+  s505 = invalid_rules.get_rule('S505')
+  with pytest.raises(RuleValidationError, match=re.escape("Rule S505 failed validation for these reasons:\n - Rule scala:S505 has invalid metadata in impacts: Additional properties are not allowed ('INVALID' was unexpected)")):
+    validate_rule_metadata(s505)
+
+
+def test_rule_with_invalid_impact_level(invalid_rules: RulesRepository):
+  s506 = invalid_rules.get_rule('S506')
+  with pytest.raises(RuleValidationError, match=re.escape("Rule S506 failed validation for these reasons:\n - Rule scala:S506 has invalid metadata in MAINTAINABILITY: 'INVALID' is not one of ['LOW', 'MEDIUM', 'HIGH']")):
+    validate_rule_metadata(s506)
+
+
+def test_rule_with_invalid_attribute(invalid_rules: RulesRepository):
+  s507 = invalid_rules.get_rule('S507')
+  with pytest.raises(RuleValidationError, match=re.escape("Rule S507 failed validation for these reasons:\n - Rule scala:S507 has invalid metadata in attribute: 'INVALID' is not one of ['FORMATTED', 'CONVENTIONAL', 'IDENTIFIABLE', 'CLEAR', 'LOGICAL', 'COMPLETE', 'EFFICIENT', 'FOCUSED', 'DISTINCT', 'MODULAR', 'TESTED', 'LAWFUL', 'TRUSTWORTHY', 'RESPECTFUL']")):
+    validate_rule_metadata(s507)
+
+
 def test_rule_with_unicode_in_metadata(invalid_rules: RulesRepository):
   s4225 = invalid_rules.get_rule('S4225')
   with pytest.raises(UnicodeDecodeError, match=fr'ascii'):
