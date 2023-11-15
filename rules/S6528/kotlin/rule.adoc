@@ -1,51 +1,67 @@
+The `kotlin.collections` package offers many functions to interact with collections.
+In particular, functions `find(predicate)` and `findLast(predicate)` return the first and last element that matches the given predicate.
+
 == Why is this an issue?
 
-When `find()` is used to check the presence of an element that matches a given predicate,
-but the actual object returned by `find` is not relevant,
-it should be replaced with one of the functions `any()`, `none()` or `contains()`.
+The functions `find(predicate)` and `findLast(predicate)` can be improperly used to check the presence of an element that matches the given predicate.
+In such cases the code is more difficult to read and understand than it would be with the functions `any(predicate)`, `none(predicate)` or `contains(element)`.
 
 === What is the potential impact?
 
-==== Readability and Understanding
-
-This change makes the code more concise and easier to understand.
-The additional comparison operator would increase the complexity of the expression
-while not offering any benefit.
-The function names `any`, `none` and `contains` are descriptive on the other hand,
-so it is evident to readers what the purpose of the expression is.
+The pattern of using `find(predicate)` or `findLast(predicate)` combined with a null check , to check the presence of an element is not immediately clear to readers.
+For example, the expression `list.find { it > 5 } != null` is more difficult to understand than `list.any { it > 5 }`.
+The additional comparison operator increases the complexity of the expression and introduces confusion about the intent of the code.
 
 == How to fix it
 
-Replace
+Replace the use of `find(predicate)` or `findLast(predicate)` with `any(predicate)`, `none(predicate)` or `contains(element)`.
 
-* `find(predicate) != null` or `findLast(predicate) != null` with `any(predicate)`.
-* `find(predicate) == null` or `findLast(predicate) == null` with `none(predicate)`.
-* `find {it == element} != null` or `findLast {it == element} != null` with `contains(element)`.
-* `find {it == element} == null` or `findLast {it == element} == null` with `!contains(element)`.
+There are four possible scenarios:
+
+1. The predicate is a binary expression not checking for equality, and the found object is compared to not be `null`:
+    - Replace `find(predicate) != null` with `any(predicate)`.
+    - Replace `findLast(predicate) != null` with `any(predicate)`.
+
+2. The predicate is a binary expression not checking for equality, and the found object is compared to be `null`:
+    - Replace `find(predicate) == null` with `none(predicate)`.
+    - Replace `findLast(predicate) == null` with `none(predicate)`.
+
+3. The predicate is a simple binary expression checking for equality, and null check on the found object has the opposite equality operator as the predicate:
+    - Replace `find {it == element} != null` with `contains(element)`.
+    - Replace `findLast {it != element} == null` with `contains(element)`.
+
+4. The predicate is a simple binary expression checking for equality, and null check on the found object has the same equality operator as the predicate:
+    - Replace `find {it == element} == null` with `!contains(element)`.
+    - Replace `findLast {it != element} != null` with `!contains(element)`.
+
+_Note that 3) and 4) apply only when the predicate checks that an item from the collection is equals or not equals to the given element._
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,kotlin]
-----
-val list = listOf(5,2,9,6,8,2,5,7,3)
-----
-
 [source,kotlin,diff-id=1,diff-type=noncompliant]
 ----
-val hasElemenentsGreater5 = list.find { it > 5 } != null // Noncompliant
-val hasElemenent5 = list.find { it == 5 } != null // Noncompliant
-val hasNoElementsGreater5 = list.findLast { it > 5 } == null // Noncompliant
+fun example(list: List<Int>) {
+    list.find { it > 5 } != null // Noncompliant
+    list.findLast { it > 5 } == null // Noncompliant
+    list.find { it == 5 } != null // Noncompliant
+    list.find { x -> x != 5 } != null // Noncompliant
+    list.find { x -> 5 == 4 } != null // Noncompliant, note that this case cannot be fixed using contains
+}
 ----
 
 ==== Compliant solution
 
 [source,kotlin,diff-id=1,diff-type=compliant]
 ----
-val hasElemenentsGreater5 = list.any { it > 5 } // Compliant
-val hasElemenent5 = list.contains(5) // Compliant
-val hasNoElementsGreater5 = list.none { it > 5 } // Compliant
+fun example(list: List<Int>) {
+    list.any { it > 5 } // Compliant
+    list.none { it > 5 } // Compliant
+    list.contains(5) // Compliant
+    !list.contains(5) // Compliant
+    list.any { x -> 5 == 4 } // Compliant, note that this case cannot be fixed using contains
+}
 ----
 
 == Resources
