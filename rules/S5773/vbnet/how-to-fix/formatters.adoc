@@ -1,0 +1,70 @@
+=== Code examples
+
+:BinaryFormatter: https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter
+
+:NetDataContractSerializer: https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer
+
+:SoapFormatter: https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter
+
+:JavaScriptSerializer: https://learn.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer
+
+==== Noncompliant code example
+
+With {BinaryFormatter}[``BinaryFormatter``], {NetDataContractSerializer}[``NetDataContractSerializer``] or {SoapFormatter}[``SoapFormatter``]:
+
+[source,vbnet,diff-id=201,diff-type=noncompliant]
+----
+Dim myBinaryFormatter = New BinaryFormatter()
+myBinaryFormatter.Deserialize(stream) ' Noncompliant
+----
+
+With {JavaScriptSerializer}[``JavaScriptSerializer``]:
+
+[source,vbnet,diff-id=202,diff-type=noncompliant]
+----
+Dim serializer1 As JavaScriptSerializer = New JavaScriptSerializer(New SimpleTypeResolver()) ' Noncompliant: SimpleTypeResolver is insecure (every type is resolved)
+serializer1.Deserialize(Of ExpectedType)(json)
+----
+
+==== Compliant solution
+
+With {BinaryFormatter}[``BinaryFormatter``], {NetDataContractSerializer}[``NetDataContractSerializer``] or {SoapFormatter}[``SoapFormatter``]:
+
+[source,vbnet,diff-id=201,diff-type=compliant]
+----
+NotInheritable Class CustomBinder
+    Inherits SerializationBinder
+    Public Overrides Function BindToType(assemblyName As String, typeName As String) As Type
+        If Not (Equals(typeName, "type1") OrElse Equals(typeName, "type2") OrElse Equals(typeName, "type3")) Then
+            Throw New SerializationException("Only type1, type2 and type3 are allowed")
+        End If
+        Return Assembly.Load(assemblyName).[GetType](typeName)
+    End Function
+End Class
+
+Dim myBinaryFormatter = New BinaryFormatter()
+myBinaryFormatter.Binder = New CustomBinder()
+myBinaryFormatter.Deserialize(stream)
+----
+
+With {JavaScriptSerializer}[``JavaScriptSerializer``]:
+
+[source,vbnet,diff-id=202,diff-type=compliant]
+----
+Public Class CustomSafeTypeResolver
+    Inherits JavaScriptTypeResolver
+    Public Overrides Function ResolveType(id As String) As Type
+        If Not Equals(id, "ExpectedType") Then
+            Throw New ArgumentNullException("Only ExpectedType is allowed during deserialization")
+        End If
+        Return Type.[GetType](id)
+    End Function
+End Class
+
+Dim serializer As JavaScriptSerializer = New JavaScriptSerializer(New CustomSafeTypeResolver())
+serializer.Deserialize(Of ExpectedType)(json)
+----
+
+=== Going the extra mile
+
+include::../../common/extra-mile/formatters.adoc[]
