@@ -1,44 +1,113 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+GraphQL servers are vulnerable to Denial of Service attacks when they fail to 
+limit the depth of queries. In such a case, an attacker is able to craft complex, 
+deeply nested queries to make the application unwillingly consume an important
+amount of resources.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+When a server receives a deeply nested query, it attempts to resolve all the
+requested data. This process can consume a substantial amount of computational
+resources, leading to a slowdown in server response times.
 
-//=== What is the potential impact?
+=== What is the potential impact?
+
+A server that faces a resource exhaustion situation can become unstable.
+The exact impact will depend on how the affected application is deployed and
+how well the hosting server configuration is hardened.
+
+In the worst case, when the application is deployed in an uncontained 
+environment, directly on its host system, the memory exhaustion will affect
+the whole hosting server. The server’s operating system might start killing
+arbitrary memory-intensive processes, including the main application or other
+sensitive ones. This will result in a general operating failure, also known 
+as a Denial of Service (DoS).
+
+In cases where the application is deployed in a virtualized or otherwise 
+contained environment, or where resource usage limits are in place, the 
+consequences are limited to the vulnerable application only. In that case,
+other processes and applications hosted on the same server may keep on
+running without perturbation. The vulnerable application will still
+stop working properly.
+
+In general, that kind of DoS attack can have severe financial consequences.
+They are particularly important when the affected systems are business-critical.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,text,diff-id=1,diff-type=noncompliant]
+[source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from graphql_server.flask import GraphQLView
+
+app.add_url_rule("/api",
+    view_func=GraphQLView.as_view(  # Noncompliant
+        name="api",
+        schema=schema,
+    )
+)
 ----
 
 ==== Compliant solution
 
-[source,text,diff-id=1,diff-type=compliant]
+[source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from graphql_server.flask import GraphQLView
+from graphene.validation import depth_limit_validator
+
+app.add_url_rule("/api",
+    view_func=GraphQLView.as_view(
+        name="api",
+        schema=schema,
+        validation_rules=[
+           depth_limit_validator(10) # Choose a value that fits your application's requirements
+        ]
+    )
+)
 ----
 
-//=== How does this work?
+=== How does this work?
 
-//=== Pitfalls
+==== Avoid circular references
 
-//=== Going the extra mile
+A prerequisite for deeply nested query to be executed is the presence of
+circular references in the database schema. Avoid or minimize 
+circular references when designing the application's database schema.
 
+==== Set limits
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+Limit the depth of the queries your server will accept. By setting a maximum 
+depth, you can ensure that excessively nested queries are rejected. Remember,
+the values for maximum depth and complexity should be set according to your 
+application's specific needs. Setting these limits too low could restrict
+legitimate queries, while setting them too high could leave your server 
+vulnerable to attacks.
+
+== Resources
+
+=== Standards
+
+* https://owasp.org/Top10/A03_2021-Injection/[OWASP Top 10 2021 Category A3] - Injection
+* https://www.owasp.org/index.php/Top_10-2017_A1-Injection[OWASP Top 10 2017 Category A1] - Injection
+* https://cwe.mitre.org/data/definitions/606[MITRE, CWE-606] - Unchecked Input for Loop Condition
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+- Change this code to limit the depth of GraphQL queries
+- This relationship creates circular references
+
+=== Highlighting
+
+- Highlight the call to ``++GraphQLView.as_view++`` (primary location) 
+- Highlight all call to ``++sqlalchemy.orm.relationship++`` that create circular references (secondary location) 
+
+'''
+endif::env-github,rspecator-view[]
