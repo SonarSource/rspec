@@ -1,5 +1,3 @@
-HTTP response headers should not be vulnerable to response splitting attacks
-
 include::../description.adoc[]
 
 include::../how-to-fix-it.adoc[]
@@ -18,7 +16,7 @@ class ReqHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         self.send_response(200)
-        self.send_header("Content-Type", params.get('header')[0]) # Noncompliant
+        self.send_header("Content-Type", params.get('accept')[0]) # Noncompliant
         self.end_headers()
         self.wfile.write(bytes("Hello World!", "utf-8"))
 ----
@@ -28,7 +26,7 @@ class ReqHandler(BaseHTTPRequestHandler):
 [source,python,diff-id=1,diff-type=compliant]
 ----
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 import re
 
 class ReqHandler(BaseHTTPRequestHandler):
@@ -36,16 +34,14 @@ class ReqHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         self.send_response(200)
-        allowed_content_types = r'application/(pdf|json|xml)'
-        if re.match(allowed_content_types, params.get('header')[0]):        
-            self.send_header("Content-Type", params.get('header')[0])  
-        else:
-            self.send_header("Content-Type", "application/json")   
+        self.send_header("Content-Type", quote(params.get('accept')[0])) # Noncompliant
         self.end_headers()
         self.wfile.write(bytes("Hello World!", "utf-8"))
 ----
 
-//=== How does this work?
+=== How does this work?
+
+By applying a URL encoding to an untrusted header value, the application ensures that all special characters are properly escaped before they are added to the HTTP response. Especially `\r` (Carriage Return) and `\n` (Line Feed) characters will be encoded to `%0D` and `%OA` and won't be able to alter the HTTP response's semantics.
 
 //=== Pitfalls
 
