@@ -6,7 +6,7 @@ An inherited member function can be hidden in a derived class and that creates
 Overriding happens when the inherited method is virtual and a method declared in the derived class uses the same identifier as well as the same signature (the return types can be different, as long as they are covariant). However, if the inherited method is non-virtual or if the two declarations of the method do not share the same signature, the method of the base class will be hidden.
 
 
-Such a class increases the inheritance complexity, and confuses consumers with its non-polymorphic behavior, which can lead to errors.
+Such a class increases the inheritance complexity and confuses consumers with its non-polymorphic behavior, which can lead to errors.
 
 
 === Noncompliant code example
@@ -53,6 +53,79 @@ public:
 void stopServer(Base *obj) {
   obj->shutdown(); // calls Base::shutdown and there is no confusion
   obj->log(2); // calls Derived::log(int) if the given object's type is Derived
+}
+----
+
+== How to fix it
+The first step is to determine what is the expected behavior. Here are some common situations:
+
+- You want the derived class function to override a base class function instead of hiding it. In that case, mark the function as `virtual` in the base class and as `override` in the derived class.
+- You want the derived class to extend the overload set for the function in the base class. To do so, add a using declaration to import the base class functions in the derived class and avoid hiding.
+
+In the following example, the intent for the `draw` function was to be virtual, but the keyword was forgotten.
+[source,cpp]
+----
+class Shape {
+  void draw();
+}
+
+class Rectangle : public Shape {
+  void draw();
+}
+----
+
+As a consequence, the following code will not behave as expected:
+[source,cpp]
+----
+Rectangle r;
+Shape &s = r;
+s.draw(); // Calls Shape::draw, not Rectangle::draw
+----
+
+This code can be rewritten:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+class Shape {
+  virtual void draw(); // Should probably be virtual void draw() = 0
+}
+
+class Rectangle : public Shape {
+  void draw() override;
+}
+----
+
+For the next example, the intent is to add an overload to a non virtual function in the derived class:
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+class Vehicle {
+  void drive(double targetSpeed);
+};
+
+class MedicalVehicle {
+  void drive(double targetSpeed, double maxAcceleration);
+}
+----
+
+Here, the intent is that a user of the derived class can choose between two overloads for `drive`. However, this is not how it works: `MedicalVehicle::drive` hides the base class function `Vehicle::drive`.
+
+[source,cpp]
+----
+MedicalVehicle mv;
+mv.drive(120); // Compiler error
+----
+
+The best way to build the right overload set in this case is to import the base class' functions through a using declaration:
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class Vehicle {
+  void drive(double targetSpeed);
+};
+
+class MedicalVehicle {
+  using Vehicle::drive;
+  void drive(double targetSpeed, double maxAcceleration);
 }
 ----
 
