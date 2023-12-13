@@ -17,7 +17,8 @@ from rspec_tools.validation.description import (validate_subsections,
                                                 validate_parameters,
                                                 validate_section_levels,
                                                 validate_section_names,
-                                                validate_source_language)
+                                                validate_source_language,
+                                                validate_security_standard_links)
 from rspec_tools.validation.sanitize_asciidoc import sanitize_asciidoc
 from rspec_tools.validation.metadata import validate_rule_metadata
 
@@ -104,6 +105,7 @@ VALIDATORS = [validate_subsections,
               validate_section_levels,
               validate_parameters,
               validate_source_language,
+              validate_security_standard_links,
               ]
 def _validate_rule_specialization(lang_spec_rule: LanguageSpecificRule):
   error_counter = 0

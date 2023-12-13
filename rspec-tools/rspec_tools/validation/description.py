@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
-from typing import Final
+from typing import Final, Dict, List
 
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
@@ -18,6 +18,10 @@ def parse_names(path):
 
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
+SECURITY_STANDARD_URL = {
+  "OWASP": "https://(?:www\.)?owasp\.org/www-project-top-ten/2017/A(10|[1-9])_2017-",
+  "OWASP Top 10 2021": "https://(?:www\.)?owasp\.org/Top10/A(10|0[1-9])_2021-"
+}
 
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
@@ -197,3 +201,45 @@ def validate_subsections_for_section(rule_language: LanguageSpecificRule, sectio
       if name in subsections_seen and not is_duplicate_allowed:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
+
+
+def validate_security_standard_links(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  link_nodes = descr.find_all('a')
+  security_standards_links: Dict[str: List] = {}
+  for node in link_nodes:
+    href = node.attrs['href']
+    for standard, url_pattern in SECURITY_STANDARD_URL.items():
+      result = re.match(url_pattern, href)
+      if result is not None:
+        category = f"A{result[1].lstrip('0')}"
+        if standard not in security_standards_links.keys():
+          security_standards_links[standard] = []
+        security_standards_links[standard].append(category)
+
+  metadata = rule_language.metadata
+  # Avoid raising mismatch issues on deprecated or closed rules
+  if 'status' in metadata.keys() and metadata['status'] != 'ready':
+    return
+  
+  security_standards_metadata = metadata['securityStandards'] if 'securityStandards' in metadata.keys() else {}
+  for standard in set(security_standards_links.keys()) | set(security_standards_metadata.keys()):
+    # Check only security standards that have a known URL link
+    if standard not in SECURITY_STANDARD_URL.keys():
+      continue
+
+    if standard in security_standards_metadata.keys(): metadata_mapping = security_standards_metadata[standard] 
+    else:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Remove links from the Resources/See section ({security_standards_links[standard]}) or fix the rule metadata')
+    
+    if standard in security_standards_links.keys(): links_mapping = security_standards_links[standard]
+    else:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Add links to the Resources/See section ({security_standards_metadata[standard]}) or fix the rule metadata')
+    
+    extra_links = difference(links_mapping, metadata_mapping)
+    if len(extra_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards . Remove links from the Resources/See section ({extra_links}) or fix the rule metadata')
+    
+    missing_links = difference(metadata_mapping, links_mapping)
+    if len(missing_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards . Add links for to Resources/See section ({missing_links}) or fix the rule metadata')
