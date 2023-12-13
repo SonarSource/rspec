@@ -196,11 +196,11 @@ def test_valid_security_standard_links(rule_language):
 def test_missing_security_standard_links_fails_validation(rule_language):
   '''Check that the security standards links match what is define in th rule metadata'''
   rule = rule_language('S200', 'docker')
-  with pytest.raises(RuleValidationError, match=re.escape('Rule docker:S200 has a mismatch for the OWASP Top 10 2021 security standards. Add links to the Resources/See section ([\'A3\']) or fix the rule metadata')):
+  with pytest.raises(RuleValidationError, match=re.escape('Rule docker:S200 has a mismatch for the OWASP security standards. Add links to the Resources/See section ([\'A10\']) or fix the rule metadata')):
     validate_security_standard_links(rule)
 
 def test_extra_security_standard_links_fails_validation(rule_language):
   '''Check that the security standards links match what is define in th rule metadata'''
   rule = rule_language('S200', 'terraform')
-  with pytest.raises(RuleValidationError, match=re.escape('Rule terraform:S200 has a mismatch for the OWASP security standards . Remove links from the Resources/See section ([\'A10\']) or fix the rule metadata')):
+  with pytest.raises(RuleValidationError, match=re.escape('Rule terraform:S200 has a mismatch for the OWASP security standards. Remove links from the Resources/See section ([\'A10\']) or fix the rule metadata')):
     validate_security_standard_links(rule)

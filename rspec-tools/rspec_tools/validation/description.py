@@ -223,23 +223,15 @@ def validate_security_standard_links(rule_language: LanguageSpecificRule):
     return
   
   security_standards_metadata = metadata['securityStandards'] if 'securityStandards' in metadata.keys() else {}
-  for standard in set(security_standards_links.keys()) | set(security_standards_metadata.keys()):
-    # Check only security standards that have a known URL link
-    if standard not in SECURITY_STANDARD_URL.keys():
-      continue
+  for standard in SECURITY_STANDARD_URL.keys():
 
-    if standard in security_standards_metadata.keys(): metadata_mapping = security_standards_metadata[standard] 
-    else:
-      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Remove links from the Resources/See section ({security_standards_links[standard]}) or fix the rule metadata')
-    
-    if standard in security_standards_links.keys(): links_mapping = security_standards_links[standard]
-    else:
-      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Add links to the Resources/See section ({security_standards_metadata[standard]}) or fix the rule metadata')
-    
+    metadata_mapping = security_standards_metadata[standard] if standard in security_standards_metadata.keys() else []
+    links_mapping = security_standards_links[standard] if standard in security_standards_links.keys() else []
+
     extra_links = difference(links_mapping, metadata_mapping)
     if len(extra_links) > 0:
-      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards . Remove links from the Resources/See section ({extra_links}) or fix the rule metadata')
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Remove links from the Resources/See section ({extra_links}) or fix the rule metadata')
     
     missing_links = difference(metadata_mapping, links_mapping)
     if len(missing_links) > 0:
-      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards . Add links for to Resources/See section ({missing_links}) or fix the rule metadata')
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Add links to the Resources/See section ({missing_links}) or fix the rule metadata')
