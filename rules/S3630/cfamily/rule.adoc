@@ -1,9 +1,10 @@
 == Why is this an issue?
 
-Because ``++reinterpret_cast++`` does not perform any type safety validations, it is capable of performing dangerous conversions between unrelated types.
+Because ``++reinterpret_cast++`` does not perform any type safety validations, it is capable of performing dangerous conversions between unrelated types, often leading to undefined behavior.
 
+In some cases, `reinterpret_cast` can be simply replaced by a more focused cast, such as `static_cast`.
 
-Since {cpp}20, a ``++std::bit_cast++`` should be used instead of ``++reinterpret_cast++`` to reinterpret a value as being of a different type of the same length preserving its binary representation, as the behavior of  ``++reinterpret_cast++`` is undefined in such case.
+If the goal is to access the binary representation of an object, `reinterpret_cast` leads to undefined behavior. Before {cpp}20, the correct way is to use `memcpy` to copy the object's bits. Since {cpp}20, a better option is available: ``++std::bit_cast++`` allows to reinterpret a value as being of a different type of the same length preserving its binary representation (see also S6181).
 
 
 This rule raises an issue when ``++reinterpret_cast++`` is used.
@@ -17,10 +18,11 @@ This rule raises an issue when ``++reinterpret_cast++`` is used.
   class B : public A { public: void doSomething(){} };
 
   void func(A *a, float f) {
-    if (B* b = reinterpret_cast<B*>(a)) { // Noncompliant
-      b->doSomething();
-    }
-    int x = *reinterpret_cast<int*>(f); // Noncompliant
+    B* b = reinterpret_cast<B*>(a) // Noncompliant, another cast is more appropriate
+    b->doSomething();
+    
+    static_assert(sizeof(float) == sizeof(uint32_t));
+    uint32_t x = reinterpret_cast<uint32_t&>(f); // Noncompliant and undefined behavior
   }
 ----
 
@@ -36,7 +38,12 @@ This rule raises an issue when ``++reinterpret_cast++`` is used.
     if (B* b = dynamic_cast<B*>(a)) {
       b->doSomething();
     }
-    int x = std::bit_cast<int>(f);
+
+    static_assert(sizeof(float) == sizeof(uint32_t));
+    uint32_t x = std::bit_cast<uint32_t>(f);
+    // Or, before C++20
+    uint32_t y;
+    std::memcpy(&y, &f, sizeof(float));
   }
 ----
 
