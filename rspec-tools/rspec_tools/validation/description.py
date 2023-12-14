@@ -16,6 +16,20 @@ def parse_names(path):
   section_names_path = read_file(path)
   return [s.replace('* ', '').strip() for s in section_names_path if s.strip()]
 
+def parse_security_standard_links(descr):
+  link_nodes = descr.find_all('a')
+  security_standards_links: Dict[str: List] = {}
+  for node in link_nodes:
+    href = node.attrs['href']
+    for standard, url_pattern in SECURITY_STANDARD_URL.items():
+      result = re.match(url_pattern, href)
+      if result is not None:
+        category = f"A{result[1].lstrip('0')}"
+        if standard not in security_standards_links.keys():
+          security_standards_links[standard] = []
+        security_standards_links[standard].append(category)
+  return security_standards_links
+
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
 SECURITY_STANDARD_URL = {
@@ -205,19 +219,9 @@ def validate_subsections_for_section(rule_language: LanguageSpecificRule, sectio
 
 def validate_security_standard_links(rule_language: LanguageSpecificRule):
   descr = rule_language.description
-  link_nodes = descr.find_all('a')
-  security_standards_links: Dict[str: List] = {}
-  for node in link_nodes:
-    href = node.attrs['href']
-    for standard, url_pattern in SECURITY_STANDARD_URL.items():
-      result = re.match(url_pattern, href)
-      if result is not None:
-        category = f"A{result[1].lstrip('0')}"
-        if standard not in security_standards_links.keys():
-          security_standards_links[standard] = []
-        security_standards_links[standard].append(category)
-
+  security_standards_links = parse_security_standard_links(descr)
   metadata = rule_language.metadata
+  
   # Avoid raising mismatch issues on deprecated or closed rules
   if 'status' in metadata.keys() and metadata['status'] != 'ready':
     return
