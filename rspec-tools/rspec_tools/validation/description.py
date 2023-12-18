@@ -21,20 +21,29 @@ def parse_security_standard_links(descr):
   security_standards_links: Dict[str: List] = {}
   for node in link_nodes:
     href = node.attrs['href']
-    for standard, url_pattern in SECURITY_STANDARD_URL.items():
+    for standard_key in SECURITY_STANDARD_URL:
+      standard = SECURITY_STANDARD_URL[standard_key]
+      url_pattern = standard["url_pattern"]
       result = re.match(url_pattern, href)
       if result is not None:
-        category = f"A{result[1].lstrip('0')}"
-        if standard not in security_standards_links.keys():
-          security_standards_links[standard] = []
-        security_standards_links[standard].append(category)
+        convert = standard["convert_id"]
+        category = convert(result[1])
+        if standard_key not in security_standards_links.keys():
+          security_standards_links[standard_key] = []
+        security_standards_links[standard_key].append(category)
   return security_standards_links
 
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
 SECURITY_STANDARD_URL = {
-  "OWASP": "https://(?:www\.)?owasp\.org/www-project-top-ten/2017/A(10|[1-9])_2017-",
-  "OWASP Top 10 2021": "https://(?:www\.)?owasp\.org/Top10/A(10|0[1-9])_2021-"
+  "OWASP": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/www-project-top-ten/2017/A(10|[1-9])_2017-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
+  "OWASP Top 10 2021": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/Top10/A(10|0[1-9])_2021-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
 }
 
 # The list of all the sections currently accepted by the script.
@@ -221,7 +230,7 @@ def validate_security_standard_links(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   security_standards_links = parse_security_standard_links(descr)
   metadata = rule_language.metadata
-  
+
   # Avoid raising mismatch issues on deprecated or closed rules
   if 'status' in metadata.keys() and metadata['status'] != 'ready':
     return
