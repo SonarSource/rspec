@@ -199,7 +199,7 @@ class Sanitizer:
             cpp = CPP.search(line, pos)
         if cpp:
             self._on_error(
-                line_number, "Use the keyword {cpp} to refer to the language C++"
+                line_number, 'To avoid rendering issues, always use the "{cpp}" attribute to refer to the language C++'
             )
         return next_pos
 
