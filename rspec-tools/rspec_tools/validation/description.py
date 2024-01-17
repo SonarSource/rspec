@@ -18,7 +18,7 @@ def parse_names(path):
 
 def parse_security_standard_links(descr):
   link_nodes = descr.find_all('a')
-  security_standards_links: Dict[str: List] = {}
+  security_standards_links: Dict[str, List] = {}
   for node in link_nodes:
     href = node.attrs['href']
     for standard_key in SECURITY_STANDARD_URL:
@@ -232,10 +232,10 @@ def validate_security_standard_links(rule_language: LanguageSpecificRule):
   metadata = rule_language.metadata
 
   # Avoid raising mismatch issues on deprecated or closed rules
-  if 'status' in metadata.keys() and metadata['status'] != 'ready':
+  if metadata.get('status') == 'ready':
     return
   
-  security_standards_metadata = metadata['securityStandards'] if 'securityStandards' in metadata.keys() else {}
+  security_standards_metadata = metadata.get('securityStandards', {})
   for standard in SECURITY_STANDARD_URL.keys():
 
     metadata_mapping = security_standards_metadata[standard] if standard in security_standards_metadata.keys() else []
