@@ -232,7 +232,7 @@ def validate_security_standard_links(rule_language: LanguageSpecificRule):
   metadata = rule_language.metadata
 
   # Avoid raising mismatch issues on deprecated or closed rules
-  if metadata.get('status') == 'ready':
+  if metadata.get('status') != 'ready':
     return
   
   security_standards_metadata = metadata.get('securityStandards', {})
