@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 from pathlib import Path
-from typing import Final
+from typing import Final, Dict, List
 
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
@@ -16,8 +16,35 @@ def parse_names(path):
   section_names_path = read_file(path)
   return [s.replace('* ', '').strip() for s in section_names_path if s.strip()]
 
+def parse_security_standard_links(descr):
+  link_nodes = descr.find_all('a')
+  security_standards_links: Dict[str, List] = {}
+  for node in link_nodes:
+    href = node.attrs['href']
+    for standard_key in SECURITY_STANDARD_URL:
+      standard = SECURITY_STANDARD_URL[standard_key]
+      url_pattern = standard["url_pattern"]
+      result = re.match(url_pattern, href)
+      if result is not None:
+        convert = standard["convert_id"]
+        category = convert(result[1])
+        if standard_key not in security_standards_links.keys():
+          security_standards_links[standard_key] = []
+        security_standards_links[standard_key].append(category)
+  return security_standards_links
+
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
+SECURITY_STANDARD_URL = {
+  "OWASP": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/www-project-top-ten/2017/A(10|[1-9])_2017-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
+  "OWASP Top 10 2021": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/Top10/A(10|0[1-9])_2021-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
+}
 
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
@@ -197,3 +224,27 @@ def validate_subsections_for_section(rule_language: LanguageSpecificRule, sectio
       if name in subsections_seen and not is_duplicate_allowed:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
+
+
+def validate_security_standard_links(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  security_standards_links = parse_security_standard_links(descr)
+  metadata = rule_language.metadata
+
+  # Avoid raising mismatch issues on deprecated or closed rules
+  if metadata.get('status') != 'ready':
+    return
+  
+  security_standards_metadata = metadata.get('securityStandards', {})
+  for standard in SECURITY_STANDARD_URL.keys():
+
+    metadata_mapping = security_standards_metadata[standard] if standard in security_standards_metadata.keys() else []
+    links_mapping = security_standards_links[standard] if standard in security_standards_links.keys() else []
+
+    extra_links = difference(links_mapping, metadata_mapping)
+    if len(extra_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Remove links from the Resources/See section ({extra_links}) or fix the rule metadata')
+    
+    missing_links = difference(metadata_mapping, links_mapping)
+    if len(missing_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Add links to the Resources/See section ({missing_links}) or fix the rule metadata')

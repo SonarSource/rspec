@@ -5,7 +5,8 @@ import pytest
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import RulesRepository
 from rspec_tools.validation.description import validate_section_names, \
-  validate_section_levels, validate_parameters, validate_source_language, validate_subsections
+  validate_section_levels, validate_parameters, validate_source_language, \
+  validate_subsections, validate_security_standard_links
 
 
 @pytest.fixture
@@ -186,3 +187,20 @@ def test_valid_why_is_this_an_issue_subsections_validation(rule_language):
   '''Check that any substitle is considered valid in the "why is this an issue?" section'''
   rule = rule_language('S200', 'java')
   validate_subsections(rule)
+
+def test_valid_security_standard_links(rule_language):
+  '''Check that the security standards links match what is define in th rule metadata'''
+  rule = rule_language('S200', 'python')
+  validate_security_standard_links(rule)
+
+def test_missing_security_standard_links_fails_validation(rule_language):
+  '''Check that the security standards links match what is define in th rule metadata'''
+  rule = rule_language('S200', 'docker')
+  with pytest.raises(RuleValidationError, match=re.escape('Rule docker:S200 has a mismatch for the OWASP security standards. Add links to the Resources/See section ([\'A10\']) or fix the rule metadata')):
+    validate_security_standard_links(rule)
+
+def test_extra_security_standard_links_fails_validation(rule_language):
+  '''Check that the security standards links match what is define in th rule metadata'''
+  rule = rule_language('S200', 'terraform')
+  with pytest.raises(RuleValidationError, match=re.escape('Rule terraform:S200 has a mismatch for the OWASP security standards. Remove links from the Resources/See section ([\'A10\']) or fix the rule metadata')):
+    validate_security_standard_links(rule)
