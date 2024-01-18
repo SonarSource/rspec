@@ -46,7 +46,52 @@ public class RequestProcessor {
     Object input                 = objectIS.readObject();
   }
 }
+----
 
+In Java 9 and later, it is also possible to use an `ObjectInputFilter` to limit deserialization to certain classes:
+
+// Unfortunately, we cannot link two compliant examples to one non-compliant one, so this example does not have a diff view.
+[source,java]
+----
+public class RequestProcessor {
+  protected void doGet(HttpServletRequest request, HttpServletResponse response) {
+    ServletInputStream servletIS = request.getInputStream();
+    ObjectInputStream objectIS = new ObjectInputStream(servletIS);
+
+    ObjectInputFilter filter = ObjectInputFilter.Config.createFilter(
+      "com.example.AllowedClass1;com.example.AllowedClass2;!*"
+    );
+    objectIS.setObjectInputFilter(filter);
+
+    Object input = objectIS.readObject();
+  }
+}
+----
+
+Lambdas can also be used to filter classes dynamically:
+
+[source,java]
+----
+public class RequestProcessor {
+  List<String> approvedClasses = Arrays.asList(
+    AllowedClass1.class.getName(),
+    AllowedClass2.class.getName()
+  );
+
+  protected void doGet(HttpServletRequest request, HttpServletResponse response) {
+    ServletInputStream servletIS = request.getInputStream();
+    ObjectInputStream objectIS = new ObjectInputStream(servletIS);
+
+    objectIS.setObjectInputFilter(info -> {
+      if (this.approvedClasses.contains(info.serialClass().getName())) {
+          return ObjectInputFilter.Status.ALLOWED;
+      }
+      return ObjectInputFilter.Status.REJECTED;
+    });
+  
+    Object input = objectIS.readObject();
+  }
+}
 ----
 
 === How does this work?
