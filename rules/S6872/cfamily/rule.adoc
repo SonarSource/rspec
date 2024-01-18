@@ -1,44 +1,92 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+Except for templated code, brace initialization should be preferred over {cpp}20's parenthesis initialization for aggregates.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+With {cpp}20, it is now possible to initialize aggregate types using parentheses.
+This language feature was introduced to simplify writing generic code and consistently initialize objects, whether they are aggregates or not.
 
-//=== What is the potential impact?
+For the sake of simplicity, aggregate types include arrays, unions, and structures without user-provided constructors and with only public non-static data members and public bases.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+While parentheses are useful when initializing objects in templated code, they have several downsides compared to braces.
 
-=== Code examples
+ * Firstly, they allow narrowing conversion of arithmetic types that can result in unexpected program behaviors. See also S5276.
 
-==== Noncompliant code example
+ * Secondly, they can result in the most vexing parse.
+   For example, ``++Aggregate a(std::string());++`` declares function, while ``++Aggregate a{std::string()};++`` declares a variable.
 
-[source,text,diff-id=1,diff-type=noncompliant]
+ * Furthermore, using braces is idiomatic and consistent with C.
+
+For all these reasons, braces should be preferred for non-generic code when initializing aggregates.
+And the fix is often trivial: replace the parentheses `()` with braces `{}`.
+
+Here is a noncompliant example:
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+struct Coordinate {
+  int x;
+  int y;
+};
+
+long readInteger();
+
+auto readCoordinate() {
+  // Be aware of the narrowing conversions on the next line.
+  return Coordinate(readInteger(), readInteger()); // Noncompliant
+}
 ----
 
-==== Compliant solution
+There are multiple ways of handling the narrowing conversion; here is one alternative:
 
-[source,text,diff-id=1,diff-type=compliant]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+struct Coordinate {
+  int x;
+  int y;
+};
+
+long readInteger();
+
+auto readCoordinate() {
+  // Explicitly handle the conversion:
+  // Here, we saturate, but throwing an exception may also be appropriate.
+  auto readInt = []() { return saturate_cast<int>(readInteger()); }
+  return Coordinate{readInt(), readInt()}; // Compliant
+}
 ----
 
-//=== How does this work?
+=== Exceptions
 
-//=== Pitfalls
+Using `()` (i.e., with no arguments) to initialize an aggregate is accepted.
+The arguments listed above do not apply since the intent here is to use _value-initialization_.
 
-//=== Going the extra mile
+// There are also edge cases not worth covering or even mentioning here.
+//
+// Example: having a member with an explicit default constructor does not compile.
+// https://godbolt.org/z/exerMGM9x
 
+[source,cpp]
+----
+Coordinate x(); // Irrelevant -- this is a function declaration.
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+auto x = Coordinate(); // Value-initialization - compliant by exception.
+
+struct Object {
+  Coordinate coord;
+  Object() : coord() { } // Value-initialization - compliant by exception.
+};
+----
+
+== Resources
+
+=== Documentation
+
+ * {cpp} reference -- https://en.cppreference.com/w/cpp/language/aggregate_initialization#Definitions[Aggregate definition]
+ * {cpp} reference -- https://en.cppreference.com/w/cpp/language/value_initialization[Value-initialization]
+ * Wikipedia -- https://en.wikipedia.org/wiki/Most_vexing_parse[Most vexing parse]
+
+=== Related rules
+
+ * S835 - Braces should be used to indicate and match the structure in the non-zero initialization of arrays and structures
+// TODO CPP-4792 - Update S835's title and list S6871.
+ * S5276 - Implicit casts should not lower precision
