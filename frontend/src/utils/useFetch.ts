@@ -6,7 +6,7 @@ export function useFetch<FetchedType>(
     options?: Record<string, any>
   ): [FetchedType|null, any, boolean] {
   const [response, setResponse] = React.useState<FetchedType|null>(null);
-  const [error, setError] = React.useState(null);
+  const [hasError, setHasError] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -22,11 +22,11 @@ export function useFetch<FetchedType>(
         setResponse(content);
         setIsLoading(false)
       } catch (exception) {
-        setError(exception);
+        setHasError(true);
       }
     };
     fetchData();
   }, [url, options, parseJSON]);
 
-  return [ response, error, isLoading ];
+  return [ response, hasError, isLoading ];
 }

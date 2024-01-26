@@ -21,6 +21,17 @@ def mockinvalidrules():
 
 
 @pytest.fixture
+def mockinvalidasciidoc():
+  '''Provides a path to test asciidoc resources.'''
+  return Path(__file__).parent.joinpath('resources', 'invalid-asciidoc')
+
+
+@pytest.fixture
+def mockasciidoc():
+  '''Provides a path to test asciidoc resources.'''
+  return Path(__file__).parent.joinpath('resources', 'asciidoc')
+
+@pytest.fixture
 def git_config():
   '''Create a mock git configuration.'''
   return {

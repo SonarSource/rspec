@@ -6,7 +6,7 @@ import Typography from '@material-ui/core/Typography';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
-import { createMuiTheme, Link, ThemeProvider } from '@material-ui/core';
+import { createTheme, Link, ThemeProvider } from '@material-ui/core';
 import Highlight from 'react-highlight';
 import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
@@ -138,7 +138,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-const theme = createMuiTheme({});
+const theme = createTheme({});
 
 type UsedStyles = ReturnType<typeof useStyles>;
 
@@ -330,14 +330,14 @@ function useDescription(metadata: PageMetadata, ruleid: string, language?: strin
     `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
   function htmlReplacement(domNode: Element) {
-    if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
+    if (domNode.name === 'a' && domNode.attribs?.['data-rspec-id']) {
       const props = attributesToProps(domNode.attribs);
       return <a href={getRspecPath(domNode.attribs['data-rspec-id'], language)} {...props}>
         {domToReact(domNode.children)}
       </a>;
     }
 
-    if (domNode.name === 'code' && domNode.attribs && domNode.attribs['data-lang']) {
+    if (domNode.name === 'code' && domNode.attribs?.['data-lang']) {
       return <Highlight className={domNode.attribs['data-lang']}>
         {domToReact(domNode.children)}
       </Highlight>;

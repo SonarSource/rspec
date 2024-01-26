@@ -43,6 +43,7 @@ fi
 #  * Only valid languages can be used as subdirectories in rule directories,
 #    with the exception of ALLOWED_RULE_SUB_FOLDERS.
 #  * Asciidoc files are free or errors and warnings.
+#  * ifdef/endif are used appropriatedly.
 #
 # [properties validated always on all rules]
 #  * Rule descriptions can include other asciidoc files from the same rule
@@ -71,19 +72,8 @@ do
       exit_code=1
     fi
   else
-    # Make sure include:: clauses are always more than one line away from the previous content
-    # Detect includes stuck to the line before
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "\S[ \t]*\ninclude::" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; > stuck
-    # Detect includes stuck to the line after
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "include::[^\[]+\[\]\n[ \t]*[^\n]" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> stuck
-    if [ -s stuck ]; then
-      echo "ERROR: These adoc files contain an include that is stuck to other content."
-      echo "This may result in broken tags and other display issues."
-      echo "Make sure there is an empty line before and after each include:"
-      cat stuck
-      exit_code=1
-    fi
-    rm -f stuck
+    # Add the full path of all adoc files that were affected for sanitization
+    find ~+/"${dir}" -name '*.adoc' >> all_asciidocs
 
     for language in "${dir}"/*/
     do
@@ -112,6 +102,18 @@ do
     done
   fi
 done
+
+cd rspec-tools
+cat ../all_asciidocs | xargs pipenv run rspec-tools check-asciidoc >validate_asciidoc 2>&1
+if [ -s validate_asciidoc ]; then
+  echo "ERROR: Invalid asciidoc description:"
+  cat validate_asciidoc
+  exit_code=1
+fi
+rm -f validate_asciidoc ../all_asciidocs
+cd ..
+
+
 
 # Run asciidoctor and fail if a warning is emitted.
 # Use the tmp_SXYZ_language.adoc files (see note above).
