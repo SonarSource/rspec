@@ -1,44 +1,60 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+With the introduction of virtual threads in Java 21, it is now possible to optimize the usage of the operating system threads by avoiding blocking them for asynchronous operations.
+Whenever a `VirtualThread` is started, the JVM will "mount" it on the first available OS thread.
+As soon as the virtual thread runs a blocking operation like an HTTP request or a filesystem read/write operation,
+the JVM will detect this and "unmount" the virtual thread. 
+This allows another virtual thread to take over the OS thread and continue its execution.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+The default behavior of the `Thread` class now is defined with the `PlatformThread` class, which behaves differently from the `VirtualThread`,
+only releasing the underlying OS thread when explicitly requested to the thread's monitor.
 
-//=== What is the potential impact?
+This makes the use of standard `Thread` instances very inefficient whenever their execution includes blocking operations.
+
+This rule raises an issue every time a `PlatformThread` is created with a task that includes heavy blocking operations.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,text,diff-id=1,diff-type=noncompliant]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+new Thread(() -> { // Noncompliant
+    try {
+        BufferedWriter buffer = new BufferedWriter(new FileWriter(filePath));
+        buffer.write("Hello, this is a message from a thread!");
+        buffer.close();
+    } 
+    catch (IOException e) {
+        e.printStackTrace();
+    }
+}).start();
 ----
 
 ==== Compliant solution
 
-[source,text,diff-id=1,diff-type=compliant]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-FIXME
+Thread fileWritingThread = Thread.startVirtualThread(() -> { // Compliant
+    try {
+        BufferedWriter buffer = new BufferedWriter(new FileWriter(filePath));
+        buffer.write("Hello, this is a message from a thread!");
+        buffer.close();
+    } 
+    catch (IOException e) {
+        e.printStackTrace();
+    }
+});
 ----
 
-//=== How does this work?
+=== How does this work?
 
-//=== Pitfalls
+In this compliant example the virtual thread will be unmounted from the OS thread as soon as it stops for the writing operation to be completed, allowing other virtual threads to move forward with their execution. This could not happen in the non-compliant example, and if a lot of platform threads were to perform that same task they could cause a significant performance penalty.
 
-//=== Going the extra mile
+== Resources
 
+=== Documentation
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+Java Documentation - https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html[Virtual Threads]
