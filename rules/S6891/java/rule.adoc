@@ -1,44 +1,87 @@
-FIXME: add a description
+The `AlarmManager` class allows to schedule your app to run at a future time, even when it's not active.
+For normal timing operations, such as  ticks and timeouts, using the `Handler` is more efficient.
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+From API 19 onwards, the alarm delivery is inexact to save battery life.
+The Android OS now batches together alarms from all apps that occur at reasonably similar times
+so the system wakes the device once instead of several times to handle each alarm.
+
+It is possible to use exact alarms with `setExact`, `setExactAndAllowWhileIdle`, `setWindow` and `setAlarmClock`.
+The usage of those methods should be limited only to cases when strict delivery guarantees are required,
+such as an alarm clock application or calendar notification.
+
+The rule raises an issue when an exact alarm is set, or when a window is set to less than 10 minutes.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+When the system triggers exact alarms that your app sets, the device consumes a great deal of resources, such as battery life,
+especially if it's in a power-saving mode. Furthermore, the system cannot easily batch these requests in order to use resources more efficiently.
 
-//=== What is the potential impact?
+It's highly recommended that you create an inexact alarm whenever possible.
+To perform longer work, schedule it using `WorkManager` or `JobScheduler` from your alarm's `BroadcastReceiver`.
+
+=== What is the potential impact?
+
+* _Usability_: the device may run out of battery faster than expected.
+* _Sustainability_: the extra battery usage has an impact on the environment.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Replace occurrences of `setExact` with `set`, `setExactAndAllowWhileIdle` with `setAndAllowWhileIdle`
+and `setWindow` with a window less than 10 minutes.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,text,diff-id=1,diff-type=noncompliant]
+[source,java,text,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+public class AlarmScheduler {
+    private Context context;
+
+    public AlarmScheduler(Context context) {
+        this.context = context;
+    }
+
+    public void scheduleAlarm(long triggerTime) {
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Intent intent = new Intent(context, AlarmReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, 0);
+
+        alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent); // Noncompliant, avoid using exact alarms unless necessary
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent); // Noncompliant, avoid using exact alarms unless necessary
+
+        long windowLengthMillis = 5 * 60 * 1000; // 5 minutes in milliseconds
+        alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerTime, windowLengthMillis, pendingIntent); // Noncompliant, don't use windows below 10 minutes
+    }
+}
 ----
 
 ==== Compliant solution
 
-[source,text,diff-id=1,diff-type=compliant]
+[source,java,text,diff-id=1,diff-type=compliant]
 ----
-FIXME
+public class AlarmScheduler {
+    private Context context;
+
+    public AlarmScheduler(Context context) {
+        this.context = context;
+    }
+
+    public void scheduleAlarm(long triggerTime) {
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Intent intent = new Intent(context, AlarmReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, 0);
+
+        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
+    }
+}
 ----
 
-//=== How does this work?
+== Resources
+=== Documentation
 
-//=== Pitfalls
-
-//=== Going the extra mile
-
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+* https://developer.android.com/reference/android/app/AlarmManager[Android for Developers - AlarmManager]
+* https://developer.android.com/develop/background-work/services/alarms/schedule#exact-acceptable-use-cases[Android for Developers - Schedule alarms]
+* https://developer.android.com/reference/android/os/Handler[Android for Developers - Handler]
+* https://developer.android.com/about/versions/kitkat/android-4.4[Android for Developers - AlarmManager with SDK Version 19]
