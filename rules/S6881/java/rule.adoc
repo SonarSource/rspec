@@ -1,17 +1,36 @@
 With the introduction of virtual threads in Java 21, it is now possible to optimize the usage of the operating system threads by avoiding blocking them for asynchronous operations.
-Whenever a `VirtualThread` is started, the JVM will "mount" it on the first available OS thread.
-As soon as the virtual thread runs a blocking operation like an HTTP request or a filesystem read/write operation,
-the JVM will detect this and "unmount" the virtual thread. 
-This allows another virtual thread to take over the OS thread and continue its execution.
+This means that using the standard `Thread` class for asynchronous operations is now generally less efficient.
 
 == Why is this an issue?
 
-The default behavior of the `Thread` class now is defined with the `PlatformThread` class, which behaves differently from the `VirtualThread`,
-only releasing the underlying OS thread when explicitly requested to the thread's monitor.
+Whenever a virtual thread is started, the JVM will mount it on an OS thread.
+As soon as the virtual thread runs a blocking operation like an HTTP request or a filesystem read/write operation,
+the JVM will detect this and unmount the virtual thread. 
+This allows another virtual thread to take over the OS thread and continue its execution.
+
+[source,java]
+----
+for(int i = 0; i < 1000; i++) {
+    Thread.startVirtualThread(() -> {
+        var response = requestSomeHttpContent();
+        writeContentToDatabase(response.data);
+    });
+}
+----
+
+In this example, 1000 virtual threads will be created and started.
+As soon as a one of them runs into the blocking `requestSomeHttpContent()` operation, the JVM will unmount it from the OS thread and mount another virtual thread on it.
+This means that in a very limited amount of time, all 1000 virtual threads will be executed,
+even though the OS thread pool is much smaller, and they will be mounted back to proceed with execution only when the blocking operation is completed.
+
+By default, a Java thread is a platform thread.
+It releases the underlying OS thread only when explicitly entering a monitor (`synchronized`, or `Object.wait`).
 
 This makes the use of standard `Thread` instances very inefficient whenever their execution includes blocking operations.
+In the previous example, if we used a standard `Thread` instead of a virtual one, the OS thread pool would be blocked for a long time,
+waiting for each thread to complete its blocking operation, and the performance would be significantly worse.
 
-This rule raises an issue every time a `PlatformThread` is created with a task that includes heavy blocking operations.
+This rule raises an issue every time a platform thread is created with a task that includes heavy blocking operations.
 
 == How to fix it
 
@@ -49,12 +68,9 @@ Thread fileWritingThread = Thread.startVirtualThread(() -> { // Compliant
 });
 ----
 
-=== How does this work?
-
-In this compliant example the virtual thread will be unmounted from the OS thread as soon as it stops for the writing operation to be completed, allowing other virtual threads to move forward with their execution. This could not happen in the non-compliant example, and if a lot of platform threads were to perform that same task they could cause a significant performance penalty.
-
 == Resources
 
 === Documentation
 
-Java Documentation - https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html[Virtual Threads]
+* Java Documentation - https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html[Virtual Threads]
+* Java Documentation - https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#startVirtualThread(java.lang.Runnable)[Thread.startVirtualThread(Runnable)]
