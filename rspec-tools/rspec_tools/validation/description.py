@@ -1,12 +1,12 @@
-from bs4 import BeautifulSoup
+import re
 from pathlib import Path
 from typing import Final, Dict, List
 
+from bs4 import BeautifulSoup
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
 from rspec_tools.utils import LANG_TO_SOURCE
 
-import re
 
 def read_file(path):
   section_names_path = Path(__file__).parent.parent.parent.parent.joinpath(path)
@@ -60,7 +60,7 @@ MANDATORY_SECTIONS = ['Why is this an issue?']
 CODE_EXAMPLES='Code examples'
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
-  'How to fix it': [CODE_EXAMPLES, 'How does this work?', 'Pitfalls', 'Going the extra mile'],
+  HOW_TO_FIX_IT: [], # Empty list because we now accept anything as sub-section
   'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'External coding guidelines', 'Benchmarks', 'Related rules']
 }
 SUBSECTIONS = {
@@ -219,7 +219,7 @@ def validate_subsections_for_section(rule_language: LanguageSpecificRule, sectio
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
-      if name not in allowed_subsections:
+      if allowed_subsections and name not in allowed_subsections:
         raise RuleValidationError(f'Rule {rule_language.id} has a "{section_name}" subsection with an unallowed name: "{name}"')
       if name in subsections_seen and not is_duplicate_allowed:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
