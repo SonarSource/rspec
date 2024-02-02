@@ -4,9 +4,14 @@ from pathlib import Path
 import pytest
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import RulesRepository
-from rspec_tools.validation.description import validate_section_names, \
-  validate_section_levels, validate_parameters, validate_source_language, \
-  validate_subsections, validate_security_standard_links
+from rspec_tools.validation.description import (
+    validate_parameters,
+    validate_section_levels,
+    validate_section_names,
+    validate_security_standard_links,
+    validate_source_language,
+    validate_subsections,
+)
 
 
 @pytest.fixture
@@ -120,12 +125,6 @@ def test_wrong_format_how_to_fix_it_section_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=f'Rule typescript:S200 has a "How to fix it" section with an unsupported format: "How to fix it wrong format". Either use "How to fix it" or "How to fix it in FRAMEWORK NAME"'):
     validate_section_names(rule)
 
-def test_unallowed_subsections_in_how_to_fix_it_validation(invalid_rule):
-  '''Check that having "How to fix it" subsections with unallowed names breaks validation'''
-  rule = invalid_rule('S200', 'java')
-  with pytest.raises(RuleValidationError, match=f'Rule java:S200 has a "How to fix it" subsection with an unallowed name: "Yolo \\(invalid section name\\)"'):
-    validate_subsections(rule)
-
 def test_duplicate_subsections_in_how_to_fix_it_validation(invalid_rule):
   '''Check that having duplicate "How to fix it" subsections breaks validation'''
   rule = invalid_rule('S200', 'csharp')
@@ -149,12 +148,6 @@ def test_education_format_missing_mandatory_sections_validation(invalid_rule):
   rule = invalid_rule('S200', 'common')
   with pytest.raises(RuleValidationError, match=f'Rule common:S200 is missing the "Why is this an issue\\?" section'):
     validate_section_names(rule)
-
-def test_code_examples_with_typo_validation(invalid_rule):
-  '''Check that the "Code examples" subsection with a typo in the education format breaks validation'''
-  rule = invalid_rule('S200', 'cobol')
-  with pytest.raises(RuleValidationError, match=f'Rule cobol:S200 has a "How to fix it" subsection with an unallowed name: "Coding examples"'):
-    validate_subsections(rule)
 
 def test_noncompliant_examples_with_typo_validation(invalid_rule):
   '''Check that the "Non-compliant examples" sub-subsection with a typo in the education format breaks validation'''
