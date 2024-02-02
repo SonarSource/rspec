@@ -1,27 +1,36 @@
 == Why is this an issue?
 
-In Android applications, unnecessary CPU usage can increase power consumption, negatively impacting the device's battery life.
-To prevent excessive drain, Android devices enter an idle state when not in use.
-Developers should be cautious about keeping the CPU active unnecessarily, and if required, they should employ the appropriate mechanisms provided by the Android framework.
+Optimizing resource usage and preventing unnecessary battery drain are critical considerations in Android development.
+Failing to release sensor resources when they are no longer needed can lead to prolonged device activity, negatively impacting battery life.
+Common Android sensors, such as cameras, GPS, and microphones, provide a method to release resources after they are not in use anymore.
 
-`PowerManager.WakeLock` is a mechanism to indicate that your application needs to have the device stay on.
-`acquire()` is a method to acquire the wake lock and force the device to stay on at the requested level when the wake lock was created.
-`release()` is a method to release the wake lock and allow the device to sleep again.
-Doing this as soon as possible is very important to avoid running down the device's battery excessively.
+This rule identifies situations where a sensor is not released after being utilized, helping developers maintain efficient and battery-friendly applications.
+
+* `android.location.LocationManager`: When `requestLocationUpdates()` method is called, it is necessary to call `removeUpdates()` to prevent unnecessary location tracking.
+* `android.os.PowerManager.WakeLock`: When the `acquire()` method is called, it is necessary to call `release()` to prevent unintentional battery drain due to device wakefulness.
+* `android.net.wifi.WifiManager$MulticastLock`: When calling the `acquire()` method, it is necessary to call `release()` to unlock Wi-Fi Multicast, restoring the filter of packets not explicitly addressed to this device and saving power.
+* `android.media.projection.MediaProjection`: A screen capture session is ongoing until the `stop()` method is called.
+* `android.media.MediaPlayer`: It is used for playing various common media types, and it is necessary to call `release()` to free up resources when finished.
+* `android.media.MediaRecorder`: It is used for recording audio and video, and it is necessary to call `release()` to free up resources when finished.
+* `android.media.SoundPool`: It is used for managing and playing audio resources, and it is necessary to call `release()` to free up resources when finished.
+* `android.media.audiofx.Visualizer`: It is used for capturing audio data and rendering it to a visualizer, and it is necessary to call `release()` to free up resources when finished.
+* `android.hardware.SensorManager`: When using the `registerListener()` method, it is necessary to call `unregisterListener()` to prevent unnecessary sensor polling.
 
 == How to fix it
 
-After every call to `acquire()`, there should be a corresponding call to `release()` or `acquire(long timeout)` with a timeout.
-The timeout should be set to the reasonable amount of time the application needs to hold the wake lock.
+Ensure that resources are released when they are no longer needed.
+This can be done by calling the appropriate release method, such as `release()`, `removeUpdates()`, `unregisterListener()`, or `stop()`.
 
 === Code examples
+
+* `android.os.PowerManager.WakeLock`
 
 ==== Noncompliant code example
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-public void onCreate(Bundle savedInstanceState) {
-  PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+public void method() {
+  PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
   PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "My Wake Lock");
   wakeLock.acquire(); // Noncompliant
   // do some work...
@@ -32,8 +41,8 @@ public void onCreate(Bundle savedInstanceState) {
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-public void onCreate(Bundle savedInstanceState) {
-  PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+public void method() {
+  PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
   PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "My Wake Lock");
   wakeLock.acquire(); // Compliant
   // do some work...
@@ -41,13 +50,74 @@ public void onCreate(Bundle savedInstanceState) {
 }
 ----
 
+* `android.media.MediaPlayer`
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+public void method() {
+  MediaPlayer mediaPlayer = MediaPlayer.create(context, R.raw.sound_file_1);
+  mediaPlayer.start(); // Noncompliant
+  // do some work...
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+public void onCreate() {
+  MediaPlayer mediaPlayer = MediaPlayer.create(context, R.raw.sound_file_1);
+  mediaPlayer.start(); // Compliant
+  // do some work...
+  wakeLock.release();
+}
+----
+
+* `android.hardware.SensorManager`
+
+==== Noncompliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+public void method() {
+  SensorManager sensorManager = getSystemService(SENSOR_SERVICE);
+  Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+  sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL); // Noncompliant
+  // do some work...
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+public void method() {
+  SensorManager sensorManager = getSystemService(SENSOR_SERVICE);
+  Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+  sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL); // Compliant
+  // do some work...
+  sensorManager.unregisterListener(this);
+}
+----
+
 == Resources
 
 === Documentation
 
+* https://developer.android.com/reference/android/location/LocationManager[Android - LocationManager]
 * https://developer.android.com/reference/android/os/PowerManager.WakeLock[Android - PowerManager.WakeLock]
+* https://developer.android.com/reference/android/net/wifi/WifiManager.MulticastLock[Android - WifiManager.MulticastLock]
+* https://developer.android.com/reference/android/media/projection/MediaProjection[Android - MediaProjection]
+* https://developer.android.com/reference/android/media/MediaPlayer[Android - MediaPlayer]
+* https://developer.android.com/reference/android/media/MediaRecorder[Android - MediaRecorder]
+* https://developer.android.com/reference/android/media/SoundPool[Android - SoundPool]
+* https://developer.android.com/reference/android/media/audiofx/Visualizer[Android - Visualizer]
+* https://developer.android.com/reference/android/hardware/SensorManager[Android - SensorManager]
 
-=== Articles & blog posts
+* https://developer.android.com/develop/background-work/background-tasks/scheduling/wakelock[Android - Keep the device awake]
+* https://developer.android.com/media/platform/mediaplayer[Android - MediaPlayer Overview]
+* https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview[Android - Sensors Overview]
 
-* https://developer.android.com/develop/background-work/background-tasks/scheduling/wakelock[Android - WakeLock]
 
