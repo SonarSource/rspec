@@ -1,18 +1,18 @@
+== Why is this an issue?
+
 Java 21 virtual threads allow the JVM to optimize the usage of OS threads,
 by mounting and unmounting them on an OS thread when needed, and
 making them extremely efficient when dealing with blocking operations such as HTTP requests or I/O.   
 
-== Why is this an issue?
-
-However, there are cases in which a virtual thread cannot be unmounted during blocking operations because it is pinned to the underlying OS thread. 
+However, there are cases in which a virtual thread cannot be unmounted during blocking operations because it is pinned to the underlying OS thread:
 
 * When it executes code inside a synchronized block or method
-* When it executes a native method or a foreign function
+* When it executes a native method
 
 In these scenarios, the virtual thread will not be unmounted and the blocking operation will cause the OS thread to be blocked.
 A pinned virtual thread does not necessarily mean that the application is incorrect, but it can hinder its scalability.
 
-Therefore, virtual threads should not be used when their task includes synchronized code or native methods/foreign functions.
+Therefore, virtual threads should not be used when their task includes synchronized code or native methods.
 Instead, the default platform threads should be used. 
 
 This rule raises an issue when the task passed to a virtual thread includes synchronized code or native methods.
@@ -31,6 +31,30 @@ void enqueue(){
         }
     });
 }
+
+void enqueue2(){
+    Thread.startVirtualThread(() -> { // Noncompliant; use a platform thread instead of a virtual one
+        if(someCondition){
+            synchronized {
+                conditionalLogic();
+            }
+        }else{
+            unsynchronizedLogic();
+        }
+    });
+}
+
+public class NativeExample {
+    public native void printHelloWorld();
+    static {
+        System.loadLibrary("nativeexample");
+    }
+    public static void main(String[] args) {
+        Thread.startVirtualThread(() -> { // Noncompliant; use a platform thread instead of a virtual one
+            new NativeExample().printHelloWorld();
+        });
+    }
+}
 ----
 
 ==== Compliant solution
@@ -44,6 +68,30 @@ void enqueue(){
             dequeLogic();
         }
     }).start();
+}
+
+void enqueue2(){
+    new Thread(() -> {
+        if(someCondition){
+            synchronized {
+                conditionalLogic();
+            }
+        }else{
+            unsynchronizedLogic();
+        }
+    }).start();
+}
+
+public class NativeExample {
+    public native void printHelloWorld();
+    static {
+        System.loadLibrary("nativeexample");
+    }
+    public static void main(String[] args) {
+        new Thread(() -> {
+            new NativeExample().printHelloWorld();
+        }).start();
+    }
 }
 ----
 
