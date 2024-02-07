@@ -1,12 +1,16 @@
 == Why is this an issue?
 
-Frequent communication with the database can introduce overhead and decrease performance, especially in scenarios involving multiple SQL statements.
-By batching SQL queries, the number of interactions with the database is reduced, leading to improved efficiency and faster execution times.
-This can be achieved using the methods provided by the `java.sql.Statement` and `java.sql.PreparedStatement` interfaces for batch processing.
+Executing a batch of SQL queries instead of individual queries can improve performance by reducing communication overhead with the database.
+This can be particularly beneficial when multiple SQL statements need to be executed in a loop.
+
+In such cases, adding the statements to a batch and executing them collectively can significantly reduce the number of interactions with the database,
+leading to enhanced efficiency and faster execution times.
+
+The rule raises an issue when it detects multiple SQL statements, like `java.sql.Statement` and `java.sql.PreparedStatement`, being executed individually or within a loop.
 
 == How to fix it
 
-Group SQL statements by using method `addBatch` to add them to a batch, and then execute them using `executeBatch` to send them to the database in a single call.
+Group SQL statements by using the method `addBatch` to add them to a batch and then execute them using `executeBatch` to send them to the database in a single call.
 
 === Code examples
 
@@ -30,6 +34,24 @@ public void execute(Connection connection) {
 }
 ----
 
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+public void execute(Connection connection) {
+  try {
+    Statement statement = connection.createStatement();
+
+    for (int i = 0; i < 10; i++) {
+      statement.execute("INSERT INTO myTable (column1, column2) VALUES (" + i + ", 'value" + i + "')"); // Noncompliant
+    }
+
+    statement.close();
+    connection.close();
+  } catch (SQLException e) {
+    e.printStackTrace();
+  }
+}
+----
+
 ==== Compliant solution
 
 [source,java,diff-id=1,diff-type=compliant]
@@ -44,7 +66,25 @@ public void execute(Connection connection) {
 
     statement.executeBatch();
 
+    statement.close();
+    connection.close();
+  } catch (SQLException e) {
+    e.printStackTrace();
+  }
+}
+----
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+public void execute(Connection connection) {
+  try {
+    Statement statement = connection.createStatement();
+
+    for (int i = 0; i < 10; i++) {
+      statement.addBatch("INSERT INTO myTable (column1, column2) VALUES (" + i + ", 'value" + i + "')"); // Compliant
+    }
     statement.executeBatch();
+
     statement.close();
     connection.close();
   } catch (SQLException e) {
