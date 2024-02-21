@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics.CodeAnalysis;
+using System.Web.Mvc;
+using System;
 
 [Route(@"A\[controller]")]    // Noncompliant {{Replace this `\` with `/`.}}
 //        ^
@@ -18,14 +18,14 @@ public class BackslashOnActionUsingVerbatimString : Controller
 {
     [Route(@"A\[action]")]    // Noncompliant
     //        ^
-    public IActionResult Index() => View();
+    public ActionResult Index() => View();
 }
 
 public class BackslashOnActionUsingEscapeCharacter : Controller
 {
     [Route("A\\[action]")]    // Noncompliant
     //       ^^
-    public IActionResult Index() => View();
+    public ActionResult Index() => View();
 }
 
 public class MultipleBackslashesOnAction : Controller
@@ -33,7 +33,7 @@ public class MultipleBackslashesOnAction : Controller
     [Route("A\\[action]\\B")] // Noncompliant
     //       ^^
     //                 ^^@-1
-    public IActionResult Index() => View();
+    public ActionResult Index() => View();
 }
 
 [Route("\\[controller]")]    // Noncompliant
@@ -43,39 +43,36 @@ public class RouteOnControllerStartingWithBackslash : Controller { }
 public class AController : Controller
 {
     //[Route("A\\[action]")]  // Compliant: commented out
-    public IActionResult WithoutRouteAttribute() => View();
+    public ActionResult WithoutRouteAttribute() => View();
 
     [Route("A\\[action]", Name = "a", Order = 3)] // Noncompliant
-    public IActionResult WithOptionalAttributeParameters() => View();
-
-    [Route("A/[action]", Name = @"a\b", Order = 3)] // Compliant: backslash is on the name
-    public IActionResult WithBackslashInRouteName() => View();
+    public ActionResult WithOptionalAttributeParameters() => View();
 
     [RouteAttribute("A\\[action]")] // Noncompliant
-    public IActionResult WithAttributeSuffix() => View();
+    public ActionResult WithAttributeSuffix() => View();
 
-    [Microsoft.AspNetCore.Mvc.RouteAttribute("A\\[action]")] // Noncompliant
-    public IActionResult WithFullQualifiedName() => View();
+    [System.Web.Mvc.RouteAttribute("A\\[action]")] // Noncompliant
+    public ActionResult WithFullQualifiedName() => View();
 
     [Route("A\\[action]")]  // Noncompliant
     [Route("B\\[action]")]  // Noncompliant
     [Route("C/[action]")]   // Compliant: forward slash is used
-    public IActionResult WithMultipleRoutes() => View();
+    public ActionResult WithMultipleRoutes() => View();
 
     [Route("A%5C[action]")] // Compliant: URL-escaped backslash is used
-    public IActionResult WithUrlEscapedBackslash() => View();
+    public ActionResult WithUrlEscapedBackslash() => View();
 
     [Route("A/{s:regex(^(?!index\\b)[[a-zA-Z0-9-]]+$)}.html")]
-    public IActionResult WithRegexContainingBackslashInLookahead(string s)  => View();  // Compliant: backslash is in regex
+    public ActionResult WithRegexContainingBackslashInLookahead(string s)  => View();  // Compliant: backslash is in regex
 
     [Route("A/{s:datetime:regex(\\d{{4}}-\\d{{2}}-\\d{{4}})}/B")]
-    public IActionResult WithRegexContainingBackslashInMetaEscape(string s)  => View(); // Compliant: backslash is in regex
+    public ActionResult WithRegexContainingBackslashInMetaEscape(string s)  => View(); // Compliant: backslash is in regex
 }
 
 namespace WithAliases
 {
     using MyRoute = RouteAttribute;
-    using ASP = Microsoft.AspNetCore;
+    using ASP = System.Web;
 
     [MyRoute(@"A\[controller]")]            // Noncompliant
     public class WithAliasedRouteAttribute : Controller { }
@@ -99,85 +96,37 @@ namespace WithFakeRouteAttribute
 public class WithAllTypesOfStrings : Controller
 {
     private const string ASlash = "/";
-    private const string ABackslash = @"\";
-    private const string AConstStringIncludingABackslash = $"A{ABackslash}";
+    private const string ABackSlash = @"\";
+    private const string AConstStringIncludingABackslash = $"A{ABackSlash}";
     private const string AConstStringNotIncludingABackslash = $"A{ASlash}";
 
     [Route(AConstStringIncludingABackslash)]    // Noncompliant
-    public IActionResult WithConstStringIncludingABackslash() => View();
+    public ActionResult WithConstStringIncludingABackslash() => View();
 
     [Route(AConstStringNotIncludingABackslash)] // Compliant
-    public IActionResult WithConstStringNotIncludingABackslash() => View();
+    public ActionResult WithConstStringNotIncludingABackslash() => View();
 
     [Route("\u002f[action]")]                   // Compliant: 2f is the Unicode code for '/'
-    public IActionResult WithEscapeCodeOfSlash() => View();
+    public ActionResult WithEscapeCodeOfSlash() => View();
 
     [Route("\u005c[action]")]                   // Noncompliant: 5c is the Unicode code for '\'
-    public IActionResult WithEscapeCodeOfBackslash() => View();
+    public ActionResult WithEscapeCodeOfBackslash() => View();
 
     [Route($"A{ASlash}[action]")]               // Compliant
-    public IActionResult WithInterpolatedString() => View();
+    public ActionResult WithInterpolatedString() => View();
 
-    [Route($@"A{ABackslash}[action]")]          // Noncompliant
-    public IActionResult WithInterpolatedVerbatimString() => View();
+    [Route($@"A{ABackSlash}[action]")]          // Noncompliant
+    public ActionResult WithInterpolatedVerbatimString() => View();
 
     [Route("""\[action]""")]                    // Noncompliant
-    public IActionResult WithRawStringLiteralsTriple() => View();
+    public ActionResult WithRawStringLiteralsTriple() => View();
 
     [Route(""""\[action]"""")]                  // Noncompliant
-    public IActionResult WithRawStringLiteralsQuadruple() => View();
+    public ActionResult WithRawStringLiteralsQuadruple() => View();
 
-    [Route($$"""{{ABackslash}}/[action]""")]    // Noncompliant
-    public IActionResult WithInterpolatedRawStringLiteralsIncludingABackslash() => View();
+    [Route($$"""{{ABackSlash}}/[action]""")]    // Noncompliant
+    public ActionResult WithInterpolatedRawStringLiteralsIncludingABackslash() => View();
 
     [Route($$"""{{ASlash}}/[action]""")]        // Complaint
-    public IActionResult WithInterpolatedRawStringLiteralsNotIncludingABackslash() => View();
-}
-
-class WithMapControllerRoute
-{
-    private const string ASlash = "/";
-    private const string ABackslash = @"\";
-
-    void Test(WebApplication app)
-    {
-        const string ASlashLocal = "A";
-        const string ABackslashLocal = @"B";
-
-        app.MapControllerRoute("default", "{controller=Home}\\{action=Index}/{id?}");                  // Noncompliant
-        app.MapControllerRoute("default", @"{controller=Home}\\{action=Index}/{id?}");                 // Noncompliant
-        app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");                   // Compliant
-
-        app.MapControllerRoute("default", $$"""{controller=Home}{{ABackslash}}{action=Index}""");      // Noncompliant
-        app.MapControllerRoute("default", $$"""{controller=Home}{{ASlash}}{action=Index}""");          // Compliant
-        app.MapControllerRoute("default", $$"""{controller=Home}{{ABackslashLocal}}{action=Index}"""); // Noncompliant
-        app.MapControllerRoute("default", $$"""{controller=Home}{{ASlashLocal}}{action=Index}""");     // Compliant
-
-        app.MapControllerRoute(
-            name: "default",
-            pattern: "{controller=Home}\\{action=Index}/{id?}", // Noncompliant
-            defaults: new { controller = "Home", action = "Index" });
-        app.MapControllerRoute(
-            pattern: "{controller=Home}\\{action=Index}/{id?}", // Noncompliant
-            name: "default",
-            defaults: new { controller = "Home", action = "Index" });
-    }
-}
-
-class WithUserDefinedSyntaxRouteParameter
-{
-    const string RouteConst = "Route";
-
-    void Test()
-    {
-        AMethodWithStringSyntaxRouteParameter("\\");      // Noncompliant
-        AMethodWithStringSyntaxRouteConstParameter("\\"); // Noncompliant
-        AMethodWithStringSyntaxNonRouteParameter("\\");   // Compliant
-        AMethodWithNoStringSyntax("\\");                  // Compliant
-    }
-
-    private void AMethodWithStringSyntaxRouteParameter([StringSyntax("Route")]string route) { }
-    private void AMethodWithStringSyntaxRouteConstParameter([StringSyntax(RouteConst)]string route) { }
-    private void AMethodWithStringSyntaxNonRouteParameter([StringSyntax("NonRoute")]string route) { }
-    private void AMethodWithNoStringSyntax(string route) { }
+    public ActionResult WithInterpolatedRawStringLiteralsNotIncludingABackslash() => View();
 }
