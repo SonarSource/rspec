@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc;
+
 [Route(@"A\[controller]")]    // Noncompliant {{Replace this `\` with `/`.}}
 //        ^
 public class BackslashOnControllerUsingVerbatimString : Controller { }
@@ -32,6 +34,10 @@ public class MultipleBackslashesOnAction : Controller
     //                 ^^@-1
     public IActionResult Index() => View();
 }
+
+[Route("\\[controller]")]    // Noncompliant
+//      ^^
+public class RouteOnControllerStartingWithBackslash : Controller { }
 
 public class AController : Controller
 {
