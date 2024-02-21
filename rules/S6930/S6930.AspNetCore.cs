@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics.CodeAnalysis;
 
 [Route(@"A\[controller]")]    // Noncompliant {{Replace this `\` with `/`.}}
 //        ^
@@ -98,8 +99,8 @@ namespace WithFakeRouteAttribute
 public class WithAllTypesOfStrings : Controller
 {
     private const string ASlash = "/";
-    private const string ABackSlash = @"\";
-    private const string AConstStringIncludingABackslash = $"A{ABackSlash}";
+    private const string ABackslash = @"\";
+    private const string AConstStringIncludingABackslash = $"A{ABackslash}";
     private const string AConstStringNotIncludingABackslash = $"A{ASlash}";
 
     [Route(AConstStringIncludingABackslash)]    // Noncompliant
@@ -117,7 +118,7 @@ public class WithAllTypesOfStrings : Controller
     [Route($"A{ASlash}[action]")]               // Compliant
     public IActionResult WithInterpolatedString() => View();
 
-    [Route($@"A{ABackSlash}[action]")]          // Noncompliant
+    [Route($@"A{ABackslash}[action]")]          // Noncompliant
     public IActionResult WithInterpolatedVerbatimString() => View();
 
     [Route("""\[action]""")]                    // Noncompliant
@@ -126,9 +127,57 @@ public class WithAllTypesOfStrings : Controller
     [Route(""""\[action]"""")]                  // Noncompliant
     public IActionResult WithRawStringLiteralsQuadruple() => View();
 
-    [Route($$"""{{ABackSlash}}/[action]""")]    // Noncompliant
+    [Route($$"""{{ABackslash}}/[action]""")]    // Noncompliant
     public IActionResult WithInterpolatedRawStringLiteralsIncludingABackslash() => View();
 
     [Route($$"""{{ASlash}}/[action]""")]        // Complaint
     public IActionResult WithInterpolatedRawStringLiteralsNotIncludingABackslash() => View();
+}
+
+class WithMapControllerRoute
+{
+    private const string ASlash = "/";
+    private const string ABackslash = @"\";
+
+    void Test(WebApplication app)
+    {
+        const string ASlashLocal = "A";
+        const string ABackslashLocal = @"B";
+
+        app.MapControllerRoute("default", "{controller=Home}\\{action=Index}/{id?}");                  // Noncompliant
+        app.MapControllerRoute("default", @"{controller=Home}\\{action=Index}/{id?}");                 // Noncompliant
+        app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");                   // Compliant
+
+        app.MapControllerRoute("default", $$"""{controller=Home}{{ABackslash}}{action=Index}""");      // Noncompliant
+        app.MapControllerRoute("default", $$"""{controller=Home}{{ASlash}}{action=Index}""");          // Compliant
+        app.MapControllerRoute("default", $$"""{controller=Home}{{ABackslashLocal}}{action=Index}"""); // Noncompliant
+        app.MapControllerRoute("default", $$"""{controller=Home}{{ASlashLocal}}{action=Index}""");     // Compliant
+
+        app.MapControllerRoute(
+            name: "default",
+            pattern: "{controller=Home}\\{action=Index}/{id?}", // Noncompliant
+            defaults: new { controller = "Home", action = "Index" });
+        app.MapControllerRoute(
+            pattern: "{controller=Home}\\{action=Index}/{id?}", // Noncompliant
+            name: "default",
+            defaults: new { controller = "Home", action = "Index" });
+    }
+}
+
+class WithUserDefinedSyntaxRouteParameter
+{
+    const string RouteConst = "Route";
+
+    void Test()
+    {
+        AMethodWithStringSyntaxRouteParameter("\\");      // Noncompliant
+        AMethodWithStringSyntaxRouteConstParameter("\\"); // Noncompliant
+        AMethodWithStringSyntaxNonRouteParameter("\\");   // Compliant
+        AMethodWithNoStringSyntax("\\");                  // Compliant
+    }
+
+    private void AMethodWithStringSyntaxRouteParameter([StringSyntax("Route")]string route) { }
+    private void AMethodWithStringSyntaxRouteConstParameter([StringSyntax(RouteConst)]string route) { }
+    private void AMethodWithStringSyntaxNonRouteParameter([StringSyntax("NonRoute")]string route) { }
+    private void AMethodWithNoStringSyntax(string route) { }
 }
