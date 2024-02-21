@@ -47,6 +47,9 @@ public class AController : Controller
     [Route("A\\[action]", Name = "a", Order = 3)] // Noncompliant
     public IActionResult WithOptionalAttributeParameters() => View();
 
+    [Route("A/[action]", Name = @"a\b", Order = 3)] // Compliant: backslash is on the name
+    public IActionResult WithBackslashInRouteName() => View();
+
     [RouteAttribute("A\\[action]")] // Noncompliant
     public IActionResult WithAttributeSuffix() => View();
 
@@ -90,4 +93,42 @@ namespace WithFakeRouteAttribute
     {
         public RouteAttribute(string template) { }
     }
+}
+
+public class WithAllTypesOfStrings : Controller
+{
+    private const string ASlash = "/";
+    private const string ABackSlash = @"\";
+    private const string AConstStringIncludingABackslash = $"A{ABackSlash}";
+    private const string AConstStringNotIncludingABackslash = $"A{ASlash}";
+
+    [Route(AConstStringIncludingABackslash)]    // Noncompliant
+    public IActionResult WithConstStringIncludingABackslash() => View();
+
+    [Route(AConstStringNotIncludingABackslash)] // Compliant
+    public IActionResult WithConstStringNotIncludingABackslash() => View();
+
+    [Route("\u002f[action]")]                   // Compliant: 2f is the Unicode code for '/'
+    public IActionResult WithEscapeCodeOfSlash() => View();
+
+    [Route("\u005c[action]")]                   // Noncompliant: 5c is the Unicode code for '\'
+    public IActionResult WithEscapeCodeOfBackslash() => View();
+
+    [Route($"A{ASlash}[action]")]               // Compliant
+    public IActionResult WithInterpolatedString() => View();
+
+    [Route($@"A{ABackSlash}[action]")]          // Noncompliant
+    public IActionResult WithInterpolatedVerbatimString() => View();
+
+    [Route("""\[action]""")]                    // Noncompliant
+    public IActionResult WithRawStringLiteralsTriple() => View();
+
+    [Route(""""\[action]"""")]                  // Noncompliant
+    public IActionResult WithRawStringLiteralsQuadruple() => View();
+
+    [Route($$"""{{ABackSlash}}/[action]""")]    // Noncompliant
+    public IActionResult WithInterpolatedRawStringLiteralsIncludingABackslash() => View();
+
+    [Route($$"""{{ASlash}}/[action]""")]        // Complaint
+    public IActionResult WithInterpolatedRawStringLiteralsNotIncludingABackslash() => View();
 }
