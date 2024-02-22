@@ -11,7 +11,6 @@ public class TestController : Controller
     {
         _ = Request.Form["id"];                           // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^
-        //          ^^^^
         _ = Request.Form.TryGetValue("id", out _);        // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^
         _ = Request.Form.ContainsKey("id");               // Noncompliant {{Use model binding instead of accessing the raw request data}}
@@ -116,6 +115,5 @@ class RequestService
     public void HandleRequest(HttpRequest request)
     {
         _ = Request.Form["id"]; // Compliant: Not in a controller
-        _ = request.Form["id"]; // Compliant: Not in a controller
     }
 }
