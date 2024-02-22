@@ -15,8 +15,6 @@ public class TestController : Controller
         //          ^^^^
         _ = Request.Form.ContainsKey("id");               // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^
-        _ = Request.Form.Files;                           // Noncompliant {{Use IFormFile or IFormFileCollection binding instead}}
-        //               ^^^^^
         _ = Request.Query["id"];                          // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^^
         _ = Request.Query.TryGetValue("id", out _);       // Noncompliant {{Use model binding instead of accessing the raw request data}}
@@ -25,6 +23,8 @@ public class TestController : Controller
         //          ^^^^^^^^^^^
         _ = Request.RouteValues.TryGetValue("id", out _); // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^^^^^^^^
+        _ = Request.Form.Files;                           // Noncompliant {{Use IFormFile or IFormFileCollection binding instead}}
+        //               ^^^^^
         _ = Request.Form.Files["file"];                   // Noncompliant {{Use IFormFile or IFormFileCollection binding instead}}
         //               ^^^^^
         _ = Request.Form.Files[0];                        // Noncompliant {{Use IFormFile or IFormFileCollection binding instead}}
