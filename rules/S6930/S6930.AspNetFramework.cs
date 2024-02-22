@@ -93,6 +93,7 @@ namespace WithFakeRouteAttribute
     }
 }
 
+// ToDo: Remark for the implementer: suitable for a parameterized test
 public class WithAllTypesOfStrings : Controller
 {
     private const string ASlash = "/";
