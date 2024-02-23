@@ -1,26 +1,98 @@
+This rule reports an issue when the use of ``++std::move++`` prevents the copy elision optimizations from happening.
+
 == Why is this an issue?
 
-Usually, when copying an object, the source object is unchanged, meaning all resources owned by the source objects must be duplicated during the copy operation. If the source object is no longer used, this duplication is inefficient. Since {cpp}11, a move semantic mechanism has been added to detect such cases and replace the expensive copy with a much cheaper move operation that will transfer resources.
+Usually, when copying an object, the source object is unchanged, 
+meaning all resources owned by the source objects must be duplicated during the copy operation. 
+If the source object is no longer used, this duplication is inefficient. 
+Since {cpp}11, a move semantic mechanism has been added to detect such cases and replace the expensive copy with a much cheaper move operation that will transfer resources.
+
+The cornerstone of move semantics is detecting during a "copy" whether the source object will be reused or not. 
+This can be done explicit by the user, by invoking a `std::move` (or different cast to rvalue) on the object.
+In such case the user promises to the compiler that they won't care for the object's current value any longer.
+In addition to that the compile will use move, or skip coping of the object in some situations.
+
+Firstly, the copy will be elided (not performed) or automatically turned into move operation,
+when the temporary object of type `T` is used to initialize a parameter or variable of type `T` or `const T`, 
+or returned from the function that declares `T` or `const T` as return type:
+[source,cpp]
+----
+class A {/* ... */};
+A create();
+
+void asParam(A a);
+
+A returnedFromFunc() {
+  // For all below examples, the object will not be copied,
+  // and either the no copy or move will be performed (as optimization, that is guaranteed since C++17)
+  // or move operation will be used.
+  A a = create();
+  asParam(createA()); 
+  return A();
+}
+----
+
+Calling `std::move` on such object is not only necessary, but will also prevent compiler from performing (inhibit) copy elision,
+and the rule raises issues in that case.
+[source,cpp]
+----
+class A {/* ... */};
+A create();
+
+void asParam(A a);
+
+A returnedFromFunc() {
+  // Move operations needs to be peformed, and cannot be elided.
+  A a = std::move(create()); // Noncomplaint
+  asParam(createA());        // Noncomplaint
+  return A();                // Noncomplaint
+}
+----
+
+Secondly, under certain conditions the local variable or function parameter is implicit moved,
+if it is directly returned (`return x`) from the function.
+In particular, when a variable of type `T` is returned direclty from the function that declares `T` or `const T`
+as a return type:
+[source,cpp]
+----
+class A {/* ... */};
+
+A returnedLocalVar() {
+  A a = create();
+  // Variable a is automatically moved here
+  return a;
+}
+----
+
+This conditions overlaps with the conditions under which copy elision optimization,
+refered as Named Return Value Optimization (NRVO) can be performed by compiler. 
+When this optimization is applied the local variable is returned without any copy or move operation being performed.
+In this case adding `std::move` to the return statment will inhibit this optimization,
+and the rule raises an issues.
+[source,cpp]
+----
+class A {/* ... */};
+
+A returnedLocalVar() {
+  A a = create();
+  // Variable a is moved, but NRVO cannot be perforedm
+  return std::move(a); // Noncomplaint
+}
+----
 
 
-The cornerstone of move semantics is detecting during a "copy" whether the source object will be reused or not. There are three situations:
+=== What if my class does not have move constructr?
 
-* The object is a temporary object with no name, and if it can't be named, it can't be used
-* The object is used in some specific places, such as a return statement
-* The user explicitly promises to the compiler that they won't care for the object's current value any longer. They do so by using the specific cast operation named ``++std::move++``.
-
-If the user writes ``++std::move++`` in one situation that is already handled by the first two cases, it has two drawbacks:
-
-* It is clumsy, useless code, which makes understanding the code more complex
-* In some cases, it can decrease performances because this can deactivate another optimization of the compiler, named copy elision.
-
-When copy elision occurs, the object is neither copied nor moved (even if the copy/move constructors have side effects). The two objects are collapsed into only one memory location. The moment when copy elision occurs is compiler-dependent but is mandatory in the following cases:
+=== What if pass to function accepting rvalue parameters?
 
 
-* in a return statement, if the returned object is a prvalue of the same class type as the function return type
-* in the initialization of a variable, if the initializer expression is a prvalue of the same class type as the variable type
+=== Why the is is not raised for all redundant moves?
 
-This rule reports an issue when the use of ``++std::move++`` prevents the copy elision from happening.
+The requirments from performing an implcit move where relaxed in {cpp}20 and {cpp}23 standards,
+with some of them being applied retroactively.
+As consequence depending on the language and compiler, 
+a call to `std::move` may or not redundant in return statment,
+and thus required for the code to be portable accross compilers.
 
 
 === Noncompliant code example
