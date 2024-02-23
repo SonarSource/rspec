@@ -1,43 +1,42 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using System.Diagnostics.CodeAnalysis;
 
-[Route(@"A\[controller]")]    // Noncompliant {{Replace this `\` with `/`.}}
-//        ^
+[Route(@"A\[controller]")]    // Noncompliant {{Replace `\` with `/`.}}
+//     ^^^^^^^^^^^^^^^^^
 public class BackslashOnControllerUsingVerbatimString : Controller { }
 
-[Route("A\\[controller]")]    // Noncompliant
-//       ^^
+[Route("A\\[controller]")]    // Noncompliant {{Replace `\` with `/`.}}
+//     ^^^^^^^^^^^^^^^^^
 public class BackslashOnControllerUsingEscapeCharacter : Controller { }
 
-[Route("A\\[controller]\\B")] // Noncompliant
-//       ^^
-//                     ^^@-1
+[Route("A\\[controller]\\B")] // Noncompliant {{Replace `\` with `/`.}}
+//     ^^^^^^^^^^^^^^^^^^^^
 public class MultipleBackslashesOnController : Controller { }
 
 public class BackslashOnActionUsingVerbatimString : Controller
 {
-    [Route(@"A\[action]")]    // Noncompliant
-    //        ^
+    [Route(@"A\[action]")]    // Noncompliant {{Replace `\` with `/`.}}
+    //     ^^^^^^^^^^^^^
     public IActionResult Index() => View();
 }
 
 public class BackslashOnActionUsingEscapeCharacter : Controller
 {
     [Route("A\\[action]")]    // Noncompliant
-    //       ^^
+    //     ^^^^^^^^^^^^^
     public IActionResult Index() => View();
 }
 
 public class MultipleBackslashesOnAction : Controller
 {
     [Route("A\\[action]\\B")] // Noncompliant
-    //       ^^
-    //                 ^^@-1
+    //     ^^^^^^^^^^^^^^^^
     public IActionResult Index() => View();
 }
 
 [Route("\\[controller]")]    // Noncompliant
-//      ^^
+//     ^^^^^^^^^^^^^^^^
 public class RouteOnControllerStartingWithBackslash : Controller { }
 
 public class AController : Controller

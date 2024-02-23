@@ -1,43 +1,41 @@
 using System.Web.Mvc;
 using System;
 
-[Route(@"A\[controller]")]    // Noncompliant {{Replace this `\` with `/`.}}
-//        ^
+[Route(@"A\[controller]")]    // Noncompliant {{Replace `\` with `/`.}}
+//     ^^^^^^^^^^^^^^^^^
 public class BackslashOnControllerUsingVerbatimString : Controller { }
 
-[Route("A\\[controller]")]    // Noncompliant
-//       ^^
+[Route("A\\[controller]")]    // Noncompliant {{Replace `\` with `/`.}}
+//     ^^^^^^^^^^^^^^^^^
 public class BackslashOnControllerUsingEscapeCharacter : Controller { }
 
-[Route("A\\[controller]\\B")] // Noncompliant
-//       ^^
-//                     ^^@-1
+[Route("A\\[controller]\\B")] // Noncompliant {{Replace `\` with `/`.}}
+//     ^^^^^^^^^^^^^^^^^^^^
 public class MultipleBackslashesOnController : Controller { }
 
 public class BackslashOnActionUsingVerbatimString : Controller
 {
-    [Route(@"A\[action]")]    // Noncompliant
-    //        ^
+    [Route(@"A\[action]")]    // Noncompliant {{Replace `\` with `/`.}}
+    //     ^^^^^^^^^^^^^
     public ActionResult Index() => View();
 }
 
 public class BackslashOnActionUsingEscapeCharacter : Controller
 {
     [Route("A\\[action]")]    // Noncompliant
-    //       ^^
+    //     ^^^^^^^^^^^^^
     public ActionResult Index() => View();
 }
 
 public class MultipleBackslashesOnAction : Controller
 {
     [Route("A\\[action]\\B")] // Noncompliant
-    //       ^^
-    //                 ^^@-1
+    //     ^^^^^^^^^^^^^^^^
     public ActionResult Index() => View();
 }
 
 [Route("\\[controller]")]    // Noncompliant
-//      ^^
+//     ^^^^^^^^^^^^^^^^
 public class RouteOnControllerStartingWithBackslash : Controller { }
 
 public class AController : Controller
@@ -63,10 +61,10 @@ public class AController : Controller
     public ActionResult WithUrlEscapedBackslash() => View();
 
     [Route("A/{s:regex(^(?!index\\b)[[a-zA-Z0-9-]]+$)}.html")]
-    public ActionResult WithRegexContainingBackslashInLookahead(string s)  => View();  // Compliant: backslash is in regex
+    public ActionResult WithRegexContainingBackslashInLookahead()  => View();  // Compliant: backslash is in regex
 
     [Route("A/{s:datetime:regex(\\d{{4}}-\\d{{2}}-\\d{{4}})}/B")]
-    public ActionResult WithRegexContainingBackslashInMetaEscape(string s)  => View(); // Compliant: backslash is in regex
+    public ActionResult WithRegexContainingBackslashInMetaEscape()  => View(); // Compliant: backslash is in regex
 }
 
 namespace WithAliases
