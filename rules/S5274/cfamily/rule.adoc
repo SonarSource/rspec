@@ -43,9 +43,9 @@ void asParam(A a);
 
 A returnedFromFunc() {
   // Move operations needs to be peformed, and cannot be elided.
-  A a = std::move(create()); // Noncomplaint
-  asParam(createA());        // Noncomplaint
-  return A();                // Noncomplaint
+  A a = std::move(create()); // Noncompliant
+  asParam(createA());        // Noncompliant
+  return A();                // Noncompliant
 }
 ----
 
@@ -76,17 +76,62 @@ class A {/* ... */};
 A returnedLocalVar() {
   A a = create();
   // Variable a is moved, but NRVO cannot be perforedm
-  return std::move(a); // Noncomplaint
+  return std::move(a); // Noncompliant
 }
 ----
 
 
-=== What if my class does not have move constructr?
+=== Why is the issue raised if my class does not have move constructr?
 
-=== What if pass to function accepting rvalue parameters?
+A move itself is not performing any object operation, and casting an source to `rvalue`.
+This leads to the constructor and assigment operator that accepts rvalue refence as parameter,
+also reffered as move constructor and move assigment, to be selectedu by overload resolution.
+However, in situation case if class does not provide such constructor, 
+a copy constructor/assigment will be invoked respectively.
+
+Such invocation of copy constructor may still be eliminated by copy-elision optimizations,
+and thus redundant `std::move` calls that inhibits such optimization, has higher impact in such situations.
+
+[source,cpp]
+----
+class OnlyCopyable {
+  OnlyCopyable(OnlyCopyable const&);
+  /* No move constructor */
+};
+OnlyCopyable create();
+
+void test() {
+  // Forces a move operation, that invokes copy constructor
+  OnlyCopyable c1 = std::move(create()); // Noncompliant
+  // Copy elision elimites invoke of copy constructor
+  OnlyCopyable c2 = create();
+}
+----
+
+=== Why if issue raised when passing argument to reference parameter?
+
+The copy elision optimization applies only if a new value is produced from the source,
+as consequence there are not applied if the parameter is reference to same type:
+
+[source,cpp]
+----
+void process(A&& sink);
+
+void passArgument() {
+  // No move operation is triggered, as parameter is reference
+  process(std::move(createA())); // Noncompliant
+}
+----
+
+Such calls to `std::move` are not inhibiting optimization at this point,
+they will if the `process` function is modified accept `A` by value.
+
+/* TODO: say it reduces maintability */
 
 
 === Why the is is not raised for all redundant moves?
+
+/* TODO: redo */
 
 The requirments from performing an implcit move where relaxed in {cpp}20 and {cpp}23 standards,
 with some of them being applied retroactively.
@@ -94,6 +139,7 @@ As consequence depending on the language and compiler,
 a call to `std::move` may or not redundant in return statment,
 and thus required for the code to be portable accross compilers.
 
+// Do code examples section
 
 === Noncompliant code example
 
