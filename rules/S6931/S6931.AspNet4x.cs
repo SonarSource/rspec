@@ -1,5 +1,6 @@
 using System.Web.Mvc;
 
+// Parameterized test: one test per action, wrapped in its own controller
 [Route("[controller]")]
 public class BasicsController : Controller
 {
@@ -25,6 +26,7 @@ public class BasicsController : Controller
     public ActionResult WithMultipleRouteAttributes() => View();
 }
 
+// Parameterized test: one test per action, wrapped in its own controller
 public class WithAttributeSyntaxVariationsController : Controller
 {
     [Route(template: @"/[action]", Name = "a", Order = 42)] // Noncompliant
@@ -45,16 +47,20 @@ namespace WithAliases
     using MyRoute = RouteAttribute;
     using ASP = System.Web;
 
-    public class TestController : Controller
+    public class WithAliasedRouteAttributeController : Controller // Noncompliant
     {
-        [MyRoute(@"/[controller]")]             // Noncompliant
-        public ActionResult WithAliasedRouteAttribute() => View();
-
-        [ASP.Mvc.RouteAttribute("A\\[action]")] // Noncompliant
-        public ActionResult WithFullQualifiedPartiallyAliasedName() => View();
+        [MyRoute(@"/[controller]")]
+        public ActionResult Index() => View();
     }
+
+    public class WithFullQualifiedPartiallyAliasedNameController : Controller // Noncompliant
+    {
+        [ASP.Mvc.RouteAttribute("A\\[action]")]
+        public ActionResult Index() => View();
+    }    
 }
 
+// Parameterized test: one test per action, wrapped in its own controller
 public class WithAllTypesOfStringsController : Controller
 {
     private const string AConst = "A";

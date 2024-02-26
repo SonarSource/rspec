@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 
+// Parameterized test: one test per action
 [Route("[controller]")]
 public class BasicsController : Controller
 {
@@ -31,6 +32,7 @@ public class BasicsController : Controller
     public IActionResult WithMixedRouteAndHttpGetAttributes() => View();
 }
 
+// Parameterized test: one test per action
 public class WithAllHttpMethodAttributesController : Controller
 {
     [HttpGet("/IndexGet")]         // Noncompliant
@@ -55,14 +57,15 @@ public class WithAllHttpMethodAttributesController : Controller
     public IActionResult WithHttpOptionsAttribute() => View();
 }
 
-public class WithUserDefinedAttributeDerivedFromHttpMethodAttributeController : Controller
+public class WithUserDefinedAttributeDerivedFromHttpMethodAttributeController : Controller // Noncompliant: MyHttpMethodAttribute derives from HttpMethodAttribute
 {
-    [MyHttpMethod("/Index")]       // Noncompliant: MyHttpMethodAttribute derives from HttpMethodAttribute
+    [MyHttpMethod("/Index")]
     public IActionResult WithUserDefinedAttribute() => View();
 
     private sealed class MyHttpMethodAttribute(string template) : HttpMethodAttribute([template]) { }
 }
 
+// Parameterized test: one test per action, wrapped in its own controller
 public class WithAttributeSyntaxVariationsController : Controller
 {
     [Route(template: @"/[action]", Name = "a", Order = 42)] // Noncompliant
@@ -83,16 +86,20 @@ namespace WithAliases
     using MyRoute = RouteAttribute;
     using ASP = Microsoft.AspNetCore;
 
-    public class TestController : Controller
+    public class WithAliasedRouteAttributeController : Controller // Noncompliant
     {
-        [MyRoute(@"/[controller]")]             // Noncompliant
-        public IActionResult WithAliasedRouteAttribute() => View();
-
-        [ASP.Mvc.RouteAttribute("A\\[action]")] // Noncompliant
-        public IActionResult WithFullQualifiedPartiallyAliasedName() => View();
+        [MyRoute(@"/[controller]")]             
+        public IActionResult Index() => View();
     }
+
+    public class WithFullQualifiedPartiallyAliasedNameController : Controller // Noncompliant
+    {
+        [ASP.Mvc.RouteAttribute("A\\[action]")]
+        public IActionResult Index() => View();
+    } 
 }
 
+// Parameterized test: one test per action, wrapped in its own controller
 public class WithAllTypesOfStringsController : Controller
 {
     private const string AConst = "A";
@@ -127,4 +134,67 @@ public class WithAllTypesOfStringsController : Controller
 
     [Route($"{ASlash}[action]")]  // Noncompliant: resolves to a root route
     public IActionResult WithInterpolatedStringResolvingToRootRoute() => View();
+}
+
+public class MultipleActionsAllRoutesStartingWithSlash1Controller : Controller  // Noncompliant
+{
+    [HttpGet("/Index1")]
+    public IActionResult WithHttpGetAttribute() => View();
+
+    [Route("/Index2")]
+    public IActionResult WithRouteAttribute() => View();
+}
+
+public class MultipleActionsAllRoutesStartingWithSlash2Controller : Controller  // Noncompliant
+{
+    [HttpGet("/Index1")]
+    [HttpGet("/Index3")]
+    public IActionResult WithHttpGetAttribute() => View();
+
+    [Route("/Index2")]
+    [Route("/Index4")]
+    [HttpGet("/Index5")]
+    public IActionResult WithRouteAttribute() => View();
+}
+
+[Route("[controller]")]
+public class MultipleActionsAllRoutesStartingWithSlash3Controller : Controller  // Noncompliant
+{
+    [HttpGet("/Index1")]
+    [HttpGet("/Index3")]
+    public IActionResult WithHttpGetAttribute() => View();
+
+    [Route("/Index2")]
+    [Route("/Index4")]
+    [HttpGet("/Index5")]
+    public IActionResult WithRouteAttribute() => View();
+}
+
+public class MultipleActionsSomeRoutesStartingWithSlash1Controller : Controller // Compliant: some routes are relative
+{
+    [HttpGet("Index1")]         
+    public IActionResult WithHttpGetAttribute() => View();
+
+    [Route("/Index2")]
+    public IActionResult WithRouteAttribute() => View();
+}
+
+public class MultipleActionsSomeRoutesStartingWithSlash2Controller : Controller // Compliant: some routes are relative
+{
+    [HttpGet("Index1")]
+    [HttpGet("/Index1")]
+    public IActionResult WithHttpGetAttribute() => View();
+
+    [Route("/Index2")]
+    public IActionResult WithRouteAttribute() => View();
+}
+
+public class MultipleActionsSomeRoutesStartingWithSlash3Controller : Controller // Compliant: some routes are relative
+{
+    [HttpGet("Index1")]
+    [HttpPost("/Index1")]
+    public IActionResult WithHttpGetAttribute() => View();
+
+    [Route("/Index2")]
+    public IActionResult WithRouteAttribute() => View();
 }
