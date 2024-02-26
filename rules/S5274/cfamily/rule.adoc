@@ -8,13 +8,15 @@ If the source object is no longer used, this duplication is inefficient.
 Since {cpp}11, a move semantic mechanism has been added to detect such cases and replace the expensive copy with a much cheaper move operation that will transfer resources.
 
 The cornerstone of move semantics is detecting during a "copy" whether the source object will be reused or not. 
-This can be done explicitly by the user, by invoking a `std::move` (or different cast to rvalue) on the object.
+This can be done explicitly by the user, by invoking `std::move` (or different casts to rvalue) on the object.
 In such case the user promises to the compiler that they won't care for the object's current value any longer.
-In addition to that the compile will implicitly use a move operation, or skip coping of the object in some situations.
+In addition, the compile will implicitly use a move operation or skip copying the object in some situations.
 
-Firstly, the copy will be elided (not performed) or automatically turned into a move operation,
-when the temporary object of type `T` is used to initialize a parameter or variable of type `T` or `const T`, 
-or returned from the function that declares `T` or `const T` as return type:
+
+One case of optimization is that the copy will be elided or automatically turned into a move operation
+when a temporary object of type `T`:
+* is used to initialize a parameter or variable of type `T` or `const T`
+* is returned from the function that declares `T` or `const T` as return type
 [source,cpp]
 ----
 class A {/* ... */};
@@ -23,16 +25,16 @@ A create();
 void asParam(A a);
 
 A returnedFromFunc() {
-  // For all examples below, the object will not be copied,
-  // and either the no copy or move will be performed (as optimization, that is guaranteed since C++17)
-  // or move operation will be used.
+  // For all examples below, the object will not be copied.
+  // Either no copy or move will be performed (as guaranteed optimization since C++17)
+  // or a move operation will be used.
   A a = create();
   asParam(createA()); 
   return A();
 }
 ----
 
-Calling `std::move` on such an object is not only necessary but will also prevent the compiler from performing (inhibit) copy elision,
+Calling `std::move` on such an object is not only necessary but will also prevent the compiler from performing copy-elision,
 and the rule raises issues in that case.
 [source,cpp]
 ----
@@ -49,8 +51,9 @@ A returnedFromFunc() {
 }
 ----
 
-Secondly, under certain conditions, the local variable or function parameter is implicitly moved,
+Another case of optimization is that under certain conditions, the local variable or function parameter is implicitly moved
 if it is directly returned (`return x`) from the function.
+
 In particular, when a variable of type `T` is returned directly from the function that declares `T` or `const T`
 as a return type:
 [source,cpp]
@@ -67,6 +70,7 @@ A returnedLocalVar() {
 These conditions overlap with the conditions under which copy elision optimization,
 referred to as Named Return Value Optimization (NRVO) can be performed by the compiler. 
 When this optimization is applied the local variable is returned without any copy or move operation being performed.
+
 In this case, adding `std::move` to the return statement will inhibit this optimization,
 and the rule raises an issue.
 [source,cpp]
@@ -86,7 +90,7 @@ A returnedLocalVar() {
 A move itself is not performing any object operation, and casting a source to `rvalue`.
 This leads to the constructor and assignment operator that accepts rvalue reference as a parameter,
 also referred to as move constructor and move assignment, to be selected by overload resolution.
-However, in a case when the class does not provide such a constructor, 
+However, when the class does not provide such a constructor,
 a copy constructor/assignment will be invoked respectively.
 
 Such invocation of copy constructor may still be eliminated by copy-elision optimizations,
@@ -120,18 +124,18 @@ void process(A&& sink);
 void passArgument() {
   // No move operation is triggered, as the parameter is a reference to A
   process(std::move(create())); // Noncompliant, makes changes non-local
-  process(create());            // Complaint
+  process(create());            // Compliant
 }
 ----
 
 Such redundant calls to `std::move` are not inhibiting optimization at this point.
 However, when the `process` function is modified to accept `A` by value,
 it will prevent the compiler from eliminating the move operation altogether.
-To fully benefit from performance benefits change, 
-the programmer would need to review and update all call sides and process functions,
+To fully benefit from the performance benefits of this change, 
+the maintainers would need to review and update all call sites and process functions,
 reducing the maintainability of the code.
 
-Moreover, if the parameter is a reference of the type to which the converted object can be converted,
+Moreover, if the parameter is a reference to a type to which the converted object can be converted,
 then copy elision may still happen when initializing the parameter of the converting constructor.
 [source,cpp]
 ----
@@ -142,7 +146,7 @@ class B {
 void processB(B&& sink);
 
 void passArgument() {
-  processB(create());            // Complaint
+  processB(create());            // Compliant
   processB(std::move(create())); // Noncompliant, inhibits copy-elision when initializing constructor parameter
   // This call is equivalent to:
   processB(B(std::move(create()))); // Noncompliant, inhibits copy-elision when initializing constructor parameter 
@@ -151,7 +155,7 @@ void passArgument() {
 
 === Why issues are not raised for all redundant moves?
 
-The requirements from performing an implicit move where relaxed in {cpp}20 and {cpp}23 standards,
+The requirements from performing an implicit move were relaxed in {cpp}20 and {cpp}23 standards,
 with some of them being applied retroactively.
 As a consequence depending on the language and compiler, 
 a call to `std::move` may or not be redundant in the return statement,
@@ -159,7 +163,7 @@ and thus required for the code to be portable accross compilers.
 
 == How to fix it
 
-Remove  call to `std::move` flagged by the rule.
+Remove call to `std::move` flagged by the rule.
 
 === Noncompliant code example
 
