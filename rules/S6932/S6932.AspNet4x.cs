@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Net.Http;
 using System.Web;
@@ -9,19 +11,20 @@ using System.Web.Mvc;
 // * ControllerBase: does not support model binding, so the rule doesn't applies.
 public class TestController : Controller
 {
+    private readonly string Key = "id";
     public ActionResult Post()
     {
         _ = Request.Form["id"]; // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^
-        _ = Request.Form.Get("id"); // Noncompliant {{Use model binding instead of accessing the raw request data}}
+        _ = Request.Form.Get("id"); // Noncompliant
         //          ^^^^
-        _ = Request.Form.GetValues("id"); // Noncompliant {{Use model binding instead of accessing the raw request data}}
+        _ = Request.Form.GetValues("id"); // Noncompliant
         //          ^^^^
         _ = Request.QueryString["id"]; // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^^^^^^^^
-        _ = Request.QueryString.Get("id"); // Noncompliant {{Use model binding instead of accessing the raw request data}}
+        _ = Request.QueryString.Get("id"); // Noncompliant
         //          ^^^^^^^^^^^
-        _ = Request.QueryString.GetValues("id"); // Noncompliant {{Use model binding instead of accessing the raw request data}}
+        _ = Request.QueryString.GetValues("id"); // Noncompliant
         //          ^^^^^^^^^^^
         return default;
     }
@@ -33,6 +36,7 @@ public class TestController : Controller
         _ = Request.Form.Get(@"key"); // Noncompliant
         _ = Request.Form.GetValues(@"key"); // Noncompliant
 
+        _ = Request.Form[Key]; // FN: Key is a readonly field with a constant initializer (Requires cross procedure SE)
         const string key = "id";
         _ = Request.Form[key]; // Noncompliant
         _ = Request.Form.Get(key); // Noncompliant
@@ -40,20 +44,23 @@ public class TestController : Controller
         _ = Request.Form[$"prefix.{key}"]; // Noncompliant
         _ = Request.Form.Get($"prefix.{key}"); // Noncompliant
         _ = Request.Form.GetValues($"prefix.{key}"); // Noncompliant
+        string localKey = "id";
+        _ = Request.Form[localKey]; // FN (Requires SE)
 
         _ = Request.Form[name: "id"]; // Noncompliant
         _ = Request.Form.Get(name: "id"); // Noncompliant
         _ = Request.Form.GetValues(name: "id"); // Noncompliant
     }
 
-    // Parameterized: "Form" and "QueryString" and
+    // Parameterized: Form, QueryString / Request, HttpContext.Request, Request.RequestContext.HttpContext.Request, ControllerContext.RequestContext.HttpContext.Request
+    // Implementation: Consider adding a CombinatorialDataAttribute https://stackoverflow.com/a/75531690
     void Compliant(string key)
     {
         // Compliant: Accessing by index is not supported by model binding
         _ = Request.Form[0];
         _ = Request.Form.Get(0);
         _ = Request.Form.GetValues(0);
-        // Compliant: key is not a compile time constant
+        // Compliant: Key is not a compile time constant
         _ = Request.Form[key];
         _ = Request.Form.Get(key);
         _ = Request.Form.GetValues(key);
@@ -66,10 +73,16 @@ public class TestController : Controller
         Request.Form.Set("id", "value");
         Request.Form.Add("id", "value");
         Request.Form.Remove("id");
+        _ = Request["id"]; // Reads from Cookies, Form, QueryString, and ServerVariables
+    }
+
+    void WebFormsHttpRequest(HttpRequest request)
+    {
+        _ = request.Form["id"]; // Compliant: HttpRequest is used in WebForms pages and is not the same as HttpRequestBase HttpRequest { get; } in a Controller
     }
 
     // parameterized test: parameters are the different forbidden Request accesses (see above)
-    private static void HandleRequest(HttpRequest request)
+    private static void HandleRequest(HttpRequestBase request)
     {
         _ = request.Form["id"]; // Noncompliant: Containing type is a controller
         void LocalFunction()
@@ -77,6 +90,70 @@ public class TestController : Controller
             _ = request.Form["id"]; // Noncompliant: Containing type is a controller
         }
     }
+}
+
+public class CodeBlocksController : Controller
+{
+    public CodeBlocksController()
+    {
+        _ = Request.Form["id"]; // Noncompliant
+    }
+
+    public CodeBlocksController(object o) => _ = Request.Form["id"]; // Noncompliant
+
+    HttpRequestBase ValidRequest => Request;
+    NameValueCollection Form => Request.Form;
+
+    string P1 => Request.Form["id"]; // Noncompliant
+    string P2
+    {
+        get => Request.Form["id"]; // Noncompliant
+        set => Request.Form["id"] = value; // Noncompliant
+    }
+    string P3
+    {
+        get
+        {
+            return Request.Form["id"]; // Noncompliant
+        }
+        set
+        {
+            Request.Form["id"] = value; // Noncompliant
+        }
+    }
+    void M1() => _ = Request.Form["id"]; // Noncompliant
+    void M2()
+    {
+        Func<string> f1 = () => Request.Form["id"];  // Noncompliant
+        Func<object, string> f2 = x => Request.Form["id"];  // Noncompliant
+        Func<object, string> f3 = delegate (object x) { return Request.Form["id"]; };  // Noncompliant
+    }
+    void M3()
+    {
+        _ = (true ? Request.Form : Request.QueryString)["id"]; // FN: Noncompliant
+        _ = ValidatedRequest().Form["id"]; // Noncompliant
+        _ = ValidRequest.Form["id"];
+        _ = Form["id"];      //  FN: Noncompliant, requires cross method SE
+        _ = this.Form["id"]; //  FN: Noncompliant, requires cross method SE 
+        _ = new CodeBlocksController().Form["id"]; //  Compliant
+        
+        HttpRequestBase ValidatedRequest() => Request;
+    }
+
+    void M4()
+    {
+        _ = this.Request.Form["id"]; // Noncompliant
+        _ = Request?.Form?["id"]; // Noncompliant
+        _ = Request?.Form?.GetValues("id"); // Noncompliant
+        _ = Request.Form?.GetValues("id"); // Noncompliant
+        _ = Request.Form?.GetValues("id")?.ToString(); // Noncompliant
+        _ = HttpContext.Request.Form["id"]; // Noncompliant
+        _ = Request.RequestContext.HttpContext.Request.Form["id"]; // Noncompliant
+        _ = this.ControllerContext.RequestContext.HttpContext.Request.Form["id"]; // Noncompliant
+        var r1 = HttpContext.Request; _ = r1.Form["id"]; // Noncompliant
+        var r2 = ControllerContext; _ = r2.RequestContext.HttpContext.Request.Form["id"]; // Noncompliant
+    }
+    ~CodeBlocksController() => _ = Request.Form["id"]; // Noncompliant
 }
 
 // parameterized test: Repeat for Controller, MyBaseController, MyBaseBaseController base classes
@@ -95,7 +172,7 @@ public class MyTestController : MyBaseBaseController
 static class HttpRequestExtensions
 {
     // parameterized test: parameters are the different forbidden Request accesses (see above)
-    public static void Ext(this HttpRequest request)
+    public static void Ext(this HttpRequestBase request)
     {
         _ = request.Form["id"]; // Compliant: Not in a controller
     }
@@ -103,12 +180,13 @@ static class HttpRequestExtensions
 
 class RequestService
 {
-    public HttpRequest Request { get; }
+    public HttpRequestBase Request { get; }
 
     // parameterized test: parameters are the different forbidden Request accesses (see above)
-    public void HandleRequest(HttpRequest request)
+    public void HandleRequest(HttpRequestBase request)
     {
         _ = Request.Form["id"]; // Compliant: Not in a controller
+        _ = request.Form["id"]; // Compliant: Not in a controller
     }
 }
 
