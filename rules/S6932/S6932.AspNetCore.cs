@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace WebApplication1.Controllers;
-
 public class TestController : Controller
 {
+    private readonly string Key = "id";
+
     public IActionResult Post()
     {
         _ = Request.Form["id"];                           // Noncompliant {{Use model binding instead of accessing the raw request data}}
@@ -15,6 +16,12 @@ public class TestController : Controller
         //          ^^^^
         _ = Request.Form.ContainsKey("id");               // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^
+        _ = Request.Headers["id"];                        // Noncompliant {{Use model binding instead of accessing the raw request data}}
+        //          ^^^^^^^
+        _ = Request.Headers.TryGetValue("id", out _);     // Noncompliant {{Use model binding instead of accessing the raw request data}}
+        //          ^^^^^^^
+        _ = Request.Headers.ContainsKey("id");            // Noncompliant {{Use model binding instead of accessing the raw request data}}
+        //          ^^^^^^^
         _ = Request.Query["id"];                          // Noncompliant {{Use model binding instead of accessing the raw request data}}
         //          ^^^^^
         _ = Request.Query.TryGetValue("id", out _);       // Noncompliant {{Use model binding instead of accessing the raw request data}}
@@ -40,14 +47,15 @@ public class TestController : Controller
         return default;
     }
 
-    // Parameterized for "Form", "Query" and "RouteValues"
+    // Parameterized for "Form", "Query", "RouteValues", "Headers"
     void NoncompliantKeyVariations()
     {
         _ = Request.Form[@"key"];                                 // Noncompliant
         _ = Request.Form.TryGetValue(@"key", out _);              // Noncompliant
         _ = Request.Form["""key"""];                              // Noncompliant
         _ = Request.Form.TryGetValue("""key""", out _);           // Noncompliant
-        
+
+        _ = Request.Form[Key];                                    // FN: Key is a readonly field with a constant initializer (Requires cross procedure SE)
         const string key = "id";
         _ = Request.Form[key];                                    // Noncompliant
         _ = Request.Form.TryGetValue(key, out _);                 // Noncompliant
@@ -55,21 +63,24 @@ public class TestController : Controller
         _ = Request.Form.TryGetValue($"prefix.{key}", out _);     // Noncompliant
         _ = Request.Form[$"""prefix.{key}"""];                    // Noncompliant
         _ = Request.Form.TryGetValue($"""prefix.{key}""", out _); // Noncompliant
+        string localKey = "id";
+        _ = Request.Form[localKey];                               // FN (Requires SE)
 
         _ = Request.Form[key: "id"];                              // Noncompliant
         _ = Request.Form.TryGetValue(value: out _, key: "id");    // Noncompliant
     }
 
-    // Parameterized for "Form", "Query", and "RouteValues"
-    async Task Compliant(string key)
+    // Parameterized for Form, Headers, Query, RouteValues / Request, this.Request, ControllerContext.HttpContext.Request / [FromForm], [FromQuery], [FromRoute], [FromHeader]
+    // Implementation: Consider adding a CombinatorialDataAttribute https://stackoverflow.com/a/75531690
+    async Task Compliant([FromForm] string key)
     {
         _ = Request.Form.Keys;
         _ = Request.Form.Count;
         foreach (var kvp in Request.Form) { }
         _ = Request.Form.Select(x => x);
         _ = Request.Form[key];                // Compliant: The accessed key is not a compile time constant
-        _ = Request.Cookies["coockie"];       // Compliant: Cookies are not bound by default
-        _ = Request.QueryString;              // FN: QueryString is the whole raw string. We should raise for Request.QueryString.Split() calls
+        _ = Request.Cookies["cookie"];        // Compliant: Cookies are not bound by default
+        _ = Request.QueryString;              // QueryString is the whole raw string.
         _ = await Request.ReadFormAsync();    // Compliant: This might be used for optimization purposes e.g. conditional form value access.
     }
 
@@ -87,6 +98,66 @@ public class TestController : Controller
         }
     }
 }
+
+public class CodeBlocksController : Controller
+{
+    public CodeBlocksController()
+    {
+        _ = Request.Form["id"]; // Noncompliant
+    }
+
+    public CodeBlocksController(object o) => _ = Request.Form["id"]; // Noncompliant
+
+    HttpRequest ValidRequest => Request;
+    IFormCollection Form => Request.Form;
+
+    string P1 => Request.Form["id"]; // Noncompliant
+    string P2
+    {
+        get => Request.Form["id"]; // Noncompliant
+    }
+    string P3
+    {
+        get
+        {
+            return Request.Form["id"]; // Noncompliant
+        }
+    }
+    void M1() => _ = Request.Form["id"]; // Noncompliant
+    void M2()
+    {
+        Func<string> f1 = () => Request.Form["id"];  // Noncompliant
+        Func<object, string> f2 = x => Request.Form["id"];  // Noncompliant
+        Func<object, string> f3 = delegate (object x) { return Request.Form["id"]; };  // Noncompliant
+    }
+    void M3()
+    {
+        _ = (true ? Request : Request).Form["id"]; // Noncompliant
+        _ = ValidatedRequest().Form["id"]; // Noncompliant
+        _ = ValidRequest.Form["id"];
+        _ = Form["id"];      //  FN: Noncompliant, requires cross method SE
+        _ = this.Form["id"]; //  FN: Noncompliant, requires cross method SE 
+        _ = new CodeBlocksController().Form["id"]; //  Compliant
+
+        HttpRequest ValidatedRequest() => Request;
+    }
+
+    void M4()
+    {
+        _ = this.Request.Form["id"]; // Noncompliant
+        _ = Request?.Form?["id"]; // Noncompliant
+        _ = Request?.Form?.TryGetValue("id", out _); // Noncompliant
+        _ = Request.Form?.TryGetValue("id", out _); // Noncompliant
+        _ = Request.Form?.TryGetValue("id", out _).ToString(); // Noncompliant
+        _ = HttpContext.Request.Form["id"]; // Noncompliant
+        _ = Request.HttpContext.Request.Form["id"]; // Noncompliant
+        _ = this.ControllerContext.HttpContext.Request.Form["id"]; // Noncompliant
+        var r1 = HttpContext.Request; _ = r1.Form["id"]; // Noncompliant
+        var r2 = ControllerContext; _ = r2.HttpContext.Request.Form["id"]; // Noncompliant
+    }
+    ~CodeBlocksController() => _ = Request.Form["id"]; // Noncompliant
+}
+
 
 // parameterized test: Repeat for Controller, ControllerBase, MyBaseController, MyBaseBaseController base classes
 public class MyBaseController : ControllerBase { }
@@ -115,5 +186,6 @@ class RequestService
     public void HandleRequest(HttpRequest request)
     {
         _ = Request.Form["id"]; // Compliant: Not in a controller
+        _ = request.Form["id"]; // Compliant: Not in a controller
     }
 }
