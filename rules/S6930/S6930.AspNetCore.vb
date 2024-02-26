@@ -4,7 +4,7 @@ Public Class BackslashOnController : Inherits Controller : End Class
 <Route("A\[controller]\B")> ' Noncompliant ^8#18 {{Replace `\` with `/`.}}
 Public Class MultipleBackslashesOnController : Inherits Controller : End Class
 
-Public Class BackslashOnAction
+Public Class BackslashOnActionController
     Inherits Controller
 
     <Route("A\[action]")>   ' Noncompliant ^12#12 {{Replace `\` with `/`.}}
@@ -13,7 +13,7 @@ Public Class BackslashOnAction
     End Function
 End Class
 
-Public Class MultipleBackslashesOnAction
+Public Class MultipleBackslashesOnActionController
     Inherits Controller
 
     <Route("A\[action]\B")> ' Noncompliant ^12#14 {{Replace `\` with `/`.}}
@@ -23,7 +23,7 @@ Public Class MultipleBackslashesOnAction
 End Class
 
 <Route("\[controller]")>    ' Noncompliant
-Public Class RouteOnControllerStartingWithBackslash
+Public Class RouteOnControllerStartingWithBackslashController
     Inherits Controller
 End Class
 
@@ -78,7 +78,7 @@ Public Class AController
     End Function
 End Class
 
-Public Class WithAllTypesOfStrings
+Public Class WithAllTypesOfStringsController
     Inherits Controller
 
     Private Const AConstStringIncludingABackslash As String = "A\"

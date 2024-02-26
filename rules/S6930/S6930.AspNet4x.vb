@@ -8,7 +8,7 @@ Public Class MultipleBackslashesOnController
     Inherits Controller
 End Class
 
-Public Class BackslashOnAction
+Public Class BackslashOnActionController
     Inherits Controller
 
     <Route("A\[action]")>   ' Noncompliant ^12#11 {{Replace `\` with `/`.}}
@@ -17,7 +17,7 @@ Public Class BackslashOnAction
     End Function
 End Class
 
-Public Class MultipleBackslashesOnAction
+Public Class MultipleBackslashesOnActionController
     Inherits Controller
 
     <Route("A\[action]\B")> ' Noncompliant ^12#13 {{Replace `\` with `/`.}}
@@ -27,7 +27,7 @@ Public Class MultipleBackslashesOnAction
 End Class
 
 <Route("\[controller]")>
-Public Class RouteOnControllerStartingWithBackslash
+Public Class RouteOnControllerStartingWithBackslashController
     Inherits Controller
 End Class
 

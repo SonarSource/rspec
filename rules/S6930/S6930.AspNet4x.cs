@@ -3,31 +3,31 @@ using System;
 
 [Route(@"A\[controller]")]    // Noncompliant {{Replace `\` with `/`.}}
 //     ^^^^^^^^^^^^^^^^^
-public class BackslashOnControllerUsingVerbatimString : Controller { }
+public class BackslashOnControllerUsingVerbatimStringController : Controller { }
 
 [Route("A\\[controller]")]    // Noncompliant {{Replace `\` with `/`.}}
 //     ^^^^^^^^^^^^^^^^^
-public class BackslashOnControllerUsingEscapeCharacter : Controller { }
+public class BackslashOnControllerUsingEscapeCharacterController : Controller { }
 
 [Route("A\\[controller]\\B")] // Noncompliant {{Replace `\` with `/`.}}
 //     ^^^^^^^^^^^^^^^^^^^^
 public class MultipleBackslashesOnController : Controller { }
 
-public class BackslashOnActionUsingVerbatimString : Controller
+public class BackslashOnActionUsingVerbatimStringController : Controller
 {
     [Route(@"A\[action]")]    // Noncompliant {{Replace `\` with `/`.}}
     //     ^^^^^^^^^^^^^
     public ActionResult Index() => View();
 }
 
-public class BackslashOnActionUsingEscapeCharacter : Controller
+public class BackslashOnActionUsingEscapeCharacterController : Controller
 {
     [Route("A\\[action]")]    // Noncompliant
     //     ^^^^^^^^^^^^^
     public ActionResult Index() => View();
 }
 
-public class MultipleBackslashesOnAction : Controller
+public class MultipleBackslashesOnActionController : Controller
 {
     [Route("A\\[action]\\B")] // Noncompliant
     //     ^^^^^^^^^^^^^^^^
@@ -36,7 +36,7 @@ public class MultipleBackslashesOnAction : Controller
 
 [Route("\\[controller]")]    // Noncompliant
 //     ^^^^^^^^^^^^^^^^
-public class RouteOnControllerStartingWithBackslash : Controller { }
+public class RouteOnControllerStartingWithBackslashController : Controller { }
 
 public class AController : Controller
 {
@@ -73,16 +73,16 @@ namespace WithAliases
     using ASP = System.Web;
 
     [MyRoute(@"A\[controller]")]            // Noncompliant
-    public class WithAliasedRouteAttribute : Controller { }
+    public class WithAliasedRouteAttributeController : Controller { }
 
     [ASP.Mvc.RouteAttribute("A\\[action]")] // Noncompliant
-    public class WithFullQualifiedPartiallyAliasedName : Controller { }
+    public class WithFullQualifiedPartiallyAliasedNameController : Controller { }
 }
 
 namespace WithFakeRouteAttribute
 {
     [Route(@"A\[controller]")]      // Compliant: not a real RouteAttribute
-    public class AController : Controller { }
+    public class AControllerController : Controller { }
 
     [AttributeUsage(AttributeTargets.Class)]
     public class RouteAttribute : Attribute
@@ -92,7 +92,7 @@ namespace WithFakeRouteAttribute
 }
 
 // ToDo: Remark for the implementer: suitable for a parameterized test
-public class WithAllTypesOfStrings : Controller
+public class WithAllTypesOfStringsController : Controller
 {
     private const string ASlash = "/";
     private const string ABackSlash = @"\";
