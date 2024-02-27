@@ -139,7 +139,7 @@ public class WithAllTypesOfStringsController : Controller
 public class MultipleActionsAllRoutesStartingWithSlash1Controller : Controller  // Noncompliant
 {
     [HttpGet("/Index1")]
-    public IActionResult WithHttpGetAttribute() => View();
+    public IActionResult WithHttpAttribute() => View();
 
     [Route("/Index2")]
     public IActionResult WithRouteAttribute() => View();
@@ -149,12 +149,12 @@ public class MultipleActionsAllRoutesStartingWithSlash2Controller : Controller  
 {
     [HttpGet("/Index1")]
     [HttpGet("/Index3")]
-    public IActionResult WithHttpGetAttribute() => View();
+    public IActionResult WithHttpAttributes() => View();
 
     [Route("/Index2")]
     [Route("/Index4")]
     [HttpGet("/Index5")]
-    public IActionResult WithRouteAttribute() => View();
+    public IActionResult WithRouteAndHttpAttributes() => View();
 }
 
 [Route("[controller]")]
@@ -162,18 +162,18 @@ public class MultipleActionsAllRoutesStartingWithSlash3Controller : Controller  
 {
     [HttpGet("/Index1")]
     [HttpGet("/Index3")]
-    public IActionResult WithHttpGetAttribute() => View();
+    public IActionResult WithHttpAttributes() => View();
 
     [Route("/Index2")]
     [Route("/Index4")]
     [HttpGet("/Index5")]
-    public IActionResult WithRouteAttribute() => View();
+    public IActionResult WithRouteAndHttpAttributes() => View();
 }
 
 public class MultipleActionsSomeRoutesStartingWithSlash1Controller : Controller // Compliant: some routes are relative
 {
     [HttpGet("Index1")]         
-    public IActionResult WithHttpGetAttribute() => View();
+    public IActionResult WithHttpAttribute() => View();
 
     [Route("/Index2")]
     public IActionResult WithRouteAttribute() => View();
@@ -183,7 +183,7 @@ public class MultipleActionsSomeRoutesStartingWithSlash2Controller : Controller 
 {
     [HttpGet("Index1")]
     [HttpGet("/Index1")]
-    public IActionResult WithHttpGetAttribute() => View();
+    public IActionResult WithHttpAttributes() => View();
 
     [Route("/Index2")]
     public IActionResult WithRouteAttribute() => View();
@@ -193,8 +193,69 @@ public class MultipleActionsSomeRoutesStartingWithSlash3Controller : Controller 
 {
     [HttpGet("Index1")]
     [HttpPost("/Index1")]
-    public IActionResult WithHttpGetAttribute() => View();
+    public IActionResult WithHttpAttributes() => View();
 
     [Route("/Index2")]
     public IActionResult WithRouteAttribute() => View();
+}
+
+class ControllerRequirementsInfluenceActionsCheck
+{
+    [NonController]
+    public class NotAController : Controller                    // Compliant: not a controller
+    { 
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+
+    public class ControllerWithoutControllerSuffix : Controller // Noncompliant
+    { 
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+
+    [Controller]
+    public class ControllerWithControllerAttribute : Controller // Noncompliant
+    { 
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+
+    internal class InternalController : Controller              // Noncompliant 
+    { 
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+
+    protected class ProtectedController : Controller            // Noncompliant 
+    { 
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+
+    private protected class PrivateProtectedController : Controller     // Noncompliant 
+    { 
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+
+    public class ControllerWithoutParameterlessConstructor : Controller // Noncompliant 
+    {
+        public ControllerWithoutParameterlessConstructor(int i) { }
+
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+}
+
+class InheritingFromFakeControllerDoesntInfluenceActionsCheck
+{
+    [NonController]  // Compliant  
+    public class NotAController : Controller 
+    { 
+        [Route("/Index1")]
+        public IActionResult Index() => View();
+    }
+
+    public class Controller { public IActionResult View() => null; }
 }
