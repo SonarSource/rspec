@@ -207,15 +207,15 @@ class WithAllControllerEndpointRouteBuilderExtensionsMethods
     void OtherMethods(WebApplication app)
     {
         app.MapAreaControllerRoute("default", "area", "{controller=Home}\\{action=Index}/{id?}");             // Noncompliant
-        //                                                              ^^
+        //                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         app.MapFallbackToAreaController("{controller=Home}\\{action=Index}", "action", "controller", "area"); // Noncompliant
         app.MapFallbackToAreaController("\\action", "\\controller", "\\area");                                // Compliant
         app.MapFallbackToController(@"\action", @"\controller");                                              // Compliant
         app.MapFallbackToController("{controller=Home}\\{action=Index}", "\\action", "\\controller");         // Noncompliant
-        //                                            ^^
+        //                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         app.MapFallbackToPage("\\action");                                                                    // Compliant
         app.MapFallbackToPage("{controller=Home}\\{action=Index}", "\\page");                                 // Noncompliant
-        //                                      ^^
+        //                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         app.MapDynamicControllerRoute<ATransformer>("{controller=Home}\\{action=Index}");                     // Noncompliant
         app.MapDynamicControllerRoute<ATransformer>("{controller=Home}\\{action=Index}", new object());       // Noncompliant
         app.MapDynamicControllerRoute<ATransformer>("{controller=Home}\\{action=Index}", new object(), 3);    // Noncompliant
