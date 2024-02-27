@@ -80,7 +80,7 @@ public class TestController : Controller
         _ = Request.Form.Select(x => x);
         _ = Request.Form[key];                // Compliant: The accessed key is not a compile time constant
         _ = Request.Cookies["cookie"];        // Compliant: Cookies are not bound by default
-        _ = Request.QueryString;              // QueryString is the whole raw string.
+        _ = Request.QueryString;              // Compliant: Accessing the whole raw string is fine.
         _ = await Request.ReadFormAsync();    // Compliant: This might be used for optimization purposes e.g. conditional form value access.
     }
 
