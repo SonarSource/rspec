@@ -5,31 +5,34 @@ using Microsoft.AspNetCore.Mvc.Routing;
 [Route("[controller]")]
 public class BasicsController : Controller
 {
-    [HttpGet("/Index1")]        // Noncompliant
+    [HttpGet("/Index1")]         // Noncompliant
     public IActionResult WithHttpGetAttribute() => View();
 
-    [Route("/Index2")]          // Noncompliant
+    [Route("/Index2")]           // Noncompliant
     public IActionResult WithRouteAttribute() => View();
 
-    [HttpGet("\\Index1")]       // Compliant: backslash is not the root route
-    public IActionResult WithBackslashAndHttpGetAttribute() => View();
+    [HttpGet("\\Index1")]        // Compliant: backslash is not the root route
+    public IActionResult WithBackslashInHttpGetAttribute() => View();
 
-    [Route("\\Index2")]         // Compliant
-    public IActionResult WithBackslashAndRouteAttribute() => View();
+    [Route("\\Index2")]          // Compliant
+    public IActionResult WithBackslashInRouteAttribute() => View();
 
-    [HttpGet("Index1/SubPath")] // Compliant: not a root route
-    public IActionResult WithSlashForSubPathAndHttpGetAttribute() => View();
+    [HttpGet("Index1/SubPath")]  // Compliant: not a root route
+    public IActionResult WithSlashForSubPathInHttpGetAttribute() => View();
 
-    [Route("Index2/SubPath")]   // Compliant: not a root route
-    public IActionResult WithSlashForSubPathAndRouteAttribute() => View();
+    [HttpGet("/Index1/SubPath")] // Noncompliant
+    public IActionResult WithSlashForRootAndSubPathInHttpGetAttribute() => View();
 
-    [Route("/IndexA")]          // Noncompliant
-    [Route("/IndexB")]          // Noncompliant
+    [Route("Index2/SubPath")]    // Compliant: not a root route
+    public IActionResult WithSlashForSubPathInRouteAttribute() => View();
+
+    [Route("/IndexA")]           // Noncompliant
+    [Route("/IndexB")]           // Noncompliant
     public IActionResult WithMultipleRouteAttributes() => View();
 
-    [Route("/IndexC")]          // Noncompliant
-    [HttpGet("/IndexD")]        // Noncompliant
-    public IActionResult WithMixedRouteAndHttpGetAttributes() => View();
+    [Route("/IndexC")]           // Noncompliant
+    [HttpGet("/IndexD")]         // Noncompliant
+    public IActionResult WithMixedRouteInHttpGetAttributes() => View();
 }
 
 // Parameterized test: one test per action
