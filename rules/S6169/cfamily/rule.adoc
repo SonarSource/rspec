@@ -1,26 +1,153 @@
+This rule raises an issue when `std::is_constant_evaluated()` or `if consteval` is used in context,
+where they are always produce same result, i.e. always be `true` or `false`.
+
 == Why is this an issue?
 
-``++std::is_constant_evaluated++`` is used to determine whether or not a context is constant-evaluated. This can be useful when, for example, two different implementations are provided for an algorithm: one, usually slow, for compile-time and the other one, faster, for runtime.
+The `std::is_constant_evaluated` function (since {cpp}20) and the `if consteval` language construct (since {cpp}23) is used to determine whether the evaluation is performed at compile time or runtime.
+This can be useful when, for example, two different implementations are provided for an algorithm: 
+one, that does not perform any io operations and is compatible with compile-time evaluation and the other one, for runtime that emits log entries as side effects.
+
+However, some contexts are either always constant-evaluated or never constant-evaluated.
+In these cases, a call to `std::is_constant_evaluated` is unnecessary as it will always return the same result,
+similarly `if (not) consteval` will always evalute same branch.
 
 
-However, some contexts are either always constant-evaluated or never constant-evaluated. In these cases, a call to ``++std::is_constant_evaluated++`` is unnecessary as it will always return the same result.
+This rule will raise issues for context, where expression are always evaluated at compile time, and:
 
-``++std::is_constant_evaluated++`` will always return ``++true++`` when called in:
+* `std::is_constant_evaluated++` will always return `true`,
+* `if conteval { /* then-branch */ }` will always be `true` and evalute `then-branch`,
+* `if !consteval { /* then-branch */ } else { /* else-branch */}` will always be `false` and evaluate `else-branch`.
 
-* the condition of ``++if constexpr++``
-* the condition of ``++static_assert++``
-* ``++consteval++`` functions
-
-And it will always return ``++false++`` in:
-
-* non-``++constexpr++``/``++consteval++`` functions
-
-This rule raises an issue when ``++std::is_constant_evaluated()++`` is called in an ``++if constexpr++`` or a ``++static_assert++`` condition, where it is always ``++true++``.
-
-
-=== Noncompliant code example
-
+The conditions of the `if constexpr` and `static_assert` are always constant evaluated:
 [source,cpp]
+----
+constexpr double power(double b, int x) {
+  if constexpr (std::is_constant_evaluated()) {  // Noncompliant: will always be true
+    // compile-time implementation
+  } else {
+    // runtime implementation
+  }
+}
+
+static_assert(std::is_constant_evaluted()); // Noncompliant: will always return true
+----
+
+Similarly the initialization of the variables declared `constexpr` or `constinit` is performed at compile time:
+[source,cpp]
+----
+constexpr int size = std::is_constant_evaluated() ? 10 : 20; // Noncompliant: will always return true
+constinit int val = std::is_constant_evaluated() ? 20 : 30; // Noncompliant: will always return true
+---- 
+
+Finally, all expression inside immediate context are constant-evaluated, 
+this include body of `consteval` function, `true` branch of `if consteval`, and `false` branch of `if not consteval`.
+[source,cpp]
+----
+consteval bool onlyCompileTimeFunc() {
+  if consteval {  // Noncompliant: always true
+    /* Always taken branch */
+  } else {
+    /* Never taken branch */
+  }
+  
+  if not consteval { // Noncompliant: always false
+    /* Never taken branch */
+  } else {
+    /* Always taken branch */
+  }
+
+  bool ce = std::is_constant_evaluated(); // Noncompliant: will always returns true
+  return std::is_constant_evaluated(); // Noncompliant: will always returns true
+}
+
+constexpr bool possiblyCompileTimeFunc() {
+  if consteval {
+    if consteval { // Noncompliant: will always be true
+      /* .... */ 
+    }
+    if not consetval { // Noncompliant: will always be false
+      /* .... */
+    }
+    return std::is_constant_evaluated(); // Noncompliant: will always returns true
+  }
+
+  if ! consteval {
+    /* Runtime branch */
+  } else {
+    return std::is_constant_evaluated(); // Noncompliant: will always returns true
+  }
+
+  return std::is_constant_evaluated(); // Compliant: depend on evaluation
+}
+----
+
+In contrast the bodies of functions that are not `constexpr` or `consteval`, `false` branch of `if consteval`, and `true` branch of `if not consteval`,
+are always evaluated at runtime. As consequence: 
+
+* `std::is_constant_evaluated++` will always return `false`,
+* `if consteval { /* then-branch */ } else { /* else-branch */}` will always be `false` and evaluate `else-branch`.
+* `if !consteval { /* then-branch */ }` will always be `true` and evaluate `else-branch`.
+
+This rule also raises issues in above situations:
+[source,cpp]
+----
+bool onlyRuntimeFunc() {
+  if consteval { // Noncompliant: always false
+    /* Never taken branch */
+  } else {
+    /* Always taken branch */
+  }
+
+  if not consteval {  // Noncompliant: always true
+    /* Always taken branch */
+  } else {
+    /* Never taken branch */
+  }
+
+  bool ce = std::is_constant_evaluated(); // Noncompliant: will always returns false
+  return std::is_constant_evaluated(); // Noncompliant: will always returns false
+}
+
+constexpr bool possiblyCompileTimeFunc() {
+  if not consteval {
+    if consteval { // Noncompliant: will always be false
+      /* ... */ 
+    }
+    if not consetval { // Noncompliant: will always be true
+      /* .... */
+    }
+    return std::is_constant_evaluated(); // Noncompliant: will always returns false
+  }
+
+  if consteval {
+    /* Compile-time branch */
+  } else {
+    return std::is_constant_evaluated(); // Noncompliant: will always returns false
+  }
+
+  return std::is_constant_evaluated(); // Compliant: depend on evaluation
+}
+----
+
+=== Imediately invoked lamnds
+=== Immediate escalation.
+
+=== ?? Constant varibles
+
+== How to fix it?
+
+Depending on the context, the issue may be fixed by:
+
+* changing the context of invocation: removing `constexpr` from `if` or changing function from `consteval` to `constexpr`
+* removing dead code: replacing `std::is_constant_evaluated()` with the produced value, removing `if consteval` and dead branches
+
+== Code examples
+
+Changing `if constexpr` into `if`, so the condition is not longer always evaluted at compile time. 
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 constexpr double power(double b, int x) {
   if constexpr (std::is_constant_evaluated()) {  // Noncompliant: will always be true
@@ -31,10 +158,9 @@ constexpr double power(double b, int x) {
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 constexpr double power(double b, int x) {
   if (std::is_constant_evaluated()) {
@@ -45,4 +171,84 @@ constexpr double power(double b, int x) {
 }
 ----
 
+Removing dead branches and inlining result of `std::is_constant_evaluated()`.
 
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+constexpr bool possiblyCompileTimeFunc() {
+  if consteval {
+    if consteval { // Noncompliant: will always be true
+      /* Code A */ 
+    }
+    if not consetval { // Noncompliant: will always be false
+      /* Code B */
+    }
+    return std::is_constant_evaluated(); // Noncompliant: will always returns true
+  }
+
+  if ! consteval {
+    /* Code C */
+  }
+
+  return std::is_constant_evaluated(); // Compliant: result depends on evaluation
+}
+----
+
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+constexpr bool possiblyCompileTimeFunc() {
+  if consteval {
+      /* Code A */ 
+    return true;
+  }
+
+  if ! consteval {
+    /* Code C */
+  }
+ 
+  return std::is_constant_evaluated(); // Compliant: result depends on evaluation
+}
+----
+
+Changing function to be declared as `constexpr` to allow runtime evaluation:
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+consteval bool onlyCompileTimeFunc() {
+  if consteval {  // Noncompliant: always true
+    /* Code A */
+  } else {
+    /* Code B */
+  }
+  
+  return std::is_constant_evaluated(); // Noncompliant: will always returns true
+}
+----
+
+==== Compliant solution
+
+----
+constexpr bool onlyCompileTimeFunc() {
+  if consteval { // Compliant: result depends on evaluation
+    /* Code A */
+  } else {
+    /* Code B */
+  }
+  
+  return std::is_constant_evaluated(); // Compliant: result depends on evaluation
+}
+----
+
+
+== Resources
+
+=== Documentation
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/consteval[consteval specifier]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/if#Consteval_if[Consteval if]
