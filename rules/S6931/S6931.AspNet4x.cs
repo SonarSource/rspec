@@ -25,6 +25,15 @@ public class NoncompliantController : Controller // Noncompliant {{Change the pa
     public ActionResult Index4() => View();
 }
 
+[RoutePrefix("[controller]")]
+public class NoncompliantWithRoutePrefixController : Controller // Noncompliant {{Change the paths of the actions of this controller to be relative and adapt the controller route accordingly.}}
+//           ^^^^^^^^^^^^^^^^^^^^^^
+{
+    [Route("/Index1")]                  // Secondary
+    //     ^^^^^^^^^
+    public ActionResult Index1() => View();
+}
+
 [Route("[controller]")]
 [Route("[controller]/[action]")]
 public class NoncompliantMultiRouteController : Controller // Noncompliant {{Change the paths of the actions of this controller to be relative and adapt the controller route accordingly.}}
