@@ -1,6 +1,105 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 
+[Route("[controller]")]
+public class NoncompliantController : Controller // Noncompliant
+{
+    [Route("/Index1")]
+    public IActionResult Index1() => View();
+
+    [Route("/SubPath/Index2")]
+    public IActionResult Index2() => View();
+
+    [HttpGet("/[action]")]
+    public IActionResult Index3() => View();
+
+    [HttpGet("/SubPath/Index4_1")]
+    [HttpGet("/[controller]/Index4_2")]
+    public IActionResult Index4() => View();
+}
+
+[Route("[controller]")]
+[Route("[controller]/[action]")]
+public class NoncompliantMultiRouteController : Controller // Noncompliant
+{
+    [Route("/Index1")]
+    public IActionResult Index1() => View();
+
+    [Route("/SubPath/Index2")]
+    public IActionResult Index2() => View();
+
+    [HttpGet("/[action]")]
+    public IActionResult Index3() => View();
+
+    [HttpGet("/SubPath/Index4_1")]
+    [HttpGet("/[controller]/Index4_2")]
+    public IActionResult Index4() => View();
+}
+
+[Route("[controller]")]
+public class CompliantController : Controller // Compliant: at least one action has at least a relative route
+{
+    [Route("/Index1")]
+    public IActionResult Index1() => View();
+
+    [Route("/SubPath/Index2")]
+    public IActionResult Index2() => View();
+
+    [HttpGet("/[action]")]
+    public IActionResult Index3() => View();
+
+    [HttpGet("/[controller]/Index4_1")]
+    [HttpGet("SubPath/Index4_2")] // The relative route
+    public IActionResult Index4() => View();
+}
+
+public class NoncompliantNoControllerRouteController : Controller // Noncompliant
+{
+    [Route("/Index1")]
+    public IActionResult Index1() => View();
+
+    [Route("/SubPath/Index2")]
+    public IActionResult Index2() => View();
+
+    [HttpGet("/[action]")]
+    public IActionResult Index3() => View();
+
+    [HttpGet("/SubPath/Index4_1")]
+    [HttpGet("/[controller]/Index4_2")]
+    public IActionResult Index4() => View();
+}
+
+public class CompliantNoControllerRouteNoActionRouteController : Controller // Compliant
+{
+    public IActionResult Index1() => View(); // Default route -> relative
+
+    [Route("/SubPath/Index2")]
+    public IActionResult Index2() => View();
+
+    [HttpGet("/[action]")]
+    public IActionResult Index3() => View();
+
+    [HttpGet("/SubPath/Index4_1")]
+    [HttpGet("/[controller]/Index4_2")]
+    public IActionResult Index4() => View();
+}
+
+public class CompliantNoControllerRouteEmptyActionRouteController : Controller // Compliant
+{
+    [HttpGet]
+    public IActionResult Index1() => View(); // Empty route -> relative
+
+    [Route("/SubPath/Index2")]
+    public IActionResult Index2() => View();
+
+    [HttpGet("/[action]")]
+    public IActionResult Index3() => View();
+
+    [HttpGet("/SubPath/Index4_1")]
+    [HttpGet("/[controller]/Index4_2")]
+    public IActionResult Index4() => View();
+}
+
 // Parameterized test: there should be one dedicated test per action, wrapped in its own controller.
 // The noncompliant/compliant comment should be moved from the action level to the controller level.
 [Route("[controller]")]
@@ -94,7 +193,7 @@ namespace WithAliases
 
     public class WithAliasedRouteAttributeController : Controller // Noncompliant
     {
-        [MyRoute(@"/[controller]")]             
+        [MyRoute(@"/[controller]")]
         public IActionResult Index() => View();
     }
 
@@ -102,7 +201,7 @@ namespace WithAliases
     {
         [ASP.Mvc.RouteAttribute("A\\[action]")]
         public IActionResult Index() => View();
-    } 
+    }
 }
 
 // Parameterized test: there should be one dedicated test per action, wrapped in its own controller.
@@ -179,7 +278,7 @@ public class MultipleActionsAllRoutesStartingWithSlash3Controller : Controller  
 
 public class MultipleActionsSomeRoutesStartingWithSlash1Controller : Controller // Compliant: some routes are relative
 {
-    [HttpGet("Index1")]         
+    [HttpGet("Index1")]
     public IActionResult WithHttpAttribute() => View();
 
     [Route("/Index2")]
@@ -210,43 +309,43 @@ class ControllerRequirementsInfluenceActionsCheck
 {
     [NonController]
     public class NotAController : Controller                    // Compliant: not a controller
-    { 
+    {
         [Route("/Index1")]
         public IActionResult Index() => View();
     }
 
     public class ControllerWithoutControllerSuffix : Controller // Noncompliant
-    { 
+    {
         [Route("/Index1")]
         public IActionResult Index() => View();
     }
 
     [Controller]
     public class ControllerWithControllerAttribute : Controller // Noncompliant
-    { 
+    {
         [Route("/Index1")]
         public IActionResult Index() => View();
     }
 
-    internal class InternalController : Controller              // Noncompliant 
-    { 
+    internal class InternalController : Controller              // Noncompliant
+    {
         [Route("/Index1")]
         public IActionResult Index() => View();
     }
 
-    protected class ProtectedController : Controller            // Noncompliant 
-    { 
+    protected class ProtectedController : Controller            // Noncompliant
+    {
         [Route("/Index1")]
         public IActionResult Index() => View();
     }
 
-    private protected class PrivateProtectedController : Controller     // Noncompliant 
-    { 
+    private protected class PrivateProtectedController : Controller     // Noncompliant
+    {
         [Route("/Index1")]
         public IActionResult Index() => View();
     }
 
-    public class ControllerWithoutParameterlessConstructor : Controller // Noncompliant 
+    public class ControllerWithoutParameterlessConstructor : Controller // Noncompliant
     {
         public ControllerWithoutParameterlessConstructor(int i) { }
 
@@ -257,9 +356,9 @@ class ControllerRequirementsInfluenceActionsCheck
 
 class InheritingFromFakeControllerDoesntInfluenceActionsCheck
 {
-    [NonController]  // Compliant  
-    public class NotAController : Controller 
-    { 
+    [NonController]  // Compliant
+    public class NotAController : Controller
+    {
         [Route("/Index1")]
         public IActionResult Index() => View();
     }
