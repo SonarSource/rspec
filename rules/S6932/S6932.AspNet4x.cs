@@ -5,6 +5,8 @@ using System.Net.Http;
 using System.Web;
 using System.Web.Http;
 using System.Web.Mvc;
+using System.Web.Mvc.Filters;
+using System.Web.Routing;
 
 // Hints: 
 // * ApiController: does not expose QueryString or Form directly. The rule does not apply there. See MyApiController test case for details.
@@ -136,7 +138,7 @@ public class CodeBlocksController : Controller
         _ = Form["id"];      //  FN: Noncompliant, requires cross method SE
         _ = this.Form["id"]; //  FN: Noncompliant, requires cross method SE 
         _ = new CodeBlocksController().Form["id"]; //  Compliant
-        
+
         HttpRequestBase ValidatedRequest() => Request;
     }
 
@@ -169,6 +171,90 @@ public class MyTestController : MyBaseBaseController
     }
 }
 
+public class OverridesController : Controller
+{
+    public void Action()
+    {
+        _ = Request.Form["id"]; // Noncompliant.
+    }
+    private void Undecidable(HttpContextBase context)
+    {
+        // Implementation: It might be difficult to distinguish between access to "Request" that originate from overrides vs. "Request" access that originate from action methods.
+        // This is especially true for "Request" which originate from parameters like here. We may need to redeclare such cases as FNs (see e.g HandleRequest above).
+        _ = context.Request.Form["id"]; // Undecidable: request may originate from an action method (which supports binding), or from one of the following overrides (which don't).
+    }
+    private void Undecidable(HttpRequestBase request)
+    {
+        _ = request.Form["id"]; // Undecidable: request may originate from an action method (which supports binding), or from one of the following overloads (which don't).
+    }
+
+    protected override void Initialize(RequestContext requestContext)
+    {
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void Execute(RequestContext requestContext)
+    {
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override IAsyncResult BeginExecute(RequestContext requestContext, AsyncCallback callback, object state)
+    {
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        return default;
+    }
+    protected override void OnActionExecuted(ActionExecutedContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void OnActionExecuting(ActionExecutingContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void OnAuthentication(AuthenticationContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void OnAuthenticationChallenge(AuthenticationChallengeContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void OnAuthorization(AuthorizationContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void OnException(ExceptionContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void OnResultExecuted(ResultExecutedContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void OnResultExecuting(ResultExecutingContext filterContext)
+    {
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+}
+
+public class OverridesControllerBase : ControllerBase
+{
+    protected override void Initialize(RequestContext requestContext)
+    {
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void Execute(RequestContext requestContext)
+    {
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    protected override void ExecuteCore() => throw new NotImplementedException();
+}
+
+public class OverridesIController : IController
+{
+    public void Execute(RequestContext requestContext)
+    {
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+}
 static class HttpRequestExtensions
 {
     // parameterized test: parameters are the different forbidden Request accesses (see above)
