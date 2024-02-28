@@ -2,37 +2,49 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 
 [Route("[controller]")]
-public class NoncompliantController : Controller // Noncompliant
+public class NoncompliantController : Controller // Noncompliant {{Change the paths of the actions of this controller to be relative and adapt the controller route accordingly.}}
+//           ^^^^^^^^^^^^^^^^^^^^^^
 {
-    [Route("/Index1")]
+    [Route("/Index1")]                  // Secondary
+    //     ^^^^^^^^^
     public IActionResult Index1() => View();
 
-    [Route("/SubPath/Index2")]
+    [Route("/SubPath/Index2")]          // Secondary
+    //     ^^^^^^^^^^^^^^^^^
     public IActionResult Index2() => View();
 
-    [HttpGet("/[action]")]
+    [HttpGet("/[action]")]              // Secondary
+    //       ^^^^^^^^^^^
     public IActionResult Index3() => View();
 
-    [HttpGet("/SubPath/Index4_1")]
-    [HttpGet("/[controller]/Index4_2")]
+    [HttpGet("/SubPath/Index4_1")]      // Secondary
+    //       ^^^^^^^^^^^^^^^^^^^
+    [HttpGet("/[controller]/Index4_2")] // Secondary
+    //       ^^^^^^^^^^^^^^^^^^^^^^^^
     public IActionResult Index4() => View();
 }
 
 [Route("[controller]")]
 [Route("[controller]/[action]")]
-public class NoncompliantMultiRouteController : Controller // Noncompliant
+public class NoncompliantMultiRouteController : Controller // Noncompliant {{Change the paths of the actions of this controller to be relative and adapt the controller route accordingly.}}
+//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 {
-    [Route("/Index1")]
+    [Route("/Index1")]                  // Secondary
+    //     ^^^^^^^^^
     public IActionResult Index1() => View();
 
-    [Route("/SubPath/Index2")]
+    [Route("/SubPath/Index2")]          // Secondary
+    //     ^^^^^^^^^^^^^^^^^
     public IActionResult Index2() => View();
 
-    [HttpGet("/[action]")]
+    [HttpGet("/[action]")]              // Secondary
+    //       ^^^^^^^^^^^
     public IActionResult Index3() => View();
 
-    [HttpGet("/SubPath/Index4_1")]
-    [HttpGet("/[controller]/Index4_2")]
+    [HttpGet("/SubPath/Index4_1")]      // Secondary
+    //       ^^^^^^^^^^^^^^^^^^^
+    [HttpGet("/[controller]/Index4_2")] // Secondary
+    //       ^^^^^^^^^^^^^^^^^^^^^^^^
     public IActionResult Index4() => View();
 }
 
@@ -53,19 +65,19 @@ public class CompliantController : Controller // Compliant: at least one action 
     public IActionResult Index4() => View();
 }
 
-public class NoncompliantNoControllerRouteController : Controller // Noncompliant
+public class NoncompliantNoControllerRouteController : Controller // Noncompliant {{Change the paths of the actions of this controller to be relative and add a controller route with the common prefix.}}
 {
-    [Route("/Index1")]
+    [Route("/Index1")]                          // Secondary
     public IActionResult Index1() => View();
 
-    [Route("/SubPath/Index2")]
+    [Route("/SubPath/Index2")]                  // Secondary
     public IActionResult Index2() => View();
 
-    [HttpGet("/[action]")]
+    [HttpGet("/[action]")]                      // Secondary
     public IActionResult Index3() => View();
 
-    [HttpGet("/SubPath/Index4_1")]
-    [HttpGet("/[controller]/Index4_2")]
+    [HttpGet("/SubPath/Index4_1")]              // Secondary
+    [HttpGet("/[controller]/Index4_2")]         // Secondary
     public IActionResult Index4() => View();
 }
 
@@ -163,7 +175,7 @@ public class WithAllHttpMethodAttributesController : Controller
 
 public class WithUserDefinedAttributeDerivedFromHttpMethodAttributeController : Controller // Noncompliant: MyHttpMethodAttribute derives from HttpMethodAttribute
 {
-    [MyHttpMethod("/Index")]
+    [MyHttpMethod("/Index")] // Secondary
     public IActionResult WithUserDefinedAttribute() => View();
 
     private sealed class MyHttpMethodAttribute(string template) : HttpMethodAttribute([template]) { }
@@ -193,13 +205,13 @@ namespace WithAliases
 
     public class WithAliasedRouteAttributeController : Controller // Noncompliant
     {
-        [MyRoute(@"/[controller]")]
+        [MyRoute(@"/[controller]")] // Secondary
         public IActionResult Index() => View();
     }
 
     public class WithFullQualifiedPartiallyAliasedNameController : Controller // Noncompliant
     {
-        [ASP.Mvc.RouteAttribute("A\\[action]")]
+        [ASP.Mvc.RouteAttribute("A\\[action]")] // Secondary
         public IActionResult Index() => View();
     }
 }
@@ -244,35 +256,35 @@ public class WithAllTypesOfStringsController : Controller
 
 public class MultipleActionsAllRoutesStartingWithSlash1Controller : Controller  // Noncompliant
 {
-    [HttpGet("/Index1")]
+    [HttpGet("/Index1")] // Secondary
     public IActionResult WithHttpAttribute() => View();
 
-    [Route("/Index2")]
+    [Route("/Index2")]   // Secondary
     public IActionResult WithRouteAttribute() => View();
 }
 
 public class MultipleActionsAllRoutesStartingWithSlash2Controller : Controller  // Noncompliant
 {
-    [HttpGet("/Index1")]
-    [HttpGet("/Index3")]
+    [HttpGet("/Index1")] // Secondary
+    [HttpGet("/Index3")] // Secondary
     public IActionResult WithHttpAttributes() => View();
 
-    [Route("/Index2")]
-    [Route("/Index4")]
-    [HttpGet("/Index5")]
+    [Route("/Index2")]   // Secondary
+    [Route("/Index4")]   // Secondary
+    [HttpGet("/Index5")] // Secondary
     public IActionResult WithRouteAndHttpAttributes() => View();
 }
 
 [Route("[controller]")]
 public class MultipleActionsAllRoutesStartingWithSlash3Controller : Controller  // Noncompliant
 {
-    [HttpGet("/Index1")]
-    [HttpGet("/Index3")]
+    [HttpGet("/Index1")] // Secondary
+    [HttpGet("/Index3")] // Secondary
     public IActionResult WithHttpAttributes() => View();
 
-    [Route("/Index2")]
-    [Route("/Index4")]
-    [HttpGet("/Index5")]
+    [Route("/Index2")]   // Secondary
+    [Route("/Index4")]   // Secondary
+    [HttpGet("/Index5")] // Secondary
     public IActionResult WithRouteAndHttpAttributes() => View();
 }
 
@@ -316,32 +328,32 @@ class ControllerRequirementsInfluenceActionsCheck
 
     public class ControllerWithoutControllerSuffix : Controller // Noncompliant
     {
-        [Route("/Index1")]
+        [Route("/Index1")] // Secondary
         public IActionResult Index() => View();
     }
 
     [Controller]
     public class ControllerWithControllerAttribute : Controller // Noncompliant
     {
-        [Route("/Index1")]
+        [Route("/Index1")] // Secondary
         public IActionResult Index() => View();
     }
 
     internal class InternalController : Controller              // Noncompliant
     {
-        [Route("/Index1")]
+        [Route("/Index1")] // Secondary
         public IActionResult Index() => View();
     }
 
     protected class ProtectedController : Controller            // Noncompliant
     {
-        [Route("/Index1")]
+        [Route("/Index1")] // Secondary
         public IActionResult Index() => View();
     }
 
     private protected class PrivateProtectedController : Controller     // Noncompliant
     {
-        [Route("/Index1")]
+        [Route("/Index1")] // Secondary
         public IActionResult Index() => View();
     }
 
@@ -349,17 +361,17 @@ class ControllerRequirementsInfluenceActionsCheck
     {
         public ControllerWithoutParameterlessConstructor(int i) { }
 
-        [Route("/Index1")]
+        [Route("/Index1")] // Secondary
         public IActionResult Index() => View();
     }
 }
 
 class InheritingFromFakeControllerDoesntInfluenceActionsCheck
 {
-    [NonController]  // Compliant
-    public class NotAController : Controller
+    [NonController]
+    public class NotAController : Controller // Compliant
     {
-        [Route("/Index1")]
+        [Route("/Index1")] // Secondary
         public IActionResult Index() => View();
     }
 
