@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 
-// Parameterized test: one test per action
+// Parameterized test: there should be one dedicated test per action, wrapped in its own controller.
+// The noncompliant/compliant comment should be moved from the action level to the controller level.
 [Route("[controller]")]
 public class BasicsController : Controller
 {
@@ -35,7 +36,8 @@ public class BasicsController : Controller
     public IActionResult WithMixedRouteInHttpGetAttributes() => View();
 }
 
-// Parameterized test: one test per action
+// Parameterized test: there should be one dedicated test per action, wrapped in its own controller.
+// The noncompliant/compliant comment should be moved from the action level to the controller level.
 public class WithAllHttpMethodAttributesController : Controller
 {
     [HttpGet("/IndexGet")]         // Noncompliant
@@ -68,7 +70,8 @@ public class WithUserDefinedAttributeDerivedFromHttpMethodAttributeController : 
     private sealed class MyHttpMethodAttribute(string template) : HttpMethodAttribute([template]) { }
 }
 
-// Parameterized test: one test per action, wrapped in its own controller
+// Parameterized test: there should be one dedicated test per action, wrapped in its own controller.
+// The noncompliant/compliant comment should be moved from the action level to the controller level.
 public class WithAttributeSyntaxVariationsController : Controller
 {
     [Route(template: @"/[action]", Name = "a", Order = 42)] // Noncompliant
@@ -102,7 +105,8 @@ namespace WithAliases
     } 
 }
 
-// Parameterized test: one test per action, wrapped in its own controller
+// Parameterized test: there should be one dedicated test per action, wrapped in its own controller.
+// The noncompliant/compliant comment should be moved from the action level to the controller level.
 public class WithAllTypesOfStringsController : Controller
 {
     private const string AConst = "A";
