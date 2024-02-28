@@ -165,7 +165,83 @@ constexpr bool ce = [] () {
 }();
 ----
 
-=== Immediate escalation.
+=== When `constexpr` function becomes immediate (`consteval`)?
+
+A immediate (`consteval`) function can be invoked only at compile time,
+and thus requires that all arguments are know at compile time,
+i.e. either there are constants or the function is invoked in immediate context:
+[source,cpp]
+----
+consteval int process(int);
+float process(float);
+
+constexpr void foo(int x) {
+  return process(x); // ill-formed, process cannot be called at compile-time
+}
+----
+
+In case of non-template functions, this can be fixed by putting the call
+to immediate function inside of `if consteval` block.
+However, in case of templates, it is possible that depending on the template paramteter,
+an immediate or runtime function will be called.
+In such case the compiler will automatically change enclosing function to
+immediate function, in process reffered to as immediate-escalation:
+
+[source,cpp]
+----
+consteval int process(int);
+float process(float);
+
+template<typename T>
+constexpr void foo(T x) { 
+  // Calls `consteval` process if T = int, and runtimne for T = float.
+  // foo<int> is promoted to immediate function.
+  return process(x); // immediate call if T = int, and runtime for T = float
+}
+----
+
+The same behavior is applied for the lambdas, both generic and non-generic,
+if they contains immediate invocation.
+
+As conseqeunce uses of `std::is_cosntant_evaluted()` and `if consteval` may be redundant,
+in case of immiediate escallated lambda or function template instnations.
+This rule will raise issues, if such uses are redundant for all possible specializations
+of lambda or template:
+
+[source,cpp]
+----
+consteval int process(int);
+float process(float);
+
+template<typename T>
+constexpr void conditionalImmediate(T x) {
+  process(x); // Calls consteval function depending on argument type
+  return std::is_constant_evaluted(); // Compliant: not all specialization are immiedate
+}
+
+template<typename T>
+constexpr void alwaysImiediate(T x, int t) {
+  process(t); // Always call consteval function
+  return std::is_constant_evaluted(); // Nonompliant: all specializations are immiedate
+}
+
+constexprauto nonGenericLambda = [](int x) {
+  process(x); // Always call consteval function
+  return std::is_constant_evaluted(); // Nonompliant: lambda is immediate
+}
+
+template<typename T>
+constexpr auto = conditionalGenericLambda = [] (auto x) {
+  process(x); // Calls consteval function depending on argument type
+  return std::is_constant_evaluted(); // Compliant: not all specialization are immiedate
+}
+
+template<typename T>
+constexpr auto alwaysGenericLambda = [](T x, int t) {
+  process(t); // Always call consteval function
+  return std::is_constant_evaluted(); // Nonompliant: all specializations are immiedate
+}
+----
 
 === ?? Constant varibles
 
@@ -287,3 +363,8 @@ constexpr bool onlyCompileTimeFunc() {
 === Documentation
 * {cpp} reference - https://en.cppreference.com/w/cpp/language/consteval[consteval specifier]
 * {cpp} reference - https://en.cppreference.com/w/cpp/language/if#Consteval_if[Consteval if]
+
+=== Standards
+
+ * Open Standards - https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2564r3.html[P2564R3] `consteval` needs to propagate up
+
