@@ -7,10 +7,10 @@ The `std::is_constant_evaluated` function (since {cpp}20) and the `if consteval`
 This can be useful when, for example, two different implementations are provided for an algorithm: 
 one, that does not perform any io operations and is compatible with compile-time evaluation, and the other one, for runtime that emits log entries as side effects.
 
-However, some contexts are either always constant-evaluated or never constant-evaluated.
-In these cases, a call to `std::is_constant_evaluated` is unnecessary as it will always return the same result,
-similarly `if (not) consteval` will always evaluate the same branch.
-
+This constructs should be used inside the functions that are `constexpr`, and thus can be evaluted both at compile-time and runtime.
+When used inside context that either always evaluated at compile or always evaluted at runtime,
+a call to `std::is_constant_evaluated` will always return the same result, similarly `if (not) consteval` will always evaluate the same branch,
+making their uses redundant.
 
 This rule will raise issues for context, where expressions are always evaluated at compile time, and:
 
@@ -61,7 +61,7 @@ consteval bool onlyCompileTimeFunc() {
 }
 
 constexpr bool possiblyCompileTimeFunc() {
-  if consteval {
+  if consteval { // Complaint: depends on the call side
     if consteval { // Noncompliant: will always be true
       /* .... */ 
     }
@@ -71,13 +71,13 @@ constexpr bool possiblyCompileTimeFunc() {
     return std::is_constant_evaluated(); // Noncompliant: will always returns true
   }
 
-  if ! consteval {
+  if ! consteval { // Complaint: depends on the call side
     /* Runtime branch */
   } else {
     return std::is_constant_evaluated(); // Noncompliant: will always returns true
   }
 
-  return std::is_constant_evaluated(); // Compliant: depend on evaluation
+  return std::is_constant_evaluated(); // Compliant: depends on call side
 }
 ----
 
@@ -88,7 +88,7 @@ are always evaluated at runtime. As consequence:
 * `if consteval { /* then-branch */ } else { /* else-branch */}` will always be `false` and evaluate `else-branch`.
 * `if !consteval { /* then-branch */ }` will always be `true` and evaluate `else-branch`.
 
-This rule also raises issues in the above situations:
+This rule also raises issues for uses of these construct in this runtime only constexts.
 [source,cpp]
 ----
 bool onlyRuntimeFunc() {
@@ -109,7 +109,7 @@ bool onlyRuntimeFunc() {
 }
 
 constexpr bool possiblyCompileTimeFunc() {
-  if not consteval {
+  if not consteval { // Complaint: depends on the call side
     if consteval { // Noncompliant: will always be false
       /* ... */ 
     }
@@ -119,17 +119,52 @@ constexpr bool possiblyCompileTimeFunc() {
     return std::is_constant_evaluated(); // Noncompliant: will always returns false
   }
 
-  if consteval {
+  if consteval { // Complaint: depends on the call side
     /* Compile-time branch */
   } else {
     return std::is_constant_evaluated(); // Noncompliant: will always returns false
   }
 
-  return std::is_constant_evaluated(); // Compliant: depend on evaluation
+  return std::is_constant_evaluated(); // Compliant: depends on call side
 }
 ----
 
-=== Imediately invoked lamnds
+=== When issues are raised from lambdas?
+
+Call operator of the lambda, can be explicitly marked `consteval`,
+and in such case it can be invoked only at compile time, and the rule raises an issue:
+
+[source,cpp]
+----
+[] () consteval {
+  if consteval {  // Noncompliant: always true
+    /* .... */
+  }
+  return std::is_constant_evaluated(); // Noncompliant: will always returns true
+};
+----
+
+Otherwise, the lambda call operator is implicitly considered to be `constexpr`,
+regardless if it is marked so.
+This means that the lambda can be invoked at compile time, 
+and uses of the the `std::is_constant_evaluated()` and `if consteval` are not redundant.
+
+However, when lambda is invoked locally only in compile time or runtime context, 
+uses of such functions are still redundant.
+In particular, this is clear, when the lambda is immiediatelly invoked, for exmaple
+to initializer variable, and the rule will raise issue in such situation:
+
+[source,cpp]
+----
+// The lambnda is provably invoked at compile-time only:
+constexpr bool ce = [] () {
+  if consteval {  // Noncompliant: always true
+    return true;
+  }
+  return false;
+}();
+----
+
 === Immediate escalation.
 
 === ?? Constant varibles
