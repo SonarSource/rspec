@@ -202,7 +202,38 @@ public class OverridesController : Controller
     }
 }
 
-    static class HttpRequestExtensions
+// parameterized test for PocoController, [Controller]Poco
+public class PocoController : IActionFilter, IAsyncActionFilter
+{
+    public void OnActionExecuted(ActionExecutedContext context)
+    {
+        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    void IActionFilter.OnActionExecuted(Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext context)
+    {
+        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    public void OnActionExecuting(ActionExecutingContext context)
+    {
+        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    void IActionFilter.OnActionExecuting(ActionExecutingContext context)
+    {
+        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+    }
+    public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        return Task.CompletedTask;
+    }
+    Task IAsyncActionFilter.OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        return Task.CompletedTask;
+    }
+}
+
+static class HttpRequestExtensions
 {
     // parameterized test: parameters are the different forbidden Request accesses (see above)
     public static void Ext(this HttpRequest request)
