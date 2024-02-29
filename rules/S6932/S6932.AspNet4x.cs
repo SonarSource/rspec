@@ -175,7 +175,7 @@ public class OverridesController : Controller
 {
     public void Action()
     {
-        _ = Request.Form["id"]; // Noncompliant.
+        _ = Request.Form["id"]; // Noncompliant
     }
     private void Undecidable(HttpContextBase context)
     {
@@ -190,48 +190,48 @@ public class OverridesController : Controller
 
     protected override void Initialize(RequestContext requestContext)
     {
-        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void Execute(RequestContext requestContext)
     {
-        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override IAsyncResult BeginExecute(RequestContext requestContext, AsyncCallback callback, object state)
     {
-        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
         return default;
     }
     protected override void OnActionExecuted(ActionExecutedContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void OnActionExecuting(ActionExecutingContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void OnAuthentication(AuthenticationContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void OnAuthenticationChallenge(AuthenticationChallengeContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void OnAuthorization(AuthorizationContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void OnException(ExceptionContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void OnResultExecuted(ResultExecutedContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void OnResultExecuting(ResultExecutingContext filterContext)
     {
-        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = filterContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
 }
 
@@ -239,11 +239,11 @@ public class OverridesControllerBase : ControllerBase
 {
     protected override void Initialize(RequestContext requestContext)
     {
-        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void Execute(RequestContext requestContext)
     {
-        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     protected override void ExecuteCore() => throw new NotImplementedException();
 }
@@ -252,7 +252,7 @@ public class OverridesIController : IController
 {
     public void Execute(RequestContext requestContext)
     {
-        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = requestContext.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
 }
 static class HttpRequestExtensions

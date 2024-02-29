@@ -175,7 +175,7 @@ public class OverridesController : Controller
 {
     public void Action()
     {
-        _ = Request.Form["id"]; // Noncompliant.
+        _ = Request.Form["id"]; // Noncompliant 
     }
     private void Undecidable(HttpContext context)
     {
@@ -189,15 +189,15 @@ public class OverridesController : Controller
     }
     public override void OnActionExecuted(ActionExecutedContext context)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     public override void OnActionExecuting(ActionExecutingContext context)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     public override Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
         return base.OnActionExecutionAsync(context, next);
     }
 }
@@ -207,28 +207,28 @@ public class PocoController : IActionFilter, IAsyncActionFilter
 {
     public void OnActionExecuted(ActionExecutedContext context)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     void IActionFilter.OnActionExecuted(Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext context)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     public void OnActionExecuting(ActionExecutingContext context)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     void IActionFilter.OnActionExecuting(ActionExecutingContext context)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
     }
     public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
         return Task.CompletedTask;
     }
     Task IAsyncActionFilter.OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        _ = context.HttpContext.Request.Form["id"]; // Compliant. Model binding is not supported here
+        _ = context.HttpContext.Request.Form["id"]; // Compliant: Model binding is not supported here
         return Task.CompletedTask;
     }
 }
