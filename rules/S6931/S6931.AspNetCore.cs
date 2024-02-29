@@ -371,7 +371,7 @@ class InheritingFromFakeControllerDoesntInfluenceActionsCheck
     [NonController]
     public class NotAController : Controller // Compliant
     {
-        [Route("/Index1")] // Secondary
+        [Route("/Index1")]
         public IActionResult Index() => View();
     }
 
