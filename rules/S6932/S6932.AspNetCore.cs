@@ -161,6 +161,7 @@ public class CodeBlocksController : Controller
 
 
 // parameterized test: Repeat for Controller, ControllerBase, MyBaseController, MyBaseBaseController base classes
+// consider adding "PageModel" to the parametrized test but functional tests and updates to the RSpec are needed.
 public class MyBaseController : ControllerBase { }
 public class MyBaseBaseController : MyBaseController { }
 public class MyTestController : MyBaseBaseController
@@ -203,6 +204,7 @@ public class OverridesController : Controller
 }
 
 // parameterized test for PocoController, [Controller]Poco
+// consider adding "PageModel" to the parametrized test but functional tests and updates to the RSpec are needed.
 public class PocoController : IActionFilter, IAsyncActionFilter
 {
     public void OnActionExecuted(ActionExecutedContext context)
