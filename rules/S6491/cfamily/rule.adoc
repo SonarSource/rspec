@@ -2,36 +2,84 @@
 
 `std::format` and the related formatting functions provide two different options to pad numerical values up to a specific width:
 
-* The usual character padding that applies to many types and looks like: `std::format(“{:*>5}”, num);`. This adds as many '*' characters as necessary to reach a width of 5.
+* Custom character padding: this option can align text to the left, center, or right using any character.  +
+  For example, `std::format("{:*>5}", num)` aligns `num` to the right (`>`) by inserting `*` characters until it reaches a width of 5.
 
-* Adding the number 0 just before the width to declare numeric padding: `std::format(“{:05}”, num);`. This numeric padding adds 0 before the number and therefore takes no alignment option.
+* Numeric padding with `0`: this option is available for most arithmetic types and is enabled by adding `0` before the width specifier. +
+  For example, `std::format("{:05}", num)` adds enough `0` before `num` to align it to the right and reach a width of 5.
 
-When working with numeric values, one almost always wants to use the numeric padding as it works correctly with signed numbers:
-
-[source,cpp]
-----
-std::format("{:0>5}", -10); // Usual padding, prints 00-10
-std::format("{:05}", -10);  // Numeric padding, -0010
-----
-
-This rule raises an issue when a format specification uses '0' as a padding character instead of using numeric padding.
-
-=== Noncompliant code example
+`0` can also be used as a custom character padding, but this syntax is confusing and may produce unexpected results when aligning negative values to the right:
 
 [source,cpp]
 ----
-void formatted(int i, double d) {
- std::cout << std::format("{:0>5}\n", i); // Noncompliant
- std::cout << std::format("{:0>#5}\n", d); // Noncompliant
+// Noncompliant: character padding results in "00-10"
+std::format("{:0>5}", -10) // "0" is a custom character padding here.
+
+// Compliant: numeric padding results in "-0010"
+std::format("{:05}", -10) // The ">" was removed; "0" now means numeric padding.
+----
+
+== How to fix it
+
+This rule raises an issue when a format specification uses `0` as a custom padding character to right-align a value instead of using the numeric padding.
+
+=== Code examples
+
+This example shows how custom character padding and numeric padding differ when formatting a floating-point variable `num`. It uses a sign specifier (`{plus}`) and the alternative form (`#`).
+
+As a side note, numeric padding also works with other specifiers to change the type representation, set the precision, apply locale-specific formatting, etc.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+auto stringify(float num) {
+  return std::format("{:0>+#5}", num); // Noncompliant: custom character padding with "0"
 }
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+A compliant solution is to remove the alignment specifier (`>`) and move the `0` right before the width specifier (`5`) to change its semantics:
+
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-void formatted(int i, double d) {
- std::cout << std::format("{:05}\n", i); // Compliant
- std::cout << std::format("{:#05}\n", d); // Compliant
+auto stringify(float num) {
+  return std::format("{:+#05}", num); // Numeric padding.
 }
 ----
+
+Here are examples of outputs for the two code snippets:
+
+[cols="1,1,1"]
+|===
+| Value of `num` | Noncompliant output | Compliant output
+
+| `10`
+| `"0+10."`
+| `"+010."`
+
+| `-10`
+| `"0-10."`
+| `"-010."`
+
+| `NAN`
+| `"0+nan"`
+| `" +nan"`
+
+| `-INFINITY`
+| `"0-inf"`
+| `" -inf"`
+
+|===
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/format[`std::format`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/formatter#Standard_format_specification[standard format specification]
+
+=== Related rules
+
+S6483 detects incompatible use of numeric and character padding specifiers.
