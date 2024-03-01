@@ -141,6 +141,62 @@ constexpr bool possiblyCompileTimeFunc() {
 }
 ----
 
+=== Why issue is raised for non-compile time variables?
+
+For some variables, the compile will try to initialize them at compile time,
+and only if such initialization is not possible, will evaluted them at runtime.
+
+This happesns in two scenarios:
+
+* For variable with static storage duration, like gobal and static variables.
++
+[source,cpp]
+----
+int x = 10;           // Evaluted at compile time
+int const y = init(); // Evaluted at compile time, if `init()` is constant-expression
+std::mutex m;         // Evaluted at compile time, because default constructor is constexpr
+
+void runtime() {
+  static int s = 20; // Evaluted at compile time.
+}
+----
++
+Evaluating such variables at compile time, avoids order of initialization issues.
+It is recommended to mark such variables as `constexpr` (if they can be made `const`) or `constinit`.
+
+* For local variables that are declared `cosnt` and have integral and enumeration type.+
++
+[source,cpp]
+----
+void cpp03Code() {
+  int const size = 5; // Evaluated at compile time
+  int arr[size] = {}; // OK, size is constant
+  for (int i = 0; i < size; ++i) {
+    /* .... */
+  }
+}
+----
++
+Evaluting such variables at compile time was introduced in first {cpp} standard before `constexpr` was intorduced, to allow patterns like above.
+It is recommended to mark such variables as `constexpr` since {cpp}11.
+
+Due the above special rules, the `std::is_constant_evaluated()` and `if consteval` will always be `true` within such implicit constant initialization.
+This may lead to suprising and intuitive result, thus this rule raises issues in such cases:
+
+[source,cpp]
+----
+void onlyRuntime() {
+  bool const ce = std::is_constant_evaluted(); // Noncomplaint: always true, due implicit constant evaluation
+  bool ce = std::is_constant_evaluted();       // Noncomplaint: always false not implicit constant evaluation
+}
+
+constexpr bool possiblyCompileTimeFunc() {
+  bool const ce = std::is_constant_evaluted(); // Noncomplaint: always true, due implicit constant evaluation
+  bool ce = std::is_constant_evaluted();       // Complaint: depends on the call site
+}
+----
+
+
 === When are issues raised for lambdas?
 
 The call operator of a lambda can be explicitly marked `consteval`. In such cases, it can only be invoked at compile-time, and the rule raises an issue:
