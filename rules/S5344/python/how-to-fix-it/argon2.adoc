@@ -1,0 +1,115 @@
+== How to fix it in Argon2-cffi
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=200,diff-type=noncompliant]
+----
+from argon2 import PasswordHasher, profiles
+
+def hash_password(password):
+    ph = PasswordHasher.from_parameters(profiles.CHEAPEST) # Noncompliant
+    return ph.hash(password)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=200,diff-type=compliant]
+----
+from argon2 import PasswordHasher
+
+def hash_password(password):
+    ph = PasswordHasher()
+    return ph.hash(password)
+----
+
+=== How does this work?
+
+==== Choose the right parameters
+
+In general, the default values of a `PasswordHasher` are considered safe. If you
+need to change the parameters, you should be aware of the following:
+
+First, argon2 exists under three forms: `Argon2i`, `Argon2d`, and `Argon2id`.
+`Argon2i` is optimized for password hashing and uses data-independent memory
+access. `Argon2d` is faster and uses data-dependent memory access, which makes
+it suitable for applications with no threats from side-channel attacks. +
+`Argon2id` is a hybrid of `Argon2i` and `Argon2d` and is recommended for most
+applications.
+
+Argon2id has three different parameters that can be configured: the base minimum
+of the minimum memory size (m), the minimum number of iterations (t), and the
+degree of parallelism (p). +
+The higher the values of m, t, and p, the more secure, but it should be tolerable for the application.
+
+The values recommended by the Argon2 authors are the two following:
+
+* https://argon2-cffi.readthedocs.io/en/stable/api.html#argon2.profiles.RFC_9106_HIGH_MEMORY[argon2.profiles.RFC_9106_HIGH_MEMORY]
+* https://argon2-cffi.readthedocs.io/en/stable/api.html#argon2.profiles.RFC_9106_LOW_MEMORY[argon2.profiles.RFC_9106_LOW_MEMORY]
+
+The values recommended by the OWASP are the following:
+
+[source, python]
+----
+from argon2 import Parameters
+from argon2.low_level import ARGON2_VERSION, Type
+
+OWASP_1 = argon2.Parameters(
+        type=Type.ID,
+        version=ARGON2_VERSION,
+        salt_len=16,
+        hash_len=32,
+        time_cost=1,
+        memory_cost=47104, # 46 MiB
+        parallelism=1)
+
+OWASP_2 = argon2.Parameters(
+        type=Type.ID,
+        version=ARGON2_VERSION,
+        salt_len=16,
+        hash_len=32,
+        time_cost=2,
+        memory_cost=19456,  # 19 MiB
+        parallelism=1)
+
+OWASP_3 = argon2.Parameters(
+        type=Type.ID,
+        version=ARGON2_VERSION,
+        salt_len=16,
+        hash_len=32,
+        time_cost=3,
+        memory_cost=12288,  # 12 MiB
+        parallelism=1)
+
+OWASP_4 = argon2.Parameters(
+        type=Type.ID,
+        version=ARGON2_VERSION,
+        salt_len=16,
+        hash_len=32,
+        time_cost=4,
+        memory_cost=9216,  # 9 MiB
+        parallelism=1)
+
+OWASP_5 = argon2.Parameters(
+        type=Type.ID,
+        version=ARGON2_VERSION,
+        salt_len=16,
+        hash_len=32,
+        time_cost=5,
+        memory_cost=7168,  # 7 MiB
+        parallelism=1)
+
+def hash_password(password):
+    ph = PasswordHasher.from_parameters(OWASP_1)
+    return ph.hash(password)
+----
+
+To determine which one is the most appropriate for your application, you can use
+the argon2 CLI, for example with OWASP's first recommendation:
+
+[source,shell]
+----
+$ python -m argon2 -t 1 -m 47104 -p 1 -l 32
+----
+
