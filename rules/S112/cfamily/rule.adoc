@@ -1,29 +1,115 @@
+This rule raises an issue when a generic exception (such as ``++std::exception++``, ``++std::logic_error++`` or ``++std::runtime_error++``) is thrown.
+
 == Why is this an issue?
 
-If you throw a general exception type, such as ``++std::exception++``, ``++std::logic_error++`` or ``++std::runtime_error++``, it forces consumers to catch all exceptions, including unknown exceptions they don't necessarily know how to handle.
+Throwing generic exceptions such as ``++std::exception++``, ``++std::logic_error++`` and ``++std::runtime_error++`` will have a negative impact on any code trying to catch these exceptions.
 
+From a consumer perspective, it is generally a best practice to only catch exceptions you intend to handle. Other exceptions should ideally not be caught and let propagate up the stack trace so that they can be dealt with appropriately. When a generic exception is thrown, it forces consumers to catch exceptions they do not intend to handle, which they then have to re-throw.
 
-Instead, either throw a subtype that already exists ( for example in ``++<stdexcept>++`` ), or create your own type that derives from a standard one.
+Besides, when working with a generic type of exception, the only way to distinguish between multiple exceptions is to check their message, which is error-prone and difficult to maintain. Legitimate exceptions may be unintentionally silenced and errors may be hidden.
 
-=== Noncompliant code example
-
-[source,cpp]
-----
-throw std::logic_error("Unexpected null 'user_id' argument."); // Noncompliant
-----
-
-=== Compliant solution
+For instance, in the following code, the fact that `checkState` throws a generic exception leads us to catch a permission error that shouldn't have been caught:
 
 [source,cpp]
 ----
-throw std::invalid_argument("Unexpected null 'user_id' argument.");
+void openFile(File& file) {
+  if (!has_permissions(file)) {
+    throw std::invalid_argument("Couldn't open file");
+  }
+  // ...
+}
+
+void checkState(File const& file) {
+  if (!file.is_valid()) {
+    throw std::exception();  // Noncompliant
+  }
+  // ...
+}
+
+void test(File file) {
+  try {
+    openFile(file);
+    checkState(false);
+    closeFile(file);
+  } catch (std::exception& s) {
+    // If we don't have the correct permissions to open, the
+    // invalid_argument exception will be caught and we will try closing a
+    // file that was never opened
+    closeFile(file);
+  }
+}
+----
+
+Therefore, throwing the most specific exception possible is recommended so consumers can handle it intentionally.
+
+== How to fix it
+
+To fix this issue, make sure to throw specific exceptions that are relevant to the context in which they arise. It is recommended to either:
+
+* Throw a subtype of ``++std::exception++`` when one matches. For instance, ``++std::invalid_argument++`` could be raised when an unexpected argument is provided to a function.
+* Define a custom exception type that derives from ``++std::exception++`` or one of its subclasses.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <stdexcept>
+
+void checkState(S state) {
+    if (!state.is_valid()) {
+        throw std::exception("State is invalid"); // Noncompliant: this will be difficult for consumers to handle
+    }
+    // ...
+}
+----
+
+==== Compliant solution
+
+The solution below involves throwing ``++std::invalid_argument++``, which is an appropriate exception type for this situation:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <stdexcept>
+
+void checkState(S state) {
+    if (!state.is_valid()) {
+        throw std::invalid_argument("State is invalid"); // Compliant
+    }
+    // ...
+}
+----
+
+Alternatively, one can define a custom ``++invalid_state++`` exception that can be caught specifically:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+struct invalid_state : public std::exception {};
+
+void checkState(S state) {
+    if (!state.is_valid()) {
+        throw invalide_state(); // Compliant
+    }
+    // ...
+}
 ----
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/397[MITRE, CWE-397] - Declaration of Throws for Generic Exception
-* https://wiki.sei.cmu.edu/confluence/x/_DdGBQ[CERT, ERR07-J.] - Do not throw RuntimeException, Exception, or Throwable
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#Re-exception-types[{cpp} Core Guidelines E.14] - Use purpose-designed user-defined types as exceptions (not built-in types)
+=== Standards
+
+* CWE - https://cwe.mitre.org/data/definitions/397[CWE-397 Declaration of Throws for Generic Exception]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#e14-use-purpose-designed-user-defined-types-as-exceptions-not-built-in-types[E.14: Use purpose-designed user-defined types as exceptions (not built-in types)]
+
+
+=== Related rules
+
+* S1181 - Generic exceptions should not be caught
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -34,8 +120,5 @@ ifdef::env-github,rspecator-view[]
 include::../message.adoc[]
 
 '''
-== Comments And Links
-(visible only on this page)
 
-include::comments-and-links.adoc[]
 endif::env-github,rspecator-view[]

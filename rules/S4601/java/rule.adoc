@@ -1,52 +1,101 @@
+Spring Framework, and, more precisely, the Spring Security component, allows
+setting up access control checks at the URI level. This is done by adding
+request matchers to the security configuration, each authorizing access to some
+resources depending on the incoming request entitlement.
+
+Similarly to firewall filtering rules, the order in which those matchers are
+defined is security relevant.
+
 == Why is this an issue?
 
-URL patterns configured on a ``++HttpSecurity.authorizeRequests()++`` method are considered in the order they were declared. It's easy to make a mistake and declare a less restrictive configuration before a more restrictive one. Therefore, it's required to review the order of the "antMatchers" declarations. The ``++/**++`` one should be the last one if it is declared.
-
+Configured URL matchers are considered in the order they are declared.
+Especially, for a given resource, if a looser filter is defined before a
+stricter one, only the less secure configuration will apply. No request will
+ever reach the stricter rule.
 
 This rule raises an issue when:
 
-* A pattern is preceded by another that ends with ``++**++`` and has the same beginning. E.g.: ``++/page*-admin/db/**++`` is after ``++/page*-admin/**++``
-* A pattern without wildcard characters is preceded by another that matches. E.g.: ``++/page-index/db++`` is after ``++/page*/**++``
+* A URL pattern ending with `++**++` precedes another one having the same prefix. E.g. `++/admin/**++` is defined before `++/admin/example/**++`
+* A pattern without wildcard characters is preceded by another one that matches it. E.g.: ``++/page-index/db++`` is defined after ``++/page*/**++``
 
 
-=== Noncompliant code example
+=== What is the potential impact?
 
-[source,java]
+Access control rules that have been defined but cannot be applied generally
+indicate an error in the filtering process. In most cases, this will have
+consequences on the application's authorization and authentication mechanisms.
+
+==== Authentication bypass
+
+When the ignored access control rule is supposed to enforce the authentication
+on a resource, the consequence is a bypass of the authentication for that
+resource. Depending on the scope of the ignored rule, a single feature or whole
+sections of the application can be left unprotected.
+
+Attackers could take advantage of such an issue to access the affected features
+without prior authentication, which may impact the confidentiality or integrity
+of sensitive, business, or personal data.
+
+==== Privilege escalation
+
+When the ignored access control rule is supposed to verify the role of an
+authenticated user, the consequence is a privilege escalation or authorization
+bypass. An authenticated user with low privileges on the application will be
+able to access more critical features or sections of the application.
+
+This could have financial consequences if the accessed features are normally
+accessed by paying users. It could also impact the confidentiality or integrity
+of sensitive, business, or personal data, depending on the features.
+
+== How to fix it in Spring
+
+=== Code examples
+
+The following code is vulnerable because it defines access control configuration
+in the wrong order.
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-  protected void configure(HttpSecurity http) throws Exception {
+protected void configure(HttpSecurity http) throws Exception {
     http.authorizeRequests()
-      .antMatchers("/resources/**", "/signup", "/about").permitAll() // Compliant
+      .antMatchers("/resources/**", "/signup", "/about").permitAll()
       .antMatchers("/admin/**").hasRole("ADMIN")
-      .antMatchers("/admin/login").permitAll() // Noncompliant; the pattern "/admin/login" should appear before "/admin/**"
+      .antMatchers("/admin/login").permitAll() // Noncompliant
       .antMatchers("/**", "/home").permitAll()
-      .antMatchers("/db/**").access("hasRole('ADMIN') and hasRole('DBA')") // Noncompliant; the pattern "/db/**" should occurs before "/**"
+      .antMatchers("/db/**").access("hasRole('ADMIN') and hasRole('DBA')") // Noncompliant
       .and().formLogin().loginPage("/login").permitAll().and().logout().permitAll();
   }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
   protected void configure(HttpSecurity http) throws Exception {
     http.authorizeRequests()
-      .antMatchers("/resources/**", "/signup", "/about").permitAll() // Compliant
+      .antMatchers("/resources/**", "/signup", "/about").permitAll()
       .antMatchers("/admin/login").permitAll()
-      .antMatchers("/admin/**").hasRole("ADMIN") // Compliant
+      .antMatchers("/admin/**").hasRole("ADMIN")
       .antMatchers("/db/**").access("hasRole('ADMIN') and hasRole('DBA')")
-      .antMatchers("/**", "/home").permitAll() // Compliant; "/**" is the last one
+      .antMatchers("/**", "/home").permitAll()
       .and().formLogin().loginPage("/login").permitAll().and().logout().permitAll();
   }
 ----
-
 
 == Resources
 
-* https://owasp.org/Top10/A01_2021-Broken_Access_Control/[OWASP Top 10 2021 Category A1] - Broken Access Control
-* https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration[OWASP Top 10 2017 Category A6] - Security Misconfiguration
+=== Documentation
 
+* Spring Documentation - https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html[Authorize HttpServletRequests]
 
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Top 10 2021 - Category A1 - Broken Access Control]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration[Top 10 2017 - Category A6 - Security Misconfiguration]
+* CWE - https://cwe.mitre.org/data/definitions/285[CWE-285 - Improper Authorization]
+* CWE - https://cwe.mitre.org/data/definitions/287[CWE-287 - Improper Authentication]
 
 ifdef::env-github,rspecator-view[]
 
@@ -54,13 +103,21 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
 
-include::highlighting.adoc[]
+Reorder the URL patterns from most to less specific, the pattern "XXX" should occur before "YYY".
+
+=== Highlighting
+
+Primary: The antMatchers pattern that is useless.
+
+Secondary:  The previous antMatchers pattern that matches a super set of the useless one.
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 19 Apr 2018, 15:54:57 Ann Campbell wrote:
+\[~alexandre.gigleux] you're only going to raise an issue if ``++**/++`` is already included in the list, right? Current wording leaves it open to raising an issue when ``++**/++`` is not in the  list at all.
+
 endif::env-github,rspecator-view[]

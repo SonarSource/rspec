@@ -1,24 +1,100 @@
-== Why is this an issue?
+include::../why-dotnet.adoc[]
 
-include::../description-dotnet.adoc[]
+== How to fix it
 
-include::noncompliant.adoc[]
+To make sure that a lock is always released correctly, you can follow one of these two methods:
 
-include::compliant.adoc[]
+* Use a https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock[`lock`] statement with your lock object.
+* Use a https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/exception-handling-statements#the-try-finally-statement[`try-finally`] statement and put the release of your lock object within the finally block.
 
-include::see.adoc[]
+=== Code examples
 
-ifdef::env-github,rspecator-view[]
+==== Noncompliant code example
 
-'''
-== Implementation Specification
-(visible only on this page)
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+class MyClass
+{
+  private object obj = new object();
 
-include::../message.adoc[]
+  public void DoSomethingWithMonitor()
+  {
+    Monitor.Enter(obj); // Noncompliant: not all paths release the lock
+    if (IsInitialized())
+    {
+      // ...
+      Monitor.Exit(obj);
+    }
+  }
+}
+----
 
-'''
-== Comments And Links
-(visible only on this page)
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+class MyClass
+{
+  private ReaderWriterLockSlim lockObj = new ReaderWriterLockSlim();
 
-include::../comments-and-links.adoc[]
-endif::env-github,rspecator-view[]
+  public void DoSomethingWithReaderWriteLockSlim()
+  {
+    lockObj.EnterReadLock(); // Noncompliant: not all paths release the lock
+    if (IsInitialized())
+    {
+      // ...
+      lockObj.ExitReadLock();
+    }
+  }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+class MyClass
+{
+  private object obj = new object();
+
+  public void DoSomethingWithMonitor()
+  {
+    lock(obj) // Compliant: the lock will be released at the end of the lock block
+    {
+      if (IsInitialized())
+      {
+        // ...
+      }
+    }
+  }
+}
+----
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+class MyClass
+{
+  private ReaderWriterLockSlim lockObj = new ReaderWriterLockSlim();
+
+  public void DoSomethingWithReaderWriteLockSlim()
+  {
+    lockObj.EnterReadLock(); // Compliant: the lock will be released in the finally block
+    try
+    {
+      if (IsInitialized())
+      {
+        // ...
+      }
+    }
+    finally
+    {
+      lockObj.ExitReadLock();
+    }
+  }
+}
+----
+
+include::../resources-dotnet.adoc[]
+
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock[`lock` statement]
+* https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/exception-handling-statements#the-try-finally-statement[The `try-finally` statement]
+
+include::../rspecator.adoc[]

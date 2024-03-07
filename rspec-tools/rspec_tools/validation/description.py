@@ -1,12 +1,12 @@
-from bs4 import BeautifulSoup
+import re
 from pathlib import Path
-from typing import Final
+from typing import Final, Dict, List
 
+from bs4 import BeautifulSoup
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
 from rspec_tools.utils import LANG_TO_SOURCE
 
-import re
 
 def read_file(path):
   section_names_path = Path(__file__).parent.parent.parent.parent.joinpath(path)
@@ -16,8 +16,35 @@ def parse_names(path):
   section_names_path = read_file(path)
   return [s.replace('* ', '').strip() for s in section_names_path if s.strip()]
 
+def parse_security_standard_links(descr):
+  link_nodes = descr.find_all('a')
+  security_standards_links: Dict[str, List] = {}
+  for node in link_nodes:
+    href = node.attrs['href']
+    for standard_key in SECURITY_STANDARD_URL:
+      standard = SECURITY_STANDARD_URL[standard_key]
+      url_pattern = standard["url_pattern"]
+      result = re.match(url_pattern, href)
+      if result is not None:
+        convert = standard["convert_id"]
+        category = convert(result[1])
+        if standard_key not in security_standards_links.keys():
+          security_standards_links[standard_key] = []
+        security_standards_links[standard_key].append(category)
+  return security_standards_links
+
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
+SECURITY_STANDARD_URL = {
+  "OWASP": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/www-project-top-ten/2017/A(10|[1-9])_2017-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
+  "OWASP Top 10 2021": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/Top10/A(10|0[1-9])_2021-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
+}
 
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
@@ -29,22 +56,27 @@ HOTSPOT_SECTION_NAMES: Final[list[str]] = parse_names('docs/header_names/hotspot
 ACCEPTED_FRAMEWORK_NAMES: Final[list[str]] = parse_names('docs/header_names/allowed_framework_names.adoc')
 
 # This needs to be kept in sync with the [headers list in docs/descriptions.adoc](https://github.com/SonarSource/rspec/blob/master/docs/description.adoc#2-education-format)
-SECTIONS = {
-  'Why is this an issue?': ['What is the potential impact?', 'Noncompliant code example', 'Compliant solution', 'Exceptions']
-}
+MANDATORY_SECTIONS = ['Why is this an issue?']
+CODE_EXAMPLES='Code examples'
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
-  'How to fix it': ['Code examples', 'How does this work?', 'Pitfalls', 'Going the extra mile'],
-  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'Benchmarks', 'Related rules']
+  HOW_TO_FIX_IT: [], # Empty list because we now accept anything as sub-section
+  'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'External coding guidelines', 'Benchmarks', 'Related rules']
 }
 SUBSECTIONS = {
-  'Code examples': ['Noncompliant code example', 'Compliant solution']
+  CODE_EXAMPLES: ['Noncompliant code example', 'Compliant solution']
 }
 
-def intersection(lst1, lst2):
-  return list(set(lst1).intersection(lst2))
-def difference(lst1, lst2):
-  return list(set(lst1) - set(lst2))
+def validate_duplications(h2_titles, rule_language):
+  as_set = set(h2_titles)
+  if len(as_set) != len(h2_titles):
+    duplicates = [x for x in h2_titles if h2_titles.count(x) > 1]
+    raise RuleValidationError(f'Rule {rule_language.id} has duplicated {set(duplicates)} sections')
+
+def intersection(list1, list2):
+  return list(set(list1).intersection(list2))
+def difference(list1, list2):
+  return list(set(list1) - set(list2))
 
 def validate_section_names(rule_language: LanguageSpecificRule):
   """Validates all h2-level section names"""
@@ -52,11 +84,13 @@ def validate_section_names(rule_language: LanguageSpecificRule):
   descr = rule_language.description
   h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
 
-  education_titles = intersection(h2_titles, list(SECTIONS.keys()) + list(OPTIONAL_SECTIONS.keys()))
+  validate_duplications(h2_titles, rule_language)
+
+  education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()))
   if education_titles:
     # Using the education format.
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
-    missing_titles = difference(list(SECTIONS.keys()), education_titles)
+    missing_titles = difference(list(MANDATORY_SECTIONS), education_titles)
     if missing_titles:
       # All mandatory titles have to be present in the rule description.
       raise RuleValidationError(f'Rule {rule_language.id} is missing the "{missing_titles[0]}" section')
@@ -76,9 +110,6 @@ def validate_how_to_fix_it_sections_names(rule_language: LanguageSpecificRule, h
 
   if HOW_TO_FIX_IT in how_to_fix_it_sections and len(how_to_fix_it_sections) > 1:
     raise RuleValidationError(f'Rule {rule_language.id} is mixing "{HOW_TO_FIX_IT}" with "How to fix it in FRAMEWORK NAME" sections. Either use a single "{HOW_TO_FIX_IT}" or one or more "How to fix it in FRAMEWORK"')
-  duplicate_names = [x for x in how_to_fix_it_sections if how_to_fix_it_sections.count(x) > 1] # O(n*n) is fine, given n <= 6
-  if 0 < len(duplicate_names):
-    raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{HOW_TO_FIX_IT}" sections {set(duplicate_names)}')
   for section_name in how_to_fix_it_sections:
     validate_how_to_fix_it_framework(section_name, rule_language)
 
@@ -168,10 +199,8 @@ def validate_subsections(rule_language: LanguageSpecificRule):
       validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section], section_regex=HOW_TO_FIX_IT_REGEX)
     else:
       validate_subsections_for_section(rule_language, optional_section, OPTIONAL_SECTIONS[optional_section])
-  for mandatory_section in list(SECTIONS.keys()):
-    validate_subsections_for_section(rule_language, mandatory_section, SECTIONS[mandatory_section])
   for subsection_with_sub_subsection in list(SUBSECTIONS.keys()):
-    if subsection_with_sub_subsection == 'Code examples':
+    if subsection_with_sub_subsection == CODE_EXAMPLES:
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4, is_duplicate_allowed=True)
     else:
       validate_subsections_for_section(rule_language, subsection_with_sub_subsection, SUBSECTIONS[subsection_with_sub_subsection], level=4)
@@ -190,8 +219,32 @@ def validate_subsections_for_section(rule_language: LanguageSpecificRule, sectio
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
-      if name not in allowed_subsections:
+      if allowed_subsections and name not in allowed_subsections:
         raise RuleValidationError(f'Rule {rule_language.id} has a "{section_name}" subsection with an unallowed name: "{name}"')
       if name in subsections_seen and not is_duplicate_allowed:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
+
+
+def validate_security_standard_links(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  security_standards_links = parse_security_standard_links(descr)
+  metadata = rule_language.metadata
+
+  # Avoid raising mismatch issues on deprecated or closed rules
+  if metadata.get('status') != 'ready':
+    return
+  
+  security_standards_metadata = metadata.get('securityStandards', {})
+  for standard in SECURITY_STANDARD_URL.keys():
+
+    metadata_mapping = security_standards_metadata[standard] if standard in security_standards_metadata.keys() else []
+    links_mapping = security_standards_links[standard] if standard in security_standards_links.keys() else []
+
+    extra_links = difference(links_mapping, metadata_mapping)
+    if len(extra_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Remove links from the Resources/See section ({extra_links}) or fix the rule metadata')
+    
+    missing_links = difference(metadata_mapping, links_mapping)
+    if len(missing_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Add links to the Resources/See section ({missing_links}) or fix the rule metadata')

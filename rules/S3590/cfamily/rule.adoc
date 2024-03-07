@@ -1,38 +1,254 @@
+Explicitly releasing non-heap memory leads to undefined behavior.
+
 == Why is this an issue?
 
-Stack allocated memory, like memory allocated with the functions ``++alloca++``, ``++_alloca++``, ``++_malloca++``, ``++__builtin_alloca++``, is automatically released at the end of the function, and should not be released with ``++free++``. Explicitly ``++free++``-ing such memory results in undefined behavior.
+The `free` function and `delete` operator are used exclusively to release dynamically allocated memory.
+Attempting to release any other type of memory is _undefined behavior_.
 
+The following non-heap memory types may not be released:
 
-This rule raises issues when trying to release pointers to memory which is not owned, like stack allocated memory and function pointers.
+* Stack allocated memory - local variables or memory allocated with the `alloca`, ``++_alloca++``, ``++_malloca++`` and ``++__builtin_alloca++`` functions.
+* Executable program code - function pointers.
+* Program data - global and static variables.
+* Read-only program data - constants and strings.
 
+=== What is the potential impact
 
-=== Noncompliant code example
+Trying to release non-heap memory using `free` or `delete` results in undefined behavior.
 
-[source,cpp]
+When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.
+
+The application will usually just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.
+
+== How to fix it
+
+Remove any calls to `free` or `delete` that aim at releasing non-heap memory.
+
+=== Code examples
+
+Stack allocated memory:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=1]
 ----
-void fun() {
-  char *name = (char *) alloca(size);
+void fun(int size) {
+  int number = 0;
+  char* name = (char*)alloca(size);
   // ...
-  free(name); // Noncompliant, memory allocated on the stack
-  char *name2 = "name";
+  delete &number; // Noncompliant: memory is stack-allocated.
+  free(name); // Noncompliant: memory is stack-allocated.
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=1]
+----
+void fun(int size) {
+  int number = 0;
+  char* name = (char*)alloca(size);
   // ...
-  free(name2); // Noncompliant, memory allocated on the stack
+  // Compliant: stack memory is automatically released at the end of the function.
+}
+----
+
+Executable program code:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=2]
+----
+int getValue() {
+  return 10;
+}
+
+int main() {
+  // ...
+  free((void*) &getValue); // Noncompliant: memory is part of executable code.
+  return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=2]
+----
+int getValue() {
+  return 10;
+}
+
+int main() {
+  // ...
+  // Compliant: program code will be released at the end of the program's execution.
+  return 0;
+}
+----
+
+Program data:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=3]
+----
+struct S {
+  static inline int data = 64;
+};
+
+int main() {
+  static int x = 8;
+  // ...
+  free(&x); // Noncompliant: memory part of the program's data.
+  free(&S::data); // Noncompliant: memory part of the program's data.
+  return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=3]
+----
+struct S {
+  static inline int data = 64;
+};
+
+int main() {
+  static int x = 8;
+  // ...
+  // Compliant: globals and static variables are released at the end of the program's execution.
+  return 0;
+}
+----
+
+Read-only program data:
+
+==== Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=4]
+----
+int const limit = 128;
+
+int main() {
+  char* name = "string";
+  // ...
+  free((void*)&limit); // Noncompliant: memory part of program's read-only data.
+  free(name); // Noncompliant: memory part of read-only program data.
+  return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=4]
+----
+int const limit = 128;
+
+int main() {
+  char const* name = "string";
+  // ...
+  // Compliant: read-only program data is freed at the end of the program's execution.
+  return 0;
 }
 ----
 
 
-=== Compliant solution
+=== Going the extra mile
 
-[source,cpp]
+The accidental release of non-heap memory usually occurs in practice if the same pointer variable is used to once reference heap and once non-heap memory.
+This may lead to confusion and should be avoided.
+
+These best practices help to avoid accidentally releasing non-heap memory:
+
+* If accessing different memory types, use different pointer variables.
+* When passing non-heap memory addresses to functions, ensure that the functions do not attempt to release the memory.
+* If manually managing dynamic memory, release it in the same scope where it was acquired.
+
+The following example shows a situation in which the same pointer variable is used to hold a stack or heap address.
+This leads to a situation in which heap memory is accidentally released.
+
+Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=5]
 ----
-void fun() {
-  char *name = (char *) alloca(size);
+void fun(int length) {
+  static char smallString[32];
+  char* usedString;
+
+  if (length < 31) {
+    usedString = smallString; // Pointer to stack memory assigned here
+  } else {
+    usedString = (char*)malloc(length + 1);
+  }
   // ...
-  char *name2 = "name";
-  // ...
+  free(usedString); // Noncompliant: if length < 31, the freed memory will be located on the stack.
 }
 ----
 
+Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=5]
+----
+void fun(int length) {
+  static char smallString[32];
+  char* stackOrHeapString;
+  char* heapString = nullptr;
+
+  if (length < 31) {
+    stackOrHeapString = smallString;
+  } else {
+    heapString = (char*)malloc(length + 1);
+    stackOrHeapString = heapString;
+  }
+  // ...
+  free(heapString); // Compliant: only the heap string will be freed if allocated.
+}
+----
+
+The following example shows a situation in which dynamically allocated memory is acquired and released in different functions.
+On top of this chain, a stack allocated buffer is introduced, leading to a call to `free` of stack memory.
+
+Noncompliant code example
+
+[source,cpp,diff-type=noncompliant,diff-id=6]
+----
+void use(char* string) {
+  // ...
+  free(string); // Noncompliant: pointer's origin is unknown. If non-heap, the program will crash.
+}
+
+void fun(int length) {
+  static char smallString[32];
+  char* usedString;
+
+  if (length < 31) {
+    usedString = smallString; // Pointer to stack memory assigned here
+  } else {
+    usedString = (char*)malloc(length + 1);
+  }
+  use(usedString); // If length < 31, the unsafe memory will free memory located on the stack.
+}
+----
+
+Compliant solution
+
+[source,cpp,diff-type=compliant,diff-id=6]
+----
+void use(char* string) {
+  // ...
+  // Compliant: memory no longer freed in the called function
+}
+
+void fun(int length) {
+  static char smallString[32];
+  if (length < 31) {
+    use(smallString);
+  } else {
+    heapString = (char*)malloc(length + 1);
+    use(heapString);
+    free(heapString); // Compliant: memory released in the scope it was acquired in.
+  }
+}
+----
 
 ifdef::env-github,rspecator-view[]
 
@@ -40,13 +256,31 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
 
-include::highlighting.adoc[]
+Remove this "free" call; the memory will be released automatically.
+
+
+=== Highlighting
+
+* primary: ``++free(xxx)++``
+* secondary: allocation
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 31 Mar 2016, 14:02:56 Ann Campbell wrote:
+\[~massimo.paladin] what happens if you ``++free++`` this memory anyway? Crash? Memory corruption? Leak? The description should include at least a hint & I need to know to set the SQALE characteristic.
+
+=== on 31 Mar 2016, 14:31:56 Massimo PALADIN wrote:
+\[~ann.campbell.2] it is an undefined behavior, i.e. on my setup I am getting a crash.
+
+=== on 31 Mar 2016, 16:23:09 Ann Campbell wrote:
+Thanks [~massimo.paladin]. I've made some small updates. 
+
+=== on 27 Mar 2019, 16:51:29 Ann Campbell wrote:
+FYI, [~massimo.paladin] the "raises an issue when" clause usually comes at the end of the descriptive text.
+
 endif::env-github,rspecator-view[]

@@ -1,31 +1,51 @@
 == Why is this an issue?
 
-This rule leads to greater precision in the definition of the function interface. The ``++const++`` qualification shall be applied to the object pointed to, not to the pointer, since it is the object itself that is being protected.
+Const correctness is an important tool for type safety. It allows for catching coding errors at compile time and it documents the code for maintainers.
 
+Correctly const-qualifying pointers can be tricky because the indirection they add can also be const.
 
-=== Noncompliant code example
+For a pointer `X * ptr`, const can be written in three different places:
+
+* `const X * ptr` and `X const * ptr` are identical and mean that the X object `ptr` points to cannot be changed.
+* `X * const ptr` means that the pointer cannot be changed to point to a different X object.
+
+In a function signature, the first `const X * ptr` (or its equivalent `X const * ptr`) is the one that will bring type-safety. It protects against changing the value pointed at.
 
 [source,cpp]
+----
+void externalFunction(int * a, const int * b);
+
+void myfunc() {
+  int a = 1;
+  int b = 2;
+  externalFunction(&a, &b);
+  // a can now have any value
+  // We know that b is still '2'
+}
+----
+
+This rule detects when a pointer or reference parameter could be made const
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 void myfunc (      int * param1,  // object is modified
              const int * param2,
                    int * param3, // Noncompliant
-                   int * param4) // Noncompliant
+             int * const param4) // Noncompliant: const doesn't qualify what is pointed at.
 {
   *param1 = *param2 + *param3 + *param4;
 }
 
-int main (int argc,
-          const char * * argv) // Noncompliant
+void increment (int & value,
+                int & increment) // Noncompliant
 {
-  return argc;
+  value += increment;
 }
 ----
 
+When adding all possible `const` qualifications, we get:
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 void myfunc (      int * param1,  // object is modified
              const int * param2,
@@ -35,15 +55,21 @@ void myfunc (      int * param1,  // object is modified
   *param1 = *param2 + *param3 + *param4;
 }
 
-int main (int argc,
-          const char * const * argv)
+void increment (int & value,
+                const int & increment)
 {
-  return argc;
+  value += increment;
 }
 ----
 
 
 == Resources
+
+=== Articles & blog posts
+
+* https://isocpp.org/wiki/faq/const-correctness[ISO {cpp} FAQ about const correctness].
+
+=== External coding guidelines
 
 * MISRA C:2004, 16.7 - A pointer parameter in a function prototype should be declared as pointer to const if the pointer is not used to modify the addressed object.
 * MISRA {cpp}:2008, 7-1-2 - A pointer or reference parameter in a function shall be declared as pointer to const or reference to const if the corresponding object is not modified.
@@ -57,11 +83,22 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Mark "XXX" as const at every possible pointer level.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== is duplicated by: S931
+
+=== is duplicated by: S1252
+
+=== is related to: S1900
+
+=== on 6 Sep 2019, 10:55:30 Loïc Joly wrote:
+The current implementation of this rule has one limitation: MISRA has the exception that in a set of overridden function, on of the function modifying a parameter is enough to require all functions to modify it. But implementing this exception requires project level analysis, that we don't currently support.
+
 endif::env-github,rspecator-view[]
