@@ -1,44 +1,84 @@
+For mounts types `secret` and `ssh`, Dockerfile's `RUN` instruction supports a
+`mode` option for setting permissions. If you set this mode so that any user of
+the operating system can access the mount, it is vulnerable to leaks.
+
 == Why is this an issue?
 
 Docker offers a feature to mount files and directories for specific `RUN`
 instructions when building Docker images. This feature can be used to provide
-secrets to the commands that are executed during the build without baking them
+secrets to commands that are executed during the build without baking them
 into the image. Additionally, it can be used to access SSH agents during the
 build.
 
-By using the `mode` option the permissions of the secrets or agents can be
-modified. By default, access is limited to the root user.
+The `mode` option is an octal value that allows you to specify the permissions
+for a particular file or directory. By default, on Docker, when mounting a
+`secret`, it is set to `0400`.
 
-When such secrets are exposed with lax permissions, they might get compromised
-during the image build process. A successful compromise can only happen during
-the execution of the command the `mount` option has been added to. While this
-might seem like a very hard exploitation requirement, supply chain attacks, and
-other related threats, should still be considered.
+For `ssh`, it is set by default to `0600`:
 
-If you are executing a command as a low-privileged user and need to access
-secrets or agents, you can use the options `uid` and `gid` to provide access
+* The first digit `0` stands for special permissions (like setuid, setgid and
+sticky bit) and in this case means that no special permissions are set.
+
+* The following `6` (4+2 in octal format) means that the `owner` has read (4)
+and write (2) permissions
+
+* `00` means that the `group` and `others` have no permissions.
+
+If the `others` bit is set to a value other than 0 at build-time, any other
+process can access it when the `RUN` command is executed: the secrets are
+vulnerable to supply chain attacks that aim to siphon secrets from containers.
+
+=== What is the potential impact?
+
+==== Unauthorized access
+
+The unintended audience can exploit the leaked private key or equivalent to
+authenticate themselves as the legitimate owner, gaining unauthorized entry to
+systems, servers, or accounts that accept the key for authentication.
+
+This unauthorized access opens the door for various malicious activities,
+including data breaches, unauthorized modifications, and misuse of sensitive
+information.
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,docker,diff-id=1,diff-type=noncompliant]
+----
+# Noncompliant
+RUN --mount=type=secret,id=build_secret,mode=0777 ./installer.sh
+----
+
+==== Compliant solution
+
+[source,docker,diff-id=1,diff-type=compliant]
+----
+RUN --mount=type=secret,id=build_secret,mode=0700 ./installer.sh
+----
+
+=== How does this work?
+
+In general, always follow the least privilege principle, and set the `others`
+bit to `0`. By default, if `mode` is not set, permissions are safe.
+
+In case you made this change because you need to access secrets or agents as a
+low-privileged user, you can use the options `uid` and `gid` to provide access
 without having to resort to world-readable or writable permissions that might
 expose them to unintended parties.
 
-
-=== Noncompliant code example
-
-[source,docker]
-----
-RUN --mount=type=secret,id=build_secret,mode=0777 ./installer.sh # Noncompliant
-----
-
-=== Compliant solution
-
-[source,docker]
-----
-RUN --mount=type=secret,id=build_secret,uid=1000 ./installer.sh
-----
-
 == Resources
 
-* https://cwe.mitre.org/data/definitions/732[MITRE, CWE-732] - Incorrect Permission Assignment for Critical Resource
-* https://docs.docker.com/engine/reference/builder/#run---mounttypesecret[Dockerfile reference] - RUN --mount
+=== Documentation
+
+* Dockerfile Reference - https://docs.docker.com/engine/reference/builder/#run---mounttypesecret[RUN --mount=type=secret]
+* Red Hat - https://www.redhat.com/sysadmin/linux-file-permissions-explained[Linux file permissions explained]
+
+=== Standards
+
+* CWE - https://cwe.mitre.org/data/definitions/732[CWE-732 - Incorrect Permission Assignment for Critical Resource]
 
 
 ifdef::env-github,rspecator-view[]

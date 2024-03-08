@@ -5,6 +5,12 @@ export interface LanguageSupport {
   status: Status
 }
 
+export type Version = string | { since: string, until: string };
+
+export type Mapper = ((key: string, value: Version) => JSX.Element);
+
+export type Coverage = string | JSX.Element[];
+
 export default interface RuleMetadata {
   title: string,
   languagesSupport: LanguageSupport[],

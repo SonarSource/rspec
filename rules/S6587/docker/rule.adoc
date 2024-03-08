@@ -14,52 +14,97 @@ It should be reduced to speed up deployments and reduce storage and bandwidth.
 
 ==== Noncompliant code example
 
+For apk:
 [source,docker,diff-id=1,diff-type=noncompliant]
 ----
 RUN apk add nginx
+----
+
+For apt-get:
+[source,docker,diff-id=2,diff-type=noncompliant]
+----
 RUN apt-get update \
   && apt-get install nginx
+----
+
+For aptitude:
+[source,docker,diff-id=3,diff-type=noncompliant]
+----
 RUN aptitude update \
   && aptitude install nginx
 ----
 
+For apt:
+[source,docker,diff-id=4,diff-type=noncompliant]
+----
+RUN apt update \
+  && apt install nginx
+----
+
 ==== Compliant solution
 
+For apk:
 [source,docker,diff-id=1,diff-type=compliant]
 ----
 RUN apk --no-cache add nginx
-RUN apk add nginx \
-  && rm -rf /var/lib/apt/lists/*
-RUN apk add nginx \
-  && rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
 
+RUN apk add nginx \
+  && apk cache clean
+
+RUN apk add nginx \
+  && rm -rf /var/cache/apk/*
+
+# This cache location is only used in specific distributions / configurations
+RUN apk add nginx \
+  && rm -rf /etc/apk/cache/*
+----
+
+For apt-get:
+[source,docker,diff-id=2,diff-type=compliant]
+----
 RUN apt-get update \
   && apt-get install nginx \
   && apt-get clean
-RUN apt-get update \
-  && apt-get install nginx \
-  && rm -rf /var/lib/apt/lists/*
-RUN apt-get update \
-  && apt-get install nginx \
-  && rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
 
+RUN apt-get update \
+  && apt-get install nginx \
+  && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+----
+
+For aptitude:
+[source,docker,diff-id=3,diff-type=compliant]
+----
 RUN aptitude update \
   && aptitude install nginx \
   && aptitude clean
+
 RUN aptitude update \
   && aptitude install nginx \
-  && rm -rf /var/lib/apt/lists/*
-RUN aptitude update \
-  && aptitude install nginx \
-  && rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+----
+
+For apt:
+[source,docker,diff-id=4,diff-type=compliant]
+----
+RUN apt update \
+  && apt install nginx \
+  && apt clean
+
+RUN apt update \
+  && apt install nginx \
+  && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 ----
 
 === How does this work?
 
-When installing packages using `apk`, `apt-get`, or `aptitude` they store an index in the Docker image layer in `/var/lib/apt/lists/`.
+When installing packages using `apt-get`, `aptitude` or `apt` they store an index in the Docker image layer in `/var/lib/apt/lists`.
+Using `apk`, it will store an index in `/var/cache/apk/`.
+In some distributions and configurations the cache will be created in `/etc/apk/cache`.
+
 This index is not needed after installation, so it can be removed.
-To do that execute the `clean` command of your package manager tool or just run `rm -rf /var/lib/apt/lists/*`.
-Additionally, some lock files are stored in `/var/cache/apt/archives`.
+To do that, execute the `clean` command, or run `rm -rf <location>` for the cache location of you package manager tool.
+
+Additionally, for `apt-get`, `aptitude` and `apt` some lock files are stored in `/var/cache/apt/archives`, which can also be removed safely.
 They are not removed by the `clean` command, so they need to be removed manually.
 
 == Resources
@@ -67,8 +112,8 @@ They are not removed by the `clean` command, so they need to be removed manually
 
 * https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#run[RUN - Best practices for writing Dockerfiles]
 * https://man.archlinux.org/man/apk.8.en[apk man]
-* https://linux.die.net/man/8/apt-get[apt-get man]
-* https://linux.die.net/man/8/aptitude[aptitude man]
+* https://manpages.debian.org/bookworm/apt/apt-get.8.en.html[apt-get man]
+* https://manpages.debian.org/testing/aptitude/aptitude.8.en.html[aptitude man]
 * https://askubuntu.com/questions/1050800/how-do-i-remove-the-apt-package-index[How do I remove the apt package index?]
 
 ifdef::env-github,rspecator-view[]

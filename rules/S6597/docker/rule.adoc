@@ -1,12 +1,52 @@
-The `cd` command should not be used to change the working directory.
-Instead `WORKDIR` should be used.
-
 == Why is this an issue?
 
-The `cd` commands in `RUN` (and other) instructions make them longer, harder to read, troubleshoot, and maintain.
-It is better to use the `WORKDIR` instruction to set a working directory for the next Docker instructions.
+In Dockerfile, instructions `RUN`, `CMD`, and `ENTRYPOINT` can contain long shell scripts chaining multiple commands, including the `cd` command for changing directories.
+Using `WORKDIR` instruction instead reduces the complexity of the above instructions and makes them easier to read, understand, troubleshoot, and maintain.
+
+=== What is the potential impact?
+
+The Dockerfile instructions like `RUN` allow users to execute longer scripts. See the following example:
+
+[source,docker]
+----
+RUN cd /tmp && \
+  git clone myrepository.com/MyOrganization/project && \
+  cd project && \
+  make && \
+  cd /app/bin
+----
+
+In this example, the first `cd /tmp` command can be replaced by `WORKDIR /tmp` before `RUN`.
+The last `cd /app/bin` command can be replaced with `WORKDIR /app/bin` after the `RUN` instruction.
+The result will be the following:
+
+[source,docker]
+----
+WORKDIR /tmp
+RUN git clone myrepository.com/MyOrganization/project && \
+  cd project && \
+  make
+WORKDIR /app/bin
+----
+
+Those actions will reduce the length of the `RUN` instruction, which makes it easier to read and understand.
+Sometimes, it is hard to avoid the usage of `cd` command, especially in the middle of a long script.
+Removing them from the beginning and end of a multi-line is an easy improvement.
+Additionally, many commands work well with absolute paths, so changing directories can be avoided in most cases.
+
+The `WORKDIR` instruction can be used multiple times in a Dockerfile.
+It changes the current directory for the next instructions and until there is a following change.
+This approach simplifies understanding of what is a current directory.
+
+The same principles apply to `CMD` and `ENTRYPOINT` instructions.
+
+This recommendation provides a clear structure for Dockerfiles, making it easier to maintain.
 
 == How to fix it
+
+Where possible, ensure that all usages of `cd` commands are replaced by a `WORKDIR` instruction.
+The `cd` commands at the beginning or end of a chain of commands are a reliable sign that they can be replaced.
+Also, using absolute paths can be considered for commands that accept them.
 
 === Code examples
 
@@ -21,18 +61,15 @@ RUN cd /app/bin && ./start.sh
 
 [source,docker,diff-id=1,diff-type=compliant]
 ----
-WORKDIR app/bin
+WORKDIR /app/bin
 RUN ./start.sh
+
+# Or:
+RUN /app/bin/start.sh
 ----
 
-=== How does this work?
-
-The `WORKDIR` instruction can be used multiple times in Dockerfile.
-It sets the working directory for any `RUN`, `CMD`, `ENTRYPOINT`, `COPY`, and `ADD` instructions that follow.
-It increases clarity and reliability.
-
-
 == Resources
+
 === Documentation
 
 * https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#workdir[WORKDIR - Best practices for writing Dockerfiles]

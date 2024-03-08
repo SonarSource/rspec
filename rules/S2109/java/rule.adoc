@@ -1,25 +1,55 @@
 == Why is this an issue?
 
-The writer of an annotation can set one of three retention policies for it:
+Denoted by the "@" symbol, annotations are metadata that can be added to classes, methods, and variables for various
+purposes such as documentation, code analysis, and runtime processing.
 
-* ``++RetentionPolicy.SOURCE++`` - these annotations are dropped during compilation, E.G. ``++@Override++``, ``++@SuppressWarnings++``.
-* ``++RetentionPolicy.CLASS++`` - these annotations are present in a compiled class but not loaded into the JVM at runtime. This is the default.
-* ``++RetentionPolicy.RUNTIME++`` - these annotations are present in the class file and loaded into the JVM.
+Annotations have retention policies that determine in which context they are retained and available for use.
+There are three retention policies for annotations:
 
-Only annotations that have been given a ``++RUNTIME++`` retention policy will be available to reflection. Testing for annotations with any other retention policy is simply an error, since the test will always return false.
+* `RetentionPolicy.SOURCE` - Annotations are only available during compilation and code analysis.
+  They are not included in the compiled class file and are not available at runtime.
+  E.G. `@Override`, `@SuppressWarnings`
+* `RetentionPolicy.CLASS` - Annotations are included in the compiled class file providing information to the compiler,
+  but they are not retained by the JVM at runtime. This is the default retention policy. E.G. `@PreviewFeature`
+* `RetentionPolicy.RUNTIME` - Annotations are included in the compiled class file and available at runtime.
+  They can be accessed and used by the program through reflection.
+  E.G. `@FunctionalInterface`, `@Deprecated`
 
-
-This rule checks that reflection is not used to detect annotations that do not have ``++RUNTIME++`` retention.
-
-
-=== Noncompliant code example
+It is important to understand that only annotations having the `RUNTIME` retention policy can be accessed at runtime
+using reflection. For example, the following if condition is true when the method argument is the
+`java.util.function.Function` class:
 
 [source,java]
 ----
-Method m = String.class.getMethod("getBytes", new Class[] {int.class,
-int.class, byte[].class, int.class});
-if (m.isAnnotationPresent(Override.class)) {  // Noncompliant; test will always return false, even when @Override is present in the code
+void execute(Class<?> cls) {
+  if (cls.isAnnotationPresent(FunctionalInterface.class)) {
+    // ...
+  }
+}
 ----
+
+Therefore, it is an issue to use reflection in combination with annotations with the `SOURCE` or `CLASS` retention policy because they
+are not present at runtime. For example, in the JVM source code, the `hashCode()` method of the `Integer` class has
+the `@Override` annotation. However, the following if condition will always be false even if the method argument is the
+`Integer#hashCode()` method because `@Override` has the `SOURCE` retention policy:
+
+[source,java]
+----
+void execute(Method method) {
+  if (method.isAnnotationPresent(Override.class)) { // Noncompliant, if condition will always be false because
+                                                    // @Override is declared with @Retention(RetentionPolicy.SOURCE)
+    // ...
+  }
+}
+----
+
+This rule detects improper reflective access on annotations having the `SOURCE` or `CLASS` retention policy.
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/annotation/RetentionPolicy.html[Oracle SDK - java.lang.annotation.RetentionPolicy]
 
 ifdef::env-github,rspecator-view[]
 
