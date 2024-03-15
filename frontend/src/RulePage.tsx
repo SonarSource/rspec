@@ -14,7 +14,7 @@ import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import RuleMetadata, { Version, Coverage } from './types/RuleMetadata';
 import parse, { attributesToProps, domToReact, DOMNode, Element } from 'html-react-parser';
-import VisibilityOffIcon from '@material-ui/icons/VisibilityOff';
+import VisibilityOffOutlinedIcon from '@material-ui/icons/VisibilityOffOutlined';
 
 import './hljs-humanoid-light.css';
 
@@ -428,7 +428,7 @@ export function RulePage(props: any) {
       <RuleThemeProvider>
         <Container maxWidth="md">
           <h1>
-            {metadata.isInQualityProfile ? <></> : <><Tooltip title="Not in any Quality Profile"><VisibilityOffIcon /></Tooltip> </>}
+            {metadata.isInQualityProfile ? <></> : <><Tooltip title="Not in any Quality Profile"><VisibilityOffOutlinedIcon /></Tooltip> </>}
             {metadata.title}
           </h1>
           <hr />
