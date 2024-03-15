@@ -309,7 +309,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
     } else {
       coverage = allLangsRuleCoverage(metadataJSON.allKeys, coverageMapper);
     }
-    isInQualityProfile = metadataJSON.defaultQualityProfiles?.length > 0;
+    isInQualityProfile = metadataJSON.defaultQualityProfiles.length > 0;
   }
 
   if (coverage !== 'Not Covered') {
