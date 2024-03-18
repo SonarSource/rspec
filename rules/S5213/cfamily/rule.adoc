@@ -1,32 +1,33 @@
 == Why is this an issue?
 
-To configure an algorithm with a function in {cpp},  you can use one of the following techniques:
+To parametrize an algorithm with a function, you can use one of the following techniques:
 
-* A function pointer (see S5205 that explains why it is a bad idea)
-* An ``++std::function++``
-* A template argument
+* A function pointer (S5205 explains why it is an inferior solution)
+* A typed-erased function wrapper such as `std::function` ({cpp}11) or `std::move_only_function` ({cpp}23)
+* A template parameter
 
-How do you select between an ``++std::function++`` and a template argument?
+How do you select between a typed-erased function wrapper and a template parameter?
 
-``++std::function++`` offers the most flexibility. You can store them in a variable, in a container (as ``++std::map<string, std::function<void(void)>>++`` for instance... This flexibility is provided by type erasure: A single ``++std::function++`` can wrap any kind of functor, as long as the signature is compatible. It also comes with a cost: Due to this type erasure, a compiler will typically not be able to inline a call to a ``++std::function++``.
+Thanks to type erasure, `std::function` offers the most flexibility. You can store them in variables, including containers such as ``++std::map<std::string, std::function<void(void)>>++``.
+In other words, `std::function` can represent any kind of functor as long as their signatures are compatible. It also comes with a cost: due to this type erasure, a compiler will typically not be able to inline a call to a `std::function`.
 
+`std::move_only_function` is very similar to `std::function`.
+The main difference is that, as its name implies, it cannot be copied and has to be moved.
 
-Template parameters, on the other hand, are less flexible. Each functor has its own type, which prevents storing several of them together even if they all have compatible signatures. But since each template instance knows the type of the functor, calls can be inlined making this a zero-cost abstraction.
+Template parameters, on the other hand, are less flexible. Each functor has its own type, which prevents storing several of them together even if they all have compatible signatures. But since each template instance knows the type of the functor, calls can be inlined, making this a zero-cost abstraction.
 
+In conclusion, if the functor is known at compile-time, you should prefer using a template parameter; if it has to be dynamic, a typed-erased function wrapper gives you greater flexibility.
 
-As a conclusion, if the functor can be known at compile-time, you should prefer using a template parameter, if it has to be dynamic, ``++std::function++`` will give you greater flexibility.
-
-
-This rule detects function parameters of type ``++std::function++`` that would probably benefit from being replaced by a template parameter. It does so by looking if the functor is only called inside the function, or if it participates in other operations.
+This rule detects function parameters of type `std::function` and `std::move_only_function` that will likely benefit from being replaced by a template parameter. It does so by looking at whether the functor is only called inside the function or if it participates in other operations.
 
 
 === Noncompliant code example
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 using Criterion = std::function<bool(DataPoint const&)>;
 void filter(DataSet* data, Criterion criterion) { // Noncompliant
-  for (auto &dataPoint : data) {
+  for (auto& dataPoint : data) {
     if (criterion(dataPoint)) {
       data.markForRemoval(dataPoint);
     }
@@ -37,11 +38,11 @@ void filter(DataSet* data, Criterion criterion) { // Noncompliant
 
 === Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-template<class Criterion>
+template <class Criterion>
 void filter(DataSet* data, Criterion criterion) { // Compliant
-  for (auto &dataPoint : data) {
+  for (auto& dataPoint : data) {
     if (criterion(dataPoint)) {
       data.markForRemoval(dataPoint);
     }
@@ -52,22 +53,16 @@ void filter(DataSet* data, Criterion criterion) { // Compliant
 
 === Exceptions
 
-This rule ignores virtual functions, that don't work well with templates.
+This rule ignores virtual functions because they don't work well with templates.
 
 == Resources
 
-* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#t49-where-possible-avoid-type-erasure[T.49: Where possible, avoid type-erasure]
+=== Documentation
 
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/functional/function[`std::function`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/functional/move_only_function[`std::move_only_function`]
 
-ifdef::env-github,rspecator-view[]
+=== Related rules
 
-'''
-== Implementation Specification
-(visible only on this page)
+* S5205 Function pointers should not be used as function parameters
 
-=== Message
-
-Replace this "std::function" by a template parameter.
-
-
-endif::env-github,rspecator-view[]
