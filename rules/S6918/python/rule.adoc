@@ -1,0 +1,71 @@
+This rule raises an issue when a `tensorflow.Variable` created inside of a `tensorflow.function` is not a singleton.
+
+== Why is this an issue?
+
+``tensorflow.function``s only supports singleton ``tensorflow.Variable``s. This means the variable will be created on the first call
+of the `tensorflow.function` and will be reused across the subsequent calls. Creating a `tensorflow.Variable` that is not a singleton 
+will raise a `ValueError`.
+
+[source,python]
+----
+import tensorflow as tf
+
+@tf.function
+def f(x):
+  v = tf.Variable(1.0)
+  return v
+----
+
+In the example above each time the function `f` will be called a new `tensorflow.Variable` will be created.
+
+== How to fix it
+
+To fix this issue use the singleton pattern to avoid the creation of a `tensorflow.Variable` multiple times.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import tensorflow as tf
+
+class Count(tf.Module):
+  def __init__(self):
+    self.count = None
+
+  @tf.function
+  def __call__(self):
+    self.count = tf.Variable(0) # Noncompliant: the variable will be re-created for each call
+    return self.count.assign_add(1)
+
+c = Count()
+c() # ValueError is raised
+c()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import tensorflow as tf
+
+class Count(tf.Module):
+  def __init__(self):
+    self.count = None
+
+  @tf.function
+  def __call__(self):
+    if self.count is None:
+      self.count = tf.Variable(0) # Compliant: the variable is created only on during the first call
+    return self.count.assign_add(1)
+
+c = Count()
+c()
+c()
+----
+
+== Resources
+=== Documentation
+
+* TensorFlow Documentation - https://www.tensorflow.org/guide/function#creating_tfvariables[Creating tf.Variables]

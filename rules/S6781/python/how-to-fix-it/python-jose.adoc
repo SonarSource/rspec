@@ -1,0 +1,155 @@
+== How to fix it in python-jose
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following noncompliant FastAPI application contains a hard-coded secret that can be exposed unintentionally.
+
+[source,python,diff-id=201,diff-type=noncompliant]
+----
+from typing import Dict
+from fastapi import Depends, FastAPI
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+secret_key = 'secret'
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    to_encode.update({"exp": datetime.now(timezone.utc) +
+                      timedelta(minutes=15)})
+    return jwt.encode(to_encode, secret_key, algorithm="HS256")  # Noncompliant
+
+def validate_login(username: str, password: str) -> None:
+     ...
+
+
+@app.post("/login")
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends()
+) -> Dict[str, str]:
+    validate_login(form_data.username, form_data.password)
+    return dict(access_token=create_access_token(data={"sub": form_data.username}))
+----
+
+==== Compliant solution
+
+A solution is to set this secret in an environment variable.
+
+[source,python,diff-id=201,diff-type=compliant]
+----
+from typing import Dict
+from fastapi import Depends, FastAPI
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt
+import os
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+secret_key = os.environ["JWT_SECRET_KEY"]
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    to_encode.update({"exp": datetime.now(timezone.utc) +
+                      timedelta(minutes=15)})
+    return jwt.encode(to_encode, secret_key, algorithm="HS256")
+
+def validate_login(username: str, password: str) -> None:
+     ...
+
+
+@app.post("/login")
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends()
+) -> Dict[str, str]:
+    validate_login(form_data.username, form_data.password)
+    return dict(access_token=create_access_token(data={"sub": form_data.username}))
+----
+
+==== Noncompliant code example
+
+[source,python,diff-id=202,diff-type=noncompliant]
+----
+from typing import Dict
+from fastapi import Depends, FastAPI
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+private_key = '''-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDAK5Lsx5Ow0N+d
+...
+-----END PRIVATE KEY-----'''
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    to_encode.update({"exp": datetime.now(timezone.utc) +
+                      timedelta(minutes=15)})
+    return jwt.encode(to_encode, private_key, algorithm="RS256")  # Noncompliant
+
+def validate_login(username: str, password: str) -> None:
+     ...
+
+
+@app.post("/login")
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends()
+) -> Dict[str, str]:
+    validate_login(form_data.username, form_data.password)
+    return dict(access_token=create_access_token(data={"sub": form_data.username}))
+----
+
+==== Compliant solution
+
+When using an asymmetric encryption algorithm, the keys can be loaded from a file instead of being hardcoded.
+
+[source,python,diff-id=202,diff-type=compliant]
+----
+from typing import Dict
+from fastapi import Depends, FastAPI
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt
+
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+private_key = ''
+with open('resources/rs256.pem', 'r') as f:
+    private_key = f.read()
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    to_encode.update({"exp": datetime.now(timezone.utc) +
+                      timedelta(minutes=15)})
+    return jwt.encode(to_encode, private_key, algorithm="RS256")
+
+def validate_login(username: str, password: str) -> None:
+     ...
+
+
+@app.post("/login")
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends()
+) -> Dict[str, str]:
+    validate_login(form_data.username, form_data.password)
+    return dict(access_token=create_access_token(data={"sub": form_data.username}))
+----
+
+
+//=== How does this work?
+
+//=== Pitfalls
+
+=== Going the extra mile
+
+include::../../../../shared_content/secrets/fix/vault.adoc[]
+
