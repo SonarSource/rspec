@@ -1,21 +1,35 @@
 == Why is this an issue?
 
-In contrast to C printf-like functions, the `std::format` family of formatting functions provides
-a safer and more robust interface for performing text formatting.
+In contrast to C printf-like functions, {cpp} provides safer and more robust interfaces for performing text formatting:
+
+* The `std::format` interface family ({cpp}20) allows formatting text into a string
+* The `std::print` interface family ({cpp}23) allows printing formatted text
 
 Firstly, {cpp} formatting facilities perform validation of the format string against the type
 of the formatted argument. If the validation fails, it is reported as a compilation error
-for the calls of `std::format` and via exception for  `std::vformat`.
+for the calls of `std::print` and `std::format`.
+In addition `std::vformat`, `std::vprint_unicode`, and `std::vprint_nonunicode` report validation failures by throwing an instance of `std::format_error`.
 
 Secondly, the relation between the type and format specifier is more abstract.
 In particular, `{:d}` can be used to format any integer type, regardless of its size and signedness.
 Similarly, `{:f}` works for any floating point type.
 Furthermore, `{}` can be used for any type with default format spec, which makes it usable in the generic context.
 
-Finally, the `std::format` API can be extended to support custom types with the dedicated format specification via
+Finally, the text formatting API was designed with adaptability in mind:
+
+* Formatting of user-defined types is possible with the dedicated format specification via
 `std::formatter` specializations.
 
-This rule raises issues for calls of the `sprintf` and `snprintf` functions that can be replaced by the {cpp} formatting functions.
+* The string formatting API provides functions for:
+  - receiving the formatted text by return - `std::format`.
+  - writing the formatted text to an output iterator - `std::format_to`.
+
+* The `std::print` API provides function overloads for:
+  - printing implicitly to the standard output.
+  - printing to a ``++FILE*++`` handle.
+  - printing to a `std::ostream&` object.
+
+This rule raises issues for calls of the `printf`, `fprintf`, `sprintf` and `snprintf` functions that can be replaced by the {cpp} formatting functions.
 
 === Noncompliant code example
 
@@ -24,6 +38,12 @@ This rule raises issues for calls of the `sprintf` and `snprintf` functions that
 void printFunc(char* out, size_t n) {
   sprintf(out, "%u %s", 10u, “text”); // Noncompliant
   std::snprintf(out, n, "%i %% %LG", 10, 10.0L); // Noncompliant
+}
+
+void printFile(FILE* f) {
+  // Since C++23
+  printf("%i", 10);  // Noncompliant
+  std::fprintf(f, "%f", 10.0);  // Noncompliant
 }
 ----
 
@@ -40,15 +60,11 @@ void printFunc(char* out) {
   // or
   std::format_to_n(out, ”{} % {:G}”, 10, 10.0L); // Compliant
 }
-----
 
-Other printf-like functions are not concerned by this rule:
-
-[source,cpp]
-----
-void printFunc(FILE* f) {
-  printf("%i", 10);  // Compliant, no direct remplacment
-  std::fprintf(f, "%f", 10.0);  // Compliant, no direct remplacment
+void printFile(FILE* f) {
+  // Since C++23
+  std::print("{}", 10);  // Compliant
+  std::print(f, "{}", 10.0);  // Compliant
 }
 ----
 
@@ -67,3 +83,17 @@ snprintf(buffer, localizedFormatString(123), 10, 20)
 While `std::vformat` may be used in such cases, it would require a change of the format string,
 which may not be actionable.
 
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/format[`std::format`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/io/print[`std::print`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/io/basic_ostream/print[`std::print(std::ostream)`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/format_to[`std::format_to`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/format_to_n[`std::format_to_n`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/io/vprint_unicode[`std::vprint_unicode`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/io/vprint_nonunicode[`std::vprint_nonunicode`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/io/basic_ostream/vprint_unicode[`std::vprint_unicode(std::ostream)`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/io/basic_ostream/vprint_nonunicode[`std::vprint_nonunicode(std::ostream)`]
