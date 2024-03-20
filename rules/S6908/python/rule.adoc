@@ -1,0 +1,53 @@
+This rule raises an issue when a `tensorflow.function` is recursive.
+
+== Why is this an issue?
+
+When defining a `tensorflow.function` it is generally a bad practice to make this function recursive. TensorFlow does not 
+support recursive `tensorflow.function` and will in the majority of cases throw an exception. However it is possible as 
+well that the execution of such function succeeds, but with multiple tracings which has strong performance implications.
+When executing `tensorflow.function`, the code is split into two distinct stages. 
+The first stage call `tracing` creates a new `tensorflow.Graph`, runs the Python code normally, 
+but defers the execution of TensorFlow operations (i.e. adding two Tensors). These operations are added to the graph without being ran.
+The second stage which is much faster than the first, runs everything that was deferred previously.
+Depending on the input of the `tensorflow.function` the first stage may not be needed, see: https://www.tensorflow.org/guide/function#rules_of_tracing[Rules of tracing].
+Skipping this first stage is what provides the user with TensorFlow's high performance.
+
+Having a recursive `tensorflow.function` prevents the user from benefiting of TensorFlow's capabilities.
+
+== How to fix it
+
+To fix this issue, refactor the `tensorflow.function` so that is it not recursive.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import tensorflow as tf
+
+@tf.function
+def factorial(n):
+     if n == 1:
+        return 1
+    else:
+        return (n * factorial(n-1)) # Noncompliant: the function is recursive
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import tensorflow as tf
+
+@tf.function
+def factorial(n):
+     return tf.exp(tf.lgamma(n + 1)) # Compliant
+----
+
+
+== Resources
+=== Documentation
+
+* TensorFlow Documentation - https://www.tensorflow.org/guide/function#recursive_tffunctions_are_not_supported[Recursive tf.functions are not supported]
+* TensorFlow Documentation - https://www.tensorflow.org/guide/function#rules_of_tracing[Rules of tracing]
