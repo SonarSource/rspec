@@ -1,55 +1,98 @@
-The https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing[routing] middleware in https://learn.microsoft.com/en-us/aspnet/core/mvc/overview[ASP.NET Core MVC] uses a set of predefined rules and conventions to determine which controller and action method to invoke for a given HTTP request. The routing configuration is typically defined with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.controllerendpointroutebuilderextensions.mapcontrollerroute[`MapControllerRoute`] method during the application configuration.
-However, without some extra configuration on the developer's part, sometimes the routing system cannot correctly resolve a route and map it to a certain action, resulting in unexpected behavior or errors.
+When a route template is defined through an attribute on an action method, conventional routing for that action is disabled. To maintain good practice, it's recommended not to combine conventional and attribute-based routing within a single controller. As such, the controller should exclude itself from conventional routing by applying a `[Route]` attribute.
 
 == Why is this an issue?
 
-In ASP.NET MVC, when a https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routing.httpmethodattribute[`HttpMethodAttribute`] (such as https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.httpgetattribute[`HttpGet`], https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.httppostattribute[`HttpPost`], etc) is specified with a given route template at the action level, it's important that its controller also has a https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routeattribute[`RouteAttribute`] defined. If not, then the route pattern that has been defined in `WebApplication.MapControllerRoute` is applied, resulting in an unexpected route and potential confusion. This applies also to when https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/areas[`areas`] are defined.
+In https://learn.microsoft.com/en-us/aspnet/core/mvc/overview[ASP.NET Core MVC], the https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing[routing] middleware utilizes a series of rules and conventions to identify the appropriate controller and action method to handle a specific HTTP request. This process, known as _conventional routing_, is generally established using the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.controllerendpointroutebuilderextensions.mapcontrollerroute[`MapControllerRoute`] method. This method is typically configured in one central location for all controllers during the application setup.
 
+Conversely, _attribute routing_ allows routes to be defined at the controller or action method level. It is possible to https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing#mixed-routing-attribute-routing-vs-conventional-routing[mix both mechanisms]. Although it's permissible to employ diverse routing strategies across multiple controllers, combining both mechanisms within one controller can result in confusion and increased complexity, as illustrated below.
+
+[source,csharp]
+----
+// Conventional mapping definition
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+public class PersonController
+{
+        // Conventional routing:
+        // Matches e.g. /Person/Index/123
+        public IActionResult Index(int? id) => View();
+
+        // Attribute routing:
+        // Matches only /Age/Ascending
+        // and does not match /Person/List/Age/Ascending
+        [HttpGet(template: "{sortBy}/{direction}")]
+        public IActionResult List(string sortBy, SortOrder direction) => View();
+}
+----
 
 == How to fix it
 
-When any of the controller actions is annotated with a `HttpMethodAttribute' with a route template, you should also annotate the controller with the `RouteAttribute` as well.
+When any of the controller actions are annotated with a https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routing.httpmethodattribute[`HttpMethodAttribute`] with a route template, you should specify a route template on the controller with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routeattribute[`RouteAttribute`].
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,csharp]
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-    public class PersonController : Controller
-    {
-        [HttpGet("GetPerson")]
-        public ActionResult Index() // Noncompliant, this action will be reachable by "/root/GetPerson" instead of "/root/Person/GetPerson"
-        {
-            return View();
-        }
-    }
+public class PersonController: Controller
+{
+    // Matches /Person/Index/123
+    public IActionResult Index(int? id) => View();
+    
+    // Matches /Age/Ascending
+    [HttpGet(template: "{sortBy}/{direction}")] // Noncompliant: The "Index" and the "List" actions are
+                                                // reachable via different routing mechanisms and routes
+    public IActionResult List(string sortBy, SortOrder direction) => View();
+}
 ----
 
 ==== Compliant solution
 
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+[Route("[controller]/{action=Index}")]
+public class PersonController: Controller
+{
+    // Matches /Person/Index/123
+    [Route("{id?}")]
+    public IActionResult Index(int? id) => View();
+    
+    // Matches Person/List/Age/Ascending
+    [HttpGet("{sortBy}/{direction}")] // Compliant: The route is relative to the controller
+    public IActionResult List(string sortBy, SortOrder direction) => View();
+}
+----
+
+
+
 [source,csharp]
 ----
+// Option 1. Replace the attribute-based routing with a conventional route
+app.MapControllerRoute(
+    name: "PersonList",
+    pattern: "Person/List/{sortBy}/{direction}",
+    defaults: new { controller = "Person", action = "List" }); // Matches Person/List/Age/Ascending
 
-    public class PersonController: Controller
-    {
-        [HttpGet]
-        public ActionResult Index() // Compliant, no route template is given to the attribute
-        {
-            return View();
-        }
-    }
+// Option 2. Use a binding, that does not depend on route templates
+public class PersonController: Controller
+{
+    // Matches Person/List?sortBy=Age&direction=Ascending
+    [HttpGet] // Compliant: Parameters are bound from the query string
+    public IActionResult List(string sortBy, SortOrder direction) => View();
+}
 
-    [Route("Person")]
-    public class PersonController: Controller
-    {
-        [HttpGet("GetPerson")]
-        public ActionResult Index() // Compliant
-        {
-            return View();
-        }
-    }
+// Option 3. Use an absolute route
+public class PersonController: Controller
+{
+    // Matches Person/List/Age/Ascending
+    [HttpGet("/[controller]/[action]/{sortBy}/{direction}")] // Illustrate the expected route by starting with "/"
+    public IActionResult List(string sortBy, SortOrder direction) => View();
+}
 ----
+
 
 == Resources
 
@@ -57,6 +100,8 @@ When any of the controller actions is annotated with a `HttpMethodAttribute' wit
 
 * Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/mvc/overview[Overview of ASP.NET Core MVC]
 * Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing[Routing to controller actions in ASP.NET Core]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routing.httpmethodattribute[HttpMethodAttribute Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routeattribute[RouteAttribute Class]
 
 === Articles & blog posts
 * Medium - https://medium.com/quick-code/routing-in-asp-net-core-c433bff3f1a4[Routing in ASP.NET Core]
