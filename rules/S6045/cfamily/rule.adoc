@@ -12,15 +12,15 @@ For example, `std::set<std::string>` is _not_ using transparent comparators. Inv
 std::set<std::string> c = ...;
 
 // Calling "find" with a C-style string (char const*)
-c.find("Nemo");
+auto it = c.find("Nemo");
 // is equivalent to
-c.find(std::string{"Nemo"});
+auto it = c.find(std::string{"Nemo"});
 
 // Calling C++20 "contains" with a std::string_view sv
 // does not compile since conversion has to be explicit:
-//   c.contains(sv);
+//   if (c.contains(sv)) { ... }
 // It has to be rewritten like this:
-c.contains(std::string(sv));
+if (c.contains(std::string(sv))) { ... }
 ----
 
 Using heterogeneous comparison and hashing directly benefits the application performance since unnecessary temporaries can be avoided. An excellent and very common example of when transparent functions objects are beneficial is when the ``++key_type++`` is `std::string`.
@@ -62,7 +62,7 @@ void example() {
 }
 ----
 
-Unfortunately, the default `std::less<std::string>` is not transparent.
+The default comparator for `std::set<std::string>` is `std::less<std::string>`, which is not transparent.
 
 ==== Compliant solution
 
@@ -118,17 +118,19 @@ void example() {
 }
 ----
 
-However, like `std::less<std::string>`, `CaseInsensitiveCompare` is not transparent, and the code contains undesired temporary strings.
+However, like `std::less<std::string>`, `CaseInsensitiveCompare` is not transparent, and the code triggers the construction of undesired temporary strings.
 
 ==== Compliant solution
 
-A comparator needs to explicitly declare itself as transparent. For this purpose, the {cpp} standard assumes that a comparator with an inner type named `is_transparent` is heterogeneous. The type itself does not matter.
+A comparator needs to explicitly declare itself as transparent. This is achieved by having an inner type named `is_transparent` in the comparator. The type itself does not matter.
 
 Furthermore, the comparator needs to provide heterogeneous comparisons. There are multiple ways to achieve this:
 
-. Its `operator()` could be templated, like `std::less<void>` does.
+. Its `operator()` could be templated and written in a generic way, like `std::less<void>` does.
 . It could provide the relevant overloads for the software.
-. Or it can provide one overload that handles any kind of key.
+. It can provide one overload whose lightweight parameter type can be constructed from key-like types.
+
+With the first and third options, the implementation is reusing existing functions and types by delegating the comparison operation to them.
 
 When working with `std::string`, the last option may often be the simplest thanks for `std::string_view`.
 
