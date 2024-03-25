@@ -7,10 +7,10 @@ RUN apt-get update && \
                                                ca-certificates gnupg && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | \
       gpg --dearmor -o /etc/apt/nodesource-keyring.gpg && \
-    echo "deb [signed-by=/etc/apt/nodesource-keyring.gpg] https://deb.nodesource.com/node_16.x nodistro main" \
+    echo "deb [signed-by=/etc/apt/nodesource-keyring.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    apt-get install nodejs && \
+    apt-get -y install nodejs && \
     rm -rf /var/lib/apt/lists/*
 
 
