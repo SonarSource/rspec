@@ -6,6 +6,7 @@ import Typography from '@material-ui/core/Typography';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
+import Tooltip from '@material-ui/core/Tooltip';
 import { createTheme, Link, ThemeProvider } from '@material-ui/core';
 import Highlight from 'react-highlight';
 import { Link as RouterLink, useHistory } from 'react-router-dom';
@@ -13,6 +14,7 @@ import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import RuleMetadata, { Version, Coverage } from './types/RuleMetadata';
 import parse, { attributesToProps, domToReact, DOMNode, Element } from 'html-react-parser';
+import VisibilityOffOutlinedIcon from '@material-ui/icons/VisibilityOffOutlined';
 
 import './hljs-humanoid-light.css';
 
@@ -256,6 +258,7 @@ interface PageMetadata {
   prUrl: string | undefined;
   branch: string;
   coverage: Coverage;
+  isInQualityProfile: boolean;
   jsonString: string | undefined;
 }
 
@@ -266,6 +269,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   let coverage: Coverage = 'Loading...';
   let title = 'Loading...';
   let avoid = false;
+  let isInQualityProfile = false;
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
@@ -305,6 +309,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
     } else {
       coverage = allLangsRuleCoverage(metadataJSON.allKeys, coverageMapper);
     }
+    isInQualityProfile = metadataJSON.defaultQualityProfiles.length > 0;
   }
 
   if (coverage !== 'Not Covered') {
@@ -319,6 +324,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
     prUrl,
     branch,
     coverage,
+    isInQualityProfile,
     jsonString: metadataJSONString
   };
 }
@@ -421,7 +427,10 @@ export function RulePage(props: any) {
 
       <RuleThemeProvider>
         <Container maxWidth="md">
-          <h1>{metadata.title}</h1>
+          <h1>
+            {metadata.isInQualityProfile ? <></> : <><Tooltip title="Not in any Quality Profile"><VisibilityOffOutlinedIcon /></Tooltip> </>}
+            {metadata.title}
+          </h1>
           <hr />
           <Box className={classes.coverage}>
             <h2>Covered Since</h2>

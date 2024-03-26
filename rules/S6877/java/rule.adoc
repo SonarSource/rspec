@@ -2,18 +2,15 @@
 
 Java 21 introduces the new Sequenced Collections API, which applies to all collections with a defined sequence on their elements, such as `LinkedList`, `TreeSet`, and others (see https://openjdk.org/jeps/431[JEP 431]).
 For projects using Java 21 and onwards, use this API instead of workaround implementations that were necessary before Java 21.
+One of the features of the new Sequenced Collections API is `SequencedCollection.reversed()` which returns a lightweight view of the original collection, in the reverse order.
 
-This rule reports when a reverse copy of a list is created, but a reverse view would have been sufficient because the resulting list - as well as the original list in the scope of the resulting list - is not modified (`add`, `remove`).
-`SequencedCollection.reversed()` returns a view of the original list that reflects changes in the original list, while `Collection.reverse(List)` creates a new list that is not connected with the original list.
+This rule reports when reverse view would have been sufficient instead of a reverse copy of a sequenced collection created using a list constructor plus a `Collections.reverse(collection);` call.
 
-If feasible, a view should be preferred over a copy because:
-
-1. It is a lightweight collection that only functions as a view and it does not allocate memory for the data contained in the underlying collection.
-2. It abstracts from the fact that the collection instance is a list. This results in more generic code that is easier to port, for instance, when you want to use another collection data structure.
+If feasible, a view should be preferred over a copy because a view is a lightweight iterator without modification of the list itself.
 
 == How to fix it
 
-Replace `Collection.reverse(list)` with `list.reversed()`.
+Remove `Collections.reverse(list);` and replace `list` with `list.reversed()` after.
 
 === Code examples
 
@@ -21,9 +18,14 @@ Replace `Collection.reverse(list)` with `list.reversed()`.
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-void foo(List<String> list) {
-  var reverseList = Collections.reverse(list); // Noncompliant
-  // ... (read-only operations)
+void foo() {
+  var list = new ArrayList<String>();
+  list.add("A");
+  list.add("B");
+  Collections.reverse(list); // Noncompliant
+  for (var e : list) {
+    // ...
+  }
 }
 ----
 
@@ -31,10 +33,37 @@ void foo(List<String> list) {
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
+void foo() {
+  var list = new ArrayList<String>();
+  list.add("A");
+  list.add("B");
+  for (var e : list.reversed()) {  // Compliant
+    // ...
+  }
+}
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
 void foo(List<String> list) {
-  var reverseList = list.reversed(); // Compliant
-  // do something
-  // ...
+  var copy = new ArrayList<String>(list);
+  Collections.reverse(copy); // Noncompliant
+  for (var e : copy) {
+    // ...
+  }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+void foo(List<String> list) {
+  for (var e : list.reversed()) {  // Compliant
+    // ...
+  }
 }
 ----
 
