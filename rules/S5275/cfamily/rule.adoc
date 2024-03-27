@@ -1,13 +1,16 @@
 == Why is this an issue?
 
-Because ``++reinterpret_cast++`` ignores the type system, it is capable of performing dangerous conversions between unrelated types which can lead to undefined behavior.
+Because ``++reinterpret_cast++`` ignores the type system, it can perform dangerous conversions between unrelated types, often leading to undefined behavior.
 
+This rule reports an issue for these problematic uses of ``++reinterpret_cast++``, which are all undefined behavior:
 
-This rule reports an issue for two problematic uses of ``++reinterpret_cast++``:
+* When it is used to make the compiler believe that an object in memory has a different type from its actual type, such as casting a ``++long*++`` to ``++double*++``, even if their sizes in memory are the same (``++sizeof(long) == sizeof(double)++``).
 
-* when it is used to make the compiler believe that an object in memory is from a different type from its real type (for instance, casting a ``++long*++`` to ``++double*++``, because accessing a ``++long++`` as if it was a ``++double++`` is undefined behavior (even if ``++sizeof(long) == sizeof(double)++``),
-* when it is used to cast between different levels of a complex inheritance hierarchy (a ``++static_cast++`` would apply pointer offsets to take into account multiple inheritance, for instance, but ``++reinterpret_cast++`` does not)
+* When it is used to cast between different levels of a complex inheritance hierarchy. A ``++static_cast++`` would apply pointer offsets to account for multiple inheritances, but ``++reinterpret_cast++`` does not.
 
+* When the cast breaks the rules for implicit object lifetimes. For example, this happens when casting to a type with a user-provided destructor or no trivial default constructor because ``++reinterpret_cast++`` does not execute any code.
+
+S3630 is a more general rule: it raises on all use of ``++reinterpret_cast++`` since there are safer alternatives.
 
 === Noncompliant code example
 
@@ -16,14 +19,39 @@ This rule reports an issue for two problematic uses of ``++reinterpret_cast++``:
 class X {};
 class Y : virtual X {};
 
-void test() {
+void example() {
   long l;
   auto a = reinterpret_cast<double&>(l); // Noncompliant: undefined behavior
 
   Y* y;
   auto x = reinterpret_cast<X*>(y); // Noncompliant
 }
+
+class FileHandle {
+public:
+  // ...
+
+  // Close the handle and release system resources.
+  ~FileHandle();
+}
+
+void callback(void* data) {
+  auto* handle = reinterpret_cast<FileHandle*>(data); // Noncompliant
+  // ...
+}
 ----
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/reinterpret_cast[``++reinterpret_cast++`` conversion]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/object#Object_creation[Object creation]
+
+=== Related rules
+
+* S6181 - "std::bit_cast" should be used to reinterpret binary representation instead of "std::memcpy"
+* S3630 - "reinterpret_cast" should not be used
 
 ifdef::env-github,rspecator-view[]
 
