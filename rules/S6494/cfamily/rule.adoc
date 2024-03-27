@@ -2,13 +2,10 @@
 
 In contrast to C printf-like functions, {cpp} provides safer and more robust interfaces for performing text formatting:
 
-* The `std::format` interface family ({cpp}20) allows formatting text into a string
-* The `std::print` interface family ({cpp}23) allows printing formatted text
+* The `std::format` interface family ({cpp}20) allows formatting text into a string.
+* The `std::print` interface family ({cpp}23) allows printing formatted text.
 
-Firstly, {cpp} formatting facilities perform validation of the format string against the type
-of the formatted argument. If the validation fails, it is reported as a compilation error
-for the calls of `std::print` and `std::format`.
-In addition `std::vformat`, `std::vprint_unicode`, and `std::vprint_nonunicode` report validation failures by throwing an instance of `std::format_error`.
+{cpp} formatting facilities perform validation of the format string against the type of the formatted argument. If the validation fails, it is reported as a compilation error for the calls of `std::print` and `std::format`. When the format string is not available at compile-time, `std::vformat`, `std::vprint_unicode`, and `std::vprint_nonunicode` can be used. They will report failures at runtime by throwing an instance of `std::format_error`.
 
 Secondly, the relation between the type and format specifier is more abstract.
 In particular, `{:d}` can be used to format any integer type, regardless of its size and signedness.
@@ -17,8 +14,7 @@ Furthermore, `{}` can be used for any type with default format spec, which makes
 
 Finally, the text formatting API was designed with adaptability in mind:
 
-* Formatting of user-defined types is possible with the dedicated format specification via
-`std::formatter` specializations.
+* Formatting of user-defined types is possible with the dedicated format specification via `std::formatter` specializations.
 
 * The string formatting API provides functions for:
   - receiving the formatted text by return - `std::format`.
@@ -35,15 +31,18 @@ This rule raises issues for calls of the `printf`, `fprintf`, `sprintf` and `snp
 
 [source,cpp]
 ----
-void printFunc(char* out, size_t n) {
-  sprintf(out, "%u %s", 10u, “text”); // Noncompliant
+void printTextIntoBuffer(char* out) {
+  // Assumes the buffer pointed-to by out is large enough
+  sprintf(out, "%u %s", 10u, "text"); // Noncompliant
+}
+
+void printTextIntoSizedBuffer(char* out, size_t n) {
   std::snprintf(out, n, "%i %% %LG", 10, 10.0L); // Noncompliant
 }
 
-void printFile(FILE* f) {
-  // Since C++23
-  printf("%i", 10);  // Noncompliant
-  std::fprintf(f, "%f", 10.0);  // Noncompliant
+void printToFile(FILE* f) {
+  printf("%i", 10); // Noncompliant since C++23
+  std::fprintf(f, "%f", 10.0); // Noncompliant since C++23
 }
 ----
 
@@ -51,18 +50,21 @@ void printFile(FILE* f) {
 
 [source,cpp]
 ----
-void printFunc(char* out) {
-  std::format_to(out, “{:d} {:s}”, 10u, text); // Compliant
-  // or
-  std::format_to(out, “{} {}”, 10u, text); // Compliant
-
-  std::format_to_n(out, ”{:d} % {:G}”, 10, 10.0L); // Compliant
-  // or
-  std::format_to_n(out, ”{} % {:G}”, 10, 10.0L); // Compliant
+void printTextIntoBuffer(char* out) {
+  // Assumes the buffer pointed-to by out is large enough
+  std::format_to(out, "{} {}", 10u, "text"); // Compliant
+}
+// The function can also be redesigned to deal with memory allocation
+// and return a string:
+std::string getText() {
+  return std::format("{} {}", 10u, "text"); // Compliant
 }
 
-void printFile(FILE* f) {
-  // Since C++23
+void printTextIntoSizedBuffer(char* out, size_t n) {
+  std::format_to_n(out, n, "{} % {:G}", 10, 10.0L); // Compliant
+}
+
+void printToFile(FILE* f) {
   std::print("{}", 10);  // Compliant
   std::print(f, "{}", 10.0);  // Compliant
 }
@@ -70,8 +72,7 @@ void printFile(FILE* f) {
 
 === Exceptions
 
-The rule does not raise an issue if the format string passed to a printf-like function is computed dynamically
-instead of being spelled in the source code:
+The rule does not raise an issue if the format string passed to a printf-like function is computed dynamically instead of being spelled in the source code:
 
 [source,cpp]
 ----
@@ -80,20 +81,24 @@ char const* localizedFormatString(unsigned id);
 snprintf(buffer, localizedFormatString(123), 10, 20)
 ----
 
-While `std::vformat` may be used in such cases, it would require a change of the format string,
-which may not be actionable.
+While `std::vformat` may be used in such cases, it requires changing the format string, which may not be actionable.
 
 
 == Resources
 
 === Documentation
 
-* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/format[`std::format`]
-* {cpp} reference - https://en.cppreference.com/w/cpp/io/print[`std::print`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/header/format[`<format>`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/header/print[`<print>`]
 * {cpp} reference - https://en.cppreference.com/w/cpp/io/basic_ostream/print[`std::print(std::ostream)`]
-* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/format_to[`std::format_to`]
-* {cpp} reference - https://en.cppreference.com/w/cpp/utility/format/format_to_n[`std::format_to_n`]
-* {cpp} reference - https://en.cppreference.com/w/cpp/io/vprint_unicode[`std::vprint_unicode`]
-* {cpp} reference - https://en.cppreference.com/w/cpp/io/vprint_nonunicode[`std::vprint_nonunicode`]
-* {cpp} reference - https://en.cppreference.com/w/cpp/io/basic_ostream/vprint_unicode[`std::vprint_unicode(std::ostream)`]
-* {cpp} reference - https://en.cppreference.com/w/cpp/io/basic_ostream/vprint_nonunicode[`std::vprint_nonunicode(std::ostream)`]
+
+
+=== Articles & blog posts
+
+* {cpp} Stories - https://www.cppstories.com/2022/custom-stdformat-cpp20/[Formatting Custom types with std::format from {cpp}20]
+
+=== Related rules
+
+* S6185 - "std::format" should be used instead of string concatenation and "std::to_string"
+* S6484 - Concatenated "std::format" outputs should be replaced by a single invocation
+* S6495 - "std::format" should be used instead of standard output manipulators
