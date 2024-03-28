@@ -1,0 +1,115 @@
+== How to fix it in ASP.NET Core
+
+=== Code examples
+
+The following noncompliant code contains a hard-coded secret that can be exposed unintentionally.
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+[ApiController]
+[Route("login-config")]
+public class LoginConfigController : ControllerBase
+{
+    private readonly IConfiguration _config;
+    public LoginConfigController(IConfiguration config) 
+    {
+        _config = config;
+    }
+
+    [HttpPost]
+    public IActionResult Post([FromBody] UserModel user)
+    {
+        var key = _config["Jwt:Key"] ?? ""; 
+
+        // Code to validate user omitted
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)); // Noncompliant (key in appsettings.json)
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var Sectoken = new JwtSecurityToken(
+            "sonarsource.com",
+            "sonarsource.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials);
+
+        return Ok(new JwtSecurityTokenHandler().WriteToken(Sectoken));
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+[ApiController]
+[Route("login-env")]
+public class LoginEnvController : ControllerBase
+{
+    private readonly IConfiguration _config;
+    public LoginEnvController(IConfiguration config) 
+    {
+        _config = config;
+    }
+
+    [HttpPost]
+    public IActionResult Post([FromBody] UserModel user)
+    {
+        var key = Environment.GetEnvironmentVariable("JWT_KEY") ?? "";
+
+        // Code to validate user omitted
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var Sectoken = new JwtSecurityToken(
+            "sonarsource.com",
+            "sonarsource.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials);
+
+        var token =  new JwtSecurityTokenHandler().WriteToken(Sectoken);
+
+        return Ok(token);
+    }
+}
+----
+
+=== How does this work?
+
+Here, the compliant solution uses an environement variable for the secret. 
+
+=== Going the extra mile
+
+==== Use a secret vault
+
+A secret vault should be used to generate and store the new secret. This will ensure the secret's security and prevent any further unexpected disclosure. The recommended way for .NET Core applications is to use Azure Key Vault:
+
+[source,csharp]
+----
+var builder = WebApplication.CreateBuilder(args);
+
+// Get the name of the key vault
+var keyVaultName = Environment.GetEnvironmentVariable("AZURE_KEYVAULT") ?? "";
+// Add Azure Key Vault in the configuration
+builder.Configuration.AddAzureKeyVault(new Uri($"https://{keyVaultName}.vault.azure.net/"), new EnvironmentCredential());
+// Get the JWT secret from Azure Key Vault
+var jwtKey = builder.Configuration.GetSection("JWT-KEY").Get<string>() ?? "";
+
+builder.Services
+  .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+  .AddJwtBearer(options => {
+      options.TokenValidationParameters = new TokenValidationParameters{
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = "sonarsource.com",
+        ValidAudience = "sonarsource.com",
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!)) // Compliant: key from Azure Key Vault
+      };
+  });
+----
