@@ -1,14 +1,29 @@
+The TLS configuration of Google Cloud load balancers is defined through SSL policies.
+
 == Why is this an issue?
 
-TLS configuration of Google Cloud load balancers is defined through SSL policies. There are three managed profiles to choose from: ``++COMPATIBLE++`` (default), ``++MODERN++`` and ``++RESTRICTED++``:
+There are three managed profiles to choose from: ``++COMPATIBLE++`` (default), ``++MODERN++`` and ``++RESTRICTED++``:
 
-* The ``++RESTRICTED++`` profile relies only on secure cipher suites and should be used by applications that require to comply with the highest security standards.  
-* The ``++MODERN++`` profile includes additional cipher suites that present security weaknesses like using the ``++SHA1++`` algorithm for signing.
-* The ``++COMPATIBLE++`` profile offers the most common cipher suites and thus broader compatibility. Some of these use ``++SHA1++`` or ``++3DES++`` algorithms which are considered weak. Also, this profile includes cipher suites that rely on obsolete key-exchange mechanisms that don't provide forward secrecy[https://en.wikipedia.org/wiki/Forward_secrecy] as a feature.
+* The ``++RESTRICTED++`` profile supports a reduced set of cryptographic algorithms, intended to meet stricter compliance requirements.
+* The ``++MODERN++`` profile supports a wider set of cryptographic algorithms, allowing most modern clients to negotiate TLS.
+* The ``++COMPATIBLE++`` profile supports the widest set of cryptographic algorithms, allowing connections from older client applications.
 
+The ``++MODERN++`` and ``++COMPATIBLE++`` profiles allow the use of older cryptographic algorithms that are no longer considered secure and are susceptible to attack.
 
-=== Noncompliant code example
-[source,terraform]
+=== What is the potential impact?
+
+An attacker may be able to force the use of the insecure cryptographic algorithms, downgrading the security of the connection. This allows them to compromise the confidentiality or integrity of the data being transmitted.
+
+The ``++MODERN++`` profile allows the use of the insecure SHA-1 signing algorithm. An attacker is able to generate forged data that passes a signature check, appearing to be legitimate data.
+
+The ``++COMPATIBLE++`` profile additionally allows the user of key exchange algorithms that do not support https://en.wikipedia.org/wiki/Forward_secrecy[forward secrecy] as a feature. If the server's private key is leaked, it can be used to decrypt all network traffic sent to and from that server.
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+[source,terraform,diff-id=1,diff-type=noncompliant]
 ----
 resource "google_compute_ssl_policy" "example" {
   name            = "example"
@@ -17,8 +32,8 @@ resource "google_compute_ssl_policy" "example" {
 }
 ----
 
-=== Compliant solution
-[source,terraform]
+==== Compliant solution
+[source,terraform,diff-id=1,diff-type=compliant]
 ----
 resource "google_compute_ssl_policy" "example" {
   name            = "example"
@@ -27,16 +42,28 @@ resource "google_compute_ssl_policy" "example" {
 }
 ----
 
+=== How does this work?
+
+If an attacker is able to intercept and modify network traffic, they can filter the list of algorithms sent between the client and the server. By removing all secure algorithms from the list, the attacker can force the use of any insecure algorithms that remain.
+
+The ``++RESTRICTED++`` profile only allows strong cryptographic algorithms to be used. There are no insecure algorithms that can compromise the security of the connection.
+
+=== Pitfalls
+
+Older client applications may not support the algorithms required by the ``++RESTRICTED++`` profile. These applications will no longer be able to connect.
+
+If the ``++MODERN++`` or ``++COMPATIBLE++`` profiles must be used so that older clients can connect, consider using additional measures such as TLS client certificates or IP allow-lists to improve security.
+
 == Resources
 
-* https://owasp.org/Top10/A02_2021-Cryptographic_Failures/[OWASP Top 10 2021 Category A2] - Cryptographic Failures
-* https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[OWASP Top 10 2021 Category A5] - Security Misconfiguration
-* https://www.owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure[OWASP Top 10 2017 Category A3] - Sensitive Data Exposure
-* https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration[OWASP Top 10 2017 Category A6] - Security Misconfiguration
-* https://cwe.mitre.org/data/definitions/327[MITRE, CWE-327] - Use of a Broken or Risky Cryptographic Algorithm
-* https://github.com/ssllabs/research/wiki/SSL-and-TLS-Deployment-Best-Practices#23-use-secure-cipher-suites[SSL and TLS Deployment Best Practices] - Use Secure Cipher Suites
-* https://cloud.google.com/load-balancing/docs/ssl-policies-concepts#defining_an_ssl_policy[Google Cloud Load Balancing] - Defining an SSL policy
+=== Standards
 
+* CWE - https://cwe.mitre.org/data/definitions/327[CWE-327 - Use of a Broken or Risky Cryptographic Algorithm]
+
+=== External coding guidelines
+
+* SSL Labs - https://github.com/ssllabs/research/wiki/SSL-and-TLS-Deployment-Best-Practices#23-use-secure-cipher-suites[SSL and TLS Deployment Best Practices] - Use Secure Cipher Suites
+* Google - https://cloud.google.com/load-balancing/docs/ssl-policies-concepts#defining_an_ssl_policy[Google Cloud Load Balancing] - Defining an SSL policy
 
 
 ifdef::env-github,rspecator-view[]

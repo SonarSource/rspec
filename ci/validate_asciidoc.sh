@@ -72,30 +72,8 @@ do
       exit_code=1
     fi
   else
-    # Make sure include:: clauses are always more than one line away from the previous content
-    # Detect includes stuck to the line before
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "\S[ \t]*\ninclude::" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; > stuck
-    # Detect includes stuck to the line after
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "include::[^\[]+\[\]\n[ \t]*[^\n]" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> stuck
-    if [ -s stuck ]; then
-      echo "ERROR: These adoc files contain an include that is stuck to other content."
-      echo "This may result in broken tags and other display issues."
-      echo "Make sure there is an empty line before and after each include:"
-      cat stuck
-      exit_code=1
-    fi
-    rm -f stuck
-
-    # Validate modified files' ifdef/endif commands.
-    find "${dir}" -name '*.adoc' \
-      -exec python3 "./ci/asciidoc_validation/validate_environment.py" '{}' '+' \
-      >validate_env_commands 2>&1
-    if [ -s validate_env_commands ]; then
-      echo "ERROR: Some ifdef/endif commands are misused."
-      cat validate_env_commands
-      exit_code=1
-    fi
-    rm -f validate_env_commands
+    # Add the full path of all adoc files that were affected for sanitization
+    find ~+/"${dir}" -name '*.adoc' >> all_asciidocs
 
     for language in "${dir}"/*/
     do
@@ -124,6 +102,18 @@ do
     done
   fi
 done
+
+cd rspec-tools
+cat ../all_asciidocs | xargs pipenv run rspec-tools check-asciidoc >validate_asciidoc 2>&1
+if [ -s validate_asciidoc ]; then
+  echo "ERROR: Invalid asciidoc description:"
+  cat validate_asciidoc
+  exit_code=1
+fi
+rm -f validate_asciidoc ../all_asciidocs
+cd ..
+
+
 
 # Run asciidoctor and fail if a warning is emitted.
 # Use the tmp_SXYZ_language.adoc files (see note above).
