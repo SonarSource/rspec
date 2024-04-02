@@ -2,33 +2,61 @@
 
 === Code examples
 
-The following noncompliant code contains a hard-coded secret that can be exposed unintentionally.
-
 ==== Noncompliant code example
 
-[source,csharp,diff-id=2,diff-type=noncompliant]
+Secrets stored in `web.config` can be read by anyone with access to the file.
+
+[source,csharp,diff-id=201,diff-type=noncompliant]
 ----
-public class ConstLoginController : ApiController
+public class LoginExampleController : ApiController
 {
-    private const string key = "SecretSecretSecretSecretSecretSecretSecretSecret";
-
-    public IHttpActionResult Post([FromBody] Login login)
+    public IHttpActionResult Post([FromBody] LoginModel login)
     {
-        // Code to validate user omitted
+        // Code to validate the login information is omitted
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)); // Noncompliant: hard-coded key in code
+        var key = ConfigurationManager.AppSettings["key"] ??
+            throw new ApplicationException("JWT key is not configured.");
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
         var secToken = new JwtSecurityToken(
             "sonarsource.com",
             "sonarsource.com",
             null,
-            expires: DateTime.Now.AddMinutes(128),
+            expires: DateTime.Now.AddMinutes(120),
             signingCredentials: credentials
         );
 
         var token = new JwtSecurityTokenHandler().WriteToken(secToken);
+        return Ok(token);
+    }
+}
+----
 
+Secrets that are hard-coded into the application can be read by anyone with access to the source code or can be decompiled from the application binaries.
+
+[source,csharp]
+----
+public class LoginExampleController : ApiController
+{
+    private const string key = "SecretSecretSecretSecretSecretSecretSecretSecret";
+
+    public IHttpActionResult Post([FromBody] LoginModel login)
+    {
+        // Code to validate the login information is omitted
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var secToken = new JwtSecurityToken(
+            "sonarsource.com",
+            "sonarsource.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials
+        );
+
+        var token = new JwtSecurityTokenHandler().WriteToken(secToken);
         return Ok(token);
     }
 }
@@ -36,29 +64,28 @@ public class ConstLoginController : ApiController
 
 ==== Compliant solution
 
-[source,csharp,diff-id=2,diff-type=compliant]
+[source,csharp,diff-id=201,diff-type=compliant]
 ----
-public class ConstLoginController : ApiController
+public class LoginExampleController : ApiController
 {
-    private const string key = "SecretSecretSecretSecretSecretSecretSecretSecret";
-
-    public IHttpActionResult Post([FromBody] Login login)
+    public IHttpActionResult Post([FromBody] LoginModel login)
     {
-        // Code to validate user omitted
+        // Code to validate the login information is omitted
 
-        var key = Environment.GetEnvironmentVariable("JWT_KEY");
+        var key = Environment.GetEnvironmentVariable("JWT_KEY") ??
+            throw new ApplicationException("JWT key is not configured.");
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
         var secToken = new JwtSecurityToken(
             "sonarsource.com",
             "sonarsource.com",
             null,
-            expires: DateTime.Now.AddMinutes(128),
+            expires: DateTime.Now.AddMinutes(120),
             signingCredentials: credentials
         );
 
         var token = new JwtSecurityTokenHandler().WriteToken(secToken);
-
         return Ok(token);
     }
 }
@@ -66,5 +93,4 @@ public class ConstLoginController : ApiController
 
 === How does this work?
 
-Here, the compliant solution uses an environement variable for the secret. 
-
+Here, the compliant solution uses an environment variable to hold the secret. Environment variables are easy to change and are not easily accessible outside of the application.
