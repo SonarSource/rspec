@@ -1,44 +1,118 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+In an https://learn.microsoft.com/en-us/aspnet/core[ASP.NET Core] https://en.wikipedia.org/wiki/Web_API[Web API], controller actions can return any https://en.wikipedia.org/wiki/List_of_HTTP_status_codes[HTTP status code]. If a controller action returns an unexpected status code, it is recommended to annotate the action with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.producesresponsetypeattribute[ProducesResponseType] attribute.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+HTTP response status codes indicate the result of an HTTP request to the API's clients. The HTTP standard groups the status codes in the following way:
 
-//=== What is the potential impact?
+* `1xx` codes represent informational responses.
+* `2xx` codes represent successful responses.
+* `3xx` codes represent redirection.
+* `4xx` codes represent client errors.
+* `5xx` codes represent server errors.
+
+For example, it is usually typical to return:
+
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/200[200 OK] for successful requests
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/301[301 Moved Permanently] for requests that need to be redirected to a new URL, given by the https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location[Location] header
+* https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403[403 Forbidden] for unsuccessful requests that are not authorized to access the resource
+
+When building a Web API, any combination of https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods[HTTP request method] and https://developer.mozilla.org/en-US/docs/Web/HTTP/Status[HTTP response status code] can be used. However, when deviating from the conventional HTTP status codes, or when something goes wrong and it is necessary to return a 4xx status code, it is essential to communicate the behavior of the API to the clients.
+
+If the application is using https://swagger.io/[Swagger], the API documentation will be generated based on the status codes returned by the controller actions. By default, Swashbuckle generates a `200 OK` response status code for controller actions that are not annotated with the `ProducesResponseType` attribute. Therefore, if the status codes are not properly annotated, the API documentation will not either, which can lead to confusion. This can be particularly problematic when the API is consumed by third-party clients, where the undocumented behavior can lead to unexpected results and bugs in the long run, without the API provider being aware of it.
+
+This rule raises an issue on a controller action when:
+
+* It can produce a response with a non-`200 OK` status code.
+* It is not annotated with a `++[ProducesResponseType]++` attribute for this status code, either at action or controller level.
+* It is not annotated with https://learn.microsoft.com/en-us/aspnet/core/tutorials/getting-started-with-swashbuckle#xml-comments[XML comments] for this status code.
+* The application has enabled the https://learn.microsoft.com/en-us/aspnet/core/tutorials/getting-started-with-swashbuckle#add-and-configure-swagger-middleware[Swagger middleware].
+* The controller is marked with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.apicontrollerattribute[`++[ApiController]++`] attribute.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+There are two ways to fix this issue:
+
+* Annotate the controller action with the `++[ProducesResponseType]++` attribute for the non-`200 OK` status codes.
+* Annotate the controller action with XML comments for the non-`200 OK` status codes.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,text,diff-id=1,diff-type=noncompliant]
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+[ApiController]
+[Route("api/[controller]")]
+public class FoodController : ControllerBase
+{
+    IFoodService _service;
+
+    [HttpGet("{id}")]
+    public IActionResult GetById(int id) // Noncompliant: Annotate this method with ProducesResponseType for "NotFound".
+    {
+        var result = _service.GetById(id);
+        return result is not null
+            ? Ok(result)
+            : NotFound(); // 404 NotFound is not explicitly annotated
+    }
+}
 ----
 
 ==== Compliant solution
 
-[source,text,diff-id=1,diff-type=compliant]
+[source,csharp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+[ApiController]
+[Route("api/[controller]")]
+public class FoodController : ControllerBase
+{
+    IFoodService _service;
+
+    [HttpGet("{id}")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetById(int id)
+    {
+        var result = _service.GetById(id);
+        return result is not null
+            ? Ok(result)
+            : NotFound();
+    }
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+* Wikipedia - https://en.wikipedia.org/wiki/Web_API[Web API]
+* Wikipedia - https://en.wikipedia.org/wiki/List_of_HTTP_status_codes[List of HTTP status codes]
+* Mozilla - https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods[HTTP request methods]
+* Mozilla - https://developer.mozilla.org/en-US/docs/Web/HTTP/Status[HTTP response status codes]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core[ASP.NET Core]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/tutorials/getting-started-with-swashbuckle[Get started with Swashbuckle and ASP.NET Core]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.apicontrollerattribute[ApiControllerAttribute Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.producesresponsetypeattribute[ProducesResponseTypeAttribute Class]
+* SmartBear - https://swagger.io/[Swagger]
 
+ifdef::env-github,rspecator-view[]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* Annotate this method with ProducesResponseType for "XXX".
+
+(`XXX` is the method identifier causing this issue, e.g. `BadRequest` in `return BadRequest();`)
+
+=== Highlighting
+
+* Primary: The method name of the action. One issue per status code.
+* Secondary: the return statement's method identifier (e.g. `BadRequest` in `return BadRequest();`).
+
+'''
+== Comments And Links
+(visible only on this page)
+
+endif::env-github,rspecator-view[]
