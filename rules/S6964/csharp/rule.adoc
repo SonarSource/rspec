@@ -1,44 +1,126 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+Under-posting occurs in a web application when a client submits an HTTP request with missing values.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+For https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-model[model classes] used in HTTP handler methods as input parameters - in ASP.NET MVC, Web API or Razor Pages -, value type properties (such as `int` or `System.DateTime`) automatically assume default values if they are not included in the request, potentially leading to unintended data manipulation or logic errors. This can compromise data integrity and the correct functioning of the application.
 
-//=== What is the potential impact?
+A _model class_ (in this case the `Product` class) can be an input of an HTTP handler method:
+
+[source,csharp]
+----
+public class ProductsController : Controller
+{
+    [HttpPost]
+    public IActionResult Create(Product product)
+    {
+        // Process product data...
+    }
+}
+----
+
+=== Exceptions
+
+* Properties decorated with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNever] attribute.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[Marking value type properties as nullable] or using the https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations.requiredattribute[Required attribute] explicitly signifies whether a property is mandatory, thereby preventing under-posting and ensuring that incoming data meets the application's expectations.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,text,diff-id=1,diff-type=noncompliant]
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }  // Noncompliant - Price is a value type with no indication whether it is required or not
+}
 ----
+
+If the client sends a request without setting the `Price` property, it will default to `0`, which might not be a valid or intended value, potentially leading to incorrect behavior or data inconsistencies.
+In the request handler method there's no way to determine whether `product.Price` was intentionally set to 0 or it was simply omitted by mistake.
 
 ==== Compliant solution
 
-[source,text,diff-id=1,diff-type=compliant]
+[source,csharp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    [Required] public decimal? Price { get; set; } // Compliant
+}
 ----
 
-//=== How does this work?
+The value type property of the _model class_ needs to be of nullable type and/or must be marked the `[Required]` attribute. Then the HTTP handler method can determine whether the value of `Price` was set either by checking the https://learn.microsoft.com/de-de/dotnet/api/system.componentmodel.dataannotations.validationattribute.isvalid[validity of the Model State] or the https://learn.microsoft.com/en-us/dotnet/api/system.nullable-1.hasvalue[HasValue property] of the nullable value.
 
-//=== Pitfalls
+[source,csharp]
+----
+public class ProductsController : Controller
+{
+    [HttpPost]
+    public IActionResult Create(Product product)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+        // Process input...
+    }
+}
+----
 
-//=== Going the extra mile
+== Recommended Secure Coding Practices
 
+* Client-Side Validation: While server-side validation is crucial, implementing client-side validation can provide immediate feedback to the user when certain fields are not filled out, which helps to avoid under-posting.
+* Comprehensive Testing: Include testing scenarios that specifically check for under-posting vulnerabilities to ensure that all required data is correctly validated and processed.
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/mvc/overview[Overview of ASP.NET Core MVC]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/mvc/overview/getting-started/introduction/getting-started[Overview of ASP.NET MVC 5]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/razor-pages[Overview of ASP.NET Razor Pages]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-model[Model Classes in ASP.NET MVC]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding[Model Binding in ASP.NET Core]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/model-validation-in-aspnet-web-api[Model Validation in ASP.NET Web API]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[Nullable Value Types in .NET]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routing.httpmethodattribute[RequiredAttribute Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNeverAttribute Class]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Value type property of a model class should be nullable or annotated with the Required attribute to avoid under-posting
+
+=== Highlighting
+
+* Primary location: The property name inside the property declaration
+
+=== Implementation Details
+
+A class is considered a model class, and must be checked for value type properties if it's an input to an HTTP handler:
+
+* ASP.NET MVC Controller (.NET Framework and .NET Core): a method inside a Controller(Base) subclass that's marked with the HttpGet/HttpPost/etc. attribute
+* ASP.NET Web API ApiController (.NET Framework and .NET Core):
+
+** a method named Get/Post/etc. inside a class marked with ApiController attribute (.NET Core)
+** a method marked with the HttpGet/HttpPost/etc. attribute inside a class marked ApiController subclass (.NET Framework)
+
+* Razor Pages PageModel (.NET Core):
+
+** a PageModel subclass has a property of this type, and the property is either marked with the BindProperty attribute or the class is marked with the BindProperties attribute
+** or the class is an input parameter of the OnGet(Async)/OnPost(Async)/etc. method in a PageModel subclass
+
+Only properties of value type need to be checked in these classes. Fields don't participate in Model Binding.
+
+endif::env-github,rspecator-view[]
