@@ -38,7 +38,7 @@ namespace SimpleCases
     public class NotAController : Controller { }        // Compliant, [NonController] is excluded
 
     [ApiController]
-    internal class Internal : Controller { }            // Compliant, only raise at public methods
+    internal class Internal : Controller { }            // Compliant, only raises at public methods
 }
 
 namespace SpecialAttributeUsages
@@ -164,6 +164,7 @@ namespace MemberUsages
         public object Foo() => TempData["foo"];
     }
 
+    // TODO: Hey implementer, please extract these "InXXX" one-liners to a [DataTestMethod] test.
     [ApiController]
     public class InConstructor: Controller              // Compliant
     {
