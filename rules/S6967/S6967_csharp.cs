@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 
 [assembly: ApiController] // This testcase should be on a dedicated test.
 public class ControllerWithApiAttributeAtTheAssemblyLevel : ControllerBase
@@ -128,6 +130,13 @@ public class NonCompliantController : ControllerBase
     {
         return "Hello!";
     }
+
+    [ValidateModel]
+    [HttpPost("/[controller]/validation-filter")]
+    public string WithValidationFilter(ValidatableMovie movie)                  // Compliant, the model is validated by the ValidateModelAttribute filter.
+    {
+        return "Hello!";
+    }
 }
 
 public class Movie
@@ -164,5 +173,16 @@ public class ValidatableMovie : IValidatableObject
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         yield return new ValidationResult("Title is required", new[] { nameof(Title) });
+    }
+}
+
+public class ValidateModelAttribute : ActionFilterAttribute
+{
+    public override void OnActionExecuting(ActionExecutingContext context)
+    {
+        if (!context.ModelState.IsValid)
+        {
+            context.Result = new BadRequestObjectResult(context.ModelState);
+        }
     }
 }
