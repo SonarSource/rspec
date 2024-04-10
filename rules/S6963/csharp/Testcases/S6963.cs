@@ -115,6 +115,15 @@ namespace Things
     }
 
     [ApiController]
+    public class NestedMethodCall: ControllerBase
+    {
+        [HttpGet("foo")]
+        public IActionResult NoAttribute() => Passthrough(); // Compliant FN, we only consider the current method
+
+        private IActionResult Passthrough() => BadRequest();
+    }
+
+    [ApiController]
     public class MultipleErrorCodes : Controller
     {
         [HttpGet("foo")]
