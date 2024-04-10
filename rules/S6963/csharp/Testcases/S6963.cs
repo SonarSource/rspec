@@ -207,36 +207,41 @@ namespace Things
         }
     }
 
+    // For the implementation: If this seems too cumbersome, consider dropping it and documenting it as FN
     [ApiController]
-    public class ExplicitErrorCodes : Controller
+    public class ExplicitErrorCodes_NewObjects : Controller
     {
         [HttpGet("foo")]
-        public ObjectResult NewObjectResult() => // ???
-            new ObjectResult(42) { StatusCode = StatusCodes.Status418ImATeapot };
+        public ObjectResult NewObjectResult() => // Noncompliant
+            new ObjectResult(42) { StatusCode = StatusCodes.Status418ImATeapot }; // Secondary
 
         [HttpGet("foo")]
-        public StatusCodeResult NewStatusCodeResult() => // ???
-            new StatusCodeResult(StatusCodes.Status418ImATeapot);
+        public StatusCodeResult NewStatusCodeResult() => // Noncompliant
+            new StatusCodeResult(statusCode: 42); // Secondary
 
         [HttpGet("foo")]
-        public IActionResult NewContentResult() => // ???
-            new ContentResult { StatusCode = StatusCodes.Status418ImATeapot };
+        public IActionResult NewContentResult() => // Noncompliant
+            new ContentResult { StatusCode = StatusCodes.Status418ImATeapot }; // Secondary
 
         [HttpGet("foo")]
-        public IActionResult NewRedirectResult() => // ???
-            new RedirectResult("url", permanent: true, preserveMethod: false);
+        public IActionResult NewRedirectResult() => // Noncompliant
+            new RedirectResult("url", permanent: true, preserveMethod: false); // Secondary
+    }
+
+    [ApiController]
+    public class ExplicitErrorCodes_Methods : ControllerBase
+    {
+        [HttpGet("foo")]
+        public IActionResult StatusCodeMethod() => // Noncompliant
+            StatusCode(StatusCodes.Status404NotFound); // Secondary
 
         [HttpGet("foo")]
-        public IActionResult StatusCodeMethod() => // ???
-            StatusCode(StatusCodes.Status404NotFound);
+        public IActionResult StatusCodeMethodWithValue() => // Noncompliant
+            StatusCode(statusCode: 42, null);
 
         [HttpGet("foo")]
-        public IActionResult StatusCodeMethodWithValue() => // ???
-            StatusCode(StatusCodes.Status403Forbidden, null);
-
-        [HttpGet("foo")]
-        public IActionResult ProblemMethodWithStatusCode() => // ???
-            Problem(statusCode: StatusCodes.Status418ImATeapot);
+        public IActionResult ProblemMethodWithStatusCode() => // Noncompliant
+            Problem(statusCode: StatusCodes.Status418ImATeapot); // Secondary
 
         [HttpGet("foo")]
         public IActionResult ProblemMethodWithoutStatusCode() => // Compliant
