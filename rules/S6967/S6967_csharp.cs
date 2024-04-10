@@ -143,6 +143,9 @@ public class NonCompliantController : ControllerBase
     {
         return TryValidateModel(email) ? "Hi!" : "Hello!";
     }
+
+    [HttpGet("/[controller]")]
+    public string[] List() => null;                                             // Compliant
 }
 
 public class Movie
