@@ -5,19 +5,21 @@ In frequently used code paths, such as controller actions, you should avoid usin
 
 If a code path that creates and disposes of HttpClient objects is frequently used then, the following issues can occur: 
 
-- Under heavy load, there's the risk of https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines#pooled-connections[running out of available sockets], leading to https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.socketexception[SocketException] errors. This is because each HttpClient instance uses a separate network connection, and there's a limit to the number of connections that can be opened simultaneously.
-
+- Under heavy load, there's the risk of https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines#pooled-connections[running out of available sockets], leading to https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.socketexception[SocketException] errors. This is because each HttpClient instance uses a separate network connection, and there's a limit to the number of connections that can be opened simultaneously. Note that even after you dispose of an HttpClient https://learn.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests#issues-with-the-original-httpclient-class-available-in-net[sockets are not being immediately freed up].
 - Each HttpClient has its own set of resources (like headers, base address, timeout, etc.) that need to be managed. Creating a new HttpClient for every request means these resources are not being reused, leading to resource waste.
-
 - You introduce a significant performance overhead when creating a new HttpClient for every HTTP request.
+- HttpClient, by default, doesn't respect the Time To Live (TTL) settings of the DNS. This means that if the IP address associated with a domain name changes, HttpClient might still use the old, cached IP address, leading to failed requests.
 
 == How to fix it
 
-The https://learn.microsoft.com/en-us/dotnet/api/system.net.http.ihttpclientfactory[`IHttpClientFactory`] was introduced in ASP.NET Core 2.1 to solve these problems. It handles pooling HTTP connections to optimize performance and reliability. It is additionally thread-safe.
+The https://learn.microsoft.com/en-us/dotnet/api/system.net.http.ihttpclientfactory[`IHttpClientFactory`] was introduced in ASP.NET Core 2.1 to solve these problems. It handles pooling HTTP connections to optimize performance and reliability.
 
-=== Exceptions
+There are https://learn.microsoft.com/en-us/aspnet/core/fundamentals/http-requests#consumption-patterns[several ways] that you can use IHttpClientFactory in your application:
 
-The rule ignores actions that use cookies.
+- https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#basic-usage[Basic usage]
+- https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#named-clients[Named Clients]
+- https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#typed-clients[Typed Clients]
+- https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#generated-clients[Generated Clients]
 
 === Code examples
 
@@ -25,21 +27,17 @@ The rule ignores actions that use cookies.
 
 [source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-
 [ApiController]
 [Route("controller")]
 public class FooController : Controller
 {
-	[HttpGet]
+    [HttpGet]
     public async Task<string> Foo()
     {
-        using (var client = new HttpClient())  //Noncompliant
-        {
-            return await client.GetStringAsync(_url);
-        }
+        using var client = new HttpClient();  //Noncompliant
+        return await client.GetStringAsync(_url);
     }
 }
-
 ----
 
 ==== Compliant solution
@@ -70,11 +68,10 @@ public class FooController : Controller
     [HttpGet]
     public async Task<string> Foo()
     {
-        var client = _clientFactory.CreateClient(); // Compliant
+        using var client = _clientFactory.CreateClient(); // Compliant
         return await client.GetStringAsync(_url);
     }
 }
-
 ----
 
 == Resources
@@ -85,7 +82,7 @@ public class FooController : Controller
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.net.http.ihttpclientfactory[IHttpClientFactory Interface]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient[HttpClient Class]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory[IHttpClientFactory with .NET]
-* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests#multiple-ways-to-use-ihttpclientfactory[Use IHttpClientFactory to implement resilient HTTP requests]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests[Use IHttpClientFactory to implement resilient HTTP requests]
 * Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/fundamentals/http-requests[Make HTTP requests using IHttpClientFactory in ASP.NET Core]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines[Guidelines for using HttpClient]
 
