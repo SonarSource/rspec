@@ -44,6 +44,12 @@ public class SimpleController
 
 public class NonCompliantController : ControllerBase
 {
+    [HttpGet("/[controller]")]
+    public string Get([Required, FromQuery] string id)                           // Noncompliant
+    {
+        return "Hello!";
+    }
+
     [HttpPost("/[controller]")]
     public string Post(Movie movie)                                             // Noncompliant
     {
@@ -68,12 +74,20 @@ public class NonCompliantController : ControllerBase
         return "Hello!";
     }
 
+    [HttpGet]
     [HttpPost]
     [HttpPut]
     [HttpDelete]
     [HttpPatch]
     [Route("/[controller]/mix")]
     public string Mix([Required, FromQuery, EmailAddress] string email)         // Noncompliant
+    {
+        return "Hello!";
+    }
+
+    [AcceptVerbs("GET")]
+    [Route("/[controller]/accept-verbs")]
+    public string AGet([Required] string id)                                    // Noncompliant
     {
         return "Hello!";
     }
@@ -106,7 +120,7 @@ public class NonCompliantController : ControllerBase
         return "Hello!";
     }
 
-    [AcceptVerbs("POST", "PUT", "DELETE", "PATCH")]
+    [AcceptVerbs("GET", "POST", "PUT", "DELETE", "PATCH")]
     [Route("/[controller]/many")]
     public string Many([Required, FromQuery, EmailAddress] string email)        // Noncompliant
     {
@@ -144,7 +158,7 @@ public class NonCompliantController : ControllerBase
         return TryValidateModel(email) ? "Hi!" : "Hello!";
     }
 
-    [HttpGet("/[controller]")]
+    [HttpGet("/[controller]/list")]
     public string[] List() => null;                                             // Compliant
 }
 
