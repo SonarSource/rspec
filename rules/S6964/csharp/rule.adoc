@@ -1,10 +1,10 @@
-Under-posting occurs in a web application when a client submits an HTTP request with missing values.
+Under-posting refers to a situation where a client sends less data than expected to the server during an HTTP POST request, for example when the client omits some properties from the request body that the server expects to receive.
 
 == Why is this an issue?
 
-For https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-model[model classes] used in HTTP handler methods as input parameters - in ASP.NET MVC, Web API or Razor Pages -, value type properties (such as `int` or `System.DateTime`) automatically assume default values if they are not included in the request, potentially leading to unintended data manipulation or logic errors. This can compromise data integrity and the correct functioning of the application.
+One of the main issues that under-posting can cause is data inconsistency. If the client sends less data than expected, the application might fill any value type properties with their default values, leading to inaccurate or inconsistent data in your database. Additionally, there might be unexpected behavior if there are certain data expected that are not provided and even security issues; for example, if a user omits a role or permission field from a POST request, and the server fills in a default value, it could inadvertently grant more access than intended.
 
-A _model class_ (in this case the `Product` class) can be an input of an HTTP handler method:
+A https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-model[model class] (in this case the `Product` class) can be an input of an HTTP handler method:
 
 [source,csharp]
 ----
@@ -20,11 +20,11 @@ public class ProductsController : Controller
 
 === Exceptions
 
-* Properties decorated with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNever] attribute.
+* This rule does not raise an issue for properties decorated with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNever] attribute.
 
 == How to fix it
 
-https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[Marking value type properties as nullable] or using the https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations.requiredattribute[Required attribute] explicitly signifies whether a property is mandatory, thereby preventing under-posting and ensuring that incoming data meets the application's expectations.
+You should mark any model value-type property as https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[nullable] or annotate it with the https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations.requiredattribute[Required attribute]. Thus, when a client underposts, you ensure that the missing properties can be detected on the server side rather than being auto-filled, and therefore, incoming data meets the application's expectations.
 
 === Code examples
 
@@ -36,12 +36,13 @@ public class Product
 {
     public int Id { get; set; }
     public string Name { get; set; }
-    public decimal Price { get; set; }  // Noncompliant - Price is a value type with no indication whether it is required or not
+    public int NumberOfItems { get; set; }  // Noncompliant
+    public decimal Price { get; set; }      // Noncompliant
 }
 ----
 
-If the client sends a request without setting the `Price` property, it will default to `0`, which might not be a valid or intended value, potentially leading to incorrect behavior or data inconsistencies.
-In the request handler method there's no way to determine whether `product.Price` was intentionally set to 0 or it was simply omitted by mistake.
+If the client sends a request without setting the `NumberOfItems` or `Price` properties, they will default to `0`.
+In the request handler method there's no way to determine whether they were intentionally set to `0` or omitted by mistake.
 
 ==== Compliant solution
 
@@ -51,11 +52,15 @@ public class Product
 {
     public int Id { get; set; }
     public string Name { get; set; }
-    [Required] public decimal? Price { get; set; } // Compliant
+    public int? NumberOfItems { get; set; }         // Compliant - property is optional
+    [Required] public decimal Price { get; set; }  // Compliant - property must have a value
 }
 ----
 
-The value type property of the _model class_ needs to be of nullable type and/or must be marked the `[Required]` attribute. Then the HTTP handler method can determine whether the value of `Price` was set either by checking the https://learn.microsoft.com/de-de/dotnet/api/system.componentmodel.dataannotations.validationattribute.isvalid[validity of the Model State] or the https://learn.microsoft.com/en-us/dotnet/api/system.nullable-1.hasvalue[HasValue property] of the nullable value.
+In this example the request handler method can
+
+* manually check whether `NumberOfItems` was filled out through the `HasValue` property
+* rely on Model Validation to make sure `Price` is not missing
 
 [source,csharp]
 ----
@@ -64,9 +69,14 @@ public class ProductsController : Controller
     [HttpPost]
     public IActionResult Create(Product product)
     {
-        if (!ModelState.IsValid)
+        if (!ModelState.IsValid)    // if product.Price is missing then the model state will not be valid
         {
-            return BadRequest(ModelState);
+            return View(product);
+        }
+
+        if (product.NumberOfItems.HasValue)
+        {
+            // ...
         }
         // Process input...
     }
@@ -89,6 +99,7 @@ public class ProductsController : Controller
 * Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding[Model Binding in ASP.NET Core]
 * Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/model-validation-in-aspnet-web-api[Model Validation in ASP.NET Web API]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[Nullable Value Types in .NET]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/model-validation-in-aspnet-web-api#data-annotations[Data Annotations]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routing.httpmethodattribute[RequiredAttribute Class]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNeverAttribute Class]
 
@@ -110,16 +121,8 @@ Value type property of a model class should be nullable or annotated with the Re
 
 A class is considered a model class, and must be checked for value type properties if it's an input to an HTTP handler:
 
-* ASP.NET MVC Controller (.NET Framework and .NET Core): a method inside a Controller(Base) subclass that's marked with the HttpGet/HttpPost/etc. attribute
-* ASP.NET Web API ApiController (.NET Framework and .NET Core):
-
-** a method named Get/Post/etc. inside a class marked with ApiController attribute (.NET Core)
-** a method marked with the HttpGet/HttpPost/etc. attribute inside a class marked ApiController subclass (.NET Framework)
-
-* Razor Pages PageModel (.NET Core):
-
-** a PageModel subclass has a property of this type, and the property is either marked with the BindProperty attribute or the class is marked with the BindProperties attribute
-** or the class is an input parameter of the OnGet(Async)/OnPost(Async)/etc. method in a PageModel subclass
+* ASP.NET Core MVC Controller: a method inside a ControllerBase subclass (or a class decorated with the Controller attribute) that's marked with the HttpGet/HttpPost/etc. attribute
+* ASP.NET Core Web API ApiController: a method named Get/Post/etc. inside a class marked with ApiController attribute
 
 Only properties of value type need to be checked in these classes. Fields don't participate in Model Binding.
 
