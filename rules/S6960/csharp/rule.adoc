@@ -113,42 +113,38 @@ Split the controller into multiple controllers, each dealing with a single respo
 public class MediaController(
     // Used by all actions
     ILogger<MediaController> logger,
-    // Used by both movies and photos
-    IThumbnailService thumbnailService,
     // Movie-specific dependencies
     IStreamingService streamingService, ISubtitlesService subtitlesService,
     // Photo-specific dependencies
     IRedEyeRemovalService redEyeRemovalService, IPhotoEnhancementService photoEnhancementService) : Controller
 {
-    [Route("movie/thumbnail")]
-    public IActionResult MovieThumbnail([FromQuery] ThumbnailRequest request)
-    {
-        logger.LogInformation("Requesting movie thumbnail for {MovieId}", request.MovieId);
-        return File(thumbnailService.GetMovieThumbnail(request.MovieId), "image/jpeg");
-    }
-
-    [Route("photo/thumbnail")]
-    public IActionResult PhotoThumbnail([FromQuery] ThumbnailRequest request)
-    {
-        logger.LogInformation("Requesting photo thumbnail for {PhotoId}", request.PhotoId);
-        return File(thumbnailService.GetPhotoThumbnail(request.PhotoId), "image/jpeg");
-    }
-
     [Route("movie/stream")]
     public IActionResult MovieStream([FromQuery] StreamRequest request)
     {
         logger.LogInformation("Requesting movie stream for {MovieId}", request.MovieId);
-        return File(streamingService.GetStream(request), "video/mp4");
+        return File(streamingService.GetStream(request.MovieId), "video/mp4");
     }
 
     [Route("movie/subtitles")]
     public IActionResult MovieSubtitles([FromQuery] SubtitlesRequest request)
     {
         logger.LogInformation("Requesting movie subtitles for {MovieId}", request.MovieId);
-        return File(subtitlesService.GetSubtitles(request.MovieId), "text/vtt");
+        return File(subtitlesService.GetSubtitles(request.MovieId, request.Language), "text/vtt");
     }
 
-    // ...
+    [Route("photo/remove-red-eye")]
+    public IActionResult RemoveRedEye([FromQuery] RedEyeRemovalRequest request)
+    {
+        logger.LogInformation("Removing red-eye from photo {PhotoId}", request.PhotoId);
+        return File(redEyeRemovalService.RemoveRedEye(request.PhotoId, request.Sensitivity), "image/jpeg");
+    }
+
+    [Route("photo/enhance")]
+    public IActionResult EnhancePhoto([FromQuery] PhotoEnhancementRequest request)
+    {
+        logger.LogInformation("Enhancing photo {PhotoId}", request.PhotoId);
+        return File(photoEnhancementService.EnhancePhoto(request.PhotoId, request.ColorGrading), "image/jpeg");
+    }
 }
 ----
 
@@ -159,56 +155,42 @@ public class MediaController(
 [Area("media")] // Areas are one of the options to group controllers together
 [Route("movie")]
 public class MovieController(
-    ILogger<MovieController> logger, IThumbnailService thumbnailService,
+    ILogger<MovieController> logger,
     IStreamingService streamingService, ISubtitlesService subtitlesService) : Controller
 {
-    [Route("thumbnail")]
-    public IActionResult Thumbnail([FromQuery] ThumbnailRequest request)
-    {
-        logger.LogInformation("Requesting movie thumbnail for {MovieId}", request.MovieId);
-        return File(thumbnailService.GetMovieThumbnail(request.MovieId), "image/jpeg");
-    }
-
     [Route("stream")]
-    public IActionResult Stream([FromQuery] StreamRequest request)
+    public IActionResult MovieStream([FromQuery] StreamRequest request)
     {
         logger.LogInformation("Requesting movie stream for {MovieId}", request.MovieId);
-        return File(streamingService.GetStream(request), "video/mp4");
+        return File(streamingService.GetStream(request.MovieId), "video/mp4");
     }
 
     [Route("subtitles")]
-    public IActionResult Subtitles([FromQuery] SubtitlesRequest request)
+    public IActionResult MovieSubtitles([FromQuery] SubtitlesRequest request)
     {
         logger.LogInformation("Requesting movie subtitles for {MovieId}", request.MovieId);
-        return File(subtitlesService.GetSubtitles(request.MovieId), "text/vtt");
+        return File(subtitlesService.GetSubtitles(request.MovieId, request.Language), "text/vtt");
     }
 }
 
 [Area("media")]
 [Route("/photo")]
 public class PhotoController(
-    ILogger<PhotoController> logger, IThumbnailService thumbnailService,
+    ILogger<PhotoController> logger,
     IRedEyeRemovalService redEyeRemovalService, IPhotoEnhancementService photoEnhancementService) : Controller
 {
-    [Route("thumbnail")]
-    public IActionResult Thumbnail([FromQuery] ThumbnailRequest request)
+    [Route("remove-red-eye")]
+    public IActionResult RemoveRedEye([FromQuery] RedEyeRemovalRequest request)
     {
-        logger.LogInformation("Requesting photo thumbnail for {PhotoId}", request.PhotoId);
-        return File(thumbnailService.GetPhotoThumbnail(request.PhotoId), "image/jpeg");
-    }
-
-    [Route("redeye")]
-    public IActionResult RedEyeRemoval([FromQuery] RedEyeRemovalRequest request)
-    {
-        logger.LogInformation("Removing red eye from photo {PhotoId}", request.PhotoId);
-        return File(redEyeRemovalService.RemoveRedEye(request.PhotoId), "image/jpeg");
+        logger.LogInformation("Removing red-eye from photo {PhotoId}", request.PhotoId);
+        return File(redEyeRemovalService.RemoveRedEye(request.PhotoId, request.Sensitivity), "image/jpeg");
     }
 
     [Route("enhance")]
-    public IActionResult Enhance([FromQuery] EnhanceRequest request)
+    public IActionResult EnhancePhoto([FromQuery] PhotoEnhancementRequest request)
     {
         logger.LogInformation("Enhancing photo {PhotoId}", request.PhotoId);
-        return File(photoEnhancementService.EnhancePhoto(request.PhotoId), "image/jpeg");
+        return File(photoEnhancementService.EnhancePhoto(request.PhotoId, request.ColorGrading), "image/jpeg");
     }
 }
 ----
@@ -263,27 +245,6 @@ Secondary: Belongs to responsibility #M. (Where M is a number between 1 and N.)
 
 Primary: The identifier of the controller.
 Secondary: The identifier of each member.
-
-=== Parameters
-
-.maximumServicesThreshold
-****
-
-----
-5
-----
-
-The maximum number of non-well-known services used among all actions in the controller.
-****
-.sharedServicesLeniency
-****
-
-----
-1
-----
-
-The maximum number of non-well-known services to duplicate when splitting responsibilities.
-****
 
 '''
 == Comments And Links
