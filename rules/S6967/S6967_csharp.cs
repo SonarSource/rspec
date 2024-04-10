@@ -137,6 +137,12 @@ public class NonCompliantController : ControllerBase
     {
         return "Hello!";
     }
+
+    [HttpPost("/[controller]/try-validate-model")]
+    public string CallsTryValidateModel([Required] string email)                // Compliant, calls TryValidateModel
+    {
+        return TryValidateModel(email) ? "Hi!" : "Hello!";
+    }
 }
 
 public class Movie
