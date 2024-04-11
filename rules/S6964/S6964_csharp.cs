@@ -7,7 +7,10 @@ public class ClassNotUsedInRequests
     int ValueProperty { get; set; }                                             // Compliant
 }
 
-public class ModelUsedInControler
+public struct Struct { public int Foo { get; set; } }
+public record struct RecordStruct {  public int Foo { get; set; }
+
+public class ModelUsedInController
 {
     public int ValueProperty { get; set; }                                      // Noncompliant
     public int? NullableValueProperty { get; set; }                             // Compliant
@@ -23,6 +26,9 @@ public class ModelUsedInControler
     public int ReadOnlyProperty => 42;                                          // Compliant
     public int field = 42;                                                      // Compliant
 
+    public Struct StructValueProperty { get; set; }                             // Noncompliant
+    public RecordStruct RecordStructValueProperty { get; set; }                 // Noncompliant
+
 #nullable enable
     public string NonNullableReferenceProperty { get; set; }                    // Noncompliant
     [Required] public string RequiredNonNullableReferenceProperty { get; set; } // Compliant
@@ -34,7 +40,7 @@ public class ModelUsedInControler
 public class DerivedFromController : Controller
 {
     [HttpPost]
-    public IActionResult Create(ModelUsedInControler model)
+    public IActionResult Create(ModelUsedInController model)
     {
         return View(model);
     }
@@ -43,10 +49,10 @@ public class DerivedFromController : Controller
 [Controller]
 public class DecoratedWithControllerAttribute // better suited for parameterized UTs
 {
-    [HttpGet] public IActionResult Get(ModelUsedInControler model) => null;
-    [HttpPost] public IActionResult Post(ModelUsedInControler model) => null;
-    [HttpPut] public IActionResult Put(ModelUsedInControler model) => null;
-    [HttpDelete] public IActionResult Delete(ModelUsedInControler model) => null;
+    [HttpGet] public IActionResult Get(ModelUsedInController model) => null;
+    [HttpPost] public IActionResult Post(ModelUsedInController model) => null;
+    [HttpPut] public IActionResult Put(ModelUsedInController model) => null;
+    [HttpDelete] public IActionResult Delete(ModelUsedInController model) => null;
 }
 
 [ApiController]
@@ -54,17 +60,17 @@ public class DecoratedWithControllerAttribute // better suited for parameterized
 public class DecoratedWithApiControlerAttribute : ControllerBase
 {
     [HttpGet]
-    public int Single(ModelUsedInControler model) => 42;
+    public int Single(ModelUsedInController model) => 42;
 
     [HttpGet]
     [HttpPost]
     [HttpPut]
     [HttpDelete]
-    public int Multiple(ModelUsedInControler model) => 42;
+    public int Multiple(ModelUsedInController model) => 42;
 
     [AcceptVerbs("POST")]
-    public int Verb(ModelUsedInControler model) => 42;
+    public int Verb(ModelUsedInController model) => 42;
 
     [AcceptVerbs("GET", "POST", "PUT", "DELETE")]
-    public int MultipleVerbs(ModelUsedInControler model) => 42;
+    public int MultipleVerbs(ModelUsedInController model) => 42;
 }
