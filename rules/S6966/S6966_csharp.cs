@@ -113,12 +113,12 @@ public class Overloads
 
 public class Inheritance
 {
-    class Case1 : Inheritance
+    class Child : Inheritance
     {
         public void VoidMethod() { }
     }
 
-    class Case1_1 : Case1
+    class GrandChild : Child
     {
         public async Task Test()
         {
@@ -127,6 +127,29 @@ public class Inheritance
     }
 
     public Task VoidMethodAsync() => Task.CompletedTask;
+}
+
+class AsynchronousLambdas
+{
+    void CallAsyncLambda(string path)
+    {
+        Task.Run(async () => {
+            await Foo();
+            File.ReadAllLines(path); // Noncompliant
+        });
+        var a = async () =>
+        {
+            await Foo();
+            File.ReadAllLines(path); // Noncompliant  
+        };
+        var b = async delegate ()
+        {
+            await Foo();
+            File.ReadAllLines(path); // Noncompliant
+        };
+    }
+
+    Task Foo() => null;
 }
 
 public class EnitityFramework // Nuget Microsoft.EntityFrameworkCore.SqlServer
