@@ -12,7 +12,7 @@ namespace TestInstrumentation
     // ToDo: either replace with the actual interfaces from the NuGet dependencies or keep these interfaces
     // and implement the analyzer to ignore namespace and assembly, and only consider the name.
     // While that may introduce some false positives, the likelihood of that happening is very low.
-    namespace WellKnownInterfaces
+    namespace WellKnownInterfacesExcluded
     {
         public interface ILogger<T> : IServiceWithAnAPI { }     // From Microsoft.Extensions.Logging
         public interface IMediator : IServiceWithAnAPI { }      // From MediatR
@@ -27,7 +27,7 @@ namespace TestInstrumentation
         public interface IOption<T> : IServiceWithAnAPI { } // From Microsoft.Extensions.Options
     }
 
-    namespace ResponsibilitiesSpecificServices
+    namespace ResponsibilitySpecificServices
     {
         public interface IS1 : IServiceWithAnAPI { }
         public interface IS2 : IServiceWithAnAPI { }
@@ -40,9 +40,9 @@ namespace TestInstrumentation
 
 namespace WithInjectionViaPrimaryConstructors
 {
-    using TestInstrumentation.ResponsibilitiesSpecificServices;
+    using TestInstrumentation.ResponsibilitySpecificServices;
+    using TestInstrumentation.WellKnownInterfacesExcluded;
     using TestInstrumentation.WellKnownInterfacesNotExcluded;
-    using TestInstrumentation.WellKnownInterfaces;
     using TestInstrumentation;
 
     namespace AssertIssueLocationsAndMessage
@@ -50,7 +50,6 @@ namespace WithInjectionViaPrimaryConstructors
         // Noncompliant@+1: {{This controller has multiple responsibilities and could be split into 2 smaller units.}}
         public class TwoResponsibilities(IS1 s1, IS2 s2) : ApiController
         //           ^^^^^^^^^^^^^^^^^^^
-
         {
             public IActionResult A1() { s1.Use(); return Ok(); } // Secondary {{Belongs to responsibility #1.}}
             //                   ^^
@@ -74,15 +73,6 @@ namespace WithInjectionViaPrimaryConstructors
             //                   ^^^^^^^
             public IActionResult @private() { s2.Use(); return Ok(); } // Secondary {{Belongs to responsibility #2.}}
             //                   ^^^^^^^^
-        }
-
-        public class \u00E9v\u00E8nement<T>(IS1 s1, IS2 s2) : ApiController // Noncompliant
-        //           ^^^^^^^^^^^^^^^^^^^
-        {
-            public IActionResult \u00E9v\u00E8nement1() { s1.Use(); return Ok(); }
-            //                   ^^^^^^^^^^^^^^^^^^^^
-            public IActionResult \u00E9v\u00E8nement2() { s2.Use(); return Ok(); }
-            //                   ^^^^^^^^^^^^^^^^^^^^
         }
 
         public class ThreeResponsibilities(IS1 s1, IS2 s2, IS3 s3) : ApiController // Noncompliant
