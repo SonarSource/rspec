@@ -13,6 +13,11 @@ public class SomeController : ControllerBase
     private HttpClient ClientPropertyAccessorArrow => new HttpClient();    // Noncompliant
     //                                                ^^^^^^^^^^^^^^^^
 
+    public SomeController()
+    {
+        clientField = new HttpClient(); // Compliant
+    }
+
     [HttpGet("foo")]
     public async Task<string> Foo()
     {
@@ -31,7 +36,8 @@ public class SomeController : ControllerBase
         ClientProperty = new HttpClient();                        // Noncompliant
         var local = new HttpClient();                             // Noncompliant
         local = new System.Net.Http.HttpClient();                 // Noncompliant
-        var fromMethod = CreateClient();                          // Noncompliant
+        var fromStaticMethod = StaticCreateClient();              // Noncompliant, most probably an FN - see https://github.com/SonarSource/rspec/pull/3847#discussion_r1559510167
+        var fromMethod = CreateClient();                          // Noncompliant, most probably an FN - see https://github.com/SonarSource/rspec/pull/3847#discussion_r1559510167
      
         local = ClientPropertyAccessor;                           // Compliant
         clientField ??= new HttpClient();                         // Compliant
@@ -48,19 +54,32 @@ public class SomeController : ControllerBase
 
         return "bar";
     }
-    private static HttpClient CreateClient()
+    private static HttpClient StaticCreateClient()
     {
-        return new HttpClient();
+        return new HttpClient();                                // Noncompliant, but we probably should not raise here see: // Noncompliant, most probably an FN - see https://github.com/SonarSource/rspec/pull/3847#discussion_r1559510167
+    }
+
+    private HttpClient CreateClient()
+    {
+        return new HttpClient();                                // Noncompliant, but we probably should not raise here see: // Noncompliant, most probably an FN - see https://github.com/SonarSource/rspec/pull/3847#discussion_r1559510167
     }
 }
 
 #region Constructor initializers UTs
 
-public class C(HttpClient client);
+[ApiController]
+[Route("SomeRoute")]
+public class C(HttpClient client) : ControllerBase;
+
+[ApiController]
+[Route("SomeRoute")]
 public class D(HttpClient client) : C(new HttpClient()) // Compliant
 {
     public D() : this(new HttpClient()) { }            // Compliant
 }
+
+[ApiController]
+[Route("SomeRoute")]
 public class E : C
 {
     public E() : base(new HttpClient()) { }            // Compliant

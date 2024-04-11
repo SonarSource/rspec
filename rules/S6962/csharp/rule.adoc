@@ -1,5 +1,5 @@
 
-In frequently used code paths, such as controller actions, you should avoid using the https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient[HttpClient] directly and opt for the https://learn.microsoft.com/en-us/dotnet/api/system.net.http.ihttpclientfactory[HttpClientFactory] instead. This way, you avoid wasting resources and creating performance overhead.
+In frequently used code paths, such as controller actions, you should avoid using the https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient[HttpClient] directly and and opt for https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory[one of the IHttpClientFactory based mechanisms] instead. This way, you avoid wasting resources and creating performance overhead.
 
 == Why is this an issue?
 
@@ -8,7 +8,6 @@ If a code path that creates and disposes of HttpClient objects is frequently use
 - Under heavy load, there's the risk of https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines#pooled-connections[running out of available sockets], leading to https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.socketexception[SocketException] errors. This is because each HttpClient instance uses a separate network connection, and there's a limit to the number of connections that can be opened simultaneously. Note that even after you dispose of an HttpClient https://learn.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests#issues-with-the-original-httpclient-class-available-in-net[sockets are not being immediately freed up].
 - Each HttpClient has its own set of resources (like headers, base address, timeout, etc.) that need to be managed. Creating a new HttpClient for every request means these resources are not being reused, leading to resource waste.
 - You introduce a significant performance overhead when creating a new HttpClient for every HTTP request.
-- HttpClient, by default, doesn't respect the Time To Live (TTL) settings of the DNS. This means that if the IP address associated with a domain name changes, HttpClient might still use the old, cached IP address, leading to failed requests.
 
 == How to fix it
 
@@ -20,6 +19,8 @@ There are https://learn.microsoft.com/en-us/aspnet/core/fundamentals/http-reques
 - https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#named-clients[Named Clients]
 - https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#typed-clients[Typed Clients]
 - https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#generated-clients[Generated Clients]
+
+In case you decide to cache the HttpClient in a singleton or a static field, you should be aware that by default the HttpClient doesn't respect the Time To Live (TTL) settings of the DNS. This means that if the IP address associated with a domain name changes, HttpClient might still use the old, cached IP address, leading to failed requests.
 
 === Code examples
 
@@ -60,10 +61,10 @@ public class FooController : Controller
 {
     private readonly IHttpClientFactory _clientFactory;
 
-	public FooController(IHttpClientFactory clientFactory)
-	{
-		_clientFactory = clientFactory;
-	}
+    public FooController(IHttpClientFactory clientFactory)
+    {
+        _clientFactory = clientFactory;
+    }
 
     [HttpGet]
     public async Task<string> Foo()
