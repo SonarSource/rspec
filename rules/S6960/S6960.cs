@@ -35,6 +35,10 @@ namespace TestInstrumentation
         public interface IS4 : IServiceWithAnAPI { }
         public interface IS5 : IServiceWithAnAPI { }
         public interface IS6 : IServiceWithAnAPI { }
+        public interface IS7 : IServiceWithAnAPI { }
+        public interface IS8 : IServiceWithAnAPI { }
+        public interface IS9 : IServiceWithAnAPI { }
+        public interface IS10 : IServiceWithAnAPI { }
     }
 }
 
@@ -444,12 +448,386 @@ namespace WithInjectionViaPrimaryConstructors
     }
 }
 
-// ToDo: to be continued
-// - Member references are enough to establish the dependency, not necessarily invocations
-// - Methods can depend on each other
-// - More indirect ways of forming a cycle: https://github.com/SonarSource/rspec/pull/3845/files#r1559349338
-// - namespace WithInjectionViaNonPrimaryConstructor { }
-// - namespace WithInjectionViaServiceLocator { }
-// - namespace WithInjectionViaSingletons { }
-// - namespace WithUseInComplexBlocks { } // If statements, switch statements, switch expressions, loops, try-catch, scopes, local functions, nested local functions etc.
-// - Partial controllers
+namespace WithInjectionViaNormalConstructor
+{
+    using TestInstrumentation.ResponsibilitySpecificServices;
+    using TestInstrumentation.WellKnownInterfacesExcluded;
+    using TestInstrumentation.WellKnownInterfacesNotExcluded;
+    using TestInstrumentation;
+
+    public class WithFields : ApiController // Noncompliant
+    {
+        private readonly IS1 s1;
+        private IS2 s2;
+
+        public WithFields(IS1 s1, IS2 s2) { this.s1 = s1; this.s2 = s2; }
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithDifferentVisibilities : ApiController // Noncompliant
+    {
+        private IS1 s1;
+        protected IS2 s2;
+        internal IS3 s3;
+        private protected IS4 s4;
+        protected internal IS5 s5;
+        public IS6 s6;
+
+        public WithDifferentVisibilities(IS1 s1, IS2 s2, IS3 s3, IS4 s4, IS5 s5, IS6 s6)
+        {
+            this.s1 = s1; this.s2 = s2; this.s3 = s3; this.s4 = s4; this.s5 = s5; this.s6 = s6;
+        }
+
+        private void A1() { s1.Use(); s2.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+        protected void A2() { s2.Use(); s1.Use(); }          // Secondary {{Belongs to responsibility #1.}}
+        internal void A3() { s3.Use(); s4.Use(); }           // Secondary {{Belongs to responsibility #2.}}
+        private protected void A4() { s4.Use(); s3.Use(); }  // Secondary {{Belongs to responsibility #2.}}
+        protected internal void A5() { s5.Use(); s6.Use(); } // Secondary {{Belongs to responsibility #3.}}
+        public void A6() { s6.Use(); s5.Use(); }             // Secondary {{Belongs to responsibility #3.}}
+    }
+
+    public class WithStaticFields : ApiController // Noncompliant: static storage is irrelevant
+    {
+        private static IS1 s1;
+        private static IS2 s2 = null;
+
+        public WithStaticFields(IS1 s1, IS2 s2) { WithStaticFields.s1 = s1; WithStaticFields.s2 = s2; }
+
+        static WithStaticFields() { s1 = S1.Instance; }
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+
+        class S1 : IS1 { public void Use() { } public static IS1 Instance => new S1(); }
+    }
+
+    public class WithAutoProperties : ApiController // Noncompliant
+    {
+        public IS1 S1 { get; }
+        public IS2 S2 { get; set; }
+        protected IS3 S3 { get; init; }
+
+        public WithAutoProperties(IS1 s1, IS2 s2, IS3 s3) { S1 = s1; S2 = s2; S3 = s3; }
+
+        public void A1() { S1.Use(); }           // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { S2.Use(); }           // Secondary {{Belongs to responsibility #2.}}
+        public void A3() { S3.Use(); S2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithFieldBackedProperties : ApiController // Noncompliant
+    {
+        private IS1 _s1;
+        private IS2 _s2;
+
+        public IS1 S1 { get => _s1; }
+        public IS2 S2 { get => _s2; init => _s2 = value; }
+
+        public WithFieldBackedProperties(IS1 s1, IS2 s2) { _s1 = s1; _s2 = s2; }
+
+        public void A1() { S1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { S2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithLambdaCapturingService : ApiController // Noncompliant: s1Provider and s2Provider explicitly wrap services
+    {
+        private readonly Func<IS1> s1Provider;
+        private readonly Func<int, IS2> s2Provider;
+
+        public WithLambdaCapturingService(IS1 s1, IS2 s2) { s1Provider = () => s1; s2Provider = x => s2; }
+
+        public void A1() { s1Provider().Use(); }   // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2Provider(42).Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithServiceWrappersInjection : ApiController // Compliant: no way to know whether s2Invoker wraps a service
+    {
+        private readonly Func<IS1> s1Provider;
+        private readonly Action s2Invoker;
+
+        public WithServiceWrappersInjection(Func<IS1> s1Provider, Action s2Invoker)
+        {
+            this.s1Provider = s1Provider;
+            this.s2Invoker = s2Invoker;
+        }
+
+        public void A1() { s1Provider().Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2Invoker(); }        // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithNonPublicConstructor : ApiController // Noncompliant: ctor visibility is irrelevant
+    {
+        private readonly IS1 s1;
+        protected IS2 S2 { get; init; }
+
+        private WithNonPublicConstructor(IS1 s1, IS2 s2) { this.s1 = s1; this.S2 = s2; }
+
+        public void A1() { s1.Use(); s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { S2.Use(); }           // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithCtorNotInitializingInjectedServices : ApiController // Noncompliant: initialization is irrelevant
+    {
+        private readonly IS1 s1;
+        internal IS2 s2;
+
+        public WithCtorNotInitializingInjectedServices(IS1 s1, IS2 s2) { }
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithServicesNotInjectedAtAll : ApiController // Noncompliant: ctor injection is irrelevant
+    {
+        private IS1 s1;
+        private IS2 s2;
+
+        public WithServicesNotInjectedAtAll() { }
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithServicesInitializedWithServiceProvider : ApiController // Noncompliant: service locator pattern is irrelevant
+    {
+        private readonly IS1 s1;
+        private readonly IS2 s2;
+
+        public WithServicesInitializedWithServiceProvider(IServiceProvider serviceProvider)
+        {
+            s1 = serviceProvider.GetRequiredService<IS1>();
+            s2 = serviceProvider.GetRequiredService<IS2>();
+        }
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public class WithServicesInitializedWithSingletons : ApiController // Noncompliant: singleton pattern is irrelevant
+    {
+        private readonly IS1 s1 = S1.Instance;
+        private readonly IS2 s2 = S2.Instance;
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+
+        class S1 : IS1 { public void Use() { } public static IS1 Instance => new S1(); }
+        class S2 : IS2 { public void Use() { } public static IS2 Instance => new S2(); }
+    }
+
+    public class WithServicesInitializedWithMixedStrategies : ApiController // Noncompliant
+    {
+        private readonly IS1 s1;
+        private readonly IS2 s2 = S2.Instance;
+        private readonly IS3 s3;
+
+        public WithServicesInitializedWithMixedStrategies(IS1 s1, IServiceProvider serviceProvider)
+        {
+            this.s1 = s1;
+            s3 = serviceProvider.GetRequiredService<IS3>();
+        }
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+        public void A3() { s3.Use(); } // Secondary {{Belongs to responsibility #3.}}
+
+        class S2 : IS2 { public void Use() { } public static IS2 Instance => new S2(); }
+    }
+
+    public class WithAWellKnownInterfaceIncluded // Noncompliant
+    {
+        private ILogger<WithAWellKnownInterfaceIncluded> Logger { get; }
+        private readonly IS1 s1;
+        private readonly IS2 s2 = S2.Instance;
+        private readonly IS3 s3;
+
+        public WithAWellKnownInterfaceIncluded(ILogger<WithAWellKnownInterfaceIncluded> logger, IS1 s1, IServiceProvider serviceProvider)
+        {
+            Logger = logger;
+            this.s1 = s1;
+            s3 = serviceProvider.GetRequiredService<IS3>();
+        }
+
+        public void A1() { Logger.Use(); s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { Logger.Use(); s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+        public void A3() { Logger.Use(); s3.Use(); } // Secondary {{Belongs to responsibility #3.}}
+
+        class S2 : IS2 { public void Use() { } public static IS2 Instance => new S2(); }
+    }
+
+    public class WithAWellKnownInterfaceNotExcluded : ApiController // Noncompliant
+    {
+        private readonly IS1 s1;
+        private readonly IOption<IS1> o1;
+        private readonly IS2 s2;
+        private readonly IOption<IS2> o2;
+        private readonly IS3 s3;
+        private readonly IOption<IS3> o3;
+
+        public WithAWellKnownInterfaceNotExcluded(
+            IS1 s1, IOption<IS1> o1, IS2 s2, IOption<IS2> o2, IS3 s3, IOption<IS3> o3)
+        {
+            this.s1 = s1; this.o1 = o1; this.s2 = s2; this.o2 = o2; this.s3 = s3; this.o3 = o3;
+        }
+
+        public void A1() { o1.Use(); s1.Use(); }           // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { o1.Use(); s2.Use(); }           // Secondary {{Belongs to responsibility #1.}}
+        public void A3() { o2.Use(); o3.Use(); s3.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+}
+
+public class WithUseInComplexBlocks : ApiController // Noncompliant
+{
+    IS1 s1; IS2 s2; IS3 s3; IS4 s4; IS5 s5; IS6 s6; IS7 s7; IS8 s8; IS9 s9; IS10 s10;
+
+    public void If()     // Secondary {{Belongs to responsibility #1.}}
+    {
+        if (true) { s1.Use(); } else { if (false) { s2.Use(); } }
+    }
+
+    public void Switch() // Secondary {{Belongs to responsibility #1.}}
+    {
+        switch (0) { case 0: s2.Use(); break; case 1: s3.Use(); break; }
+    }
+
+    public void For()    // Secondary {{Belongs to responsibility #1.}}
+    {
+        for (int i = 0; i < 1; i++) { s1.Use(); s3.Use(); }
+    }
+
+    public void TryCatchFinally()      // Secondary {{Belongs to responsibility #2.}}
+    {
+        try { s4.Use(); } catch { s5.Use(); } finally { try { s6.Use(); } catch { s4.Use(); } }
+    }
+
+    public void Using()                // Secondary {{Belongs to responsibility #2.}}
+    {
+        using (new ADisposable()) { s5.Use(); s7.Use(); }
+    }
+
+    public void BlocksAndParentheses() // Secondary {{Belongs to responsibility #3.}}
+    {
+        { { ((s8)).Use(); } }
+    }
+
+    public void NestedLocalFunctions() // Secondary {{Belongs to responsibility #3.}}
+    {
+        void LocalFunction()
+        {
+            void NestedLocalFunction() { s8.Use(); }
+            s9.Use();
+        }
+
+        LocalFunction();
+        StaticLocalFunction(s10);
+
+        static void StaticLocalFunction(IS10 s10) { s10.Use(); }
+    }
+
+    class ADisposable : IDisposable { public void Dispose() { } }
+}
+
+public class WithMethodsDependingOnEachOther : ApiController // Noncompliant
+{
+    IS1 s1; IS2 s2; IS3 s3; IS4 s4; IS5 s5; IS6 s6; IS7 s7;
+
+    // Chain: A2 to A1
+    void A1() { s1.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+    void A2() { s2.Use(); A1(); }      // Secondary {{Belongs to responsibility #1.}}
+    void A3() { s2.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+    // 1-cycle A4
+    void A4() { A4(); }                // Secondary {{Belongs to responsibility #2.}}
+    // 2-cycle A5, A6
+    void A5() { A6(); }                // Secondary {{Belongs to responsibility #3.}}
+    void A6() { A5(); }                // Secondary {{Belongs to responsibility #3.}}
+    // 3-cycle A7, A8, A9
+    void A7() { A8(); }                // Secondary {{Belongs to responsibility #4.}}
+    void A8() { A9(); }                // Secondary {{Belongs to responsibility #4.}}
+    void A9() { A7(); }                // Secondary {{Belongs to responsibility #4.}}
+    // 3-cycle A10, A11, A12 with A13 depending on A12 via s3
+    void A10() { A11(); }              // Secondary {{Belongs to responsibility #5.}}
+    void A11() { A12(); }              // Secondary {{Belongs to responsibility #5.}}
+    void A12() { A10(); s3.Use(); }    // Secondary {{Belongs to responsibility #5.}}
+    void A13() { s3.Use(); }           // Secondary {{Belongs to responsibility #5.}}
+    // 3-cycle A14, A15, A16 with chain A18 -> A15 via s4
+    void A14() { A15(); s4.Use(); }    // Secondary {{Belongs to responsibility #6.}}
+    void A15() { A16(); }              // Secondary {{Belongs to responsibility #6.}}
+    void A16() { A14(); }              // Secondary {{Belongs to responsibility #6.}}
+    void A17() { s4.Use(); }          // Secondary {{Belongs to responsibility #6.}}
+    // Independent method
+    void A18() { }                     // Secondary {{Belongs to responsibility #7.}}
+    // Independent method with its own service
+    void A19() { s5.Use(); }           // Secondary {{Belongs to responsibility #8.}}
+    // Two actions calling a third one
+    void A20() { A22(); }              // Secondary {{Belongs to responsibility #9.}}
+    void A21() { A22(); }              // Secondary {{Belongs to responsibility #9.}}
+    void A22() { s6.Use(); s7.Use(); } // Secondary {{Belongs to responsibility #9.}}
+}
+
+namespace WithPartialClasses
+{
+    public partial class BothResponsibilitiesAndServicesSplitIntoTwo : ApiController // Noncompliant
+    {
+        IS1 s1; IS2 s2; IS3 s3; IS4 s4;
+
+        // Chain: A2 to A1
+        void A1() { s1.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+        void A2() { s2.Use(); A1(); }      // Secondary {{Belongs to responsibility #1.}}
+        void A3() { s2.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+        // 1-cycle A4
+        void A4() { A4(); }                // Secondary {{Belongs to responsibility #2.}}
+        // 2-cycle A5, A6
+        void A5() { A6(); }                // Secondary {{Belongs to responsibility #3.}}
+        void A6() { A5(); }                // Secondary {{Belongs to responsibility #3.}}
+        // 3-cycle A7, A8, A9
+        void A7() { A8(); }                // Secondary {{Belongs to responsibility #4.}}
+        void A8() { A9(); }                // Secondary {{Belongs to responsibility #4.}}
+        void A9() { A7(); }                // Secondary {{Belongs to responsibility #4.}}
+    }
+
+    public partial class BothResponsibilitiesAndServicesSplitIntoTwo : ApiController // Noncompliant
+    {
+        IS5 s5; IS6 s6; IS7 s7;
+
+        // 3-cycle A10, A11, A12 with A13 depending on A12 via s3
+        void A10() { A11(); }              // Secondary {{Belongs to responsibility #5.}}
+        void A11() { A12(); }              // Secondary {{Belongs to responsibility #5.}}
+        void A12() { A10(); s3.Use(); }    // Secondary {{Belongs to responsibility #5.}}
+        void A13() { s3.Use(); }           // Secondary {{Belongs to responsibility #5.}}
+        // 3-cycle A14, A15, A16 with chain A18 -> A15 via s4
+        void A14() { A15(); s4.Use(); }    // Secondary {{Belongs to responsibility #6.}}
+        void A15() { A16(); }              // Secondary {{Belongs to responsibility #6.}}
+        void A16() { A14(); }              // Secondary {{Belongs to responsibility #6.}}
+        void A17() { s4.Use(); }          // Secondary {{Belongs to responsibility #6.}}
+        // Independent method
+        void A18() { }                     // Secondary {{Belongs to responsibility #7.}}
+        // Independent method with its own service
+        void A19() { s5.Use(); }           // Secondary {{Belongs to responsibility #8.}}
+        // Two actions calling a third one
+        void A20() { A22(); }              // Secondary {{Belongs to responsibility #9.}}
+        void A21() { A22(); }              // Secondary {{Belongs to responsibility #9.}}
+        void A22() { s6.Use(); s7.Use(); } // Secondary {{Belongs to responsibility #9.}}
+    }
+
+    public partial class ApiControllerWithNoControllerAttribute : ApiController // Compliant: the other half declares [NoController]
+    {
+        IS1 s1; IS2 s2;
+
+        public void A1() { s1.Use(); }
+        public void A2() { s2.Use(); }
+    }
+
+    [NonController]
+    public partial class ApiControllerWithNoControllerAttribute { } // Compliant: NoController attribute
+
+    public partial class PocoWithControllerAttribute // Noncompliant: the other half declares [Controller]
+    {
+        IS1 s1; IS2 s2;
+
+        public void A1() { s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { s2.Use(); } // Secondary {{Belongs to responsibility #2.}}
+    }
+
+    public partial class PocoWithControllerAttribute : ApiController;
+}
