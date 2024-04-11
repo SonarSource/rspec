@@ -150,7 +150,7 @@ namespace WithInjectionViaPrimaryConstructors
 
         // Compliant@+1: 4 specific deps injected, two for A1 and two for A2, in non-API controller derived from Controller
         public class FourSpecificDepsTwoForA1AndTwoForA2NonApiFromController(
-            ILogger<FourSpecificDepsTwoForA1AndTwoForA2NonApiController> logger, IMediator mediator, IMapper mapper,
+            ILogger<FourSpecificDepsTwoForA1AndTwoForA2NonApiFromController> logger, IMediator mediator, IMapper mapper,
             IS1 s1, IS2 s2, IS3 s3, IS4 s4) : Controller
         {
             public void A1() { logger.Use(); s1.Use(); s2.Use(); }
@@ -159,7 +159,7 @@ namespace WithInjectionViaPrimaryConstructors
 
         // Compliant@+1: 4 specific deps injected, two for A1 and two for A2, in non-API controller derived from ControllerBase
         public class FourSpecificDepsTwoForA1AndTwoForA2NonApiFromControllerBase(
-            ILogger<FourSpecificDepsTwoForA1AndTwoForA2NonApiControllerBase> logger, IMediator mediator, IMapper mapper,
+            ILogger<FourSpecificDepsTwoForA1AndTwoForA2NonApiFromControllerBase> logger, IMediator mediator, IMapper mapper,
             IS1 s1, IS2 s2, IS3 s3, IS4 s4) : ControllerBase
         {
             public void A1() { logger.Use(); s1.Use(); s2.Use(); }
@@ -278,6 +278,18 @@ namespace WithInjectionViaPrimaryConstructors
             public IActionResult A1() { logger.Use(); mediator.Use(); s1.Use(); return Ok(); } // Secondary {{Belongs to responsibility #1.}}
             public IActionResult A2() { mediator.Use(); mapper.Use(); s2.Use(); return Ok(); } // Secondary {{Belongs to responsibility #2.}}
             public IActionResult A3() { s3.Use(); return Ok(); }                               // Secondary {{Belongs to responsibility #3.}}
+        }
+
+        // Noncompliant@+1: 3 specific deps injected, forming a chain and an isolated action
+        public class ThreeSpecificDepsFormingAChainAndAnIsolatedAction(
+            ILogger<ThreeSpecificDepsFormingAChainAndAnIsolatedAction> logger, IMediator mediator, IMapper mapper,
+            IS1 s1, IS2 s2, IS3 s3) : ApiController
+        {
+            // Chain: A1, A2 with s1 and s2
+            public IActionResult A1() { logger.Use(); mediator.Use(); s1.Use(); s2.Use(); return Ok(); } // Secondary {{Belongs to responsibility #1.}}
+            public IActionResult A2() { mediator.Use(); mapper.Use(); s2.Use(); return Ok(); }           // Secondary {{Belongs to responsibility #1.}}
+            // Isolated: A3 with s3
+            public IActionResult A3() { s3.Use(); return Ok(); }                                         // Secondary {{Belongs to responsibility #2.}}
         }
 
         // Noncompliant@+1: 4 specific deps injected, two for A1, one for A2, and one for A3
@@ -435,9 +447,9 @@ namespace WithInjectionViaPrimaryConstructors
 // ToDo: to be continued
 // - Member references are enough to establish the dependency, not necessarily invocations
 // - Methods can depend on each other
-// - Leniency for 1-2 deps, shared among all actions
+// - More indirect ways of forming a cycle: https://github.com/SonarSource/rspec/pull/3845/files#r1559349338
 // - namespace WithInjectionViaNonPrimaryConstructor { }
 // - namespace WithInjectionViaServiceLocator { }
 // - namespace WithInjectionViaSingletons { }
 // - namespace WithUseInComplexBlocks { } // If statements, switch statements, switch expressions, loops, try-catch, scopes, local functions, nested local functions etc.
-
+// - Partial controllers
