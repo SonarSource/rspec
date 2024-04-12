@@ -31,6 +31,11 @@ public class CompliantController : ControllerBase
     [ApiExplorerSettings(IgnoreApi = true)]
     public int FooError([FromBody] string id) =>  // Compliant, it's annotated with [ApiExplorerSettings(IgnoreApi = true)]
         StatusCodes.Status200OK;
+
+    [AcceptVerbs("GET", "POST")]
+    [Route("test")]
+    public int FooCompliant([FromBody] string id) =>  // Compliant, it's annotated with AcceptVerbs attribute
+        StatusCodes.Status200OK;
 }
 
 [ApiController]
