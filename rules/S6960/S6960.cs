@@ -530,6 +530,58 @@ namespace WithInjectionViaNormalConstructor
         public void A2() { S2.Use(); } // Secondary {{Belongs to responsibility #2.}}
     }
 
+    public class WithMixedStorageMechanisms : ApiController // Noncompliant
+    {
+        // Storage mechanisms: fields, auto properties, and field-backed properties
+        private IS1 _s1;
+        private IS3 _s3;
+
+        public IS2 S2 { get; set; }
+        public IS3 S3 { get => _s3; set => _s3 = value; }
+
+        public WithMixedStorageMechanisms(IS1 s1, IS2 s2, IS3 s3) { _s1 = s1; S2 = s2; _s3 = s3; }
+
+        public void A1() { _s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { S2.Use(); }  // Secondary {{Belongs to responsibility #2.}}
+        public void A3() { S3.Use(); }  // Secondary {{Belongs to responsibility #3.}}
+    }
+
+    public class WithMixedStorageMechanismsAndPropertyDependency : ApiController // Noncompliant
+    {
+        // Property dependency: A3 -> S3 -> { _s3, _s1 }
+        private IS1 _s1;
+        private IS3 _s3;
+
+        public IS2 S2 { get; set; }
+        public IS3 S3 { get => _s3; set { _s3 = value; _s1 = default; } }
+
+        public WithMixedStorageMechanismsAndPropertyDependency(IS1 s1, IS2 s2, IS3 s3) { _s1 = s1; S2 = s2; _s3 = s3; }
+
+        public void A1() { _s1.Use(); S2.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { S2.Use(); S3.Use(); }  // Secondary {{Belongs to responsibility #2.}}
+        public void A3() { S3.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+    }
+
+    public class WithMixedStorageMechanismsAndPropertyDependencyTransitivity : ApiController // Noncompliant
+    {
+        // Property dependency transitivity: A4 -> S4 -> { _s4, S3 } -> { _s4, _s3, S2 }
+        private IS1 _s1;
+        private IS3 _s3;
+        private IS4 _s4;
+
+        public IS2 S2 { get; set; }
+        public IS3 S3 { get => _s3; set { _s3 = value; S2 = default; } } // Also reset s1
+        public IS4 S4 { get => _s4; set { _s4 = value; S3 = default; } } // Also reset s1
+
+        public WithMixedStorageMechanismsAndPropertyDependencyTransitivity(IS1 s1, IS2 s2, IS3 s3, IS4 s4)
+        { _s1 = s1; S2 = s2; _s3 = s3; _s4 = s4; }
+
+        public void A1() { _s1.Use(); S2.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A2() { S2.Use(); S3.Use(); }  // Secondary {{Belongs to responsibility #1.}}
+        public void A3() { S3.Use(); _s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
+        public void A4() { S4.Use(); }            // Secondary {{Belongs to responsibility #2.}}
+    }
+
     public class WithLambdaCapturingService : ApiController // Noncompliant: s1Provider and s2Provider explicitly wrap services
     {
         private readonly Func<IS1> s1Provider;
@@ -767,11 +819,11 @@ public class WithMethodsDependingOnEachOther : ApiController // Noncompliant
 
 namespace WithPartialClasses
 {
-    public partial class BothResponsibilitiesAndServicesSplitIntoTwo : ApiController // Noncompliant
+    public partial class ServicesSplitIntoTwoAndResponsibilitiesTooAsAResult : ApiController // Noncompliant
     {
         IS1 s1; IS2 s2; IS3 s3; IS4 s4;
 
-        // Chain: A2 to A1
+        // Chain: A3 -> A2 via s2, A2 -> A1 (direct dependency)
         void A1() { s1.Use(); }            // Secondary {{Belongs to responsibility #1.}}
         void A2() { s2.Use(); A1(); }      // Secondary {{Belongs to responsibility #1.}}
         void A3() { s2.Use(); }            // Secondary {{Belongs to responsibility #1.}}
@@ -786,7 +838,7 @@ namespace WithPartialClasses
         void A9() { A7(); }                // Secondary {{Belongs to responsibility #4.}}
     }
 
-    public partial class BothResponsibilitiesAndServicesSplitIntoTwo : ApiController // Noncompliant
+    public partial class ServicesSplitIntoTwoAndResponsibilitiesTooAsAResult : ApiController // Noncompliant
     {
         IS5 s5; IS6 s6; IS7 s7;
 
@@ -808,6 +860,34 @@ namespace WithPartialClasses
         void A20() { A22(); }              // Secondary {{Belongs to responsibility #9.}}
         void A21() { A22(); }              // Secondary {{Belongs to responsibility #9.}}
         void A22() { s6.Use(); s7.Use(); } // Secondary {{Belongs to responsibility #9.}}
+    }
+
+    public partial class ActionsSplitIntoTwoAndResponsibilitiesTooAsAResult : ApiController // Noncompliant
+    {
+        IS1 s1;
+
+        // Chain: A3 -> A2 via s2, A2 -> A1 (direct dependency)
+        void A1() { s1.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+        void A2() { s2.Use(); A1(); }      // Secondary {{Belongs to responsibility #1.}}
+        // 1-cycle A4
+        void A4() { A4(); }                // Secondary {{Belongs to responsibility #2.}}
+        // 2-cycle A5, A6
+        void A5() { A6(); }                // Secondary {{Belongs to responsibility #3.}}
+        // 3-cycle A7, A8, A9
+        void A7() { A8(); }                // Secondary {{Belongs to responsibility #4.}}
+    }
+
+    public partial class ActionsSplitIntoTwoAndResponsibilitiesTooAsAResult : ApiController // Noncompliant
+    {
+        IS2 s2;
+
+        // Chain: A3 -> A2 via s2, A2 -> A1 (direct dependency)
+        void A3() { s2.Use(); }            // Secondary {{Belongs to responsibility #1.}}
+        // 2-cycle A5, A6
+        void A6() { A5(); }                // Secondary {{Belongs to responsibility #3.}}
+        // 3-cycle A7, A8, A9
+        void A8() { A9(); }                // Secondary {{Belongs to responsibility #4.}}
+        void A9() { A7(); }                // Secondary {{Belongs to responsibility #4.}}
     }
 
     public partial class ApiControllerWithNoControllerAttribute : ApiController // Compliant: the other half declares [NoController]
