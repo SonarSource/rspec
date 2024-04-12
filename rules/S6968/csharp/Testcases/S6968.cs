@@ -146,7 +146,7 @@ public class NocompliantBaseline : ControllerBase
 
     [Route("foo")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult AnnotatedWithNoType() // Noncompliant {{Annotate this method with ProducesResponseType containing the return type for succesful responses}}
+    public IActionResult AnnotatedWithNoType() // Noncompliant {{Use the ProducesResponseType overload containing the return type for succesful responses}}
         //               ^^^^^^^^^^^^^^^^^^^
     {
         return Ok(foo); // Secondary
@@ -155,7 +155,7 @@ public class NocompliantBaseline : ControllerBase
 
     [Route("foo")]
     [SwaggerResponse(200)]
-    public IActionResult AnnotatedWithNoType2() // Noncompliant {{Annotate this method with ProducesResponseType containing the return type for succesful responses}}
+    public IActionResult AnnotatedWithNoType2() // Noncompliant {{Use the ProducesResponseType overload containing the return type for succesful responses}}
         //               ^^^^^^^^^^^^^^^^^^^^
     {
         return Ok(foo); // Secondary
@@ -201,13 +201,24 @@ public class UsesApiConventionType : ControllerBase
 }
 
 [ApiController]
-[ProducesResponseType<int>(200)]
+[ProducesResponseType<int>(StatusCodes.Status200OK)]
 public class AnnotatedAtControllerLevel : ControllerBase
 {
     [HttpGet("foo")]
     public IActionResult ReturnsOkWithValue() => Ok(42);
 }
 
+[ApiController]
+[ProducesResponseType(200)]
+public class AnnotatedAtControllerLevelWithNoType : ControllerBase
+{
+    [HttpGet("foo")]
+    public IActionResult ReturnsOkWithValue() => // Noncompliant {{Use the ProducesResponseType overload containing the return type for succesful responses}}
+    //                   ^^^^^^^^^^^^^^^^^^
+        Ok(42); // Secondary
+    //  ^^^^^^
+
+}
 
 public class Foo
 {
