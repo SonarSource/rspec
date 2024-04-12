@@ -558,7 +558,7 @@ namespace WithInjectionViaNormalConstructor
         public WithMixedStorageMechanismsAndPropertyDependency(IS1 s1, IS2 s2, IS3 s3) { _s1 = s1; S2 = s2; _s3 = s3; }
 
         public void A1() { _s1.Use(); S2.Use(); } // Secondary {{Belongs to responsibility #1.}}
-        public void A2() { S2.Use(); S3.Use(); }  // Secondary {{Belongs to responsibility #2.}}
+        public void A2() { S2.Use(); S3.Use(); }  // Secondary {{Belongs to responsibility #1.}}
         public void A3() { S3.Use(); }            // Secondary {{Belongs to responsibility #1.}}
     }
 
@@ -570,8 +570,8 @@ namespace WithInjectionViaNormalConstructor
         private IS4 _s4;
 
         public IS2 S2 { get; set; }
-        public IS3 S3 { get => _s3; set { _s3 = value; S2 = default; } } // Also reset s1
-        public IS4 S4 { get => _s4; set { _s4 = value; S3 = default; } } // Also reset s1
+        public IS3 S3 { get => _s3; set { _s3 = value; S2 = default; } } // Also resets S2
+        public IS4 S4 { get => _s4; set { _s4 = value; S3 = default; } } // Also resets S3
 
         public WithMixedStorageMechanismsAndPropertyDependencyTransitivity(IS1 s1, IS2 s2, IS3 s3, IS4 s4)
         { _s1 = s1; S2 = s2; _s3 = s3; _s4 = s4; }
@@ -579,7 +579,7 @@ namespace WithInjectionViaNormalConstructor
         public void A1() { _s1.Use(); S2.Use(); } // Secondary {{Belongs to responsibility #1.}}
         public void A2() { S2.Use(); S3.Use(); }  // Secondary {{Belongs to responsibility #1.}}
         public void A3() { S3.Use(); _s1.Use(); } // Secondary {{Belongs to responsibility #1.}}
-        public void A4() { S4.Use(); }            // Secondary {{Belongs to responsibility #2.}}
+        public void A4() { S4.Use(); }            // Secondary {{Belongs to responsibility #1.}}
     }
 
     public class WithLambdaCapturingService : ApiController // Noncompliant: s1Provider and s2Provider explicitly wrap services
