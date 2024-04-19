@@ -10,7 +10,8 @@ On the other hand, if the `operator delete` is overloaded without overloading th
 
 By defining the `operator delete` along with the `operator new`, the memory is deallocated in a way consistent with the custom allocation strategy used by the `operator new`.
 
-Up to this point, we mentioned `operator new` and `operator delete`, but it is a simplification. There are different forms of those operators (for a single object or an array, with an extra alignment parameter...), and the consistency between new and delete should be enforced for each form.
+Up to this point, we mentioned `operator new` and `operator delete`, but it is a simplification. There are many different forms of https://en.cppreference.com/w/cpp/memory/new/operator_new[`operator new`] and https://en.cppreference.com/w/cpp/memory/new/operator_delete[`operator delete`] (for a single object or an array, with an extra alignment parameter... see the links for a full list), and the consistency between new and delete should be enforced for each form.
+
 For instance, if `++void * operator new[]( std::size_t count, std::align_val_t al );++` is defined (for arrays, with extra alignment), then `++void operator delete[]( void* ptr, std::align_val_t al ) noexcept;++` should be defined too.
 
 Additionally, since {cpp}17, it is possible to define a version of the delete operator with an additional size argument, alongside the unsized version of `operator delete`. When overloading these operators in a class, defining both a sized and an unsized version of operator delete is useless, since the unsized version will always be preferred. However, for free replacement, it is necessary to specify both versions since the language does not specify which version will be called.
@@ -25,7 +26,7 @@ Deallocating memory that was not allocated with the corresponding strategy resul
 
 Each overload of the `operator new` should have a matching overload `operator delete` and vice versa. Since {cpp}17, within a class, define only a sized or an unsized version of `operator delete`, but as a free function, define both.
 
-=== Code examples
+=== Example with overloaded operators in a class
 
 Imagine a custom allocator `MyAllocator`:
 
@@ -93,6 +94,44 @@ void f() {
 }
 ----
 
+=== Example with replacement of global allocators
+
+In the following example, the intent is to replace allocation functions with system-specific variants.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+
+ // Noncompliant: The sized version of delete is not replaced
+
+void* operator new  (std::size_t count) {
+    return SystemSpecificNew(count);
+}
+
+void operator delete  (void* ptr ) noexcept {
+    return SystemSpecificDelete(ptr);
+}
+----
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void* operator new  (std::size_t count) {
+    return SystemSpecificNew(count);
+}
+
+void operator delete  (void* ptr) noexcept {
+    return SystemSpecificDelete(ptr);
+}
+
+// Compliant: Even if it does exactly the same as the unsized version, this sized 
+// version of delete replaces the default-provided one that probably deallocates
+// memory in a different and incompatible way
+void operator delete  (void * ptr, std::size_t ) noexcept {
+    return SystemSpecificDelete(ptr);
+}
+----
 == Resources
 
 === Documentation
