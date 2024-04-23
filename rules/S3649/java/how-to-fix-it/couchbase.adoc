@@ -1,0 +1,63 @@
+== How to fix it in Couchbase
+
+=== Code examples
+
+The following code is vulnerable to SQL++ injection because user-controlled data
+is inserted directly into a query string. The application assumes that incoming
+data always has a specific range of characters, and ignores that some characters
+may change the query logic to a malicious one.
+
+==== Noncompliant code example
+
+[source,java,diff-id=31,diff-type=noncompliant]
+----
+import com.couchbase.client.java.Cluster;
+
+@RestController
+public class ApiController
+{
+    private final Cluster couchbaseCluster;
+
+    @GetMapping("/find")
+    public List<Person> find(@RequestParam("name") String name) {
+        QueryResult result = couchbaseCluster.query("SELECT * FROM `bucket` WHERE name = '" + name + "'");
+        return result.rowsAs(Person.class);
+    }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=31,diff-type=compliant]
+----
+org.springframework.data.couchbase.core.query.Query;
+
+@RestController
+public class ApiController
+{
+    private final CouchbaseTemplate couchbaseTemplate;
+
+    @GetMapping("/find")
+    public List<Person> find(@RequestParam("name") String name) {
+        Query query = Query.query(QueryCriteria.where("name").eq(name));
+        return couchbaseTemplate.findByQuery(Person.class).matching(query).all();
+    }
+}
+----
+
+=== How does this work?
+
+`QueryCriteria` is used to define the conditions of a query. It offers a fluent
+API to specify conditions on the fields of the documents you are querying
+against.
+
+The `Query` class encapsulates the query defined by `QueryCriteria`. It allows
+for the specification of additional parameters for the query, such as sorting
+and limit. The `Query` object is then used as an argument to the query methods
+provided by Couchbase-specific classes, like `CouchbaseTemplate`.
+
+One of the key advantages of using `Query` and `QueryCriteria` is the inherent
+security they provide. They help prevent injection attacks by ensuring that
+user-provided input is properly escaped or parameterized, which prevents it from
+being interpreted as part of the query itself. This is because these classes do
+not rely on string concatenation to build a query.
