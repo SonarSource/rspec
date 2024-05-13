@@ -55,7 +55,7 @@ PASSTHROUGH_MACRO = re.compile(PASSTHROUGH_MACRO_TEXT)
 
 CPP = re.compile(r"\b[Cc]\+\+")
 
-RULES_SONARSOURCE = re.compile(r"https:\/\/rules\.sonarsource\.com\/(.*)\/RSPEC-\d+")
+RULES_SONARSOURCE = re.compile(r"https?:\/\/rules\.sonarsource\.com\/(.*)\/RSPEC-\d+")
 
 # There is a regex trick here:
 # We want to skip passthrough macros, to not find pass:[``whatever``]
