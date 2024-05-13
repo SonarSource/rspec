@@ -4,6 +4,8 @@ Checks are:
 * "ifdef"/"endif" blocks should be well-formed for RSPEC
 * Inline code with backquotes is correctly escaped and balanced
 * Include commands are not appended to other code
+* "C++" is referred to using the {cpp} attribute
+* rules.sonarsource.com is not linked directly
 """
 
 import re
