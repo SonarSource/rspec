@@ -20,11 +20,14 @@ public class ProductsController : Controller
 
 === Exceptions
 
-* This rule does not raise an issue for properties decorated with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNever] attribute.
+This rule does not raise an issue when:
+
+* properties are decorated with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNever] attribute.
+* properties are in model classes which are not in the same project as the Controller class that references them. This is due to a limitation of Roslyn (see https://github.com/SonarSource/sonar-dotnet/issues/9243[here]).
 
 == How to fix it
 
-You should mark any model value-type property as https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[nullable] or annotate it with the https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations.requiredattribute[Required attribute]. Thus, when a client underposts, you ensure that the missing properties can be detected on the server side rather than being auto-filled, and therefore, incoming data meets the application's expectations.
+You should mark any model value-type property as https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[nullable], https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/required[required] or https://learn.microsoft.com/en-us/dotnet/api/system.text.json.serialization.jsonrequiredattribute[JsonRequired]. Thus when a client underposts, you ensure that the missing properties can be detected on the server side rather than being auto-filled, and therefore, incoming data meets the application's expectations.
 
 === Code examples
 
@@ -34,7 +37,7 @@ You should mark any model value-type property as https://learn.microsoft.com/en-
 ----
 public class Product
 {
-    public int Id { get; set; }
+    public int Id { get; set; }             // Noncompliant
     public string Name { get; set; }
     public int NumberOfItems { get; set; }  // Noncompliant
     public decimal Price { get; set; }      // Noncompliant
@@ -42,7 +45,7 @@ public class Product
 ----
 
 If the client sends a request without setting the `NumberOfItems` or `Price` properties, they will default to `0`.
-In the request handler method there's no way to determine whether they were intentionally set to `0` or omitted by mistake.
+In the request handler method, there's no way to determine whether they were intentionally set to `0` or omitted by mistake.
 
 ==== Compliant solution
 
@@ -50,14 +53,14 @@ In the request handler method there's no way to determine whether they were inte
 ----
 public class Product
 {
-    public int Id { get; set; }
+    public required int Id { get; set; }
     public string Name { get; set; }
-    public int? NumberOfItems { get; set; }         // Compliant - property is optional
-    [Required] public decimal Price { get; set; }  // Compliant - property must have a value
+    public int? NumberOfItems { get; set; }            // Compliant - property is optional
+    [JsonRequired] public decimal Price { get; set; }  // Compliant - property must have a value
 }
 ----
 
-In this example the request handler method can
+In this example, the request handler method can
 
 * manually check whether `NumberOfItems` was filled out through the `HasValue` property
 * rely on Model Validation to make sure `Price` is not missing
