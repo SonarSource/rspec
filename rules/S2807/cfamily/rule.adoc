@@ -11,7 +11,7 @@ A hidden friend, i.e. friend function defined in the class body, provides the fo
 This rule raises issues for all overloaded binary:
 
 * mathematical operators: `+`, `-`, `*`, `/`, `%`, `^`, `&`, `|`, `<<`, `>>`
-* until {cpp}20, all relational operators: `==`, `!=`, `<`, `>`, `<=`, `>=`
+* until {cpp}20, all relational operators: `==`, `!=`, `<`, `>`, ``++<=++``, ``++>=++``
 * since {cpp}20, non-members key relational operators: `==`, ``++<=>++``
 
 [source,cpp]
@@ -31,7 +31,7 @@ bool operator==(const MyClass &lhs, const MyClass& rhs) // Noncompliant
 The overloaded operators that are declared as hidden friends are found only by argument-dependent lookup (ADL) for a given class.
 Approximately, this means that the hidden friend of class `C` is considered a candidate,
 only if one of the arguments of the call is an object of type `C` or one derived from it.
-In contrast, a free function will be considered a class for any class declared in the same namespace.
+In contrast, a free function is considered for any class declared in the same namespace.
 
 For illustration, let's consider the following example which defines `operator/` as a free function.
 [source,cpp,diff-id=1,diff-type=noncompliant]
@@ -52,12 +52,12 @@ namespace lib {
 }
 ----
 
-The `operator/` will considered as a candidate for any call `a / b` where either `a` or `b` is namespace `lib.`
+The `operator/` will considered as a candidate for any call `a / b` where either `a` or `b` is namespace `lib`.
 This not only makes compilation slower but also lists the function as a candidate in case of a compilation error,
 making such a message less readable.
 
-Furthermore, when such an operator is visible via normal lookup, it may be invoked when both arguments is of the type that is convertible to `lib::Path.`
-This may happen for code in the `lib` namespace or after using `using namespace lib;.`
+Furthermore, when such an operator is visible via normal lookup, it may be invoked when both arguments is of the type that is convertible to `lib::Path`.
+This may happen for code in the `lib` namespace or after using `using namespace lib;`.
 However, such code will not compile or (even worse) select different overloads when placed in a different namespace.
 
 [source,cpp]
@@ -105,7 +105,7 @@ namespace lib {
 When the overloaded operator is declared as a member of the class,
 it can be invoked only for the object of the class type or type that is derived from it.
 These restrictions apply also when operator syntax (`a op b`) is used,
-and disallows implicit conversion for left operands while allowing them for right.
+and disallows implicit conversion for left operands while allowing them for right operand.
 
 For example, given the object `i` of class `Integer` that defines
 `operator+` as a member:
@@ -120,9 +120,9 @@ public:
   }
 };
 ----
-The call `i + 10` will be well-formed and resolve to `i.operator(10)`,
+The call `i + 10` is well-formed and resolve to `i.operator(10)`,
 which will convert `10` to an `Integer` object using the implicit converting constructor.
-While `10 + i` will be ill-formed.
+While `10 + i` is ill-formed.
 
 In case if hidden friend function would be used, the expressions `i + 10` and `10 + i`,
 would resolve to `operator+(i, 10)` and `operator+(10, i)` respectively,
@@ -147,12 +147,12 @@ public:
 The {cpp}20 have introduced an tree-way comparison operator ``++<=>++`` (also know as spaceship),
 in addition to the mechanism that considers additional functions when interpreting relational operations:
 
-* `a < b` (also `>`, `<=`, `>=`) is also interpreted as ``++operator<=>(a, b) < 0++``, ``++a.operator<=>(b) < 0++``, or ``++0 < operator<=>(b, a)++``, ``++0 < b.operator<=>(a)++``,
+* `a < b` (also `>`, ``++<=++`, ``++>=++``) is also interpreted as ``++operator<=>(a, b) < 0++``, ``++a.operator<=>(b) < 0++``, or ``++0 < operator<=>(b, a)++``, ``++0 < b.operator<=>(a)++``,
 * `a != b` is also intepreted as `!operator==(a, b)`, `!a.operator==(b)`, or `!operator==(b, a)`, `!b.operator==(a)`,
 * `a == b` is also intepreted as `operator==(a, b)`, `a.operator==(b)`, or  `operator==(b, a)`, `b.operator==(a)`.
 
-Above mechanism, makes overloads for `!=`, `<`, `>`, `<=`, `>=` redundant, and can be replaced with ``++<=>++` and `==` (see S6187).
-As these overloads usually can be removed, we do not suggest replacing them with hidden friends.
+Above mechanism, makes overloads for `!=`, `<`, `>`, ``++<=++``, ``++>=++`` replacable with ``++<=>++` and `==` (see S6187).
+As these overloads usually will be removed, we do not suggest replacing them with hidden friends.
 
 Additionally, such rewrites consider calls of overloads with the order of argument as spelled (`a`, `b`), and reversed (`b`, `a`).
 This makes the behavior of expression consistent regardless of the order of operands.
@@ -172,7 +172,7 @@ const MySting ms;
 The expression `ms == "Some string"` and `"SomeString" == ms` will both compile,
 and the latter will call `operator==` with the argument reversed.
 This removes the drawbacks of declaring such operators as members,
-and the issue is not raised in {cpp}20 or later mode in such case.
+and the issue is not raised for them in {cpp}20 or later mode.
 
 Note, that hidden friends are still preferred over free functions:
 [source,cpp]
@@ -300,13 +300,13 @@ Integer& Integer::operator+=(Integer const& rhs)
 ----
 
 This has the additional benefit of reducing code duplication if both `operator+` and `operator+=` were already defined,
-or providing a more consistent interface by providing compound assignment counterparts for each supported operator.
+or imaking interface more consistent by providing compound assignment counterparts for each supported operator.
 
 
 === How to handle operator template
 
 When declaring a hidden friend for a class template, a separate friend function would be instantiated for each instantiation of the enclosing class.
-As a consequence, when changing from a free overloaded operator template to a friend function, template parameters corresponding to the class should be removed.
+When changing from a free overloaded operator template to a friend function, template parameters corresponding to the class should be removed.
 
 ==== Noncompliant code example
 
@@ -345,11 +345,11 @@ public:
 };
 ----
 
-Such a solution has the additional benefit of allowing the operands to be converted (as the operator is no longer a template).
+Such solution has the additional benefit of allowing the operands to be converted (as the operator is no longer a template).
 This means that for `StringRef<char> sr`, the expression `sr == "Some string"` will compile and use the implicit constructor from `CharT const*`,
 alleviating the need to declare addtional overloads accepting `const CharT*`.
 
-In case when of heterogeneous operator, which accepts different specializations, only one set of template parameters should be removed:
+In case when of heterogeneous operator, that accepts different specializations, only one set of template parameters should be removed:
 
 ==== Noncompliant code example
 
