@@ -253,6 +253,8 @@ To define a hidden friend, the overloaded operator needs to be defined in-class.
 When the operator is defined in the source file, this may require moving it defintion to the header file.
 In case of the complex implementation this may be undesired, or not possible.
 
+==== Noncompliant code example
+
 [source,cpp,diff-id=4,diff-type=noncompliant]
 ----
 // Header file
@@ -273,13 +275,15 @@ To properly resolve such issue, you may define a helper member funciton, that wi
 remain defined in source file, and define operator in terms of it.
 For the mathmetical operators, usually this is achieved by definin the operators in the terms of corresponding compund assigment opearator.
 
+==== Compliant solution
+
 [source,cpp,diff-id=4,diff-type=compliant]
 ----
 // Header file
 class Integer {
 public:
   Integer(long long int);
-  Integer operator+=(Integer const& rhs);
+  Integer& operator+=(Integer const& rhs);
   friend Integer operator+(Integer const& lhs, Integer const& rhs) const // Compliant
   { 
     Integer result = lhs;
@@ -289,7 +293,7 @@ public:
 };
 
 // Source file
-Integer& Integer::operator+(Integer const& rhs) const 
+Integer& Integer::operator+=(Integer const& rhs)
 {
   /* Complex logic */
 }
@@ -301,7 +305,95 @@ or providing more consistient interface, by providing compound assigment counter
 
 === How to handle operator template
 
-TODO
+When declaring a hidden friend for a class template, a separate friend funciton would be instantiated for each instantation of enclosing class.
+As a consequence, when changing from a free overloaded operator template, to friend function, template parameters corresponding to class should be removed.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=5,diff-type=noncompliant]
+----
+template<typename CharT>
+class StringRef {
+public:
+  StringRef(CharT const* str);
+
+  int compare(StringRef other) const;
+};
+
+template<typename CharT>
+bool operator==(StringRef<CharT> lhs, StringRef<CharT> rhs) // Noncompliant
+{
+  return lhs.compare(rhs) == 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+template<typename CharT>
+class StringRef {
+public:
+  StringRef(CharT const* str);
+
+  int compare(StringRef other) const;
+
+  friend bool operator==(StringRef lhs, StringRef rhs) // Compliant: separate overload for each instantiation of StringRef<CharT>
+  {
+    return lhs.compare(rhs) == 0;
+  }
+};
+----
+
+Such solution has additional benefit of allowing a conversion for the operands (as the operator is no longer a template).
+This means that for `StringRef<char> sr`, the expression `sr == "Some string"` will compile and use implicit constructor from `CharT const*`, 
+alleviating the need to declare addtional overloads accepting `const CharT*`.
+
+In case when of heterogenous operator, that accepts different specializations, only one set of template parameters should be removed:
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=6,diff-type=noncompliant]
+----
+template<typename T>
+struct Optional {
+  bool has_value() const;
+  T const& value() const;
+};
+
+template<typename T, typename U>
+  requires std::equality_comparable_with<T, U>
+bool operator==(Optional<T> const& lhs, Optional<U> rhs) // Noncompliant
+{
+  if (lhs.has_value() && rhs.has_value()) {
+    return lhs.value() == rhs.value();
+  }
+  return lhs.has_value() == rhs.has_value();
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=6,diff-type=compliant]
+----
+template<typename T>
+struct Optional {
+  bool has_value() const;
+  T const& value() const;
+
+  template<typename U>
+    requires std::equality_comparable_with<T, U>
+  friend bool operator==(Optional const& lhs, Optional<U> rhs) // Complaint: lhs is Optional<T>
+  {
+    if (lhs.has_value() && rhs.has_value()) {
+      return lhs.value() == rhs.value();
+    }
+    return lhs.has_value() == rhs.has_value();
+  }
+};
+----
+
+==== Compliant solution
 
 == Resources
 
