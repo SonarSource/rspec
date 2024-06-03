@@ -13,9 +13,7 @@ This rule raises issues for all overloaded binary:
  * until {cpp}20, all relational operators: `==`, `!=`, `<`, `>`, `<=`, `>=`
  * since {cpp}20, non-members key relational operators: `==`, `<=>` 
 
-=== Noncompliant code example
-
-[source,cpp,diff-id=1,diff-type=noncompliant]
+[source,cpp]
 ----
 struct MyClass {
   MyClass operator+(const MyClass& rhs) // Noncompliant
@@ -26,17 +24,6 @@ bool operator==(const MyClass &lhs, const MyClass& rhs) // Noncompliant
 { /* ... */ }
 ----
 
-=== Compliant solution
-
-[source,cpp,diff-id=1,diff-type=compliant]
-----
-sturct MyClass {
-  friend MyClass operator+(const MyClass &lhs, const MyClass& rhs); // Compliant
-  { /* ... */ }
-  friend bool operator==(const MyClass &lhs, const MyClass& rhs);   // Compliant
-  { /* ... */ }
-};
-----
 
 === Why are hidden friends preferred over free functions?
 
@@ -46,7 +33,7 @@ only if one of the arguments of the call is an object of type `C` or one derived
 In contrast, a free function will be considered a class for any class declared in the same namespace.
 
 For illustration, let's consider the following example which defines `operator/` as a free function.
-[source,cpp,diff-id=2,diff-type=noncompliant]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 namespace lib {
   class Path {
@@ -94,7 +81,7 @@ namespace otherNS {
 Such conversion for both arguments will not be allowed when the opearator is declared as a hidden friend,
 as none of the operands are of `lib::Path` type:
 
-[source,cpp,diff-id=2,diff-type=compliant]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 namespace lib {
   class Path {
@@ -121,7 +108,7 @@ and disallows implicit conversion for left operands while allowing them for righ
 
 For example, given the object `i` of class `Integer` that defines
 `operator+` as a member:
-[source,cpp,diff-id=3,diff-type=noncompliant]
+[source,cpp,diff-id=2,diff-type=noncompliant]
 ----
 class Integer {
 public:
@@ -139,7 +126,7 @@ While `10 + i` will be ill-formed.
 In case if hidden friend function would be used, the expressions `i + 10` and `10 + i`,
 would resolve to `operator+(i, 10)` and `operator+(10, i)` respectively,
 allowing conversion to be performed for both operands.
-[source,cpp,diff-id=3,diff-type=compliant]
+[source,cpp,diff-id=2,diff-type=compliant]
 ----
 class Integer {
 public:
@@ -200,8 +187,119 @@ std::strong_ordering operator<=>(MyString const& lhs, MyString const& rhs) const
 
 == How to fix it
 
-// out of line
-// templates
+The issue can be fixed by declaring the operator to be declared as hidden friend,
+i.e. declaring it as `friend` inside the class and inlining it function body.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+struct IntWrapper {
+  long i;
+  MyClass operator+(const MyClass& rhs) // Noncompliant
+  {
+    return MyClass{i + rhs.i}
+  }
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+struct IntWrapper {
+  long i;
+  friend MyClass operator+(const MyClass& lhs, const MyClass& rhs) // Compliant
+  {
+    return Myclass{lhs.i + rhs.i}
+  }
+};
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+struct IntWrapper {
+  long i;
+};
+
+MyClass operator+(const MyClass& lhs, const MyClass& rhs) // Noncompliant
+{
+  return Myclass{lhs.i + rhs.i}
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+struct IntWrapper {
+  long i;
+  friend MyClass operator+(const MyClass& lhs, const MyClass& rhs) // Compliant
+  {
+    return Myclass{lhs.i + rhs.i}
+  }
+};
+----
+
+=== How to handle operator with definition in source file
+
+To define a hidden friend, the overloaded operator needs to be defined in-class.
+When the operator is defined in the source file, this may require moving it defintion to the header file.
+In case of the complex implementation this may be undesired, or not possible.
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+// Header file
+class Integer {
+public:
+  Integer(long long int);
+  Integer operator+(Integer const& rhs) const; // Noncompliant
+};
+
+// Source file
+Integer Integer::operator+(Integer const& rhs) const 
+{
+  /* Complex logic */
+}
+----
+
+To properly resolve such issue, you may define a helper member funciton, that will 
+remain defined in source file, and define operator in terms of it.
+For the mathmetical operators, usually this is achieved by definin the operators in the terms of corresponding compund assigment opearator.
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+// Header file
+class Integer {
+public:
+  Integer(long long int);
+  Integer operator+=(Integer const& rhs);
+  friend Integer operator+(Integer const& lhs, Integer const& rhs) const // Compliant
+  { 
+    Integer result = lhs;
+    result += rhs;
+    return result;
+  }
+};
+
+// Source file
+Integer& Integer::operator+(Integer const& rhs) const 
+{
+  /* Complex logic */
+}
+----
+
+This have additional benefit of reducing the code duplication, if both `operator+` and `operator+=` where defined,
+or providing more consistient interface, by providing compound assigment counterpart for each supported operator.
+
+
+=== How to handle operator template
+
+TODO
 
 == Resources
 
