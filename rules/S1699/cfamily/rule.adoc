@@ -50,12 +50,12 @@ This rule raises an issue when a non-final virtual function is called from a con
 === What is the potential impact?
 
 In the best-case scenario, the selected override is the desired one.
-However, this may not be obvious to everyone when reading the code and can cause needless confusion.
+However, this may not be obvious to everyone reading the code and can cause needless confusion.
 Secondly, this reduces the software's adaptability: changing the class hierarchy may break the current assumption and lead to bugs if the wrong override is selected.
 
 Another likely scenario is that the wrong overload is selected.
 Since the difference between the program's expected and actual behavior can be very small, you may spend a significant amount of time identifying and fixing the problem.
-The problem is even more challenging to identify when virtual functions are indirectly called.
+The problem is even more challenging to identify when virtual functions are called indirectly through another function.
 
 Finally, since the behavior is undefined if the chosen override is a pure virtual function, the program might crash or produce obvious incorrect results.
 Or it might seem to work fine on the surface, yet lead to bigger problems down the line that are not identified by tests.
@@ -64,7 +64,7 @@ Or it might seem to work fine on the surface, yet lead to bigger problems down t
 
 There are essentially three scenarios:
 
-1. If subclasses can exist and customize the program's behavior, there is a bug. +
+1. If subclasses can exist and may customize the program's behavior, there is a bug. +
   You should refactor the code to remove reliance on virtual function calls from constructors and destructors.
 
 2. If subclasses don't exist or shouldn't customize the behavior, the intent is unclear. +
@@ -75,11 +75,11 @@ There are essentially three scenarios:
 
 We will explore solutions for these cases below with a couple of examples.
 Please keep in mind that these examples focus on the problem of virtual dispatch and nothing else.
-For simplicity, they are not perfect: for example, they lack proper virtual destructors (S1235), they do not take into account encapsulation, etc.
+For simplicity, they are not perfect: for example, they lack proper virtual destructors (S1235), they do not take into account encapsulation, etc...
 
 === Defer virtual function calls
 
-If you want to perform virtual calls during object construction that consider the actual type of the object, you should defer those calls after the object constructor has finished with a factory function.
+If you want to perform virtual calls during the object construction process that consider the actual type of the object, you should defer those calls after the object constructor has finished with a factory function.
 
 ==== Noncompliant code example
 
@@ -147,8 +147,9 @@ For this solution to properly work, you have to ensure every `Derived` object in
 There are multiple ways to enforce this.
 For example, you can declare `factory()` as a static member function of `Derived` and mark the relevant constructors as `protected`.
 However, you will have to deal with ``++std::make_unique++`` inability to access the protected constructor.
-You can deal with this issue with https://seanmiddleditch.github.io/enabling-make-unique-with-private-constructors/[the passkey idiom].
+https://seanmiddleditch.github.io/enabling-make-unique-with-private-constructors/[The passkey idiom] is usually a good solution for this.
 // https://abseil.io/tips/134 has some nice tips, but not focused enough.
+
 When done rigorously, the compiler will emit a compilation error if you attempt to construct an object without relying on `factory()`.
 
 ==== Dealing with destructors
@@ -162,6 +163,8 @@ For example, with the `factory()` function from above, you could use a custom de
 === Mark functions or classes as final
 
 Assuming you know that subclasses don't exist or shouldn't customize the behavior, you can use {cpp}11 `final` specifier to ask the compiler to enforce this design decision.
+
+This solution is applicable for virtual calls from constructors and destructors.
 
 ==== Noncompliant code example
 
@@ -189,7 +192,7 @@ struct Button : Widget {
 ==== Compliant solution
 
 In your design, if it does not make sense for `Button` to have subclasses, you can mark it as `final`.
-Or you can allow subclasses as long as they do not override `addChild` by marking only this function as `final`.
+Or you can allow subclasses as long as they do not override `addChild` by marking this function as `final`.
 You can also combine both to be explicit about each individual design decision.
 
 [source,cpp,diff-id=2,diff-type=compliant]
@@ -255,8 +258,16 @@ struct BufferedFileStream : FileStream {
 };
 ----
 
+While this solution clarifies the intent, it is often brittle since introducing a new class in the hierarchy may silently break the assumption made in the implementation.
+When creating a new class or modifying an existing one, you have to know the details of other classes to be sure not to break their behavior.
+In other words, this solution tends to break the encapsulation of your classes.
 
-// We could have a "Going the extra mile" section about how to do without inheritance. It would however require collecting a good set of alternative designs, like composition over inheritance, using the decorator pattern, ... None of these solutions are universal so we cannot blindly suggest things.
+=== Going the extra mile
+
+When facing the problem covered by this rule, you may realize inheritance as used is not the right solution for your design.
+Although they usually require larger changes, you can consider alternatives such as preferring composition over inheritance, using the decorator pattern, etc.
+A good rule of thumb is to keep the "depth" of class hierarchies small and many design patterns allow you to do that.
+Selecting the right one highly depends on your application.
 
 == Resources
 
