@@ -45,11 +45,12 @@ Approximately, this means that the hidden friend of class `C` is considered as c
 only if one of the arguments of the call is object of type `C` or one derived from it.
 In contrast a free functions, will be considered an class for any class declared in same namespace.
 
-For illustration, lets consider following class:
+For illustration, lets consider following example, that defines `operator/` as free function.
 [source,cpp,diff-id=2,diff-type=noncompliant]
 ----
 namespace lib {
-  struct Path {
+  class Path {
+  public:
     Path(char const*);
     Path(std::string_view);
     Path& operator/=(Path const&);
@@ -96,7 +97,8 @@ as non of the operands are of `lib::Path` type:
 [source,cpp,diff-id=2,diff-type=compliant]
 ----
 namespace lib {
-  struct Path {
+  class Path {
+  public:
     Path(char const*);
     Path(std::string_view);
     Path& operator/=(Path const&);
@@ -112,14 +114,54 @@ namespace lib {
 
 === Why hidden friends are preffered over member functions?
 
+When the overloaded operator is declared as the member of the class, 
+it can be invoked only for the object of the class type or type that is derived from it.
+This restrictions apply also when operator syntax (`a op b`) is used,
+and disallows implicit conversion for left operand while allowing them for right.
+Making the behavior inconsistient.
+
+For example, given the object `i` of class `Integer` that defines
+`operator+` as member:
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+class Integer {
+public:
+  Integer(long long int);
+  Integer& operator+=(Integer const& other);
+  Integer operator+(Integer const& rhs) const { // Noncompliant
+    return opertor+=(other);
+  }
+};
+----
+The call `i + 10` will be well-fromed and resolve to `i.operator(10)`, 
+that will convert `10` to integer using implcit converting constructor.
+While `10 + i` will be ill-formed.
+
+In case when hidden friend function would be used, the expressions `i + 10` and `10 + i`,
+would resolve to `operator+(i, 10)` and `operator+(10, i)` respectivelly,
+allowing conversion to be performed for both operands.
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+class Integer {
+public:
+  Integer(long long int);
+  Integer& operator+=(Integer const& other);
+  friend Integer operator+(Integer const& lhs, Integer const& rhs) const { // Compliant
+    Interger res;
+    res += rhs; 
+    return res;
+  }
+};
+----
+
 
 === Why relational operators are treated differently since {cpp}20?
 
 The {cpp}20 have introduced an tree-way comparision operator `<=>` (also know as spaceship),
 in addition to the mechanism that consideres additional function when interpreting relational operations:
  * `a < b` (or `>`, `<=`, `>=`) is also interpeted as `operator<=>(a, b) < 0`, `a.operator<=>(b) < 0`, or `0 < operator<=>(b, a)`, `0 < b.operator<=>(a)`,
- * `a != b` is also intepreted as `!operator==(a, b)`, `!a.operator==(b)`, or `!operator==(b, a)`, `!b.opeator==(a)`,
- * `a == b` is also intepreted as `operator==(a, b)`, `a.operator==(b)`, or  `operator==(b, a)`, `b.opeator==(a)`.
+ * `a != b` is also intepreted as `!operator==(a, b)`, `!a.operator==(b)`, or `!operator==(b, a)`, `!b.operator==(a)`,
+ * `a == b` is also intepreted as `operator==(a, b)`, `a.operator==(b)`, or  `operator==(b, a)`, `b.operator==(a)`.
 
 Above mechanism, makes overloads for `!=`, `<`, `>`, `<=`, `>=` redundant, and can be replaced with `<=>` and `==` (see S6187).
 As this overloads usually can be removed, we do not suggest replacing them with hidden friends.
