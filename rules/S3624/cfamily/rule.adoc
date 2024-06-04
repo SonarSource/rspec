@@ -1,80 +1,75 @@
+When a class cannot follow the Rule of Zero, its special members should follow one of a few logical patterns.
+
 == Why is this an issue?
 
-In {cpp}, you should not directly manipulate resources (a database transaction, a network connection, a mutex lock) but encapsulate them in RAII (_Resource Acquisition Is Initialization_) wrapper classes that will allow you to manipulate them safely. When defining one of those wrapper classes, you cannot rely on the compiler-generated special member functions to manage the class' resources for you (see the Rule-of-Zero, S4963). You must define those functions yourself to make sure the class' resources are properly copied, moved, and destroyed.
+Most classes should not directly handle resources, but instead, use members that perform resource handling for them:
 
+* For memory, it can be ``++std::unique_ptr++``, ``++std::shared_ptr++``, ``++std::vector++``...
+* For files, it can be ``++std::ofstream++``, ``++std::ifstream++``...
+* ...
 
-In that case, make sure you consider what should be done for all five special functions (or only the first three before {cpp}11):
+Classes that avoid directly handling resources don't need to define any of the special member functions required to properly handle resources: destructor, copy constructor, move constructor, copy-assignment operator, move-assignment operator. That's because the versions of those functions provided by the compiler do the right thing automatically, which is especially useful because writing these functions correctly is typically tricky and error-prone.
 
-* The destructor: to release the resource when the wrapper is destroyed
-* The copy constructor and the copy-assignment operator: to handle what should happen to the resource when the wrapper is copied (a valid option is to disable those operations with ``++=delete++``)
-* The move constructor and the move-assignment operator: to handle what should happen to the resource when the wrapper is moved (since {cpp}11). If you cannot find a way to implement them more efficiently than the copy operations, as an exception to this rule, you can just leave out these operations: the compiler will not generate them and will use the copy operations as a fallback.
+Omitting all of these functions from a class is known as the Rule of Zero because no special function should be defined. This rule should apply to the vast majority of classes.
 
-The operations mentioned above are interdependent. Letting the compiler generate some of these operations automatically, but not all of them, creates a situation where calling one of these functions may compromise the integrity of the resource. For example, it could result in a double-release of a resource when the wrapper is copied.
+The remaining classes that cannot use the Rule of Zero should be dedicated to managing a specific kind of resource and should follow a few logical rules:
+* The presence of a copy operation implies the presence of the corresponding move operation (the opposite is not true). That is because the move operations are specialized copy operations that try to optimize the specific case where the source is an r-value. At worst, move operations are identical to copy.
 
+* The presence of a copy/move assignment implies the presence of the corresponding constructor (the opposite is not true).
 
-=== Noncompliant code example
+* If you need to customize one of the special member functions, it means that you need to consider all the other member functions and that using `= default` will not do what you want.
 
-[source,cpp]
-----
-class FooPointer { // Noncompliant, missing copy constructor and copy-assignment operator
-  Foo* pFoo;
-public:
-  FooPointer(int initValue) {
-    pFoo = new Foo(initValue);
-  }
-  ~FooPointer() {
-    delete pFoo;
-  }
-};
+From these rules, we can describe three categories among which all classes should fall into.
 
-int main() {
-  FooPointer a(5);
-  FooPointer b = a; // implicit copy constructor gives rise to double free memory error
-  return 0;
-}
-----
+=== Copy-enabled classes
 
+These classes can be copied and moved.
 
-=== Compliant solution
+==== Special member functions for copy-enabled classes
 
-[source,cpp]
-----
-class FooPointer { // Compliant, although it's usually better to reuse an existing wrapper for memory
-  Foo* pFoo;
-public:
-  FooPointer(int initValue) {
-    pFoo = new Foo(initValue);
-  }
-  FooPointer(FooPointer& other) {
-    pFoo = new Foo(other.pFoo->value);
-  }
-  FooPointer& operator=(const FooPointer& other) {
-    int val = other.pFoo->value;
-    delete pFoo;
-    pFoo = new Foo(val);
-    return *this;
-  }
-  FooPointer(FooPointer &&fp) noexcept {
-    pFoo = fp.pFoo;
-    fp.pFoo = nullptr;
-  }
-  FooPointer const & operator=(FooPointer &&fp) {
-    FooPointer temp(std::move(fp));
-    std::swap(temp.pFoo, pFoo);
-    return *this;
-  }
-  ~FooPointer() {
-    delete pFoo;
-  }
-};
+* copy construction and move construction should both be available.
 
-int main() {
-  FooPointer a(5);
-  FooPointer b = a; // no error
-  return 0;
-}
-----
+* Either copy-assignment and move-assignment are both available, or neither is.
 
+==== Providing custom special member functions for copy-enabled classes
+
+If at least one special function needs to be customized, then:
+
+* You need to provide a custom destructor and a custom copy constructor.
+
+* The copy-assignment needs to either be deleted or be customized.
+
+* If you can optimize the move construction, compared to the copy, you need to provide a custom move constructor. If the move operation is the same as the copy, you should not declare it at all.
+
+* If the copy-assignment is deleted, you need to delete the move-assignment.
+
+* If the copy-assignment is customized, you need to provide a move-assignment if you can optimize the move operation, compared to the copy. Otherwise, you should just omit it.
+
+=== Move-only classes
+
+These are classes that cannot be copied but can be moved. They represent a unique object.
+
+==== Special member functions for move-only classes
+
+* move construction is available.
+
+* copy construction and copy assignment are deleted.
+
+* move-assignment may be available or not.
+
+==== Providing custom special member functions for move-only classes
+
+* You need to provide a custom destructor and a custom move constructor.
+
+* The move-assignment needs to be either deleted or customized.
+
+=== Unmovable classes
+
+These are classes that cannot be copied, nor moved. They cannot escape their current scope.
+
+==== Special member functions for unmovable classes
+
+All copy and move operations are deleted.
 
 == Resources
 
@@ -84,8 +79,7 @@ int main() {
 
 === Standards
 
-* CERT - https://wiki.sei.cmu.edu/confluence/x/oHs-BQ[OOP54-CPP. - Gracefully handle self-copy assignment]
-
+* MISRA C++23 15.0.1 - "Special member functions" shall be provided appropriately
 
 ifdef::env-github,rspecator-view[]
 
