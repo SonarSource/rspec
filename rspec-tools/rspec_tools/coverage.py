@@ -141,7 +141,12 @@ def all_implemented_rules():
       sonarpedia = load_json(sp_file)
       path = str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
       languages = sonarpedia['languages']
-      implemented_rules.update(get_implemented_rules(path, languages))
+
+      implemented_rules_in_path = get_implemented_rules(path, languages)
+      for lang in implemented_rules_in_path:
+        if lang not in implemented_rules:
+          implemented_rules[lang] = []
+        implemented_rules[lang] += implemented_rules_in_path[lang]
     except Exception as e:
       print(f"failed to collect implemented rules for {sp_file}: {e}")
       continue
