@@ -1,20 +1,21 @@
 This rule raises an issue when PyTorch `optimizer.step()` and `loss.backward()` is used without `optimizer.zero_grad()`.
+
 == Why is this an issue?
 
-In PyTorch the training loop of a neural network is comprised of a several steps: 
+In PyTorch the training loop of a neural network is comprised of several steps, not necessarily in this order: 
 * Forward pass, to pass the data through the model and output predictions
-* Loss computation, to compute the loss based and the predictions and the actual data
+* Loss computation, to compute the loss based on the predictions and the ground truth
 * Backward pass, to compute the gradient loss with the `loss.backward()` method
 * Weights update, to update the model weights with the `optimizer.step()` method
 * Gradients zeroed out, to prevent the gradients to accumulate with the `optimizer.zero_grad()` method
 
-When training a model it is important to reset gradients for each training loop. Failing to do so will skew the 
-results as the update of the model's parameters will be done with the accumulated gradients from the previous iterations.
+When training a model it is important to reset gradients for each training loop. 
+Failing to do so will accumulate the gradients which could skew the results and lead to poor performance.
 
 
 == How to fix it
 
-To fix the issue call the `optimizer.zero_grad()` method.
+To fix the issue, call the `optimizer.zero_grad()` method.
 
 === Code examples
 
@@ -23,15 +24,21 @@ To fix the issue call the `optimizer.zero_grad()` method.
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
 import torch
-from my_data import data
+from my_dataset import trainset
+from my_model import NeuralNetwork
+from torch.utils.data import DataLoader
+
+trainloader = DataLoader(trainset, batch_size=64, shuffle=True)
+
+model = NeuralNetwork()
 
 loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
 for epoch in range(100): 
-  for i in range(len(data)): 
-      output = model(data[i])
-      loss = loss_fn(output, labels[i])
+  for data, labels in trainloader: 
+      output = model(data)
+      loss = loss_fn(output, labels)
       loss.backward()
       optimizer.step() # Noncompliant: optimizer.zero_grad() was not called in the training loop
 ----
@@ -41,18 +48,24 @@ for epoch in range(100):
 [source,python,diff-id=1,diff-type=compliant]
 ----
 import torch
-from my_data import data, labels
+from my_dataset import trainset
+from my_model import NeuralNetwork
+from torch.utils.data import DataLoader
+
+trainloader = DataLoader(trainset, batch_size=64, shuffle=True)
+
+model = NeuralNetwork()
 
 loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
 for epoch in range(100): 
-  for i in range(len(data)): 
+  for data, labels in trainloader: 
       optimizer.zero_grad()
-      output = model(data[i])
-      loss = loss_fn(output, labels[i])
+      output = model(data)
+      loss = loss_fn(output, labels)
       loss.backward()
-      optimizer.step() # Compliant
+      optimizer.step()
 ----
 
 == Resources
