@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import collections
 from git import Repo
 from git import Git
 from pathlib import Path
@@ -133,7 +134,7 @@ class Coverage:
         self.rule_implemented(rule_id, language, analyzer, version)
 
 def all_implemented_rules():
-  implemented_rules = {}
+  implemented_rules = collections.defaultdict(list)
   for sp_file in Path('.').rglob('sonarpedia.json'):
     print(sp_file)
     sonarpedia_path=sp_file.parents[0]
@@ -143,10 +144,8 @@ def all_implemented_rules():
       languages = sonarpedia['languages']
 
       implemented_rules_in_path = get_implemented_rules(path, languages)
-      for lang in implemented_rules_in_path:
-        if lang not in implemented_rules:
-          implemented_rules[lang] = []
-        implemented_rules[lang] += implemented_rules_in_path[lang]
+      for lang, rules in implemented_rules_in_path.items():
+        implemented_rules[lang] += rules
     except Exception as e:
       print(f"failed to collect implemented rules for {sp_file}: {e}")
       continue
