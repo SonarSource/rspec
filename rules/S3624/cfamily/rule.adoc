@@ -8,60 +8,101 @@ Most classes should not directly handle resources, but instead, use members that
 * For files, it can be ``++std::ofstream++``, ``++std::ifstream++``...
 * ...
 
-Classes that avoid directly handling resources don't need to define any of the special member functions required to properly handle resources: destructor, copy constructor, move constructor, copy-assignment operator, move-assignment operator. That's because the versions of those functions provided by the compiler do the right thing automatically, which is especially useful because writing these functions correctly is typically tricky and error-prone.
+Classes that avoid directly handling resources don't need to define any of the special member functions required to properly handle resources: destructor, copy constructor, move constructor, copy assignment operator, move assignment operator. That's because the versions of those functions provided by the compiler do the right thing automatically, which is especially useful because writing these functions correctly is typically tricky and error-prone.
 
 Omitting all of these functions from a class is known as the Rule of Zero because no special function should be defined. This rule should apply to the vast majority of classes.
 
 The remaining classes that cannot use the Rule of Zero should be dedicated to managing a specific kind of resource and should follow a few logical rules:
-* The presence of a copy operation implies the presence of the corresponding move operation (the opposite is not true). That is because the move operations are specialized copy operations that try to optimize the specific case where the source is an r-value. At worst, move operations are identical to copy.
+* Copy operations only make sense when the corresponding move operations are available. That is because move operations are optimized copy operations allowed to steal resources from the source (the source is an r-value). At worst, copying is a valid implementation of move operations.
 
-* The presence of a copy/move assignment implies the presence of the corresponding constructor (the opposite is not true).
+* Copy and move assignment operators only make sense when the corresponding constructor is available.
 
-* If you need to customize one of the special member functions, it means that you need to consider all the other member functions and that using `= default` will not do what you want.
+* If you need to customize one of the special member functions, it means that you directly handle resources and the other special member functions probably have a role to play in this resource management. Using `= default` only performs memberwise operations.
 
 From these rules, we can describe three categories among which all classes should fall into.
 
-=== Copy-enabled classes
+=== Copyable classes
 
-These classes can be copied and moved.
+Like most simple classes, these classes can be copied and moved.
 
-==== Special member functions for copy-enabled classes
+==== Special member functions for copyable classes
 
 * copy construction and move construction should both be available.
 
-* Either copy-assignment and move-assignment are both available, or neither is.
+* Either copy assignment and move assignment are both available, or neither is.
 
-==== Providing custom special member functions for copy-enabled classes
+==== Providing custom special member functions for copyable classes
 
 If at least one special function needs to be customized, then:
 
 * You need to provide a custom destructor and a custom copy constructor.
 
-* The copy-assignment needs to be either deleted or customized.
+* The copy assignment needs to be either deleted or customized.
 
-* If you can optimize the move construction, compared to the copy, you need to provide a custom move constructor. If the move operation is the same as the copy, you should not declare it at all.
+* If you can optimize the move construction, compared to the copy, you need to provide a custom move constructor. If the move operation is the same as the copy, you should just omit the move constructor.
 
-* If the copy-assignment is deleted, you need to delete the move-assignment.
+* If the copy assignment is deleted, you need to delete the move assignment.
 
-* If the copy-assignment is customized, you need to provide a move-assignment if you can optimize the move operation, compared to the copy. Otherwise, you should just omit it.
+* If the copy assignment is customized, you need to provide a move assignment if you can optimize the move operation, compared to the copy. Otherwise, you should just omit the move assignment operator.
+
+==== Examples of copyable classes
+
+[source,cpp]
+----
+// Compliant, no copy assignment operator. Move construction will call the copy constructor.
+class CountedCopyable {
+  inline static int count = 0;
+public:
+  CountedCopyable() { count++; }
+  ~CountedCopyable() { count--; }
+  CountedCopyable(CountedCopyable const&) {count ++;}
+  CountedCopyable& operator=(CountedCopyable const&) = delete;
+};
+
+// Compliant, all members are declared
+class VerboseCopyable {
+public:
+  VerboseCopyable() { std::cout << "Constructor called\n"; }
+  ~VerboseCopyable() { std::cout << "Destructor called\n"; }
+  VerboseCopyable(VerboseCopyable const&) { std::cout << "Copy constructor called\n"; }
+  VerboseCopyable& operator=(VerboseCopyable const&)  { std::cout << "Copy assignment operator called\n"; }
+  VerboseCopyable(VerboseCopyable &&) { std::cout << "Move constructor called\n"; }
+  VerboseCopyable& operator=(VerboseCopyable &&)  { std::cout << "Move assignment operator called\n"; }
+};
+
+----
 
 === Move-only classes
 
-These are classes that cannot be copied but can be moved. They represent a unique object.
+These are classes that cannot be copied but can be moved. It can be for example a class handling a resource that cannot be shared (like `std::unique_ptr`) or a class whose objects can be very costly to create.
 
 ==== Special member functions for move-only classes
 
 * move construction is available.
 
-* copy construction and copy assignment are deleted.
+* copy construction and copy assignment are not available.
 
-* move-assignment may be available or not.
+* move assignment may be available or not.
 
 ==== Providing custom special member functions for move-only classes
 
 * You need to provide a custom destructor and a custom move constructor.
 
-* The move-assignment needs to be either deleted or customized.
+* The move assignment needs to be either deleted or customized.
+
+==== Examples of move-only classes
+
+[source,cpp]
+----
+// Compliant, the move assignment operator is implicitly deleted.
+class MoveOnlyResourceHandler {
+  Resource resource;
+public:
+  MoveOnlyResourceHandler() { resource.open(); }
+  ~MoveOnlyResourceHandler() { resource.close(); }
+  MoveOnlyResourceHandler(MoveOnlyResourceHandler const& other) { std::swap(other.resource, resource); }
+};
+----
 
 === Unmovable classes
 
@@ -70,6 +111,20 @@ These are classes that cannot be copied, nor moved. They cannot escape their cur
 ==== Special member functions for unmovable classes
 
 All copy and move operations are deleted.
+
+==== Examples of unmovable classes
+
+[source,cpp]
+----
+// Compliant, deleting the move assignment operator implicitly deletes all implicit special member functions
+class UnmovableResource {
+  Resource resource;
+public:
+  UnmovableResource() { resource.open(); }
+  ~UnmovableResource() { resource.close(); }
+  UnmovableResource& operator=(UnmovableResource&&) = delete;
+};
+----
 
 == Resources
 
@@ -83,21 +138,6 @@ All copy and move operations are deleted.
 
 ifdef::env-github,rspecator-view[]
 
-'''
-== Implementation Specification
-(visible only on this page)
-
-=== Message
-
-Explicitly define the missing "[copy constructor|copy-assignment operator|destructor|move constructor|move-assignment operator]" so that it will not be implicitly provided.
-
-
-=== Highlighting
-
-class name
-
-
-'''
 == Comments And Links
 (visible only on this page)
 
@@ -106,7 +146,7 @@ class name
 === relates to: S4963
 
 === on 1 Jun 2016, 17:29:31 Ann Campbell wrote:
-\[~alban.auzeill], you mentioned in our discussion something about not raising false positives when the move constructor and move-assignment operator are missing. I didn't really get the details of that, so it's not included here and we'll probably need to add it. Feel free to stub the details in or add them in a comment.
+\[~alban.auzeill], you mentioned in our discussion something about not raising false positives when the move constructor and move assignment operator are missing. I didn't really get the details of that, so it's not included here and we'll probably need to add it. Feel free to stub the details in or add them in a comment.
 
 
 Also, I've changed the code samples from IntPointers to FooPointers & added a second compliant solution, which you'll probably want to take a look at.
@@ -148,10 +188,10 @@ ex : \https://peach.sonarsource.com/project/issues?id=c-family%3Aclang&issues=AW
 
 * Copy constructor and copy assignment operator are defined to keep a counter (or something like that)
 
-* An attribute is a unique_ptr. So the user defines the copy constructor and the copy-assignment operator to copy what is inside the unique_ptr. But there is no need of a destructor as the unique_ptr takes care of it.
+* An attribute is a unique_ptr. So the user defines the copy constructor and the copy assignment operator to copy what is inside the unique_ptr. But there is no need of a destructor as the unique_ptr takes care of it.
 ex : \https://peach.sonarsource.com/project/issues?id=c-family%3Aclang&issues=AWczyhmIUxytsEdVyqnR&open=AWczyhmIUxytsEdVyqnR
 
 
-* Class which defines the copy constructor and/or copy-assignment operator when it does not need to. This class should apply the "Rule-of-Zero".
+* Class which defines the copy constructor and/or copy assignment operator when it does not need to. This class should apply the "Rule-of-Zero".
 
 endif::env-github,rspecator-view[]
