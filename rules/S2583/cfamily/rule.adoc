@@ -1,16 +1,172 @@
+Conditionally executed code should be reachable
+
 == Why is this an issue?
 
-include::../description.adoc[]
+Conditions are expressions that might evaluate to true or false.
+They are typically used in control-flow structures.
+If-then-else statements, for instance, allow conditional execution based on the evaluation of an expression.
 
-include::../noncompliant.adoc[]
+Conditions that are _always_ true or _always_ false, but can never be evaluated to the negated boolean value, however, typically indicate a flaw in the program's logic.
+Using such conditions as part of an if-then-else statement causes one of the branches to be "dead": it can never execute and therefore, it cannot have any effect on the program's output.
+
+Such coding errors can cause unexpected behavior due to the discrepancy between the developer's intent and what actually executes at runtime.
+Dead code is usually removed by the compiler during compilation.
+However, the code's readability is negatively impacted, and hard-to-read code actively hinders identifying, understanding, and resolving flaws in the program's logic.
+
+
+== What is the potential impact?
+
+Unreachable conditionally executed code can make a program more difficult to understand and maintain.
+Developers may waste time trying to understand the purpose of dead code, or they may inadvertently introduce bugs when modifying code that they believe is being used.
+
+In addition, dead code may negatively impact the following aspects:
+
+* Compile time: Although dead code is not executed, it can still slow down the program's compilation. This is because the compiler has to parse and analyze all code, including the dead code.
+* Resource usage: Dead code increases the size of the program if the compiler fails to detect and remove it during compilation, which can lead to increased resource usage in terms of memory and disk space.
+* Code quality: Dead code can be a sign of poor code quality. It may indicate that the code is not being properly maintained or that the codebase contains serious logic errors.
+* Security: Dead code, like any other code, can pose a security risk if it contains vulnerabilities. Even though the code is not executed, an attacker could potentially exploit it.
+
+
+== When does this rule raise an issue?
+
+Statically detecting dead code introduced by flawed conditionals is an undecidable problem.
+In addition, conditional expressions might become complex rather quickly.
+Even if the underlying problem were decidable and a smart enough analysis could identify all faulty conditions, reporting them to a developer--in an understandable manner--seems virtually impossible for the more complex cases.
+
+To complicate matters further, even seemingly trivial cases such as `if(false)` that introduce a dead if-branch add yet another challenge concerning developers' intent.
+Developers are unlikely to accidentally introduce dead code by writing statements like `if(false)`.
+On the other hand, developers sometimes may deliberately introduce dead code to test or debug their programs.
+A rule to automatically detect dead code all of a sudden also needs to decide whether a developer introduced a faulty condition by accident or on purpose to avoid reporting irrelevant results that only create noise.
+
+This rule hence follows a practical approach and only reports clear cases of dead code introduced by flawed conditions in an understandable manner and with an acceptable false positive rate.
+In particular, this rule's implementation makes the following conscious decision:
+
+The analyzer considers as dead code all branches whose conditions depend on boolean expressions that are always evaluated to either true or false due to the use of literals or local constants.
+Under this rule, developers are required to implement feature flags using constant global variables since this rule will otherwise consider the code under the feature flag as dead.
+Using global constants to implement feature flags seems generally less error-prone than the use of literals or local variables.
+Feature checks and conditions that involve non-trivial macros are excluded from this rule to avoid breaking local reasoning and interference with assert-like macros.
+
+
+== How to fix it
+
+Adjust the conditional such that it can evaluate to both `true` and `false` in different runs and does not introduce a dead branch.
+
+Alternatively, remove the dead code and the effect-less branch altogether, if appropriate.
+
+If a feature flag is desired, model it using a constant global variable rather than a constant local variable since local variables are too error-prone for this use case.
+
+
+=== Code examples
+
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+int buz() {
+  if (0) {
+    return 13; // Non-compliant: dead branch
+  }
+  return 42;
+}
+
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+int buz() {
+  return 42; // Compliant: basic block is live
+}
+----
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+constexpr bool enable_named_feature = false;
+
+int buz() {
+  if constexpr (enabled_named_feature) {
+    return 13; // Compliant: branch execution is depending on global feature flag
+  }
+  return 42;
+}
+----
+
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#include <iostream>
+
+bool bar();
+
+int foo(bool a) {
+  bool b = false;
+  if (a && b && bar()) { // Non-compliant: usage of local constant
+    std::cout << "Hello, World!\n";
+    return 0;
+  }
+  return 1;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <iostream>
+
+bool bar();
+
+int foo(bool a) {
+  if (a && bar()) { // Compliant: remove constant
+    std::cout << "Hello, World!\n";
+    return 0;
+  }
+  return 1;
+}
+----
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <iostream>
+
+constexpr bool feature_b = false; 
+
+bool bar();
+
+int foo(bool a) {
+  if (a && feature_b && bar()) { // Compliant: express feature flag as a global constant
+    std::cout << "Hello, World!\n";
+    return 0;
+  }
+  return 1;
+}
+----
+
 
 == Resources
 
-* MISRA C:2004, 13.7 - Boolean operations whose results are invariant shall not be permitted.
-* MISRA C:2012, 14.3 - Controlling expressions shall not be invariant
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/6tYxBQ[MSC07-C. Detect and remove dead code]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/5dUxBQ[MSC12-C. Detect and remove code that has no effect or is never executed]
+* CWE - https://cwe.mitre.org/data/definitions/489[CWE-489 - Active Debug Code]
 * CWE - https://cwe.mitre.org/data/definitions/570[CWE-570 - Expression is Always False]
 * CWE - https://cwe.mitre.org/data/definitions/571[CWE-571 - Expression is Always True]
-* https://wiki.sei.cmu.edu/confluence/x/5dUxBQ[CERT, MSC12-C.] - Detect and remove code that has no effect or is never executed
+* MISRA C:2004, 13.7 - Boolean operations whose results are invariant shall not be permitted
+* MISRA C:2012, 14.3 - Controlling expressions shall not be invariant
+
+
+=== Related rules
+
+* S1144 reports unused functions within a file
+* S1763 ensures that functions do not contain unreachable statements
+* S1854 identifies unused assignments
+* S5536 reports unused functions throughout the whole project
+
 
 ifdef::env-github,rspecator-view[]
 
