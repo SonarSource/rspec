@@ -1,0 +1,144 @@
+== How to fix it in ASP.NET Core
+
+=== Code examples
+
+==== Noncompliant code example
+
+Secrets stored in `appsettings.json` can be read by anyone with access to the file.
+
+[source,csharp,diff-id=101,diff-type=noncompliant]
+----
+[ApiController]
+[Route("login-example")]
+public class LoginExampleController : ControllerBase
+{
+    private readonly IConfiguration _config;
+    public LoginExampleController(IConfiguration config) 
+    {
+        _config = config;
+    }
+
+    [HttpPost]
+    public IActionResult Post([FromBody] LoginModel login)
+    {
+        // Code to validate the login information is omitted
+
+        var key = _config["Jwt:Key"] ??
+            throw new ApplicationException("JWT key is not configured.");
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)); // Noncompliant
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var Sectoken = new JwtSecurityToken(
+            "example.com",
+            "example.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials);
+
+        var token = new JwtSecurityTokenHandler().WriteToken(Sectoken);
+        return Ok(token);
+    }
+}
+----
+
+Secrets that are hard-coded into the application can be read by anyone with access to the source code or can be decompiled from the application binaries.
+
+[source,csharp]
+----
+[ApiController]
+[Route("login-example")]
+public class LoginExampleController : ControllerBase
+{
+    private const string key = "SecretSecretSecretSecretSecretSecretSecretSecret";
+
+    [HttpPost]
+    public IActionResult Post([FromBody] LoginModel login)
+    {
+        // Code to validate the login information is omitted
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)); // Noncompliant
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var Sectoken = new JwtSecurityToken(
+            "example.com",
+            "example.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials);
+
+        var token = new JwtSecurityTokenHandler().WriteToken(Sectoken);
+        return Ok(token);
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=101,diff-type=compliant]
+----
+[ApiController]
+[Route("login-example")]
+public class LoginExampleController : ControllerBase
+{
+    [HttpPost]
+    public IActionResult Post([FromBody] LoginModel login)
+    {
+        // Code to validate the login information is omitted
+
+        var key = Environment.GetEnvironmentVariable("JWT_KEY") ??
+            throw new ApplicationException("JWT key is not configured.");
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var Sectoken = new JwtSecurityToken(
+            "example.com",
+            "example.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials);
+
+        var token = new JwtSecurityTokenHandler().WriteToken(Sectoken);
+        return Ok(token);
+    }
+}
+----
+
+=== How does this work?
+
+Here, the compliant solution uses an environment variable to hold the secret. Environment variables are easy to change and are not easily accessible outside of the application.
+
+=== Going the extra mile
+
+==== Use a secret vault
+
+Secret vaults provide secure methods for storing and accessing secrets. They protect against the unexpected disclosure of the secrets they store.
+
+Microsoft recommends using Azure Key Vault with .NET Core applications.
+
+[source,csharp]
+----
+var builder = WebApplication.CreateBuilder(args);
+
+// Get the name of the key vault
+var keyVaultName = Environment.GetEnvironmentVariable("AZURE_KEYVAULT") ??
+    throw new ApplicationException("Azure Key Vault location is not configured.");
+// Add Azure Key Vault in the configuration
+builder.Configuration.AddAzureKeyVault(new Uri($"https://{keyVaultName}.vault.azure.net/"), new EnvironmentCredential());
+// Get the JWT secret from Azure Key Vault
+var jwtKey = builder.Configuration.GetSection("JWT-KEY").Get<string>() ??
+    throw new ApplicationException("JWT key is not configured.");
+
+builder.Services
+  .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+  .AddJwtBearer(options => {
+      options.TokenValidationParameters = new TokenValidationParameters{
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!)),
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = "example.com",
+        ValidateIssuer = true,
+        ValidAudience = "example.com",
+        ValidateAudience = true,
+        ValidateLifetime = true,
+      };
+  });
+----
