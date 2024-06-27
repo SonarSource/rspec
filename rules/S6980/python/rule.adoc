@@ -1,0 +1,97 @@
+This rule raises an issue when `torch.cuda.is_available()` and `torch.manual_seed` are used 
+but `torch.cuda.manual_seed` and `torch.cuda.manual_seed_all` are absent.
+
+== Why is this an issue?
+
+In data science and machine learning it is a good practice to make the results and processes reproducible.
+This is generally achieved with the help of a seed to control the randomness.
+
+In PyTorch this is done with the function `torch.manual_seed` that takes a seed as argument.
+Calling this function will provide a seed for random number generation on the CPU, allowing for consistent results. 
+However, issues can arise if the program does not use the CPU for computation but GPU through CUDA for example. 
+
+[source,python]
+----
+import torch
+
+torch.manual_seed(123)
+
+if torch.cuda.is_available():
+    print(torch.rand(5).cuda())
+else:
+    print(torch.rand(5))
+----
+
+In the example above everytime the code is executed `print(torch.rand(5))` will return the same value.
+But `print(torch.rand(5).cuda())` will return a random value making the results non-reproducible.
+When using CUDA it is important to set the seed with the functions `torch.cuda.manual_seed` or `torch.cuda.manual_seed_all`.
+
+This issue will be raised as well when using `torch.xpu`.
+
+=== Exceptions
+
+This rule will not be raised if `torch.manual_seed` is not used.
+
+== How to fix it
+
+Provide a seed with `torch.cuda.manual_seed` or `torch.cuda.manual_seed_all` when using `torch.cuda.is_available` or
+`torch.xpu.manual_seed` or `torch.xpu.manual_seed_all` when using `torch.xpu.is_available`. 
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch
+
+torch.manual_seed(123)
+
+if torch.cuda.is_available(): # Noncompliant: the code under this if statement is not reproducible.
+    print(torch.rand(5).cuda()) 
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch
+
+torch.manual_seed(123)
+torch.cuda.manual_seed(123)
+
+if torch.cuda.is_available(): # Compliant
+    print(torch.rand(5).cuda()) 
+----
+
+== Resources
+=== Documentation
+
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.manual_seed.html[torch.manual_seed - reference]
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.cuda.manual_seed.html#torch.cuda.manual_seed[torch.cuda.manual_seed - reference]
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.cuda.manual_seed_all.html#torch.cuda.manual_seed_all[torch.cuda.manual_seed_all - reference]
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.xpu.manual_seed.html#torch.xpu.manual_seed[torch.xpu.manual_seed - reference]
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.xpu.manual_seed_all.html#torch.xpu.manual_seed_all[torch.xpu.manual_seed_all - reference]
+
+
+ifdef::env-github,rspecator-view[]
+
+(visible only on this page)
+
+== Implementation specification 
+
+Only raise issues if `torch.manual_seed` is used in conjunction with `torch.cuda.is_available` or `torch.xpu.is_available`.
+
+=== Message 
+
+Primary : Provide a seed to make this code reproducible on {cuda/xpu}.
+
+=== Issue location
+
+Primary : the `torch.cuda.is_available` or `torch.xpu.is_available`.
+
+=== Quickfix
+
+Adding `torch.cuda.manual_seed_all` or `torch.xpu.manual_seed_all` before the call to `is_available` with the value provided in `torch.manual_seed`.
+
+endif::env-github,rspecator-view[]
