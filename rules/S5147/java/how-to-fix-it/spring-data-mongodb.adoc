@@ -1,0 +1,53 @@
+== How to fix it in Spring Data MongoDB
+
+=== Code examples
+
+The following code is an example of a simple API endpoint designed to read public messages. It is vulnerable to NoSQL injection because user-controlled data is inserted directly into a query string. The application assumes that incoming data always has a specific range of characters and ignores that some characters may change the query logic to a malicious one.
+
+In this particular case, the query can be exploited with the following values:
+
+ * ``++username=user1', private:true}},{a:'++``
+
+By adapting and inserting these values, an attacker can bypass the `private = false` condition and get access to private messages.
+
+==== Noncompliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+@RestController
+public class ApiController {
+    @Autowired
+    MongoClient mongoClient;
+
+    @GetMapping(value = "/read")
+    @ResponseBody
+    List<String> readPublicOnly(@RequestParam(value = "username") String username) {
+        MongoOperations template = new MongoTemplate(mongoClient, "demo");
+        BasicQuery query = new BasicQuery("{ username:'"+username+"', private: false }"); // Noncompliant
+        return template.find(query, String.class, "messages");
+    }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+@RestController
+public class ApiController {
+    @Autowired
+    MongoClient mongoClient;
+
+    @GetMapping(value = "/read")
+    @ResponseBody
+    List<String> readPublicOnly(@RequestParam(value = "username") String username) {
+        MongoOperations template = new MongoTemplate(mongoClient, "demo");
+        Query query = Query.query(Criteria.where("username").is(username).and("private").is(false));
+        return template.find(query, String.class, "messages");
+    }
+}
+----
+
+=== How does this work?
+
+The compliant solution uses the `Query` and `Critera` objects to build the query syntax safely.
