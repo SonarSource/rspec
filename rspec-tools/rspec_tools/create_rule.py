@@ -113,7 +113,9 @@ class RuleCreator:
 
   def _fill_single_lang_template_files(self, rule_dir: Path, rule_number: int, language: str):
     common_template = self.TEMPLATE_PATH / 'single_language' / 'common'
-    lang_specific_template = self.TEMPLATE_PATH / 'single_language' / 'language_specific'
+    lang_specific_template = self.TEMPLATE_PATH / 'single_language' / language
+    if not Path(lang_specific_template).exists():
+      lang_specific_template = self.TEMPLATE_PATH / 'single_language' / 'language_specific'
     copy_directory_content(common_template, rule_dir)
 
     lang_dir = rule_dir /language
