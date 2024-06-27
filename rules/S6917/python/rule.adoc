@@ -1,0 +1,93 @@
+This rule raises an issue when a `tensorflow.function` depends on a Python object.
+
+== Why is this an issue?
+
+A Python object here is refers to a plain Python object where its attributes are not ``tensorflow.Variable``s.
+When using such an object as an argument of a `tensorflow.function`, no new `tracing` is created when the Python object is modified.
+This can lead to unpredictable outcomes. 
+
+[source,python]
+----
+import tensorflow as tf
+
+class SimpleModel(tf.Module):
+  def __init__(self):
+    self.bias = 0.
+    self.weight = 2.
+
+@tf.function
+def evaluate(model, x):
+  return model.weight * x + model.bias
+
+x = tf.constant(10.)
+
+simple_model = SimpleModel() 
+evaluate(simple_model, x)  # returns 20 as expected
+
+simple_model.bias += 5.0
+evaluate(simple_model, x) # still returns 20 instead of 25
+----
+
+In the example above only the first call to evaluate will create a `ConcreteFunction` during `tracing`. 
+This `ConcreteFunction` will be reused on further calls of `evaluate`.
+
+For more information about tracing rules see: https://www.tensorflow.org/guide/function#rules_of_tracing[Rules of tracing]
+
+For this reason it a good practice not to use Python objects as arguments to ``tensorflow.function``s. 
+
+== How to fix it
+
+To fix this issue use a model with ``tensorflow.Variable``s as attributes.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import tensorflow as tf
+
+class BiasModel(tf.Module):
+  def __init__(self):
+    self.bias = 0.
+    self.weight = 2.
+
+@tf.function
+def evaluate(model, x):
+  return model.weight * x + model.bias
+
+bias_model = BiasModel() 
+evaluate(bias_model, x)  # Noncompliant: the model used is a Python object
+
+bias_model.bias += 5.0
+evaluate(bias_model, x)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import tensorflow as tf
+
+class BiasModel(tf.Module):
+  def __init__(self):
+    self.bias = tf.Variable(0.)
+    self.weight = tf.Variable(2.)
+
+@tf.function
+def evaluate(model, x):
+  return model.weight * x + model.bias
+
+bias_model = BiasModel() 
+evaluate(bias_model, x)  # Compliant: mutations will be taken into account
+
+bias_model.bias.assign_add(5.0)
+evaluate(bias_model, x) 
+----
+
+
+== Resources
+=== Documentation
+
+* TensorFlow Documentation - https://www.tensorflow.org/guide/function#depending_on_python_objects[Depending on Python objects]
+* TensorFlow Documentation - https://www.tensorflow.org/guide/function#rules_of_tracing[Rules of tracing]
