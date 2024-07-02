@@ -10,6 +10,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'cfamily': ['CPP', 'C', 'OBJC'],
   'cobol': ['COBOL'],
   'csharp': ['CSH'],
+  'dart': ['DART'],
   'docker': ['DOCKER'],
   'vbnet': ['VBNET'],
   'css': ['CSS'],
