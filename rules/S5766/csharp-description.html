@@ -1,0 +1,250 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Deserialization process extracts data from the serialized representation of an object and reconstruct it directly, without calling constructors. Thus, data validation implemented in constructors can be bypassed if serialized objects are controlled by an attacker.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>The data validation implemented in constructors enforces a relevant security check.</p>
+</li>
+<li>
+<p>Objects instantiated via deserialization don&#8217;t run the same security checks as the ones executed when objects are created through constructors.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>At the end of the deserialization process it is recommended to perform the same validation checks as the ones performed in constructors, especially when the serialized object can be controlled by an attacker.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a <code>serializable</code> class doesn&#8217;t inherit from <a href="https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.iserializable?view=netframework-4.8">ISerializable</a> or <a href="https://docs.microsoft.com/fr-fr/dotnet/api/system.runtime.serialization.ideserializationcallback?view=netframework-4.8">IDeserializationCallback</a> types and has a constructor using its parameters in conditions:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>[Serializable]
+public class InternalUrl
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl) // Sensitive
+    {
+       if(!tmpUrl.StartsWith("http://localhost/")) // there is some input validation
+       {
+          url= "http://localhost/default";
+       }
+       else
+       {
+          url= tmpUrl;
+       }
+    }
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When a class inherit from <a href="https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.iserializable?view=netframework-4.8">ISerializable</a> type, has a regular constructor using its parameters in conditions, but doesn&#8217;t perform the same validation after deserialization:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>[Serializable]
+public class InternalUrl : ISerializable
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl) // Sensitive
+    {
+        if(!tmpUrl.StartsWith("http://localhost/")) // there is some input validation
+        {
+            url= "http://localhost/default";
+        }
+        else
+        {
+            url= tmpUrl;
+        }
+    }
+
+    // special constructor used during deserialization
+    protected InternalUrl(SerializationInfo info, StreamingContext context) // Sensitive
+    {
+       url= (string) info.GetValue("url", typeof(string));
+       // the same validation as seen in the regular constructor is not performed
+     }
+
+    void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
+    {
+        info.AddValue("url", url);
+    }
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When a class inherit from <a href="https://docs.microsoft.com/fr-fr/dotnet/api/system.runtime.serialization.ideserializationcallback?view=netframework-4.8">IDeserializationCallback</a> type, has a constructor using its parameters in conditions but the <code>IDeserializationCallback.OnDeserialization</code> method doesn&#8217;t perform any conditional checks:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>[Serializable]
+public class InternalUrl : IDeserializationCallback
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl) // Sensitive
+    {
+        if(!tmpUrl.StartsWith("http://localhost/")) // there is some input validation
+        {
+            url= "http://localhost/default";
+        }
+        else
+        {
+            url= tmpUrl;
+        }
+    }
+
+    void IDeserializationCallback.OnDeserialization(object sender) // Sensitive
+    {
+       // the same validation as seen in the constructor is not performed
+    }
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When using <a href="https://docs.microsoft.com/en-us/dotnet/api/system.runtime.serialization.iserializable?view=netframework-4.8">ISerializable</a> type to control deserialization, perform the same checks inside regular constructors than in the special constructor <code>SerializationInfo info, StreamingContext context</code> used during deserialization:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">[Serializable]
+public class InternalUrl : ISerializable
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl)
+    {
+        if(!tmpUrl.StartsWith("http://localhost/")) // there is some input validation
+        {
+            url= "http://localhost/default";
+        }
+        else
+        {
+            url= tmpUrl;
+        }
+    }
+
+    // special constructor used during deserialization
+    protected InternalUrl(SerializationInfo info, StreamingContext context)
+    {
+       string tmpUrl= (string) info.GetValue("url", typeof(string));
+
+       if(!tmpUrl.StartsWith("http://localhost/") { // Compliant
+          url= "http://localhost/default";
+       }
+       else {
+          url= tmpUrl;
+       }
+     }
+
+    void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
+    {
+        info.AddValue("url", url);
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When using <a href="https://docs.microsoft.com/fr-fr/dotnet/api/system.runtime.serialization.ideserializationcallback?view=netframework-4.8">IDeserializationCallback</a> type to control deserialization, perform the same checks inside regular constructors than after deserialization with <code>IDeserializationCallback.OnDeserialization</code> method:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">[Serializable]
+public class InternalUrl : IDeserializationCallback
+{
+    private string url;
+
+    public InternalUrl(string tmpUrl)
+    {
+       if(!tmpUrl.StartsWith("http://localhost/")) // there is some input validation
+       {
+          url= "http://localhost/default";
+       }
+       else
+       {
+          url= tmpUrl;
+       }
+    }
+
+    void IDeserializationCallback.OnDeserialization(object sender) // Compliant
+    {
+        if(!url.StartsWith("http://localhost/"))
+        {
+            url= "http://localhost/default";
+        }
+        else
+        {
+        }
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/">Top 10 2021 Category A8 - Software and Data Integrity Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A8_2017-Insecure_Deserialization">Top 10 2017 Category A8 - Insecure Deserialization</a></p>
+</li>
+<li>
+<p><a href="https://docs.microsoft.com/en-us/dotnet/framework/misc/security-and-serialization">docs.microsoft.com</a> - security-and-serialization</p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/502">CWE-502 - Deserialization of Untrusted Data</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure not performing data validation after deserialization is safe here.</p>
+</div>
+</div>
+</div>
+</div>
