@@ -24,14 +24,14 @@ export interface PullRequest {
  */
 export async function process_incomplete_rspecs(tmpRepoDir: string,
                                                 callback: (srcDir: string, pr: PullRequest)=>void) {
-  const octokit = process.env.GITHUB_TOKEN ?
-    new Octokit({userAgent: 'rspec-tools', auth: process.env.GITHUB_TOKEN}):
+  const octokit = process.env.COVERAGE_GITHUB_TOKEN ?
+    new Octokit({userAgent: 'rspec-tools', auth: process.env.COVERAGE_GITHUB_TOKEN}):
     new Octokit({userAgent: 'rspec-tools'});
 
   const repo = await (() => {
     if (!fs.existsSync(path.join(tmpRepoDir, '.git'))) {
-      if (process.env.GITHUB_TOKEN) {
-        return Git.Clone.clone('https://' + process.env.GITHUB_TOKEN + '@github.com/SonarSource/rspec/', tmpRepoDir);
+      if (process.env.COVERAGE_GITHUB_TOKEN) {        
+        return Git.Clone.clone(`https://${process.env.COVERAGE_GITHUB_TOKEN}@github.com/SonarSource/rspec/`, tmpRepoDir);
       } else {
         return Git.Clone.clone('https://github.com/SonarSource/rspec/', tmpRepoDir);
       }
