@@ -5,16 +5,17 @@ on:
 
 jobs:
   update_coverage:
-    permissions:
-      id-token: write
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC auth for Vault
+      contents: read # checkout
     env:
       TMP_BRANCH: temporary/coverage_update
 
     steps:
     - name: 'get secrets'
       id: secrets
-      uses: SonarSource/vault-action-wrapper@7160b50d75c02fe48eb3c8d354ca4fd7029f546a # tag=2.5.0-4
+      uses: SonarSource/vault-action-wrapper@v3
       with:
         secrets: |
           development/github/token/SonarSource-rspec-coverage token | COVERAGE_GITHUB_TOKEN;
@@ -40,7 +41,7 @@ jobs:
 
     - name: 'Regenerate coverage information'
       env:
-        GITHUB_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).COVERAGE_GITHUB_TOKEN }}
+        COVERAGE_GITHUB_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).COVERAGE_GITHUB_TOKEN }}
       id: gen-coverage
       working-directory: 'rspec/rspec-tools'
       run: |
@@ -73,7 +74,7 @@ jobs:
       uses: fountainhead/action-wait-for-check@v1.0.0
       id: wait-for-build
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.COVERAGE_GITHUB_TOKEN }}
         checkName: all_required_checks
         ref: ${{ env.TMP_BRANCH }}
         timeoutSeconds: 2400
@@ -93,7 +94,7 @@ jobs:
       if: always() && steps.create-temp-branch.conclusion == 'success'
       uses: dawidd6/action-delete-branch@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN}}
+        COVERAGE_GITHUB_TOKEN: ${{ secrets.COVERAGE_GITHUB_TOKEN}}
         branches: ${{ env.TMP_BRANCH}}
 
     - name: 'Fail if the change breaks CI'
