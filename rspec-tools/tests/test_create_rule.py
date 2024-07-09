@@ -47,8 +47,9 @@ def test_create_new_multi_lang_rule_branch(rule_creator: RuleCreator, mock_git_r
         relative_path = lang_item.relative_to(lang_root)
         actual_content = rule_dir.joinpath(lang, relative_path).read_text()
         assert actual_content == expected_content
-        assert 'source,text' not in actual_content
-        assert LANG_TO_SOURCE[language] in actual_content
+        if lang_item.suffix == '.adoc':
+          assert 'source,text' not in actual_content
+          assert LANG_TO_SOURCE[os.path.basename(lang)] in actual_content
 
 
 def test_create_new_single_lang_rule_branch(rule_creator: RuleCreator, mock_git_rspec_repo: Repo):
@@ -81,8 +82,9 @@ def test_create_new_single_lang_rule_branch(rule_creator: RuleCreator, mock_git_
         relative_path = lang_item.relative_to(lang_root)
         actual_content = rule_dir.joinpath(lang, relative_path).read_text()
         assert actual_content == expected_content
-        assert 'source,text' not in actual_content
-        assert LANG_TO_SOURCE[language] in actual_content
+        if lang_item.suffix == '.adoc':
+          assert 'source,text' not in actual_content
+          assert LANG_TO_SOURCE[dir_name] in actual_content
 
 
 def test_create_new_rule_pull_request(rule_creator: RuleCreator):
@@ -146,8 +148,9 @@ def test_add_lang_singlelang_nonconventional_rule_create_branch(rule_creator: Ru
       relative_path = lang_item.relative_to(lang_root)
       actual_content = rule_dir.joinpath(language, relative_path).read_text()
       assert actual_content == expected_content
-      assert 'source,text' not in actual_content
-      assert LANG_TO_SOURCE[language] in actual_content
+      if lang_item.suffix == '.adoc':
+        assert 'source,text' not in actual_content
+        assert LANG_TO_SOURCE[language] in actual_content
 
 
 def test_add_lang_singlelang_conventional_rule_create_branch(rule_creator: RuleCreator, mock_git_rspec_repo: Repo):
@@ -196,8 +199,9 @@ def test_add_lang_multilang_rule_create_branch(rule_creator: RuleCreator, mock_g
       relative_path = lang_item.relative_to(lang_root)
       actual_content = rule_dir.joinpath(language, relative_path).read_text()
       assert actual_content == expected_content
-      assert 'source,text' not in actual_content
-      assert LANG_TO_SOURCE[language] in actual_content
+      if lang_item.suffix == '.adoc':
+        assert 'source,text' not in actual_content
+        assert LANG_TO_SOURCE[language] in actual_content
 
 
 @patch('rspec_tools.create_rule.RuleCreator')
