@@ -6,17 +6,27 @@ on:
 jobs:
   update_coverage:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC auth for Vault
+      contents: read # checkout
     env:
       TMP_BRANCH: temporary/coverage_update
 
     steps:
+    - name: 'get secrets'
+      id: secrets
+      uses: SonarSource/vault-action-wrapper@v3
+      with:
+        secrets: |
+          development/github/token/SonarSource-rspec-coverage token | COVERAGE_GITHUB_TOKEN;
+          development/kv/data/slack token | slack_token;
+
     - uses: actions/checkout@v4
       with:
         persist-credentials: true
         ref: master
         path: 'rspec'
-        token: ${{ secrets.COVERAGE_GITHUB_TOKEN }}
-
+        token: ${{ fromJSON(steps.secrets.outputs.vault).COVERAGE_GITHUB_TOKEN }}
     - uses: actions/setup-python@v4
       with:
         python-version: '3.9'
@@ -31,7 +41,7 @@ jobs:
 
     - name: 'Regenerate coverage information'
       env:
-        GITHUB_TOKEN: ${{ secrets.COVERAGE_GITHUB_TOKEN }}
+        COVERAGE_GITHUB_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).COVERAGE_GITHUB_TOKEN }}
       id: gen-coverage
       working-directory: 'rspec/rspec-tools'
       run: |
@@ -64,7 +74,7 @@ jobs:
       uses: fountainhead/action-wait-for-check@v1.0.0
       id: wait-for-build
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.COVERAGE_GITHUB_TOKEN }}
         checkName: all_required_checks
         ref: ${{ env.TMP_BRANCH }}
         timeoutSeconds: 2400
@@ -84,7 +94,7 @@ jobs:
       if: always() && steps.create-temp-branch.conclusion == 'success'
       uses: dawidd6/action-delete-branch@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN}}
+        COVERAGE_GITHUB_TOKEN: ${{ secrets.COVERAGE_GITHUB_TOKEN}}
         branches: ${{ env.TMP_BRANCH}}
 
     - name: 'Fail if the change breaks CI'
@@ -96,7 +106,7 @@ jobs:
     - name: 'Notify on slack about the failure'
       if: ${{ failure() }}
       env:
-        SLACK_API_TOKEN: ${{ secrets.SLACK_API_TOKEN }}
+        SLACK_API_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).slack_token }}
       working-directory: 'rspec/rspec-tools'
       run: |
         pipenv run rspec-tools notify-failure-on-slack \

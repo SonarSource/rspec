@@ -65,6 +65,17 @@ MOCK_REPOS=[{'name':'SonarJS',
                           ['sonarpedia.json', '{"rules-metadata-path": "rules", "languages":["XML"]}'],
                           ['rules/S103.json', '{}']]}
              ]},
+            {'name':'sonar-java',
+             'versions': [
+               {'name': '1.2.0.123',
+                'date': '2020-01-02 10:00:00',
+                'files': [['module1/rules/Sonar_way_profile.json', '{}'],
+                          ['module1/sonarpedia.json', '{"rules-metadata-path": "rules", "languages":["JAVA"]}'],
+                          ['module1/rules/S100.json', '{}'],
+                          ['module2/rules/Sonar_way_profile.json', '{}'],
+                          ['module2/sonarpedia.json', '{"rules-metadata-path": "rules", "languages":["JAVA"]}'],
+                          ['module2/rules/S101.json', '{}']]}
+             ]},
             {'name':'broken',
              'versions': [
                {'name': 'v1',
@@ -159,19 +170,20 @@ def test_update_coverage_for_repo(tmpdir, rules_dir: Path, mock_git_analyzer_rep
     assert cov['JAVASCRIPT']['S1145'] == {'since': REPO + ' 3.3.0.5702', 'until': REPO + ' 6.7.0.14237'}
 
 
-@patch('rspec_tools.coverage.REPOS', ['SonarJS', 'sonar-xml'])
+@patch('rspec_tools.coverage.REPOS', ['SonarJS', 'sonar-xml', 'sonar-java'])
 def test_update_coverage_for_all_repos(tmpdir, rules_dir: Path, mock_git_analyzer_repos):
   with pushd(tmpdir), patch('rspec_tools.coverage.Repo', mock_git_analyzer_repos):
     update_coverage_for_all_repos(rules_dir)
     coverage = tmpdir.join('covered_rules.json')
     assert coverage.exists()
     cov = load_json(coverage)
-    assert {'JAVASCRIPT', 'TYPESCRIPT', 'XML', 'CSS'} == set(cov.keys())
+    assert {'JAVASCRIPT', 'TYPESCRIPT', 'XML', 'CSS', 'JAVA'} == set(cov.keys())
     assert 'S100' in cov['JAVASCRIPT']
     assert 'MethodName' not in cov['JAVASCRIPT'] # MethodName is a legacy key for S100
     assert {'S100'} == set(cov['CSS'].keys())
     assert {'S103', 'S1000'} == set(cov['XML'].keys())
     assert cov['XML']['S1000'] == 'SonarJS 7.0.0.14528'
+    assert {'S100', 'S101'} == set(cov['JAVA'].keys())
 
 def test_update_coverage_no_sonarpedia(tmpdir, rules_dir: Path, mock_git_analyzer_repos, capsys):
   with pushd(tmpdir), patch('rspec_tools.coverage.Repo', mock_git_analyzer_repos):

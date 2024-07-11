@@ -95,7 +95,7 @@ class RuleCreator:
       if rule_item.is_file():
         template_content = rule_item.read_text()
         lang = LANG_TO_SOURCE[language]
-        final_content = template_content.replace('[source,text]', f'[source,{lang}]')
+        final_content = template_content.replace('[source,text', f'[source,{lang}')
         rule_item.write_text(final_content)
 
   def _fill_multi_lang_template_files(self, rule_dir: Path, rule_number: int, languages: Iterable[str]):
@@ -113,7 +113,9 @@ class RuleCreator:
 
   def _fill_single_lang_template_files(self, rule_dir: Path, rule_number: int, language: str):
     common_template = self.TEMPLATE_PATH / 'single_language' / 'common'
-    lang_specific_template = self.TEMPLATE_PATH / 'single_language' / 'language_specific'
+    lang_specific_template = self.TEMPLATE_PATH / 'single_language' / language
+    if not Path(lang_specific_template).exists():
+      lang_specific_template = self.TEMPLATE_PATH / 'single_language' / 'language_specific'
     copy_directory_content(common_template, rule_dir)
 
     lang_dir = rule_dir /language
