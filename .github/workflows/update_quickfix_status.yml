@@ -1,6 +1,6 @@
 name: Update quick fix status
 
-on: 
+on:
   workflow_dispatch:
     inputs:
       rule:
@@ -26,9 +26,16 @@ jobs:
   update_quickfix_status:
     name: Update quick fix status
     runs-on: ubuntu-20.04
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      id-token: write # OIDC auth for Vault
+      contents: read # checkout
     steps:
+    - name: 'get secrets'
+      id: secrets
+      uses: SonarSource/vault-action-wrapper@v3
+      with:
+        secrets: |
+          development/github/token/SonarSource-rspec-coverage token | COVERAGE_GITHUB_TOKEN;
     - uses: actions/checkout@v2
       with:
         persist-credentials: true
@@ -49,4 +56,6 @@ jobs:
 
     - name: 'Update quickfix status'
       working-directory: 'rspec/rspec-tools'
+      env:
+        COVERAGE_GITHUB_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).COVERAGE_GITHUB_TOKEN }}
       run: pipenv run rspec-tools update-quickfix-status --user ${{ github.actor }} --rule "${{ github.event.inputs.rule }}" --language "${{ github.event.inputs.language }}" --status "${{ github.event.inputs.status }}"
