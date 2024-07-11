@@ -45,7 +45,7 @@ def check_links(d):
 @click.option('--user', required=False)
 def create_rule(languages: str, user: Optional[str]):
   '''Create a new rule.'''
-  token = os.environ.get('GITHUB_TOKEN')
+  token = os.environ.get('COVERAGE_GITHUB_TOKEN')
   rspec_tools.create_rule.create_new_rule(languages, token, user)
 
 
@@ -55,7 +55,7 @@ def create_rule(languages: str, user: Optional[str]):
 @click.option('--user', required=False)
 def add_lang_to_rule(language: str, rule: str, user: Optional[str]):
   '''Add a new language to rule.'''
-  token = os.environ.get('GITHUB_TOKEN')
+  token = os.environ.get('COVERAGE_GITHUB_TOKEN')
   rspec_tools.create_rule.add_language_to_rule(language, rule, token, user)
 
 
@@ -66,7 +66,7 @@ def add_lang_to_rule(language: str, rule: str, user: Optional[str]):
 @click.option('--user', required=False)
 def update_quickfix_status(language: str, rule: str, status: str, user: Optional[str]):
   '''Update the status of quick fix for the given rule/language'''
-  token = os.environ.get('GITHUB_TOKEN')
+  token = os.environ.get('COVERAGE_GITHUB_TOKEN')
   rspec_tools.modify_rule.update_rule_quickfix_status(language, rule, status, token, user)
 
 

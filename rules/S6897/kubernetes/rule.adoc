@@ -33,11 +33,27 @@ might crash, causing downtime for all containers running on that node.
 
 === Code examples
 
-To avoid potential issues, specify a storage request for each container using ephemeral storage with `resources.requests.ephemeral-storage`.
+To avoid potential issues, specify a storage request for each container using ephemeral storage with `resources.requests.ephemeral-storage`,
+or create a `LimitRange` resource, that sets a default storage request for all containers in all pod specifications belonging to the same namespace.
 
 ==== Noncompliant code example
 
 [source,yaml,diff-id=1,diff-type=noncompliant]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: example
+spec:
+  containers:
+    - name: web # Noncompliant
+      image: nginx
+      volumeMounts:
+        - name: ephemeral
+          mountPath: "/tmp"
+----
+
+[source,yaml,diff-id=2,diff-type=noncompliant]
 ----
 apiVersion: v1
 kind: Pod
@@ -72,10 +88,38 @@ spec:
           mountPath: "/tmp"
 ----
 
+[source,yaml,diff-id=2,diff-type=compliant]
+----
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: storage-limit-range
+  namespace: namespace-with-limit-range
+spec:
+  limits:
+  - defaultRequest:
+      ephemeral-storage: "10Mi"
+    type: Container
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: example
+  namespace: namespace-with-limit-range
+spec:
+  containers:
+    - name: web
+      image: nginx
+      volumeMounts:
+        - name: ephemeral
+          mountPath: "/tmp"
+----
+
 === How does this work?
 
 You can set a request through the property `resources.requests.ephemeral-storage` of a
-container. Alternatively, you can set a default request for a namespace with `LimitRange`.
+container. Alternatively, you can set a default request for a namespace with `LimitRange`
+through `spec.limits[].defaultRequest.ephemeral-storage`.
 
 == Resources
 
