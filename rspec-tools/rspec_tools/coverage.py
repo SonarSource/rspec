@@ -153,9 +153,9 @@ def all_implemented_rules():
 
 def checkout_repo(repo):
   git_url=f"https://github.com/SonarSource/{repo}"
-  token=os.getenv('COVERAGE_GITHUB_TOKEN')
+  token=os.getenv('GITHUB_TOKEN')
   if token:
-    git_url=f"https://${token}@github.com/SonarSource/{repo}"
+    git_url=f"https://oauth2:${token}@github.com/SonarSource/{repo}"
   if not os.path.exists(repo):
     return Repo.clone_from(git_url, repo)
   else:
