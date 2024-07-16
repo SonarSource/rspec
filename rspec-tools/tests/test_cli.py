@@ -12,7 +12,7 @@ from rspec_tools.rules import RulesRepository
 class TestCLIUpdateQuickfixStatus:
   '''Unit test for quickfix status update through Command Line Interface.'''
 
-  @patch.dict(os.environ, {'COVERAGE_GITHUB_TOKEN': 'TOKEN'})
+  @patch.dict(os.environ, {'GITHUB_TOKEN': 'TOKEN'})
   @patch('rspec_tools.modify_rule.update_rule_quickfix_status')
   def test_basic_cli_usage(self, mock):
     arguments = [
