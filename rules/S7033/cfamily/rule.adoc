@@ -1,16 +1,36 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Since {cpp}20, a call to `std::is_constant_evaluated()` can be used to determine whether the call occurs within a constant-evaluated context.
 
-//=== What is the potential impact?
+Typically, this function is called in the condition of an `if` statement to optimize code:
+It allows different actions to be performed depending on whether an expression is evaluated at compile-time or runtime.
+However, writing `if (std::is_constant_evaluated())` comes with a few caveats.
+
+Firstly, it can be error-prone.
+One may be tempted to write `if constexpr` instead of `if` but doing this always results in the condition being `true`.
+S6169 explains this and other similar problems in greater depth.
+
+Secondly, because it looks like any regular `if` statement with a function call, it does not stand out as something semantically different and important.
+
+For these reasons, {cpp}23 introduced the `if consteval` control-flow statement.
+There is also a negated form: `if not consteval`.
+These versions should be preferred since they are not error-prone, stand out with their different and concise syntax, and do not require including `<type_traits>`.
+As a bonus point, the positive form also allows invoking immediate functions (see S6169).
+
+//=== Exceptions
+//
+// The implementation ignores "complex" conditions such as
+// if (std::is_constant_evaluated() && n > 0)
+//
+// However, this is not exposed here because such uses are really rare
+// and it would not benefit most readers.
+//
+// See https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1938r3.html#conditioned-form
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Fixing the issue is fairly simple: the {cpp}23 syntax is an almost direct replacement of the older one.
+The only caveat is that braces `{ }` must be used with `if (not) consteval` to delimit the body of the "then" and "else" branches.
 
 === Code examples
 
@@ -18,27 +38,51 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+constexpr double power(double b, int x) {
+  if (std::is_constant_evaluated()) { // Noncompliant version
+    // Compile-time implementation
+  } else {
+    // Runtime implementation
+  }
+}
+
+constexpr void action(int parameter) {
+  if (!std::is_constant_evaluated()) // Noncompliant version
+    std::cout << "Run action at runtime for " << parameter << std::endl;
+
+  // Some code...
+}
 ----
 
 ==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+constexpr double power(double b, int x) {
+  if consteval {
+    // Compile-time implementation
+  } else {
+    // Runtime implementation
+  }
+}
+
+constexpr void action(int parameter) {
+  if not consteval {
+    std::cout << "Run action at runtime for " << parameter << std::endl;
+  }
+
+  // Some code...
+}
 ----
 
-//=== How does this work?
 
-//=== Pitfalls
+== Resources
 
-//=== Going the extra mile
+=== Documentation
 
+* {cpp} reference - https://en.cppreference.com/w/cpp/types/is_constant_evaluated[`std::is_constant_evaluated`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/if[`if` statement]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+=== Related rules
+
+* S6169 - "std::is_constant_evaluated" and "if consteval" should only be used when necessary
