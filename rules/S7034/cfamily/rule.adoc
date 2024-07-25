@@ -1,42 +1,98 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+There are multiple ways and useful functions to determine whether a substring or a character is part of another string.
+Historically, the standard {cpp} functions provide this feature through proxies that do not directly reflect the intent of the code:
 
-//=== What is the potential impact?
+* The `find` functions on `std::string` and `std::string_view` return an index into the searched string.
+The substring or character is not present when the index is equal to `npos` (often spelled `-1`).
+
+* The `std::strstr` and `std::strchr` functions return a pointer into the searched string.
+When they return `nullptr`, the substring or character is not present.
+
+While these functions work, they complexify the code because they do not work at the right abstraction level.
+
+Thankfully, {cpp}23 introduces `contains` on `std::string` and `std::string_view` to simplify this task.
+
+This rule raises an issue when the use of `contains` could improve the code's readability and maintainability.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
-=== Code examples
+=== Replacing `find` with `contains`
+
+For `std::string` and `std::string_view`, `contains` is a drop-in replacement when the returned index from `find` is compared against `npos` or the magical value `-1`.
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+void example(std::string const& haystack, std::string_view needle) {
+  if (haystack.find(needle) != std::string::npos) { // Noncompliant
+    // The needle was found.
+  }
+}
 ----
 
 ==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+void example(std::string const& haystack, std::string_view needle) {
+  if (haystack.contains(needle)) {
+    // The needle was found.
+  }
+}
 ----
 
-//=== How does this work?
+In these examples, `haystack` could also be a `std::string_view`, and `needle` could be a single character, a C-string, or anything convertible to `std::string_view` such as a `std::string`.
 
-//=== Pitfalls
+=== Replacing `strstr` and `strchr` with `contains`
 
-//=== Going the extra mile
+The solution is marginally more complex with the C-inherited functions `strstr` and `strchr` because they take null-terminated C-string as parameters.
 
+This means you may have to construct a `std::string_view` first if you don't already have a `std::string` or `std::string_view`.
+Thankfully, `std::string_view` is a lightweight object that can be created inline without impacting performance.
 
-//== Resources
-//=== Documentation
+The following examples illustrate how to replace `strstr` but the same process can be applied to `strchr`.
+
+// We do not show examples with strchr to avoid entering the confusing realm of characters being represented as `int` but interpreted as `char`.
+
+// Nor do we explain that strchr(haystack, '\0') cannot be expressed as string_view{haystack}.contains('\0') because, by construction, the former is always true and the latter is always false.
+// We do not expect people to write such code anyway.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+void example(const char* haystack, const char* needle) {
+  if (std::strstr(haystack, needle) == nullptr) { // Noncompliant
+    // The needle was not found.
+  }
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void example(const char* haystack, const char* needle) {
+  if (!std::string_view{haystack}.contains(needle)) {
+    // The needle was not found.
+  }
+}
+----
+
+While the previous solution works and only requires modifying a single line of code, replacing the C-strings with `std::string_view` objects throughout your program would be better
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/string/basic_string_view/contains[`std::string_view::contains`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/string/basic_string/contains[`std::string::contains`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/string/basic_string/find[`std::string::find`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/string/byte/strstr[`std::strstr`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/string/byte/strchr[`std::strchr`]
+
 //=== Articles & blog posts
 //=== Conference presentations
 //=== Standards
