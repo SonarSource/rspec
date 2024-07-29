@@ -1,44 +1,82 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+{cpp}23 introduced ``++std::to_underlying++`` to convert an enumeration to its underlying type.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Until {cpp}23, in order to convert an enumerator to its underlying value, users could use static_cast:
 
-//=== What is the potential impact?
-
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,cpp,diff-id=1,diff-type=noncompliant]
+[source,cpp]
 ----
-FIXME
+enum Enum: int {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast<int>(e); // Noncompliant: brittle
+  ...
+}
 ----
 
-==== Compliant solution
+which is brittle because if the target type used is not the same as the underlying type of the enum, the compiler will see that an explicit cast was called and not issue a warning. That makes changing the underlying type of an existing enum dangerous as it can silently create conversion bugs.
 
-[source,cpp,diff-id=1,diff-type=compliant]
+Or, since {cpp}11, users could use the more robust type_trait:
+
+[source,cpp]
 ----
-FIXME
+enum Enum: int {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast<std::underlying_type_t<Enum>>(e); // Noncompliant: cumbersome
+  ...
+}
 ----
 
-//=== How does this work?
+But this approach is cumbersome, and it can also lead to problems that the compiler will not warn about if the type of `e` is changed without changing the type inside the cast:
 
-//=== Pitfalls
+[source,cpp]
+----
+enum Enum: int {A, B, C};
+enum AnotherEnum: int {D, E, F};
+void foo(AnotherEnum e) {
+  auto i = static_cast<std::underlying_type_t<Enum>>(e); // Noncompliant: wrong type
+  ...
+}
+----
 
-//=== Going the extra mile
+Using std::to_underlying is both more robust to underlying type changes and clearer:
 
+[source,cpp]
+----
+enum Enum: int {A, B, C};
+void foo(Enum e) {
+  auto i = std::to_underlying(e); // Compliant
+  ...
+}
+----
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+Even when casting to another type than the underlying type, going through the underlying type first makes the purpose clear:
+
+[source,cpp]
+----
+enum Enum: unsigned char {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast<long>(e); // Noncompliant: is the target type different on purpose?
+  auto j = static_cast<long>(std::to_underlying(e)); // Compliant: the type change is clearly on purpose
+  ...
+}
+----
+
+This rule raises an issue when an enum is converted to an integral value without going through a call to `std::to_underlying`.
+
+=== Exceptions
+
+Unscoped enums with no underlying type specified have an implementation-defined implicit underlying type. Calling `std::to_underlying` on them would make the code less stable so this rule doesn't raise on them.
+
+[source,cpp]
+----
+enum Enum {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast<char>(e); // Compliant by exception, the underlying type may or may not be char
+  ...
+}
+----
+
+== Resources
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/to_underlying[``++std::to_underlying++``]
