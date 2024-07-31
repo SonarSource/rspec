@@ -26,7 +26,7 @@ This rule raises an issue when it detects code that could be improved with the u
 
 == How to fix it
 
-=== Replacing `find` with `contains`
+=== Replacing `find(needle)` with `contains(needle)`
 
 For `std::string` and `std::string_view`, `contains` is a drop-in replacement when the returned index from `find` is compared against `npos` or the magical value `-1`.
 
@@ -54,6 +54,43 @@ void example(std::string const& haystack, std::string_view needle) {
 
 In this example, `haystack` could also be a `std::string_view`, and `needle` could be a single character, a C-string, or anything convertible to `std::string_view` such as a `std::string`.
 
+=== Replacing `std::string_view::find(needle, index)` with `substr(index)` and `contains(needle)`
+
+// For std::string, we are waiting for https://wg21.link/p3044 sub-string_view from string.
+
+When calling `find` on a `std::string_view`, you can provide a second parameter that allows skipping some characters.
+This allows you, for example, to look for some content in a string while ignoring some prefixes.
+However, this is essentially putting two distinct actions into one and clouds the intent.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+void example(std::string_view haystack,
+             std::size_t skipPrefix,
+             std::string_view needle) {
+  if (haystack.find(needle, skipPrefix) == std::string::npos) { // Noncompliant
+    // The needle was not found after the prefix.
+  }
+}
+----
+
+==== Compliant code example
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void example(std::string_view haystack,
+             std::size_t skipPrefix,
+             std::string_view needle) {
+  if (haystack.substr(skipPrefix).contains(needle)) {
+    // The needle was not found after the prefix.
+  }
+}
+----
+
+Because `std::string_view` is a lightweight class, the compliant solution remains efficient.
+Furthermore, `substr` can also take a second parameter, allowing the operation to check for a substring while also ignoring a postfix.
+
 === Replacing `strstr` and `strchr` with `contains`
 
 The solution is marginally more complex with the C-inherited functions `strstr` and `strchr` because they take null-terminated C-string as parameters.
@@ -70,7 +107,7 @@ The following example illustrates how to replace `strstr` but the same process c
 
 ==== Noncompliant code example
 
-[source,cpp,diff-id=2,diff-type=noncompliant]
+[source,cpp,diff-id=3,diff-type=noncompliant]
 ----
 void example(const char* haystack, const char* needle) {
   if (std::strstr(haystack, needle) != nullptr) { // Noncompliant
@@ -81,7 +118,7 @@ void example(const char* haystack, const char* needle) {
 
 ==== Compliant solution
 
-[source,cpp,diff-id=2,diff-type=compliant]
+[source,cpp,diff-id=3,diff-type=compliant]
 ----
 void example(const char* haystack, const char* needle) {
   if (std::string_view{haystack}.contains(needle)) {
