@@ -1,0 +1,368 @@
+When an array or an object of aggregate type is non-zero initialized,
+values for each element or field should be provided.
+
+== Why is this an issue?
+
+In C or {cpp}, it is possible to provide an initial value for the elements of an array.
+When fewer values are provided than the size of the array,
+the last elements of the array are zero-initialized for builtin-types (like `int` or pointers),
+and _value-initialized_ otherwise.
+However, as soon as some values are provided, it is clearer to provide them all and not rely on these default initializations.
+[source,c]
+----
+int a1[5] = {1, 2, 3};              // Noncompliant, last two elements are initialized with 0
+int a2[4] = {1, 2, 3, 4, 5};        // Compliant
+int* a3[3] = {a1, a1 + 1};          // Noncompliant, the last pointer is null
+int* a4[3] = {a1, a1 + 1, nullptr}; // Compliant
+----
+
+Similarly, when an aggregate class or struct is initialized,
+an initial value may be provided for each field.
+All remaining fields are initialized in the same manner as
+elements of an array, but this rule requests explicit initialization:
+
+[source,cpp]
+----
+struct Pod {
+  int x;
+  int y;
+};
+
+Pod p1{1};    // Noncompliant, `y` does not have an initial value
+Pod p2{1, 0}; // Compliant
+----
+
+This behavior applies recursively when arrays and aggregates are nested:
+
+[source,c]
+----
+struct PodPair {
+  Pod first;
+  Pod second;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+int c1[2][2] = {{1}, {2}};  // Noncompliant, the second elements of each nested array do not have an initial value provided
+Pod c2[3] = {{1, 2}, {2}};  // Noncompliant, field `y` of `c2[1]` and whole `c2[2]` object do not have an initial value provided
+PodPair c3 = {{1}};         // Noncompliant, field `y` of `c3.first` and whole `c3.second` object do not have an initial value provided,
+ArrayMember c4 = {1, 2, 3}; // Noncompliant, the last two elements of `c4.vals` do not have an initial value provided
+----
+
+This rule raises an issue when a non-zero initialization of an aggregate (array or class/struct),
+does not provide values for all its elements or fields.
+
+=== What is the potential impact?
+
+The intent of the code is unclear when the initializer omits the values for some of the elements or fields:
+Is the initial value skipped on purpose or is it an oversight?
+Is it because, after the initial code was written, the array size was changed, or a new field was added, and the initialization was not updated?
+In that case, the zero or default value may not be handled properly,
+leading to unexpected program behavior.
+
+As an illustration, if the field or element has a pointer type, it will be initialized with a null-pointer value,
+and may lead to null-pointer dereference.
+
+=== What about zero initialization?
+
+When initializing an array with a large number of elements, or a complex structure,
+it is often desired to set all the elements or fields to zero, or to their default values (for classes with default constructors).
+Such situations are usually indicated by an empty set of braces `{}` for {cpp},
+or braces with `{0}` or `{NULL}` in the case of C.
+The issue is not raised in such a situation.
+
+[source,cpp]
+----
+int a1[10] = {0}; // Compliant
+int a2[10] = {};  // Compliant
+Pod p1 = {0};     // Compliant
+PodPair c1 = {0}; // Compliant
+----
+
+This exception also applies when the nested aggregate is zero-initialized:
+
+[source,cpp]
+----
+int c1[2][2]{{1, 2}, {}};     // Compliant
+Pod c2[3] = {{1, 2}, {}, {}}; // Compliant
+PodPair c3 = {{}, {1, 0}};    // Compliant
+ArrayMember c4{1, {}};        // Compliant
+----
+
+=== What if designated initializers are used?
+
+The C standard provides a designated initialization syntax
+that explicitly denotes the field or element of the aggregate for which value is provided.
+This rule also raises an issue if the initial value for an element or field is not provided.
+
+[source,c]
+----
+int a1[3] = { [1] = 1, [2] = 2 };          // Noncompliant, first element do not have initial value provided
+int a2[3] = { [0] = 0, [1] = 1, [2] = 2 }; // Compliant
+Pod p1 = {.y = 10};                        // Noncompliant, `p.x` do not have initial value provided
+Pod p2 = {.x = 0, .y = 10};                // Compliant
+----
+
+{cpp}20 has adopted a limited version of this feature.
+This rule also raises an issue in the case of incomplete initializers.
+
+=== What if the field has a default member initializer?
+
+{cpp}11 allows class fields to specify a default value
+that will be used if no other value is provided during construction.
+Such default member initializers cannot be used in aggregate types until {cpp}14,
+which guarantees that the default value is used if the initializer list does not provide a value for the field.
+The issue is not raised when a field with a default value is not explicitly initialized, as an initial value was provided by the class author,
+and should be handled properly.
+
+[source,cpp]
+----
+struct Aggr {
+  int a;
+  int b;
+  int c = 0;
+};
+
+Aggr a0{};           // Compliant, zero-initialization
+Aggr a1{10};         // Noncompliant, no initial value for field `b`, which does not have a default value
+Aggr a2{10, 20};     // Compliant, field `c` has a default value specified in `Aggr` definition
+Aggr a3{10, 20, 30}; // Compliant, all fields have initial values
+----
+
+With the use of a designated initializer, such default value is meaningful for non-trailing fields:
+[source,cpp]
+----
+struct Mid {
+  int a;
+  int b = 10;
+  int c;
+};
+
+Mid m1{.a = 10, .b = 10}; // Noncompliant, no initial value for field `c`, which does not have a default value
+Mid m1{.a = 10, .c = 2};  // Compliant, field `b` has a default value specified in `Mid` definition
+----
+
+=== Can the issue be raised if I use parenthesis?
+
+{cpp}20 allows aggregate types to be initialized using the parenthesis (`()`) in addition to the braces (`{}`),
+which simplifies writing generic code that creates an object (see S6872 for more details).
+This syntax also allows not to specify all values during initialization and this rule raises an issue in that case too.
+
+[source,cpp]
+----
+int a1[5](1, 2, 3);       // Noncompliant, the last two elements do not have an initial value
+int a2[4](1, 2, 3, 4, 5); // Compliant
+Pod p1(1);                // Noncompliant, `y` does not have an inital value
+Pod p2(1, 0);             // Compliant
+----
+
+== How to fix it
+
+This issue can be addressed by either:
+
+* providing an initial value for the elements or fields in the initializer or using default member initializer ({cpp}14 and later);
+* using the idiomatic zero-initialization syntax.
+
+=== Code examples
+
+Provide values for all elements of field in intializer.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+struct Pod {
+  int x;
+  int y;
+};
+
+struct PodPair {
+  Pod first;
+  Pod second;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+
+int a1[5] = {1, 2, 3};        // Noncompliant
+Pod p1{1};                    // Noncompliant
+int c1[2][2] = {{1}, {2}};    // Noncompliant
+Pod c2[3] = {{1, 2}, {2}};    // Noncompliant
+PodPair c3 = {{1}};           // Noncompliant
+ArrayMember c4 = {1, {2, 3}}; // Noncompliant
+----
+
+==== Compliant solution
+
+[source,c,diff-id=1,diff-type=compliant]
+----
+struct Pod {
+  int x;
+  int y;
+};
+
+struct PodPair {
+  Pod first;
+  Pod second;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+
+int a1[5] = {1, 2, 3, 0, 0};             // Compliant
+Pod p1{1, 0};                            // Compliant
+int c1[2][2] = {{1, 0}, {2, 0}};         // Compliant
+Pod c2[3] = {{1, 2}, {2, 0}, {0, 0}};    // Compliant
+PodPair c3 = {{1, 0}, {0, 0}};           // Compliant
+ArrayMember c4 = {1, {2, 3, 0, 0, 0}};   // Compliant
+----
+
+Or use zero-initialization syntax for `c2` and `c3`:
+[source,cpp]
+----
+Pod c2[3] = {{1, 2}, {2, 0}, {}};  // Compliant
+PodPair c3{{1, 0}, {}};            // Compliant
+----
+
+Use idomatic syntax for zero-intialization.
+
+==== Noncompliant code example
+
+[source,c,diff-id=2,diff-type=noncompliant]
+----
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+int a1[5] = {0, 0, 0};           // Noncompliant
+int c1[2][3] = {{0, 0}, {0, 0}}; // Noncompliant
+ArrayMember c2 = {11};           // Noncompliant
+----
+
+==== Compliant solution
+
+[source,c,diff-id=2,diff-type=compliant]
+----
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+int a1[5] = {0};            // Compliant
+int c1[2][3] = {0};         // Compliant
+ArrayMember c2 = {11, {0}}; // Compliant
+----
+
+The previous solution works for both C and {cpp}.
+Here is an alternative {cpp}-specific version:
+[source,cpp]
+----
+int a1[5]{};               // Compliant
+int c1[2][3] = {{}, {}};   // Compliant
+ArrayMember c2 = {11, {}}; // Compliant
+----
+
+
+For {cpp}14 or later, provide default value for the field in class.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+struct Pod {
+  int x;
+  int y;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+Pod p1{1};           // Noncompliant
+ArrayMember m1{11};  // Noncompliant
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+struct Pod {
+  int x;
+  int y = 2;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4]{1, 2, 3, 4};
+};
+
+Pod p1{1};           // Compliant
+ArrayMember m1{11};  // Compliant
+----
+
+=== Going the extra mile
+
+When initializing a nested aggregate type (e.g., an array of aggregates),
+braces around nested object initial values may be omitted.
+This feature is referred to as _brace elision_.
+
+[source,c]
+----
+struct Pod {
+  int x;
+  int y;
+};
+
+int e1[3][2] = {1, 2, 3}; // Noncompliant, `e1[1][2]` and `e1[2]` do not have initial valus
+Pod e2[4] = {1, 2, 3};    // Noncompliant, `e2[1].y`, `e[2]`, and `e[3]` do not have initial value
+----
+
+To comply with this rule, supplying an initial value to all elements is required:
+[source,c]
+----
+int e1[3][2] = {1, 2, 3, 0, 0, 0};    // Compliant
+Pod e2[2] = {1, 2, 3, 0, 0, 0, 0, 0}; // Compliant
+----
+
+However, for the sake of readability, it is recommended to use nested braces to reflect the structure of the object (see S835):
+[source,c]
+----
+int e1[3][2] = {{1, 2}, {3, 0}, {0, 0}};      // Compliant
+Pod e2[2] = {{1, 2}, {3, 0}, {0, 0}, {0, 0}}; // Compliant
+----
+
+Or use zero initialization, when appropriate:
+[source,cpp]
+----
+int e1[3][2] = {{1, 2}, {3, 0}, {}};  // Compliant
+Pod e2[2] = {{1, 2}, {3, 0}, {}, {}}; // Compliant
+----
+
+== Resources
+
+=== Documentation
+
+ * {cpp} reference -- https://en.cppreference.com/w/cpp/language/aggregate_initialization[Aggregate initialization]
+ * {cpp} reference -- https://en.cppreference.com/w/cpp/language/value_initialization[Value-initialization]
+
+=== External coding guidelines
+
+* MISRA C:2012, 9.3 - Arrays shall not be partially initialized.
+
+
+=== Related rules
+
+ * S835 - Braces should be used to indicate and match the structure in the non-zero initialization of arrays and structures
+ * S6872 - Aggregates should be initialized with braces in non-generic code
+

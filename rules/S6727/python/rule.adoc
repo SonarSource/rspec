@@ -1,0 +1,81 @@
+This rule raises an issue when `math.isclose` is used to compare values against 0 without providing the `abs_tol` parameter.
+
+== Why is this an issue?
+
+Comparing float values for equality directly is not reliable and should be avoided, due to the inherent imprecision in the binary representation of floating point numbers. Such comparison is reported by S1244.
+
+One common solution to this problem is to use the `math.isclose` function to perform the comparison. Behind the scenes, the `math.isclose` function uses a tolerance value (also called epsilon) to define an acceptable range of difference between two floats. A tolerance value may be relative (based on the magnitude of the numbers being compared) or absolute.
+
+Using a relative tolerance would be equivalent to:
+
+[source,python]
+----
+def isclose_relative(a, b, rel_tol=1e-09):
+    diff = abs(a - b)
+    max_diff = rel_tol * max(abs(a), abs(b))
+    return diff <= max_diff
+----
+
+Using an absolute tolerance is equivalent to:
+
+[source,python]
+----
+def isclose_absolute(a, b, abs_tol=1e-09):
+    diff = abs(a - b)
+    return diff <= abs_tol
+----
+
+The `math.isclose` method uses both relative and absolute tolerances and can be approximated as:
+
+[source,python]
+----
+def is_close(a, b, rel_tol=1e-09, abs_tol=0.0):
+    diff = abs(a - b)
+    max_diff = max(rel_tol * max(abs(a), abs(b)), abs_tol)
+    return diff <= max_diff
+----
+
+
+Whenever comparing values that are close to 0, the value of the relative tolerance may be too small to overcome the imprecision introduced by floating-point arithmetic. It is therefore important to rely on an absolute tolerance in this case.
+
+When using `math.isclose`, the absolute tolerance is defined through the parameter `abs_tol`. By default, the value of this parameter is `0.0`. Therefore, using `math.isclose` to compare values against zero without providing this parameter is equivalent to a strict equality check, which is likely not intended.
+
+=== Exceptions
+
+Note that similar methods from different libraries may behave differently. Notably, `numpy.isclose` has a default absolute tolerance of `1e-08`. No issue will be reported in this case. However, to ensure consistency and intentionality, it is recommended to always set the tolerance values.
+
+== How to fix it
+
+To fix this issue, make sure to provide the `abs_tol` argument to the `math.isclose` function whenever comparing values against zero. If a strict equality check is intended, consider using the equality operator or providing `0` as the `abs_tol` parameter to make the intention clear.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import math
+def foo(a):
+    return math.isclose(a, 0)  # Noncompliant: the default absolute tolerance is 0.0
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import math
+def foo(a):
+    return math.isclose(a, 0, abs_tol=1e-09)  # Compliant
+----
+
+== Resources
+=== Documentation
+
+* Python Documentation - https://docs.python.org/3/tutorial/floatingpoint.html#floating-point-arithmetic-issues-and-limitations[Floating Point Arithmetic: Issues and Limitations]
+* Python Documentation - https://docs.python.org/3/library/decimal.html#module-decimal[Decimal fixed point and floating point arithmetic]
+* NumPy Documentation - https://numpy.org/doc/stable/reference/generated/numpy.isclose.html[numpy.isclose]
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.isclose.html[torch.isclose]
+
+=== Related rules
+
+* S1244: Floating point numbers should not be tested for equality

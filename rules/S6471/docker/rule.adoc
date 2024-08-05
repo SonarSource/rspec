@@ -80,7 +80,8 @@ ENTRYPOINT ["/app/production"]
 
 == Compliant Solution
 
-For Linux-based images:
+For Linux-based images and scratch-based images that untar a Linux
+distribution:
 
 [source,docker]
 ----
@@ -105,42 +106,8 @@ RUN net user /add nonroot
 USER nonroot
 ----
 
-If the `scratch` Dockerfile untars a Linux distribution, the "Linux image"
-solution should be applied. Else, you have a choice between using a pre-written
-`/etc/passwd` file (regardless of the host operating system) or using a
-multi-stage build.
+For multi-stage builds, the non-root user should be on the last stage:
 
-[source,docker]
-----
-FROM scratch
-
-COPY etc_passwd /etc/passwd
-# contains "nonroot:x:1337:1337:nonroot:/nonroot:/usr/sbin/nologin"
-
-USER nonroot
-
-COPY production_binary /app
-
-ENTRYPOINT ["/app/production_binary"]
-----
-
-or you can use a multi-stage build:
-
-[source,docker]
-----
-FROM alpine:latest as security_provider
-RUN addgroup -S nonroot \
-    && adduser -S nonroot -G nonroot
-
-FROM scratch as production
-COPY --from=security_provider /etc/passwd /etc/passwd
-USER nonroot
-COPY production_binary /app
-ENTRYPOINT ["/app/production_binary"]
-----
-
-
-For multi-stage builds:
 [source,docker]
 ----
 FROM alpine as builder
@@ -155,9 +122,28 @@ USER nonroot
 ENTRYPOINT ["/app/production"]
 ----
 
+For images that use `scratch` as their base, it is not possible to add non-privileged
+users by default. To do this, add an additional build stage to add the group
+and user, and later copy `/etc/passwd`.
+
+Here is an example that uses `adduser` in the first stage to generate a user and add it to the `/etc/passwd` file. In the next stage, this user is added by copying that file over from the previous stage:
+
+[source,docker]
+----
+FROM alpine:latest as security_provider
+RUN addgroup -S nonroot \
+    && adduser -S nonroot -G nonroot
+
+FROM scratch as production
+COPY --from=security_provider /etc/passwd /etc/passwd
+USER nonroot
+COPY production_binary /app
+ENTRYPOINT ["/app/production_binary"]
+----
+
 == See
 
-* https://cwe.mitre.org/data/definitions/284.html[MITRE, CWE-284] - Improper Access Control
+* CWE - https://cwe.mitre.org/data/definitions/284[CWE-284 - Improper Access Control]
 * https://hub.docker.com/r/nginxinc/nginx-unprivileged[nginxinc/nginx-unprivileged: Example of a non-root container by default]
 * https://learn.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/container-security#when-to-use-containeradmin-and-containeruser-user-accounts[Microsoft docs, When to use ContainerAdmin and ContainerUser user accounts]
 

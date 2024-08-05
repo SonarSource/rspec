@@ -1,83 +1,187 @@
 == Why is this an issue?
 
-{cpp}14 has introduced transparent comparators: the function objects that support heterogeneous comparison (i.e., comparison of values of different types, such as ``++std::string++`` and ``++char const*++``). When using such comparator, the search-optimized containers, namely, ``++std::set++``, ``++std::multiset++``, ``++std::map++``, and ``++std::multimap++``, enable additional lookup-function overloads that support types different from the ``++key_type++``.
+Transparent function objects are function-like types that support heterogeneous operations. There are essentially two kinds of such types: transparent comparators and transparent hashers. For instance, a transparent comparator for strings would support comparing a `std::string`` with string-like types (such as ``++char const*++`` or ``++std::string_view++``).
 
+These transparent function objects are interesting for search-optimized containers such as `std::set` and `std::map`, including their `multi` and `unordered` variants. When transparent comparators/hashers are used, the containers enable additional overloads for many operations that support types different from their ``++key_type++``.
 
-Invoking a lookup function (such as ``++find++``, ``++count++``, or ``++lower_bound++``) with a non-``++std::string++`` argument, i.e., a raw C-string literal (``++s.find("Nemo")++``), or a temporary ``++std::string++`` created of an ``++std::string_view++``, on a container of ``++std::string++`` with non-transparent comparator, leads to a temporary ``++std::string++`` object, because the lookup function will support only an argument of the ``++key_type++``.
-
-
-{cpp}20 extends support for heterogeneous lookup to unordered associative containers (``++std::unordered_set++``, ``++std::unordered_multiset++``, ``++std::unordered_map++``, and ``++std::unordered_multimap++``) that provide additional overloads when the equality functor and the hasher are both transparent. 
-The standard provides transparent equality functors in the form ``++std::equal_to<>++``. However, there is no standard transparent hasher object and one needs to be defined in the program.
-For ``++std::string++`` such hasher may be provided by converting each supplied object to ``++std::string_view++`` and hashing it using ``++std::hash<std::string_view>++``:
-----
-struct StringHash {
-  using is_transparent = void; // enables heterogeneous lookup
-
-  std::size_t operator()(std::string_view sv) const {
-    std::hash<std::string_view> hasher;
-    return hasher(sv);
-  }
-};
-----
-
-Prefer using a transparent comparator with associative ``++std::string++`` containers to avoid creating the temporary. Note that transparent comparators are strongly discouraged if used with types that are not directly comparable as it will lead to the creation of ``++O(log(container.size())))++`` temporaries with lookup functions such as ``++find++``, ``++count++``, and ``++lower_bound++``.
-
-Custom non-transparent functor (comparator, equality or hasher) may have different semantics than corresponding operators on `std:::string`. In such case, the heterogeneous lookup can still be enabled, by declaring the ``++is_transparent++`` nested type in the functor, and adjusting the implementation to accept either ``++std::string_view++`` or any type (i.e. turning it into a template). The later change is required to avoid the creation of `std::string` temporaries for each invocation and thus degradation of performance.
-
-This rule will detect ``++std::set++``, ``++std::multiset++``, ``++std::map++``, ``++std::multimap++``, and since {cpp}20 ``++std::unordered_set++``, ``++std::unordered_multiset++``, ``++std::unordered_map++``, and ``++std::unordered_multimap++``  types, that use ``++std::string++`` as key and do not enable heterogeneous lookup.
-
-
-=== Noncompliant code example
+For example, `std::set<std::string>` is _not_ using transparent comparators. Invoking many member functions with a non-`std::string` argument leads to, implicitly or explicitly, creating a temporary `std::string` object because the functions only support an argument of the ``++key_type++``.
 
 [source,cpp]
 ----
-void f() {
-  // the default std::less<std::string> is not transparent
-  std::set<std::string> m = { "Dory", "Marlin", "Nemo", "Emo"}; // Noncompliant
-  m.find("Nemo"); // This leads to a temporary std::string{"Nemo"}.
-  std::string_view n{"Nemo"};
-  m.find(std::string(n)); // extra temporary std::string
-}
+// Given a container c with a non-transparent comparator:
+std::set<std::string> c = ...;
 
-void g() {
-  // the default std::equal_to<std::string> and std::hash<std::string> are not transparent
-  std::unordered_set<std::string> m = { "Dory", "Marlin", "Nemo", "Emo"}; // Noncompliant
-  m.find("Nemo"); // This leads to a temporary std::string{"Nemo"}.
-  std::string_view n{"Nemo"};
-  m.find(std::string(n)); // extra temporary std::string
-}
+// Calling "find" with a C-style string (char const*)
+auto it = c.find("Nemo");
+// is equivalent to
+auto it = c.find(std::string{"Nemo"});
 
-struct UpToTenLess {
+// Calling C++20 "contains" with a std::string_view sv
+// does not compile since conversion has to be explicit:
+//   if (c.contains(sv)) { ... }
+// It has to be rewritten like this:
+if (c.contains(std::string(sv))) { ... }
+----
+
+Using heterogeneous comparison and hashing directly benefits the application performance since unnecessary temporaries can be avoided. An excellent and very common example of when transparent functions objects are beneficial is when the ``++key_type++`` is `std::string`.
+
+// We do not pedantically list the version of {cpp} that enables these overloads because there are too many combinations of type/function, and it is expected that newer standards will simply make this worse.
+Starting from {cpp}14, transparent function objects can enable additional overloads for these containers: `std::set`, `std::map`, ``++std::unordered_set++``, ``++std::unordered_map++``, `std::multiset`, `std::multimap`, ``++std::unordered_multiset++``, and ``++std::unordered_multimap++``.
+
+Depending on the {cpp} version and the container type, the overloads are available for these operations:
+
+* Lookup functions, such as: `find`, `count`, ``++lower_bound++``, ``++upper_bound++``, ``++equal_range++``, `contains`.
+* Mutation functions, such as: `erase`, `extract`, `insert`, ``++insert_or_assign++``.
+
+For this reason, this rule detects using `std::string` as the key for the associative container types mentioned previously when heterogeneous operations are disabled.
+
+== How to fix it
+
+You should prefer using transparent comparators and hashers with associative containers over `std::string` to avoid creating costly temporaries.
+
+Transparent comparators introduced in {cpp}14 include: `std::less<>`, ``++std::less_equal<>++``, ``++std::equal_to<>++``, etc. (This syntax leverages the default template parameter, which is `void`.) However, there are no standard transparent hashers.
+
+You can override the default comparator and hasher for the type family of `std::set` and `std::map` by explicitly providing the corresponding template parameter.
+
+=== Working with tree-based containers
+
+`std::set`, `std::map`, `std::multiset`, and `std::multimap` are tree-based data structures that, by default, use `<` to compare the keys. Under the hood, they use `std::less<key_type>` to invoke the `operator<` on the keys.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+void example() {
+  std::set<std::string> sea = { // Noncompliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+  sea.find("Nemo"); // This leads to a temporary std::string{"Nemo"}.
+
+  std::string_view hero{"Nemo"};
+  sea.contains(std::string(hero)); // Extra temporary std::string.
+}
+----
+
+The default comparator for `std::set<std::string>` is `std::less<std::string>`, which is not transparent.
+
+==== Compliant solution
+
+Instead, `std::less<>` should be used:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+void example() {
+  std::set<std::string, std::less<>> sea = { // Compliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  sea.find("Nemo"); // No more temporary std::string{"Nemo"}.
+
+  std::string_view hero{"Nemo"};
+  sea.contains(hero); // No need to create the std::string anymore.
+}
+----
+
+When `find` is called, the STL essentially invokes
+
+[source,cpp]
+----
+std::less<void>::operator(std::string const& lhs, const char* rhs);
+----
+
+This results in `lhs < rhs`. In other words, it compares the `std::string` against a C-style string with no undesired temporaries.
+
+It works equivalently for `std::map`: `std::map<std::string, SomeType>` should be rewritten as `std::map<std::string, SomeType, std::less<>>`.
+
+=== Working with tree-based containers and custom comparators
+
+Sometimes, it is useful to use a custom comparator, for example, to implement a case-insensitive string comparison.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+struct CaseInsensitiveCompare {
   bool operator()(const std::string& lhs, const std::string& rhs) const {
-    return lhs.compare(0, 10, rhs, 0, 10);
+    return std::ranges::lexicographical_compare(lhs, rhs, [](char l, char r) {
+      return std::tolower(l) < std::tolower(r);
+    });
   }
 };
 
-void g() {
-  // UpToTenLess is not transparent
-  std::set<std::string, UpToTenLess> m = { "Dory", "Marlin", "Nemo", "Emo"}; // Noncompliant
-  m.find("Nemo"); // This leads to a temporary std::string{"Nemo"}.
-  std::string_view n{"Nemo"};
-  m.find(std::string(n)); // extra temporary std::string
+void example() {
+  std::set<std::string, CaseInsensitiveCompare> m = { // Noncompliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  m.lower_bound("nemo"); // This leads to a temporary std::string{"Nemo"}.
 }
 ----
 
-=== Compliant solution
+However, like `std::less<std::string>`, `CaseInsensitiveCompare` is not transparent, and the code triggers the construction of undesired temporary strings.
 
-[source,cpp]
+==== Compliant solution
+
+A comparator needs to explicitly declare itself as transparent. This is achieved by having an inner type named `is_transparent` in the comparator. The type itself does not matter.
+
+Furthermore, the comparator needs to provide heterogeneous comparisons. There are multiple ways to achieve this:
+
+. Its `operator()` could be templated and written in a generic way, like `std::less<void>` does.
+. It could provide the relevant overloads for the software.
+. It can provide one overload whose lightweight parameter type can be constructed from key-like types.
+
+For instance, to implement a transparent case-insensitive comparator for strings, we can leverage the fact that ``++string_view++`` offers lightweight conversions. Furthermore, since ``++string_view++`` and `string` have very similar interfaces, the implementation of the comparator can remain unchanged:
+
+[source,cpp,diff-id=2,diff-type=compliant]
 ----
-void f() {
-  // std::less<> is transparent
-  std::set<std::string, std::less<>> m = // Compliant
-      { "Dory", "Marlin", "Nemo", "Emo"};
-  m.find("Nemo"); // No temporary is created, the raw C-string literal
-                  // is compared directly with std::string elements
-  std::string_view n{"Nemo"};
-  m.find(n); // No need to create the std::string 
-}
+struct CaseInsensitiveCompare {
+  using is_transparent = void; // Enables heterogeneous operations.
 
+  bool operator()(const std::string_view& lhs, const std::string_view& rhs) const {
+    return std::ranges::lexicographical_compare(lhs, rhs, [](char l, char r) {
+      return std::tolower(l) < std::tolower(r);
+    });
+  }
+};
+
+void example() {
+  std::set<std::string, CaseInsensitiveCompare> m = { // Compliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  m.lower_bound("nemo"); // No more temporary std::string{"nemo"}.
+}
+----
+
+=== Working with hash-based containers
+
+`std::unordered_set`, `std::unordered_map`, `std::unordered_multiset`, and `std::unordered_multimap` are hash-based data structures that, by default, use `std::hash<key_type>` to compute the hash of a key, and `==` to compare the keys. Under the hood, they use `std::equals_to<key_type>` to invoke the `operator==` on the keys.
+
+{cpp}20 extends support for heterogeneous operations to these unordered associative containers: they provide additional overloads when the equality functor and the hasher are both transparent.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+void example() {
+  std::unordered_set<std::string> sea = { // Noncompliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  sea.erase("Darla"); // This leads to a temporary std::string{"Darla"}.
+}
+----
+
+==== Compliant solution
+
+{cpp}14 provides transparent equality functors in the form ``++std::equal_to<>++``. However, there is no standard transparent hasher object.
+
+You can apply the same strategies to create custom hashers as the ones presented above for custom comparators. When the key is `std::string`, you can essentially leverage ``++std::string_view++`` and the implementation of `std::hash` for this lightweight type:
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
 struct StringHash {
-  using is_transparent = void; // enables heterogenous lookup
+  using is_transparent = void; // Enables heterogeneous operations.
 
   std::size_t operator()(std::string_view sv) const {
     std::hash<std::string_view> hasher;
@@ -85,34 +189,41 @@ struct StringHash {
   }
 };
 
+void example() {
+  std::unordered_set<std::string, StringHash, std::equal_to<>> sea = { // Compliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
 
-void g() {
-  // std::equal_to<> and StringHash are both transparent
-  std::unordered_set<std::string, StringHash, std::equal_to<>> m = { "Dory", "Marlin", "Nemo", "Emo"}; // Compliant
-  m.find("Nemo"); // std::string_view is created out of raw C-string literal
-  std::string_view n{"Nemo"};
-  m.find(n); // No need to create a std::string
-}
-
-struct UpToTenLess {
-  using is_transparent = void;
-
-  bool operator()(std::string_view lhs, std::string_view rhs) const {
-    return lhs.compare(0, 10, rhs, 0, 10);
-  }
-};
-
-void g() {
-  // UpToTenLess is now transparent
-  std::set<std::string, UpToTenLess> m = { "Dory", "Marlin", "Nemo", "Emo"};
-  m.find("Nemo"); // std::string_view is created out of raw C-string literal
-  std::string_view n{"Nemo"};
-  m.find(n); // No need to create a std::string
+  sea.erase("Darla"); // No more temporary std::string{"Darla"}.
 }
 ----
+
+Finally, working with a custom equality comparator for hash-based containers is similar.
+
+=== Pitfalls
+
+Transparent comparators/hashers are strongly discouraged when used with types that are not directly comparable or expensive to create. For example, in the example above, if `CaseInsensitiveCompare` had the inner type ``++is_transparent++`` but its `operator()` still had ``std::string`` arguments, each internal comparison performed by ``++lower_bound++`` would create a temporary `std::string`. This would be significantly worse than the original version, which creates only one temporary object.
+
+The standard comparator types existed before {cpp}14, but their type parameter had to be provided. {cpp}14 introduced a default value for the template parameter, `void`, alongside a template specialization that is the transparent comparator. Therefore, when creating an object of such type, it is essential to write ``++std::less<>++`` and not ``++std::less<std::string>++``, for example.
 
 
 == Resources
 
-S6021 for when it might be a bad idea to use transparent comparators.
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/functional#Transparent_function_objects[Transparent function objects]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/functional/less_void[`std::less<void>`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/functional/equal_to_void[``++std::equal_to<void>++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/hash[`std::hash`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/container/set[`std::set`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/container/map[`std::map`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/container/unordered_set[``++std::unordered_set++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/container/unordered_map[``++std::unordered_map++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/string/basic_string_view[``++std::string_view++``]
+
+// Multimap versions and std::string are not linked because they are rarely used or well-known.
+
+=== Related rules
+
+* S6021 Heterogeneous sorted containers should only be used with types that support heterogeneous comparison
 

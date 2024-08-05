@@ -21,13 +21,12 @@ import { IndexedRule, IndexAggregates } from './types/IndexStore';
 
 import { useHistory } from 'react-router-dom';
 
-function correctResultsOrder(results: IndexedRule[], query: string) {
+function correctResultsOrder(results: IndexedRule[], query: string): IndexedRule[] {
   const upperCaseQuery = query.toLocaleUpperCase();
-  let reorderedResults: IndexedRule[] = [];
-
+  const reorderedResults: IndexedRule[] = [];
   results.forEach(indexedRule => {
-    if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
-      reorderedResults = [indexedRule, ...reorderedResults];
+    if (indexedRule.all_keys.includes(upperCaseQuery)) {
+      reorderedResults.unshift(indexedRule);
     } else {
       reorderedResults.push(indexedRule);
     }
@@ -84,16 +83,9 @@ export const SearchPage = () => {
   if (loading) {
     resultsDisplay = 'Searching';
   } else if (results.length > 0) {
-    const resultsBoxes: JSX.Element[] = [];
-
-    // making the exact match to appear first in the search results
-    correctResultsOrder(results, query).forEach(indexedRule => {
-      const box = <Box key={indexedRule.id} className={classes.searchHitBox}>
+    resultsDisplay = correctResultsOrder(results, query).map(indexedRule => <Box key={indexedRule.id} className={classes.searchHitBox}>
         <SearchHit key={indexedRule.id} data={indexedRule}/>
-      </Box>;
-      resultsBoxes.push(box);
-    });
-    resultsDisplay = resultsBoxes;
+      </Box>);
   }
 
   const paramSetters: Record<string, SearchParamSetter<any>> = {

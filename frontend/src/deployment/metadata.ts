@@ -71,7 +71,7 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: 
 
   // Needed to fetch the sqKey, that might be overridden with a legacy key in each language
   const genericMetadata = getRuleMetadata(srcDir);
-  let metadatasWithAllKeys = [...allMetadata];
+  const metadatasWithAllKeys = [...allMetadata];
 
   // The rule directory might contain an empty metadata.json
   if ('sqKey' in genericMetadata) {

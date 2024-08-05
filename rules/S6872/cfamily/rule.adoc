@@ -1,0 +1,130 @@
+Except for templated code, brace initialization should be preferred over {cpp}20's parenthesis initialization for aggregates.
+
+== Why is this an issue?
+
+With {cpp}20, it is now possible to initialize aggregate types using parentheses.
+This language feature was introduced to simplify writing generic code and consistently initialize objects, whether they are aggregates or not.
+
+For the sake of simplicity, aggregate types include arrays, unions, and structures without user-declared constructors and with only public non-static data members and public bases.
+
+Initializing objects with parentheses has several downsides compared to braces.
+
+ * Mainly, they allow narrowing conversion of arithmetic types that can result in unexpected program behaviors. See also S5276.
+
+ * Secondly, they can result in the most vexing parse.
+   For example, ``++Aggregate a(std::string());++`` declares function, while ``++Aggregate a{std::string()};++`` declares a variable.
+
+ * Furthermore, using braces is idiomatic and consistent with C.
+
+For all these reasons, braces should be preferred for non-generic code when initializing aggregates.
+And the fix is often trivial: replace the parentheses `()` with braces `{}`.
+
+Here is a noncompliant example:
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+struct Coordinate {
+  int x;
+  int y;
+};
+
+long readInteger();
+
+auto readCoordinate() {
+  // Be aware of the narrowing conversions on the next line.
+  return Coordinate(readInteger(), readInteger()); // Noncompliant
+}
+----
+
+There are multiple ways of handling the narrowing conversion; here is one alternative:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+struct Coordinate {
+  int x;
+  int y;
+};
+
+long readInteger();
+
+auto readCoordinate() {
+  // Explicitly handle the conversion:
+  // Here, we saturate, but throwing an exception may also be appropriate.
+  auto readInt = []() { return saturate_cast<int>(readInteger()); };
+  return Coordinate{readInt(), readInt()}; // Compliant
+}
+----
+
+=== Can the issue be raised for cast to Aggregate?
+
+When `static_cast` (`static_cast<T>(arg)`) or _C-style_ cast (`(T)arg`) is used to convert the value `arg` to some type `T`,
+such cast can be resolved to the constructor call `T(arg)`.
+With {cpp}20, such syntax is well-formed when `T` is an aggregate and initializes its first element from `arg`.
+This rule raises an issue for such cast expressions.
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+struct Point {
+  int x;
+  int y;
+};
+
+auto p1 = Point(1);               // Noncompliant
+auto p2 = (Point)1;               // Noncompliant, same as Point(1)
+auto p3 = static_cast<Point>(1);  // Noncomplaint, same as Point(1)
+----
+
+These issues can be fixed by replacing the cast expressions with the construction of a temporary object using braces (`{}`):
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+struct Point {
+  int x;
+  int y;
+};
+
+auto p1 = Point{1};  // Compliant
+auto p2 = Point{1};  // Compliant
+auto p3 = Point{1};  // Complaint
+----
+
+=== Exceptions
+
+_Value-initialization_ with `()` is accepted because it is unrelated to _aggregate-initialization_ and the main drawback listed above does not apply:
+since there are no arguments, there cannot be any narrowing conversion.
+
+// There are also edge cases not worth covering or even mentioning here.
+//
+// Example: having a member with an explicit default constructor does not compile.
+// https://godbolt.org/z/exerMGM9x
+
+[source,cpp]
+----
+Coordinate function(); // Irrelevant -- this is a function declaration.
+
+auto variable = Coordinate(); // Value-initialization - compliant by exception.
+
+struct Object {
+  Coordinate coord;
+  Object() : coord() { } // Value-initialization - compliant by exception.
+};
+----
+
+
+== Resources
+
+=== Documentation
+
+ * {cpp} reference -- https://en.cppreference.com/w/cpp/language/aggregate_initialization#Definitions[Aggregate definition]
+ * {cpp} reference -- https://en.cppreference.com/w/cpp/language/value_initialization[Value-initialization]
+ * Wikipedia -- https://en.wikipedia.org/wiki/Most_vexing_parse[Most vexing parse]
+
+=== Standards
+
+ * Open Standards - https://open-std.org/JTC1/SC22/WG21/docs/papers/2015/n4462.html[N4462] presents the problem with initializing objects in generic code using braces, which was solved by the introduction of parenthesized initialization.
+
+=== Related rules
+
+ * S835 - Braces should be used to indicate and match the structure in the non-zero initialization of arrays and structures
+ * S6871 - All the elements of an aggregate should be provided with an initial value
+ * S5276 - Implicit casts should not lower precision

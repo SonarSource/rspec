@@ -1,0 +1,97 @@
+== How to fix it in ASP.NET Core
+
+=== Code examples
+
+==== Noncompliant code example
+
+Using `Microsoft.AspNetCore.Cryptography.KeyDerivation`:
+[source,csharp,diff-id=101,diff-type=noncompliant]
+----
+using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+using System.Security.Cryptography;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+
+string hashed = Convert.ToBase64String(KeyDerivation.Pbkdf2(
+    password: password!,
+    salt: salt,
+    prf: KeyDerivationPrf.HMACSHA256,
+    iterationCount: 1, // Noncompliant
+    numBytesRequested: 256 / 8));
+----
+
+Using `System.Security.Cryptography`:
+[source,csharp,diff-id=102,diff-type=noncompliant]
+----
+using System.Security.Cryptography;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+Rfc2898DeriveBytes kdf = new Rfc2898DeriveBytes(password, 128/8); // Noncompliant
+string hashed = Convert.ToBase64String(kdf.GetBytes(256 / 8));
+----
+
+Using `Microsoft.AspNetCore.Identity`:
+[source,csharp,diff-id=103,diff-type=noncompliant]
+----
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+
+string password = Request.Query["password"];
+IOptions<PasswordHasherOptions> options = Options.Create(new PasswordHasherOptions() {
+    IterationCount = 1 // Noncompliant
+});
+PasswordHasher<User> hasher = new PasswordHasher<User>(options);
+string hash = hasher.HashPassword(new User("test"), password);
+----
+
+==== Compliant solution
+
+Using `Microsoft.AspNetCore.Cryptography.KeyDerivation`:
+[source,csharp,diff-id=101,diff-type=compliant]
+----
+using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+using System.Security.Cryptography;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+
+string hashed = Convert.ToBase64String(KeyDerivation.Pbkdf2(
+    password: password!,
+    salt: salt,
+    prf: KeyDerivationPrf.HMACSHA256,
+    iterationCount: 100_000,
+    numBytesRequested: 256 / 8));
+----
+
+Using `System.Security.Cryptography`
+[source,csharp,diff-id=102,diff-type=compliant]
+----
+using System.Security.Cryptography;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+Rfc2898DeriveBytes kdf = new Rfc2898DeriveBytes(password, salt, 100_000, HashAlgorithmName.SHA256);
+string hashed = Convert.ToBase64String(kdf.GetBytes(256 / 8));
+----
+
+Using `Microsoft.AspNetCore.Identity`:
+[source,csharp,diff-id=103,diff-type=compliant]
+----
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+
+string password = Request.Query["password"];
+PasswordHasher<User> hasher = new PasswordHasher<User>();
+string hash = hasher.HashPassword(new User("test"), password);
+----
+
+=== How does this work?
+
+include::../../common/fix/pbkdf2-parameters.adoc[]
+
+=== Going the extra mile
+
+include::../../common/extra-mile/peppering.adoc[]
+
