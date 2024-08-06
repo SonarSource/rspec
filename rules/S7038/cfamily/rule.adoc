@@ -131,8 +131,6 @@ std::string_view formatDateTo(int y, int m, int d, std::span<char> buffer) {
   os << y << "/"  << m << "/" << d << std::ends;
 
   char const* data = os.str();
-  os.freeze(false);
-
   // Avoid buffer overflow, if the size of the buffer was not sufficient
   std::size_t n = strnlen(data, buffer.size());
   return std::string_view(data, n);
@@ -152,7 +150,7 @@ std::string_view formatDateTo(int y, int m, int d, std::span<char> buffer) {
 
 We can avoid null-terminating the buffer (using `std::ends`), as `span()` provides both the pointer and the number of written characters.
 
-==== Avoding accidental trimming
+==== Avoding accidental trimming of content
 
 Both in case of the `std::ostrstream` and `std::ospanstream` if the size of the buffer is insufficient for the content,
 the output will be trimmed. 
@@ -176,7 +174,7 @@ This requires converting the input arguments to the `std::span<const char>` whic
 
 ==== Noncompliant code example
 
-[source,cpp,diff-id=3,diff-type=compliant]
+[source,cpp,diff-id=3,diff-type=noncompliant]
 ----
 int sum1(char const* buffer, int size) {
   int x, y;
@@ -213,12 +211,64 @@ int sum2(char const* cstr) {
 ----
 
 
-//=== How does this work?
+=== Fixing issue incrementally
 
-//=== Pitfalls
+When the modified object is passed to the function, you may also need to adjust the it's signature.
+This in turn may require modifying other call sides of the given function, and lead to large refactorings.
+In this section we disucss few options to mitigate the scale of the change.
 
-//=== Going the extra mile
+=== Passing reference to base class
 
+In a case when the body of the function does not use any funcitonality specific to `strstream` type,
+the best option may be to change the parameter to the reference to the corresponding base class:
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+void print(std::ostrstream& os, int n) {
+  os << n;
+  /* More streaming operations */
+}
+----
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+void print(std::ostream& os, int n) {
+  os << n;
+  /* More streaming operations */
+}
+----
+ 
+This change allows above functions to be invoked with `strstream`, `spanstream` and `stringstream`.
+
+=== Introducing separate overloads
+
+If the called function uses `strstream` specific functionality  (like calling `str()`),
+adding additional overload for corresponding `stringstream` or `spanstream` will allow incremental update of the code.
+
+To reduce code duplication, extract parts of the function that are not dependent on the `strstream` specific
+functionality into a helper function that accepts a corresponding base class reference.
+
+[source,cpp]
+---
+void finalizeImpl(std::ostream& os) {
+  // Part that does not dependent on the type of stream
+}
+ 
+std::string finalize(std::ostrstream os) {
+  finalizeImpl(os);
+
+  os << std::ends;
+  char const* data = os.str();
+  os.freeze(false);
+  return data;
+}
+
+std::string finalize(std::stringstream os) {
+  finalizeImpl(os);
+  
+  return std::move(os).str();
+}
+---
 
 //== Resources
 //=== Documentation
