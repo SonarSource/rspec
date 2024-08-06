@@ -1,32 +1,218 @@
-FIXME: add a description
+Uses of `std::strstream` and `std::ostrstream` should be replaced with:
+ * `std::stringstream` and `std::ostringstream` to use dynamicaly allocated buffer
+ * `std::spanstream` and `std::ospanstream` to use preallocated buffer.
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+Uses of `std::istrstream` should be replace with `std::ispanstream`.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+The input `std::istrstream`, output `std::ostrstream` and combined `std::iostream` stream classes,
+are deprecated since they introduction in the first introduction in the {cpp}98 standard.
 
-//=== What is the potential impact?
+Above stream classes supports two uses cases, and their behavior differs vastly depending
+on the way how the object is constructed:
+
+* when constructed without argument, the stream object will manage dynamically allocated buffer
+* when constructed from `char*` buffer and size, the stream object will use only provided buffer
+
+Above behavior made the `strstream` classes hard to use correctly.
+For example invoking a `str()` method would either return a pointer to internally managed dynammically allocated buffer,
+or user provided buffer. 
+
+[source,cpp]
+----
+char* process(std::ostrstream& os) {
+  os << "Important content";
+  return os.str(); // Memory could be leaked, the ownership of returned pointer is not clear.
+}
+----
+
+With the introduction of the `std::spanstream`, `std::ispanstream` and `std::ospanstream` {cpp}23,
+all uses of the `std::strstream`, `std::ostrstream` and `std::ispanstream` classes may be replaced,
+with one of the following classes:
+
+* `std::stringstream` and `std::ostringstream` to use managed and growing buffer,
+* `std::spanstream`, `std::ospanstream` and `std::ispanstream` to use preallocated buffer with fixed size.
+
+
+This rule will raise issue when the new object of `strstream` or is created with underlying buffer:
+
+[source,cpp]
+---
+std::string printData(std::string_view entry, int count) {
+  std::ostrstream os; // Noncompliant
+  os << "The entry '" << entry << "' was repeated " << count << " times." << std::ends;
+  char const* content = os.str();
+  os.freeze(false);
+  return std::string(content);
+}
+
+int readInt(std::istrstream);
+
+void process() {
+  readInt(std::istrstream("10")); // Noncompliant
+}t
+---
+
+Futhermore the issue will be raised if data member of the class is declared with one `strstream` types:
+
+[source,cpp]
+---
+stoiruct Printer {
+  /* .... */
+private:
+  std::ostrstream os; // Noncomplaint
+};
+---
+
+The rule does not raise issue when `strsteam` object is moved or bassed by reference, 
+as such use case will need to be adjusted after modifing the type of declared variable or created object.
+
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
-=== Code examples
+To fix the code you should change the type of the highlighted data member, field of the object to
+as follows:
+
+* `std::strstream` to `std::stringstream` or `std::spanstream`
+* `std::ostrstream` to `std::ostringstream` or `std::ospanstream`,
+* `std::isstrstream` to `std::ispanstream`
+
+Such change may require a further modification of the code if the constructed object is passed around.
+
+=== Replacing output streams with dynamic buffer
+
+In this case an `std::strstream`, `std::ostrstream` was using a dynamically allocated growing buffer (i.e. it was constructed without arguments), 
+it should be replaced with `std::stringstream` and `std::ostringstream` respectivelly.
+
+After such change the type of the `str()` member function will change from the `char const*` to `std::string`.
+Futhremore extracing the content is the last operation of the stream, 
+you may call `std::move` on the stream before calling `str()` to avoid copying and allocating new buffer.
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+std::string printData(std::string_view entry, int count) {
+  std::ostrstream os; // Noncompliant
+  os << "The entry '" << entry << "' was repeated " << count << " times." << std::ends;
+  char const* content = os.str();
+  os.freeze(false);
+  return std::string(content);
+}
 ----
 
 ==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+std::string printData(std::string_view entry, int count) {
+  std::ostringstream os; // Compliant
+  os << "The entry '" << entry << "' was repeated " << count << " times." << std::ends;
+  return std::move(os).str();
+}
 ----
+
+
+=== Replacing output streams with preallocated buffer
+
+In the case, when the `std::strstream` or `std::ostrstream` was used to put the string
+into a preallocated buffer, exactly same behavior may be preserved by using `std::spanstream` and `std::ospanstream` respectively.
+
+The constructor of ``++spanstream++``s accepts a `std::span<char>` instead of pair of pointer and size.
+Furthemore the `str()` member function should be replaced with `span()` member function, that return written range.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+std::string_view formatDateTo(int y, int m, int d, std::span<char> buffer) {
+  std::ostrstream os(buffer.data(), buffer.size()); // Noncomplaint
+  os << y << "/"  << m << "/" << d << std::ends;
+
+  char const* data = os.str();
+  os.freeze(false);
+
+  // Avoid buffer overflow, if the size of the buffer was not sufficient
+  std::size_t n = strnlen(data, buffer.size());
+  return std::string_view(data, n);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+std::string_view formatDateTo(int y, int m, int d, std::span<char> buffer) {
+  std::ospanstream os(buffer); // Compliant
+  os << y << "/"  << m << "/" << d;
+  std::span content = os.span();
+  return std::string_view(content.data(), content.size());
+}
+----
+
+We can avoid null-terminating the buffer (using `std::ends`), as `span()` provides both pointer and the number of written characters.
+
+==== Avoding accidental trimming
+
+Both in case of the `std::ostrstream` and `std::ospanstream` if the size of the buffer is insufficient for the conent,
+the output will be trimmed. 
+If the use of preallocated buffer is not strictly necessary due performance reason, you should consider usign `stringstream`.
+
+[source,cpp]
+----
+std::string formatDate(int y, int m, int d) {
+  std::ostringstream os; // Compliant
+  os << y << "/"  << m << "/" << d << std::ends;
+  return std::move(os).str();
+}
+----
+
+=== Replacing input streams with preallocated buffer
+
+The `std::ispanstream` should be instead if `std::istrstream` to parse content of the buffer.
+This requires converting the input arguments to the `std::span<const char>` which can be performed as follows:
+  * `std::span(ptr, n)` if `std::istrstream` was constructed from pointer `ptr` and `size`
+  * `std::string_view(cstr)` if `std::istrstream` was constructed from pointer `cstr`
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+int sum1(char const* buffer, int size) {
+  int x, y;
+  std::istrstream is(buffer, size);
+  is >> x >> y;
+  return x + y;
+}
+
+int sum2(char const* cstr) {
+  int x, y;
+  std::istrstream is(cstr);
+  is >> x >> y;
+  return x + y;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+int sum1(char const* buffer, int size) {
+  int x, y;
+  std::ispanstream is{std::span(buffer, size)};
+  is >> x >> y;
+  return x + y;
+}
+
+int sum2(char const* cstr) {
+  int x, y;
+  std::ispanstream is{std::string_view(cstr)};
+  is >> x >> y;
+  return x + y;
+}
+----
+
 
 //=== How does this work?
 
