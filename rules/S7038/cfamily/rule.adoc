@@ -7,7 +7,7 @@ Uses of `std::istrstream` should be replaced with `std::ispanstream`.
 
 == Why is this an issue?
 
-The input `std::istrstream`, output `std::ostrstream` and combined `std::iostream` stream classes,
+The input `std::istrstream`, output `std::ostrstream`, and combined `std::iostream` stream classes
 are deprecated since their introduction in the {cpp}98 standard.
 
 Those stream classes support two use cases, and their behavior differs vastly depending
@@ -19,9 +19,9 @@ on how the object is constructed:
 The above behaviors make the `strstream` classes hard to use correctly.
 As illustration `str()` member function:
 
-* returns a buffer that has unclear ownership
-* does not return the size of readable characters nor guarantees null-termination of buffer
-* may leak unless `freeze(false)` is called afterwards
+* returns a buffer that has unclear ownership;
+* does not return the size of readable characters nor guarantees null-termination of buffer;
+* may leak unless `freeze(false)` is called afterwards.
  
 With the introduction of the `std::spanstream`, `std::ispanstream` and `std::ospanstream` {cpp}23,
 all uses of the `std::strstream`, `std::ostrstream` and `std::ispanstream` classes may be replaced,
@@ -57,27 +57,26 @@ Furthermore, the issue will be raised if a data member of the class is declared 
 class Printer {
   /* .... */
 private:
-  std::ostrstream os; // Noncomplaint
+  std::ostrstream os; // Noncompliant
 };
 ----
 
 == How to fix it
 
-To fix the code you should change the type of the highlighted data member,  field or object as follows:
+To fix the code you should change the type of the highlighted data member, field, or object as follows:
 
 * `std::strstream` to `std::stringstream` or `std::spanstream`
 * `std::ostrstream` to `std::ostringstream` or `std::ospanstream`,
-* `std::isstrstream` to `std::ispanstream`
+* `std::isstrstream` to `std::ispanstream`.
 
-Such change may require a further modification of the code if the constructed object is passed around.
 
-=== Replacing output streams with dynamic buffer
+=== Replacing output streams with dynamic buffers
 
-In this case, an `std::strstream`, `std::ostrstream` was using a dynamically allocated growing buffer (i.e. it was constructed without arguments), 
-it should be replaced with `std::stringstream` and `std::ostringstream` respectively.
+When a `std::strstream` or `std::ostrstream` is using a dynamically allocated growing buffer (i.e., it was constructed without arguments), 
+it should be replaced with `std::stringstream` and `std::ostringstream`, respectively.
 
-After such change, the type of the `str()` member function will change from the ``++char const*++`` to `std::string`.
-Furthermore extracting the content is the last operation of the stream, 
+With this change, the type of the `str()` member function will change from the C-string ``++char const*++`` of unclear size and ownership to a well-managed `std::string`.
+Furthermore, when extracting the content is the last operation of the stream,
 you may call `std::move` on the stream before calling `str()` to avoid copying and allocating a new buffer.
 
 ==== Noncompliant code example
@@ -105,20 +104,20 @@ std::string printData(std::string_view entry, int count) {
 ----
 
 
-=== Replacing output streams with preallocated buffer
+=== Replacing output streams with preallocated buffers
 
-In the case, when the `std::strstream` or `std::ostrstream` was used to put the string
-into a preallocated buffer, exactly the same behavior may be preserved by using `std::spanstream` and `std::ospanstream`, respectively.
+When the `std::strstream` or `std::ostrstream` is used to put a string
+into a preallocated buffer, the same behavior can be preserved by using `std::spanstream` and `std::ospanstream`, respectively.
 
-The constructor of ``++spanstream++``s accepts a `std::span<char>` instead of a pair of pointer and size.
-Furthermore, the `str()` member function should be replaced with the `span()` member function, which returns a written range.
+Their constructors accept a `std::span<char>` instead of a pair of pointer and size.
+Furthermore, the `str()` member function should be replaced with the `span()` member function, which returns the written range.
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=2,diff-type=noncompliant]
 ----
 std::string_view formatDateTo(int y, int m, int d, std::span<char> buffer) {
-  std::ostrstream os(buffer.data(), buffer.size()); // Noncomplaint
+  std::ostrstream os(buffer.data(), buffer.size()); // Noncompliant
   os << y << "/"  << m << "/" << d << std::ends;
 
   char const* data = os.str();
@@ -143,9 +142,8 @@ We can avoid null-terminating the buffer (using `std::ends`), as `span()` provid
 
 ==== Avoiding truncation of content
 
-Both in case of the `std::ostrstream` and `std::ospanstream` if the size of the buffer is insufficient for the content,
-the output will be trimmed. 
-If the use of a preallocated buffer is not strictly necessary due to performance reasons, you should consider using a `string stream`.
+With both `std::ostrstream` and `std::ospanstream`, the output is trimmed when the size of the buffer is insufficient for the content. 
+If using a preallocated buffer is not strictly necessary for performance reasons, you should consider using a `stringstream`.
 
 [source,cpp]
 ----
@@ -156,12 +154,13 @@ std::string formatDate(int y, int m, int d) {
 }
 ----
 
-=== Replacing input streams with preallocated buffer
+=== Replacing input streams
 
-The `std::ispanstream` should be used instead of `std::istrstream` to parse the content of the buffer.
-This requires converting the input arguments to the `std::span<const char>` which can be performed as follows:
-  * `std::span(ptr, n)` if `std::istrstream` was constructed from pointer `ptr` and `size`
-  * `std::string_view(cstr)` if `std::istrstream` was constructed from pointer `cstr`
+`std::ispanstream` should be used instead of `std::istrstream` to parse the content of a buffer.
+This requires converting the input arguments to `std::span<const char>` which can be performed as follows:
+
+  * `std::span(ptr, size)` if `std::istrstream` was constructed from pointer `ptr` and `size`;
+  * `std::string_view(cstr)` if `std::istrstream` was constructed from null-terminated C-string `cstr`.
 
 ==== Noncompliant code example
 
@@ -169,14 +168,14 @@ This requires converting the input arguments to the `std::span<const char>` whic
 ----
 int sum1(char const* buffer, int size) {
   int x, y;
-  std::istrstream is(buffer, size); // Noncomplaint
+  std::istrstream is(buffer, size); // Noncompliant
   is >> x >> y;
   return x + y;
 }
 
 int sum2(char const* cstr) {
   int x, y;
-  std::istrstream is(cstr); // Noncomplaint
+  std::istrstream is(cstr); // Noncompliant
   is >> x >> y;
   return x + y;
 }
@@ -204,13 +203,13 @@ int sum2(char const* cstr) {
 
 === Fixing issue incrementally
 
-When the modified object is passed to the function, you may also need to adjust its signature.
-This, in turn, may require modifying other call sides of the given function and lead to large refactorings.
-In this section, we discuss a few options to mitigate the scale of the change.
+When the modified object is passed to a function, you may also need to adjust its signature.
+This, in turn, may require modifying other call sites of the given function and lead to large refactorings.
+In this section, we discuss a few options to mitigate the scale of the changes.
 
-=== Passing reference to base class
+==== Passing reference to base class
 
-In a case when the body of the function does not use any functionality specific to `strstream` type,
+When the body of the function does not use any functionality specific to `strstream` type,
 the best option may be to change the parameter to the reference to the corresponding base class:
 
 [source,cpp,diff-id=4,diff-type=noncompliant]
@@ -229,15 +228,15 @@ void print(std::ostream& os, int n) {
 }
 ----
  
-This change allows the above functions to be invoked with `stream`, `span stream`, and `string stream`.
+This change allows the above function to be invoked with `stream`, `spanstream`, and `stringstream`.
 
 === Introducing separate overloads
 
 If the called function uses `strstream` specific functionality  (like calling `str()`),
-adding additional overload for corresponding `stringstream` or `spanstream` will allow incremental updates of the code.
+adding additional overload for corresponding `stringstream` or `spanstream` allows incremental improvements of the code.
 
 To reduce code duplication, extract parts of the function that are not dependent on the `strstream` specific
-functionality into a helper function that accepts a corresponding base class reference.
+functionalities into a helper function that accepts a corresponding base class reference.
 
 [source,cpp]
 ----
