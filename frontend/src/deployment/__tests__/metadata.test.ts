@@ -278,4 +278,34 @@ describe('metadata generation', () => {
       });
     });
   });
+
+  test('allKeys include the sqKey overridden in all languages', () => {
+    return withTestDir((srcPath) => {
+      createFiles(srcPath, {
+        'S100/metadata.json': JSON.stringify({
+          sqKey: 'S100',
+        }),
+        'S100/java/metadata.json': JSON.stringify({
+          sqKey: 'S100-Java'
+        }),
+        'S100/python/metadata.json': JSON.stringify({
+          sqKey: 'S100-python'
+        }),
+      });
+      return withTestDir(async (dstPath) => {
+        generateRulesMetadata(srcPath, dstPath);
+        const javaStrMetadata = fs.readFileSync(`${dstPath}/S100/java-metadata.json`);
+        const javaMetadata = JSON.parse(javaStrMetadata.toString());
+        expect(javaMetadata).toMatchObject({
+          allKeys: ['S100-Java', 'S100-python', 'S100']
+        });
+
+        const pythonStrMetadata = fs.readFileSync(`${dstPath}/S100/python-metadata.json`);
+        const pythonMetadata = JSON.parse(pythonStrMetadata.toString());
+        expect(pythonMetadata).toMatchObject({
+          allKeys: ['S100-Java', 'S100-python', 'S100']
+        });
+      });
+    });
+  });
 });

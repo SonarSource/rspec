@@ -1,0 +1,96 @@
+== How to fix it in BouncyCastle
+
+=== Code examples
+
+==== Noncompliant code example
+
+Using SCrypt:
+[source,csharp,diff-id=301,diff-type=noncompliant]
+----
+using Org.BouncyCastle.Crypto.Generators;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8); // divide by 8 to convert bits to bytes
+
+string hashed = Convert.ToBase64String(SCrypt.Generate(Encoding.Unicode.GetBytes(password), salt, 4, 2, 1, 32));  // Noncompliant    
+----
+
+Using BCrypt:
+[source,csharp,diff-id=302,diff-type=noncompliant]
+----
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+
+string hashed = OpenBsdBCrypt.Generate(password.ToCharArray(), salt, 4); // Noncompliant
+----
+
+Using PBKDF2:
+[source,csharp,diff-id=303,diff-type=noncompliant]
+----
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+using System.Security.Cryptography;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+Pkcs5S2ParametersGenerator gen = new Pkcs5S2ParametersGenerator();
+gen.Init(Encoding.Unicode.GetBytes(password), salt, 100);  // Noncompliant
+KeyParameter keyParam = (KeyParameter) gen.GenerateDerivedMacParameters(256);
+string hashed = Convert.ToBase64String(keyParam.GetKey());
+----
+
+==== Compliant solution
+
+Using SCrypt:
+[source,csharp,diff-id=301,diff-type=compliant]
+----
+using Org.BouncyCastle.Crypto.Generators;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8); // divide by 8 to convert bits to bytes
+
+string hashed = Convert.ToBase64String(SCrypt.Generate(Encoding.Unicode.GetBytes(password), salt, 1<<12, 8, 1, 32));  // Noncompliant    
+----
+
+Using BCrypt:
+[source,csharp,diff-id=302,diff-type=compliant]
+----
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+
+string hashed = OpenBsdBCrypt.Generate(password.ToCharArray(), salt, 14); // Noncompliant
+----
+
+Using PBKDF2:
+[source,csharp,diff-id=303,diff-type=compliant]
+----
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+using System.Security.Cryptography;
+
+string password = Request.Query["password"];
+byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
+Pkcs5S2ParametersGenerator gen = new Pkcs5S2ParametersGenerator();
+gen.Init(Encoding.Unicode.GetBytes(password), salt, 100_000);  // Noncompliant
+KeyParameter keyParam = (KeyParameter) gen.GenerateDerivedMacParameters(256);
+string hashed = Convert.ToBase64String(keyParam.GetKey());
+----
+
+=== How does this work?
+
+include::../../common/fix/bcrypt-parameters.adoc[]
+
+include::../../common/fix/scrypt-parameters.adoc[]
+
+include::../../common/fix/pbkdf2-parameters.adoc[]
+
+=== Going the extra mile
+
+include::../../common/extra-mile/peppering.adoc[]
+

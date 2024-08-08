@@ -1,57 +1,84 @@
 == Why is this an issue?
 
-_Forwarding references_ are a special kind of references that both ignore and preserve the _value category_ of a function argument, making it possible to forward it by means of ``++std::forward++``.
+_Forwarding references_ are a special kind of references that both ignore and preserve the _value category_ of a function argument, making it possible to forward it by using ``++std::forward++`` or ``++std::forward_like++``.
 
-Any code using such a reference for any other purpose than forwarding is actually ignoring rvalue-ness and const-ness of the associated parameter.
+Any code using such a reference for any purpose other than forwarding is actually ignoring the rvalue-ness and const-ness of the associated parameter.
 
 
 === Noncompliant code example
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-#include <utility>
-#include <string>
-#include <iostream>
+class Registry {
+  std::vector<std::string> names;
 
-template<typename TP> void f( TP&& arg ) {
-    std::string s(arg);
-}
+ public:
+  template <typename StringLike>
+  void addName(StringLike&& arg) {
+    names.emplace_back(arg); // Not forwarded
+  }
+};
 
-int main() {
-    std::string s("test");
-    f(std::move(s));
-    std::cout<<"f:"<<s<<std::endl; // output is "f:test"
+void example() {
+  Registry r;
 
-    return 0;
+  std::string name = "example";
+  r.addName(std::move(name));
+  std::cout << "name:" << name << std::endl;
+  // output is "name:example"
 }
 ----
 
+In this example, the intent is to move the content of `name` into the vector, but instead a copy is made.
 
 === Compliant solution
 
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+class Registry {
+  std::vector<std::string> names;
+
+ public:
+  template <typename StringLike>
+  void addName(StringLike&& arg) {
+    names.emplace_back(std::forward<StringLike>(arg));
+  }
+};
+
+void example() {
+  Registry r;
+
+  std::string name = "example";
+  r.addName(std::move(name));
+  std::cout << "name:" << name << std::endl;
+  // output can be anything: name has been moved-from
+}
+----
+
+``++std::forward_like++`` is available since {cpp}23 and is useful when you want to forward a subobject of a forwarding reference.
+
 [source,cpp]
 ----
-#include <utility>
-#include <string>
-#include <iostream>
-
-template<typename TP> void f( TP&& arg ) {
-    std::string s(std::forward<TP>(arg));
-}
-
-int main() {
-    std::string s("test");
-    f(std::move(s));
-    std::cout<<"f:"<<s<<std::endl; // output is "f:"
-
-    return 0;
-}
+class Registry {
+  // ...
+  template <typename PairOfStrings>
+  void addNames(PairOfStrings&& arg) {
+    addName(std::forward_like<PairOfStrings>(arg.second)); // We don't care about arg.first
+  }
+};
 ----
 
 
 == Resources
 
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#f19-for-forward-parameters-pass-by-tp-and-only-stdforward-the-parameter[{cpp} Core Guidelines F.19] - For “forward” parameters, pass by TP&& and only std::forward the parameter
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/forward[`std::forward`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/forward_like[``++std::forward_like++``]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f19-for-forward-parameters-pass-by-tp-and-only-stdforward-the-parameter[F.19: For "forward" parameters, pass by `TP&&` and only `std::forward` the parameter]
 
 ifdef::env-github,rspecator-view[]
 
@@ -59,6 +86,9 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Use only "std::forward" on forwarding references.
+
 
 endif::env-github,rspecator-view[]

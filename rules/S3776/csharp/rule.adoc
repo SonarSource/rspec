@@ -1,18 +1,248 @@
+include::../intro.adoc[]
+
 == Why is this an issue?
 
-Cognitive Complexity is a measure of how hard the control flow of a method is to understand. Methods with high Cognitive Complexity will be difficult to maintain.
+include::../why.adoc[]
 
-include::../see.adoc[]
-ifdef::env-github,rspecator-view[]
+=== What is the potential impact?
 
-'''
-== Implementation Specification
-(visible only on this page)
+include::../impact.adoc[]
 
-include::message.adoc[]
+== How to fix it
 
-include::parameters.adoc[]
+include::../how-with-null-safe.adoc[]
 
-include::../highlighting.adoc[]
+=== Code examples
 
-endif::env-github,rspecator-view[]
+**Extraction of a complex condition in a new function.**
+
+==== Noncompliant code example
+
+The code is using a complex condition and has a cognitive cost of 3.
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+decimal CalculateFinalPrice(User user, Cart cart)
+{
+    decimal total = CalculateTotal(cart);
+    if (user.HasMembership()               // +1 (if)
+        && user.OrdersCount > 10           // +1 (more than one condition)
+        && user.AccountActive
+        && !user.HasDiscount
+        || user.OrdersCount == 1)          // +1 (change of operator in condition)
+    {
+        
+        total = ApplyDiscount(user, total);
+    }
+    return total;
+}
+----
+
+==== Compliant solution
+
+Even if the cognitive complexity of the whole program did not change, it is easier for a reader to understand the code of the `calculateFinalPrice` function, which now only has a cognitive cost of 1.
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+
+decimal CalculateFinalPrice(User user, Cart cart)
+{
+    decimal total = CalculateTotal(cart);
+    if (IsEligibleForDiscount(user))       // +1 (if)
+    {
+        total = applyDiscount(user, total);
+    }
+    return total;
+}
+
+bool IsEligibleForDiscount(User user)
+{
+    return user.HasMembership()
+            && user.OrdersCount > 10       // +1 (more than one condition)
+            && user.AccountActive
+            && !user.HasDiscount
+            || user.OrdersCount == 1;      // +1 (change of operator in condition)
+}
+
+----
+
+**Break down large functions.**
+
+==== Noncompliant code example
+
+For example, consider a function that calculates the total price of a shopping cart, including sales tax and shipping. +
+__Note:__ The code is simplified here, to illustrate the purpose. Please imagine there is more happening in the `foreach` loops.
+
+[source,csharp,diff-id=3,diff-type=noncompliant]
+----
+decimal CalculateTotal(Cart cart)
+{
+    decimal total = 0;
+    foreach (Item item in cart.Items) // +1 (foreach)
+    {
+        total += item.Price;
+    }
+
+    // calculateSalesTax
+    foreach (Item item in cart.Items) // +1 (foreach)
+    {
+        total += 0.2m * item.Price;
+    }
+
+    //calculateShipping
+    total += 5m * cart.Items.Count;
+
+    return total;
+}
+----
+
+This function could be refactored into smaller functions:
+The complexity is spread over multiple functions and the complex `CalculateTotal` has now a complexity score of zero.
+
+==== Compliant solution
+
+[source,csharp,diff-id=3,diff-type=compliant]
+----
+
+decimal CalculateTotal(Cart cart)
+{
+    decimal total = 0;
+    total = CalculateSubtotal(cart, total);
+    total += CalculateSalesTax(cart, total);
+    total += CalculateShipping(cart, total);
+    return total;
+}
+
+decimal CalculateSubtotal(Cart cart, decimal total)
+{
+    foreach (Item item in cart.Items) // +1 (foreach)
+    {
+        total += item.Price;
+    }
+    
+    return total;
+}
+
+decimal CalculateSalesTax(Cart cart, decimal total)
+{
+    foreach (Item item in cart.Items)  // +1 (foreach)
+    {
+        total += 0.2m * item.Price;
+    }
+    
+    return total;
+}
+
+decimal CalculateShipping(Cart cart, decimal total)
+{
+    total += 5m * cart.Items.Count;
+    return total;
+}
+----
+
+**Avoid deep nesting by returning early.**
+
+
+==== Noncompliant code example
+
+The below code has a cognitive complexity of 6.
+
+[source,csharp,diff-id=4,diff-type=noncompliant]
+----
+decimal CalculateDiscount(decimal price, User user)
+{
+    if (IsEligibleForDiscount(user))    // +1 ( if )
+    {
+        if (user.HasMembership())       // +2 ( nested if )
+        {
+            return price * 0.9m;
+        }
+        else if (user.OrdersCount == 1) // +1 ( else )
+        {
+            return price * 0.95m;
+        }
+        else                            // +1 ( else )
+        {
+            return price;
+        }
+    }
+    else                                // +1 ( else )
+    {
+        return price;
+    }
+}
+----
+
+==== Compliant solution
+
+Checking for the edge case first flattens the `if` statements and reduces the cognitive complexity to 3.
+
+[source,csharp,diff-id=4,diff-type=compliant]
+----
+decimal CalculateDiscount(decimal price, User user)
+{
+    if (!IsEligibleForDiscount(user)) // +1 ( if )
+    {
+        return price;
+    }
+    
+    if (user.HasMembership())         // +1 (  if )
+    { 
+        return price * 0.9m;
+    }
+    
+    if (user.OrdersCount == 1)        // +1 ( else )
+    {
+        return price * 0.95m;
+    }
+    
+    return price;
+}
+----
+
+**Use the null-conditional operator to access data.**
+
+In the below code, the cognitive complexity is increased due to the multiple checks required to access the manufacturer's name. This can be simplified using the optional chaining operator.
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+string GetManufacturerName(Product product)
+{
+    string manufacturerName = null;
+    if (product != null && product.Details != null &&
+        product.Details.Manufacturer != null) // +1 (if) +1 (multiple condition)
+    {
+        manufacturerName = product.Details.Manufacturer.Name;
+    }
+
+    if (manufacturerName != null) // +1 (if)
+    {
+        return manufacturerName;
+    }
+
+    return "Unknown";
+}
+----
+
+==== Compliant solution
+
+The optional chaining operator will return `null` if any reference in the chain is `null`, avoiding multiple checks.
+The `??` operator allows to provide the default value to use.
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+string GetManufacturerName(Product product)
+{
+    return product?.Details?.Manufacturer?.Name ?? "Unknown";
+}
+----
+
+=== Pitfalls
+
+As this code is complex, ensure that you have unit tests that cover the code before refactoring.
+
+
+include::../resources.adoc[]
+
+include::../rspecator-dotnet.adoc[]

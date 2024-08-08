@@ -1,4 +1,3 @@
-from rspec_tools.errors import InvalidArgumentError
 from pathlib import Path
 from typing import List
 from contextlib import contextmanager
@@ -6,8 +5,8 @@ import shutil
 import re
 import tempfile
 import json
-import contextlib
 import os
+from rspec_tools.errors import InvalidArgumentError
 
 SUPPORTED_LANGUAGES_FILENAME = '../supported_languages.adoc'
 LANG_TO_LABEL = {'abap': 'abap',
@@ -17,12 +16,14 @@ LANG_TO_LABEL = {'abap': 'abap',
                  'cobol': 'cobol',
                  'csharp': 'dotnet',
                  'css': 'css',
+                 'dart': 'dart',
                  'docker': 'iac',
                  'flex': 'flex',
                  'go': 'slang',
                  'html': 'html',
                  'java': 'java',
                  'javascript': 'jsts',
+                 'jcl': 'jcl',
                  'kotlin': 'kotlin',
                  'php': 'php',
                  'pli': 'pli',
@@ -52,10 +53,12 @@ LANG_TO_SOURCE = {
     'cloudformation': 'yaml',
     'csharp': 'csharp',
     'css': 'css',
+    'dart': 'dart',
     'docker': 'docker',
     'go': 'go',
     'html': 'html',
     'java': 'java',
+    'jcl': 'jcl',
     'javascript': 'javascript',
     'json': 'json',
     'kotlin': 'kotlin',
@@ -75,11 +78,12 @@ LANG_TO_SOURCE = {
     'vb': 'vb',
     # these languages are not supported by highlight.js as the moment:
     'apex': 'apex',
-    'bicep': 'bicep',
+    'azureresourcemanager': 'bicep',
     'cobol': 'cobol',
     'flex': 'flex',
     'pli': 'pli',
     'rpg': 'rpg',
+    'secrets': 'secrets',
     'terraform': 'terraform',
     'text': 'text',
     'vb6': 'vb6'
@@ -104,11 +108,11 @@ def swap_metadata_files(dir1:Path, dir2:Path):
     shutil.copy2(tmp, meta2)
 
 def is_empty_metadata(rule_dir:Path):
-  with open(rule_dir.joinpath(METADATA_FILE), 'r') as meta:
+  with open(rule_dir.joinpath(METADATA_FILE), 'r', encoding='utf8') as meta:
     return not json.load(meta)
 
 def load_valid_languages():
-  with open(SUPPORTED_LANGUAGES_FILENAME, 'r') as supported_langs_file:
+  with open(SUPPORTED_LANGUAGES_FILENAME, 'r', encoding='utf8') as supported_langs_file:
     supported_langs = supported_langs_file.read()
     supported_langs = supported_langs.replace(' or', '')
     supported_langs = supported_langs.replace('`', '')
@@ -146,14 +150,14 @@ def get_label_for_language(language: str) -> str:
   return LANG_TO_LABEL[language]
 
 def resolve_rule(rule_id: str) -> int:
-  m = re.search('^S([0-9]{3,4})$', rule_id)
+  m = re.search(r'^S(\d{3,4})$', rule_id)
   if not m:
     raise InvalidArgumentError(f"Unrecognized rule id format: \"{rule_id}\". Rule id must start with an \"S\" followed by 3 or 4 digits.")
   else:
     return int(m.group(1))
 
 def load_json(file):
-  with open(file) as json_file:
+  with open(file, encoding='utf8') as json_file:
     return json.load(json_file)
 
 @contextmanager

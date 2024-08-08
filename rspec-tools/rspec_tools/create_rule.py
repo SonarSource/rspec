@@ -39,6 +39,7 @@ def add_language_to_rule(language: str, rule: str, token: str, user: Optional[st
 class RuleCreator:
   '''Create a new Rule in a repository following the official Github 'rspec' repository structure.'''
   TEMPLATE_PATH: Final[Path] = Path(__file__).parent.parent.joinpath('rspec_template')
+  PR_TEMPLATE_PATH: Final[Path] = Path(__file__).parent.parent.parent.joinpath('.github/pull_request_template.md')
 
   def __init__(self, rspec_repo: RspecRepo):
     self.rspec_repo = rspec_repo
@@ -94,7 +95,7 @@ class RuleCreator:
       if rule_item.is_file():
         template_content = rule_item.read_text()
         lang = LANG_TO_SOURCE[language]
-        final_content = template_content.replace('[source,text]', f'[source,{lang}]')
+        final_content = template_content.replace('[source,text', f'[source,{lang}')
         rule_item.write_text(final_content)
 
   def _fill_multi_lang_template_files(self, rule_dir: Path, rule_number: int, languages: Iterable[str]):
@@ -112,7 +113,9 @@ class RuleCreator:
 
   def _fill_single_lang_template_files(self, rule_dir: Path, rule_number: int, language: str):
     common_template = self.TEMPLATE_PATH / 'single_language' / 'common'
-    lang_specific_template = self.TEMPLATE_PATH / 'single_language' / 'language_specific'
+    lang_specific_template = self.TEMPLATE_PATH / 'single_language' / language
+    if not Path(lang_specific_template).exists():
+      lang_specific_template = self.TEMPLATE_PATH / 'single_language' / 'language_specific'
     copy_directory_content(common_template, rule_dir)
 
     lang_dir = rule_dir /language
@@ -129,7 +132,7 @@ class RuleCreator:
       token,
       branch_name,
       f'Create rule S{rule_number}',
-      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).',
+      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}',
       [label],
       user
     )
@@ -142,7 +145,7 @@ class RuleCreator:
       token,
       branch_name,
       f'Create rule S{rule_number}',
-      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).',
+      f'You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}',
       labels,
       user
     )

@@ -1,0 +1,515 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+For https://azure.microsoft.com/en-us/services/app-service/[App Service]:
+
+[source,json,diff-id=1,diff-type=noncompliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2022-03-01",
+            "name": "example"
+        }
+    ]
+}
+----
+[source,bicep,diff-id=101,diff-type=noncompliant]
+----
+resource appService 'Microsoft.Web/sites@2022-09-01' = {
+    name: 'example'
+    // Sensitive: no authentication defined
+}
+----
+
+For https://azure.microsoft.com/en-us/services/api-management/[API Management]:
+
+[source,json,diff-id=2,diff-type=noncompliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.ApiManagement/service",
+            "apiVersion": "2022-09-01-preview",
+            "name": "example"
+        }
+    ]
+}
+----
+[source,bicep,diff-id=102,diff-type=noncompliant]
+----
+resource apiManagementService 'Microsoft.ApiManagement/service@2022-09-01-preview' = {
+    name: 'example'
+    // Sensitive: no portal authentication defined
+
+    resource apis 'apis@2022-09-01-preview' = {
+        name: 'exampleApi'
+        properties: {
+            path: '/test'
+            // Sensitive: no API authentication defined
+        }
+    }
+}
+----
+
+For https://azure.microsoft.com/en-us/services/data-factory/[Data Factory] Linked Services:
+
+[source,json,diff-id=3,diff-type=noncompliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.DataFactory/factories/linkedservices",
+            "apiVersion": "2018-06-01",
+            "name": "example",
+            "properties": {
+                "type": "Web",
+                "typeProperties": {
+                    "authenticationType": "Anonymous"
+                }
+            }
+        }
+    ]
+}
+----
+[source,bicep,diff-id=103,diff-type=noncompliant]
+----
+resource linkedService 'Microsoft.DataFactory/factories/linkedservices@2018-06-01' = {
+    name: 'example'
+    properties: {
+        type: 'Web'
+        typeProperties: {
+            authenticationType: 'Anonymous' // Sensitive
+        }
+    }
+}
+----
+
+For https://azure.microsoft.com/en-us/product-categories/storage/[Storage Accounts and Storage Containers]:
+
+[source,json,diff-id=4,diff-type=noncompliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2022-09-01",
+            "name": "example",
+            "properties": {
+                "allowBlobPublicAccess": true
+            }
+        }
+    ]
+}
+----
+[source,bicep,diff-id=104,diff-type=noncompliant]
+----
+resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
+    name: 'example'
+    properties: {
+        allowBlobPublicAccess: true // Sensitive
+    }
+}
+----
+
+[source,json,diff-id=5,diff-type=noncompliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2022-09-01",
+            "name": "example",
+            "resources": [
+                {
+                    "type": "blobServices/containers",
+                    "apiVersion": "2022-09-01",
+                    "name": "blobContainerExample",
+                    "properties": {
+                        "publicAccess": "Blob"
+                    }
+                }
+            ]
+        }
+    ]
+}
+----
+[source,bicep,diff-id=105,diff-type=noncompliant]
+----
+resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
+    name: 'example'
+
+    resource blobService 'blobServices@2022-09-01' = {
+        name: 'default'
+
+        resource containers 'containers@2022-09-01' = {
+            name: 'exampleContainer'
+            properties: {
+                publicAccess: 'Blob' // Sensitive
+            }
+        }
+    }
+}
+----
+
+For https://azure.microsoft.com/en-us/services/cache/[Redis Caches]:
+
+[source,json,diff-id=6,diff-type=noncompliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Cache/redis",
+            "apiVersion": "2022-06-01",
+            "name": "example",
+            "properties": {
+                "redisConfiguration": {
+                    "authnotrequired": "true"
+                }
+            }
+        }
+    ]
+}
+----
+[source,bicep,diff-id=106,diff-type=noncompliant]
+----
+resource redisCache 'Microsoft.Cache/redis@2023-04-01' = {
+    name: 'example'
+    location: location
+    properties: {
+        redisConfiguration: {
+            authnotrequired: 'true' // Sensitive
+        }
+    }
+}
+----
+
+== Compliant Solution
+
+For https://azure.microsoft.com/en-us/services/app-service/[App Services and equivalent]:
+
+[source,json,diff-id=1,diff-type=compliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2022-03-01",
+            "name": "example",
+            "resources": [
+                {
+                    "type": "config",
+                    "apiVersion": "2022-03-01",
+                    "name": "authsettingsV2",
+                    "properties": {
+                        "globalValidation": {
+                            "requireAuthentication": true,
+                            "unauthenticatedClientAction": "RedirectToLoginPage"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
+----
+[source,bicep,diff-id=101,diff-type=compliant]
+----
+resource appService 'Microsoft.Web/sites@2022-09-01' = {
+    name: 'example'
+
+    resource authSettings 'config@2022-09-01' = { // Compliant
+        name: 'authsettingsV2'
+        properties: {
+            globalValidation: {
+                requireAuthentication: true
+                unauthenticatedClientAction: 'AllowAnonymous'
+            }
+            platform: {
+                enabled: true
+            }
+        }
+    }
+}
+----
+
+For https://azure.microsoft.com/en-us/services/api-management/[API Management]:
+
+[source,json,diff-id=2,diff-type=compliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.ApiManagement/service",
+            "apiVersion": "2022-09-01-preview",
+            "name": "example",
+            "resources": [
+                {
+                    "type": "portalsettings",
+                    "apiVersion": "2022-09-01-preview",
+                    "name": "signin",
+                    "properties": {
+                        "enabled": true
+                    }
+                },
+                {
+                    "type": "apis",
+                    "apiVersion": "2022-09-01-preview",
+                    "name": "exampleApi",
+                    "properties": {
+                        "authenticationSettings": {
+                            "openid": {
+                                "bearerTokenSendingMethods": ["authorizationHeader"],
+                                "openidProviderId": "<an OpenID provider ID>"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
+----
+[source,bicep,diff-id=102,diff-type=compliant]
+----
+resource apiManagementService 'Microsoft.ApiManagement/service@2022-09-01-preview' = {
+    name: 'example'
+
+    resource portalSettings 'portalsettings@2022-09-01-preview' = {
+        name: 'signin'
+        properties: {
+            enabled: true // Compliant: Sign-in is enabled for portal access
+        }
+    }
+
+    resource apis 'apis@2022-09-01-preview' = {
+        name: 'exampleApi'
+        properties: {
+            path: '/test'
+            authenticationSettings: { // Compliant: API has authentication enabled
+                openid: {
+                    bearerTokenSendingMethods: ['authorizationHeader']
+                    openidProviderId: '<an OpenID provider ID>'
+                }
+            }
+        }
+    }
+}
+----
+
+For https://azure.microsoft.com/en-us/services/data-factory/[Data Factory] Linked Services:
+
+[source,json,diff-id=3,diff-type=compliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.DataFactory/factories/linkedservices",
+            "apiVersion": "2018-06-01",
+            "name": "example",
+            "properties": {
+                "type": "Web",
+                "typeProperties": {
+                    "authenticationType": "Basic"
+                }
+            }
+        }
+    ]
+}
+----
+[source,bicep,diff-id=103,diff-type=compliant]
+----
+@secure()
+@description('The password for authentication')
+param password string
+
+resource linkedService 'Microsoft.DataFactory/factories/linkedservices@2018-06-01' = {
+    name: 'example'
+    properties: {
+        type: 'Web'
+        typeProperties: {
+            authenticationType: 'Basic' // Compliant
+            username: 'test'
+            password: {
+                type: 'SecureString'
+                value: password
+            }
+        }
+    }
+}
+----
+
+For https://azure.microsoft.com/en-us/product-categories/storage/[Storage Accounts]:
+
+[source,json,diff-id=4,diff-type=compliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2022-09-01",
+            "name": "example",
+            "properties": {
+                "allowBlobPublicAccess": false
+            }
+        }
+    ]
+}
+----
+[source,bicep,diff-id=104,diff-type=compliant]
+----
+resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
+  name: 'example'
+  properties: {
+    allowBlobPublicAccess: false // Compliant
+  }
+}
+----
+
+[source,json,diff-id=5,diff-type=compliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2022-09-01",
+            "name": "example",
+            "resources": [
+                {
+                    "type": "blobServices/containers",
+                    "apiVersion": "2022-09-01",
+                    "name": "blobContainerExample",
+                    "properties": {
+                        "publicAccess": "None"
+                    }
+                }
+            ]
+        }
+    ]
+}
+----
+[source,bicep,diff-id=105,diff-type=compliant]
+----
+resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
+    name: 'example'
+
+    resource blobService 'blobServices@2022-09-01' = {
+        name: 'default'
+
+        resource containers 'containers@2022-09-01' = {
+            name: 'exampleContainer'
+            properties: {
+                publicAccess: 'None' // Compliant
+            }
+        }
+    }
+}
+----
+
+For https://azure.microsoft.com/en-us/services/cache/[Redis Caches]:
+
+[source,json,diff-id=6,diff-type=compliant]
+----
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+        {
+            "type": "Microsoft.Cache/redis",
+            "apiVersion": "2022-06-01",
+            "name": "example",
+            "properties": {
+                "redisConfiguration": {}
+            }
+        }
+    ]
+}
+----
+[source,bicep,diff-id=106,diff-type=compliant]
+----
+resource redisCache 'Microsoft.Cache/redis@2023-04-01' = {
+    name: 'example'
+    location: location
+    properties: {
+        redisConfiguration: {
+            // Compliant: authentication is enabled by default
+        }
+    }
+}
+----
+
+include::../see.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* For ``Microsoft.Web/sites``:
+** If the resource is not found: Omitting ``authsettingsV2`` disables authentication. Make sure it is safe here.
+** If a property of ``authsettingsV2`` is set to an insecure value: Make sure that disabling authentication is safe here.
+
+* For ``Microsoft.ApiManagement/service/portalsettings``:
+** If ``properties.enabled == false``: Make sure that giving anonymous access without enforcing sign-in is safe here.
+** If the resource is not found: Omitting ``sign_in`` authorizes anonymous access. Make sure it is safe here.
+* For ``Microsoft.ApiManagement/service/apis`` (if ``authenticationSettings`` is not set): Omitting ``authenticationSettings`` disables authentication. Make sure it is safe here.
+
+* For ``Microsoft.DataFactory/factories/linkedservices``: Make sure that authorizing anonymous access is safe here.
+
+* For ``Microsoft.Storage/storageAccounts``: Make sure that authorizing potential anonymous access is safe here.
+
+* For ``Microsoft.Storage/storageAccounts/blobServices/containers``: Make sure that authorizing potential anonymous access is safe here.
+
+* For ``Microsoft.Cache/redis``: Make sure that disabling authentication is safe here.
+
+=== Highlighting
+
+* For ``Microsoft.Web/sites``:
+** If ``authsettingsV2`` is not found: Highlight the ``Web/sites`` resource.
+** If a property of ``authsettingsV2`` is set to an insecure value: Highlight that property.
+
+* For ``Microsoft.ApiManagement/service/portalsettings``:
+** If ``properties.enabled == false``: Highlight the property.
+** If the resource is not found: Highlight the ``ApiManagement/service`` resource.
+* For ``Microsoft.ApiManagement/service/apis`` (if ``authenticationSettings`` is not set): Highlight the ``ApiManagement/service/apis`` resource.
+
+* For ``Microsoft.DataFactory/factories/linkedservices``: Highlight the ``authenticationType`` property.
+
+* For ``Microsoft.Storage/storageAccounts``: Highlight the ``properties.allowBlobPublicAccess`` property.
+
+* For ``Microsoft.Storage/storageAccounts/blobServices/containers``: Highlight the ``properties.publicAccess`` property.
+
+* For ``Microsoft.Cache/redis``: Highlight the ``properties.redisConfiguration.authnotrequired`` property.
+
+endif::env-github,rspecator-view[]

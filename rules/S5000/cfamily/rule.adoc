@@ -1,22 +1,25 @@
+The function ``++memcmp++`` only returns meaningful results for objects of trivially copyable types without padding. This includes scalar types, arrays, and trivially copyable classes.
+
 == Why is this an issue?
 
-The function ``++memcmp++`` can only be used for objects of trivially copyable types. This includes scalar types, arrays, and trivially copyable classes. 
+`memcmp` compares the raw memory representation of two objects (what the standard calls their _object representation_). When objects are not trivially copyable or contain padding, they could have different raw memory representations even though they store identical values. So the result of `memcmp` is not meaningful.
 
+Padding refers to the insertion of additional bits into a structure or class to ensure proper alignment of its members in memory. 
 
-A class type is trivially copyable if:
+include::../../../shared_content/cfamily/trivially_copyable_types.adoc[]
 
-* One or more of the following methods is trivial and the rest are deleted: copy constructor, move constructor, copy assignment operator, and move assignment operator,
-* It has a trivial, non-deleted destructor.
+== How to fix it
 
-Additionally, if the type contains padding, some of its bits might be non-representative, and a strict comparison of raw memory contents might lead to the mistaken belief that two identical objects are actually different.
+The comparison operator `operator==` should be defined and used instead of `memcmp` when the types are not trivially copyable or contain padding.
+This allows comparing member by member to check object equality.
 
+=== Code examples
 
-=== Noncompliant code example
+==== Noncompliant code example
 
-[source,cpp]
+[source,c,diff-id=1,diff-type=noncompliant]
 ----
-class Shape { // Trivially copyable, but will contain padding after the bool on most architectures
-public:
+struct Shape { // Trivially copyable, but will contain padding after the bool on most architectures
   bool visible;
   int x;
   int y;
@@ -24,33 +27,71 @@ public:
 
 bool isSame(Shape *s1, Shape *s2)
 {
-    return memcmp(s1, s2, sizeof Shape) == 0; // Noncompliant
+    return memcmp(s1, s2, sizeof(Shape)) == 0; // Noncompliant
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,c,diff-id=1,diff-type=compliant]
 ----
-class Shape {
-public:
+struct Shape { // Trivially copyable, but will contain padding after the bool on most architectures
   bool visible;
   int x;
   int y;
 };
 
-bool operator==(Shape const &s1, Shape const &s2) {
-  return s1.visible == s2.visible && s1.x == s2.x && s1.y == s2.y;
-}
-
 bool isSame(Shape *s1, Shape *s2)
 {
-    return (*s1) == (*s2);
+  return s1->visible == s2->visible && s1->x == s2->x && s1->y == s2->y;
 }
 ----
 
+==== Noncompliant code example
 
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+class Resource { // Not trivially copyable
+public:
+  Ptr* ptr;
+  ~Resource();
+};
+
+bool isSame(Resource *r1, Resource *r2)
+{
+    return memcmp(r1, r2, sizeof(Resource)) == 0; // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class Resource { // Not trivially copyable
+public:
+  Ptr* ptr;
+  ~Resource();
+};
+
+bool operator==(Resource const &r1, Resource const &r2) {
+  return r1.ptr == r2.ptr;
+}
+
+bool isSame(Resource *r1, Resource *r2)
+{
+    return (*r1) == (*r2);
+}
+----
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/classes#Trivially_copyable_class[Definition of a trivially copyable class].
+
+=== Related rules
+
+* S4999 - "memcpy", "memmove", and "memset" should only be called with pointers to trivially copyable types
 
 ifdef::env-github,rspecator-view[]
 
@@ -58,11 +99,21 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Use "operator==" to check object equality, "XXX" is not a trivially copyable type without padding.
+
+Compare member by member to check object equality, "XXX" contains padding.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 6 Nov 2018, 20:43:32 Ann Campbell wrote:
+Double-check me [~loic.joly]
+
+=== on 7 Nov 2018, 08:57:39 Loïc Joly wrote:
+Looks good to me.
+
 endif::env-github,rspecator-view[]

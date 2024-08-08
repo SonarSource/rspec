@@ -1,63 +1,239 @@
+This rule reports an issue when the use of ``++std::move++`` prevents the copy elision optimizations from happening.
+
 == Why is this an issue?
 
-Usually, when copying an object, the source object is unchanged, which means that all resources owned by the source objects have to be duplicated during the copy operation. In the case that the source object will no longer be used, this duplication is not efficient. Since {cpp}11, a mechanism named move semantic has been added to detect such cases and replace the expensive copy by a much cheaper move operation that will steal resources.
+Usually, when copying an object, the source object is unchanged, 
+meaning all resources owned by the source objects must be duplicated during the copy operation. 
+If the source object is no longer used, this duplication is inefficient. 
+Since {cpp}11, a move semantic mechanism has been added to detect such cases and replace the expensive copy with a much cheaper move operation that will transfer resources.
 
+The cornerstone of move semantics is detecting during a "copy" whether the source object will be reused or not. 
+This can be done explicitly by the user, by invoking `std::move` (or different casts to rvalue) on the object.
+In such case the user promises to the compiler that they won't care for the object's current value any longer.
+In addition, the compiler will implicitly use a move operation or skip copying the object in some situations.
 
-The cornerstone of move semantic is the ability to detect during a "copy" if the source object will be reused or not. There are three situations:
+One case of optimization is that the copy will be elided or automatically turned into a move operation
+when a temporary object of type `T`:
 
-* The object is a temporary object, with no name, and if it can't be named, it can't be used
-* The object is used in some specific places, such as a return statement
-* The user explicitly promises to the compiler that he won't care for the current value of the object any longer. He does so by using the specific cast operation named ``++std::move++``. 
-
-If the user write ``++std::move++`` in one situation that is already handled by the first two cases, it has two drawbacks:
-
-* It is clumsy, useless code, which make understanding the code more complex
-* In some cases, it can decrease performances, because this can deactivate another optimization of the compiler, named copy elision.
-
-When copy elision occurs, the object is neither copied nor moved (even if the copy/move constructors have side effects), in fact, the two objects are collapsed into only one memory location. When copy elision occurs is compiler-dependent, but is mandatory in the following cases:
-
-
-* in a return statement if the returned object is a prvalue of the same class type as the function return type
-* in the initialization of a variable if the initializer expression is a prvalue of the same class type as the variable type
-
-This rule reports an issue when the use of ``++std::move++`` prevents the copy elision from happening.
-
-
-=== Noncompliant code example
+* is used to initialize a parameter or variable of type `T` or `const T`
+* is returned from the function that declares `T` or `const T` as return type
 
 [source,cpp]
+----
+class A {/* ... */};
+A create();
+
+void asParam(A a);
+
+A returnedFromFunc() {
+  // For all examples below, the object will not be copied.
+  // Either no copy or move will be performed (as guaranteed optimization since C++17)
+  // or a move operation will be used.
+  A a = create();
+  asParam(createA()); 
+  return A();
+}
+----
+
+Calling `std::move` on such an object is not only unnecessary but will also prevent the compiler from performing copy elision,
+and the rule raises issues in that case.
+[source,cpp]
+----
+class A {/* ... */};
+A create();
+
+void asParam(A a);
+
+A returnedFromFunc() {
+  // Move operations need to be performed, and cannot be elided.
+  A a = std::move(create());     // Noncompliant
+  asParam(std::move(createA())); // Noncompliant
+  return std::move(A());         // Noncompliant
+}
+----
+
+Another case of optimization is that under certain conditions, the local variable or function parameter is implicitly moved
+if it is directly returned (`return x`) from the function.
+
+In particular, when a variable of type `T` is returned directly from the function that declares `T` or `const T`
+as a return type:
+[source,cpp]
+----
+class A {/* ... */};
+
+A returnedLocalVar() {
+  A a = create();
+  // Variable a is automatically moved here
+  return a;
+}
+----
+
+These conditions overlap with the conditions under which copy elision optimization,
+referred to as Named Return Value Optimization (NRVO) can be performed by the compiler. 
+When this optimization is applied the local variable is returned without any copy or move operation being performed.
+
+In this case, adding `std::move` to the return statement will inhibit this optimization,
+and the rule raises an issue.
+[source,cpp]
+----
+class A {/* ... */};
+
+A returnedLocalVar() {
+  A a = create();
+  // Variable a is moved, but NRVO cannot be performed
+  return std::move(a); // Noncompliant
+}
+----
+
+
+=== Why is the issue raised if my class does not have a move constructor?
+
+A move itself is not performing any object operation, and casting a source to `rvalue`.
+This leads to the constructor and assignment operator that accepts rvalue reference as a parameter -
+also referred to as move constructor and move assignment - to be selected by the overload resolution.
+However, when the class does not provide such a constructor,
+a copy constructor/assignment will be invoked respectively.
+
+Such invocation of copy constructor may still be eliminated by copy elision optimizations,
+and thus redundant `std::move` calls, that inhibit such optimization, have a performance impact in such situations.
+
+[source,cpp]
+----
+class OnlyCopyable {
+  OnlyCopyable(OnlyCopyable const&);
+  /* No move constructor */
+};
+OnlyCopyable create();
+
+void test() {
+  // Forces a move operation, that invokes copy constructor
+  OnlyCopyable c1 = std::move(create()); // Noncompliant
+  // Copy elision eliminates invocation of the copy constructor
+  OnlyCopyable c2 = create(); // Compliant
+}
+----
+
+=== Why is an issue raised when passing an argument to a reference parameter?
+
+The copy elision optimization happens only if a new value is produced from the source,
+not if the parameter is a reference to the same type:
+
+[source,cpp]
+----
+void process(A&& sink);
+
+void passArgument() {
+  // No move operation is triggered, as the parameter is a reference to A
+  process(std::move(create())); // Noncompliant
+  process(create());            // Compliant
+}
+----
+
+Such redundant calls to `std::move` are not inhibiting optimization at this point.
+However, when the `process` function is modified to accept `A` by value,
+it will prevent the compiler from eliminating the move operation altogether.
+To fully benefit from the performance impact of this change, 
+the maintainers would need to review and update all call sites and process functions,
+reducing the maintainability of the code.
+
+Moreover, if the parameter is a reference to a type to which the argument is converted,
+then copy elision may still happen when calling the converting constructor.
+[source,cpp]
+----
+class B {
+  // Converting constructor takes object B by value
+  B(A a); 
+};
+void processB(B&& sink);
+
+void passArgument() {
+  processB(create());            // Compliant
+  processB(std::move(create())); // Noncompliant, inhibits copy elision when initializing constructor parameter
+  // This call is equivalent to:
+  processB(B(std::move(create()))); // Noncompliant, inhibits copy elision when initializing constructor parameter 
+}
+----
+
+=== Why issues are not raised for all redundant moves?
+
+The requirements from performing an implicit move were relaxed in {cpp}20 and {cpp}23 standards,
+with some of them being applied retroactively.
+As a consequence depending on the standard and compiler versions, 
+a call to `std::move` may or may not be redundant in the return statement,
+and thus required for the code to be portable accross compilers.
+
+== How to fix it
+
+Remove the call to `std::move` flagged by the rule.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 class A {};
 A getA();
 
 A f() {
   A a = std::move(getA()); // Noncompliant, prevents copy elision
-  vector<A> v;
-  v.push_back(std::move(getA())); // Noncompliant
-  return std::move(a); // Noncompliant, prevents copy elision
+  return std::move(a); // Noncompliant
 }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 class A {};
-void test(A a);
+A getA();
 
 A f() {
   A a = getA(); // Compliant
-  vector<A> v;
-  v.push_back(getA()); // Compliant
   return a; // Compliant
+}
+----
+
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+class A {};
+A getA();
+
+void f() {
+  std::vector<A> v;
+  v.push_back(std::move(getA())); // Noncompliant
+}
+----
+
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class A {};
+A getA();
+
+void f() {
+  std::vector<A> v;
+  v.push_back(getA()); // Compliant
 }
 ----
 
 
 == Resources
 
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#i4-make-interfaces-precisely-and-strongly-typed[{cpp} Core Guidelines I.4]: Don’t return std::move(local)
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/copy_elision[Copy elision]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/move[std::move]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f48-dont-return-stdmovelocal[F.48: Don't `return std::move(local)`]
 
 
 ifdef::env-github,rspecator-view[]
@@ -66,11 +242,22 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Moving a temporary object prevents copy elision.
+
+Moving a temporary object is useless.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== is duplicated by: S5412
+
+=== is related to: S5415
+
+=== on 3 Sep 2019, 18:01:27 Loïc Joly wrote:
+\[~geoffray.adde]: Could you please review the changed I made to this RSPEC?
+
 endif::env-github,rspecator-view[]

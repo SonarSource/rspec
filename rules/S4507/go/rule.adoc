@@ -1,0 +1,191 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+For https://pkg.go.dev/runtime/debug[debug package in Go Standard Library:]
+
+``++debug.PrintStack()++`` prints a stack trace to the standard error output (by default) which can expose sensitive information:
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+import "runtime/debug"
+
+_, err := funcThatFails()
+if err != nil {
+    fmt.Printf("Error calling funcThatFails: %v\n", err)
+    debug.PrintStack() // Sensitive
+    return
+}
+----
+
+For https://pkg.go.dev/runtime/pprof[pprof package in Go Standard Library:]
+
+[source,go,diff-id=2,diff-type=noncompliant]
+----
+func main() {
+    pprof.Lookup("goroutine").WriteTo(os.Stdout, 1) // Sensitive
+}
+----
+
+For https://pkg.go.dev/net/http/pprof[http/pprof package in Go Standard Library:]
+
+Importing ``++net/http/pprof++`` adds several https://pkg.go.dev/net/http/pprof[HTTP handlers] that expose runtime profiling data about the current process:
+
+[source,go,diff-id=3,diff-type=noncompliant]
+----
+import (
+    "net/http"
+    _ "net/http/pprof" // Sensitive
+)
+
+func main() {
+    // Start an HTTP server that will reply (because of the importation of "net/http/pprof") to various commands
+    http.ListenAndServe(":6060", nil)
+}
+----
+
+For https://pkg.go.dev/net/http/httputil[httputil package in Go Standard Library:]
+
+``++httputil.DumpRequest()++`` generates a dump of an HTTP request and can expose sensitive information:
+
+[source,go,diff-id=4,diff-type=noncompliant]
+----
+func requestHandler(w http.ResponseWriter, req *http.Request) {
+    dump, err := httputil.DumpRequest(req, true) // Sensitive
+    if err == nil {
+        fmt.Printf("%q", dump)
+        return
+    }
+    ...
+}
+----
+
+For https://pkg.go.dev/gorm.io/gorm[GORM Library:]
+
+ORM libraries like GORM often allow logging SQL queries that may expose sensitive information:
+
+[source,go,diff-id=5,diff-type=noncompliant]
+----
+import (
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+)
+
+db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{
+    Logger: logger.Default.LogMode(logger.Info), // Sensitive
+})
+if err != nil {
+    panic("failed to connect database")
+}
+
+db.Debug().Create(&User{Account: acccount, Password: password}) // Sensitive
+----
+
+== Compliant Solution
+
+For https://pkg.go.dev/runtime/debug[debug package in Go Standard Library:]
+
+Stack trace should not be printed in production:
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+_, err := funcThatFails()
+if err != nil {
+    fmt.Printf("Error calling funcThatFails: %v\n", err)
+    // Compliant: Does not call debug.PrintStack()
+    return
+}
+----
+
+For https://pkg.go.dev/runtime/pprof[pprof package in Go Standard Library:]
+
+Avoid calling methods such as `pprof.Profile.WriteTo` in production.
+
+[source,go,diff-id=2,diff-type=compliant]
+----
+func main() {
+    // Compliant: Does not call pprof.Profile.WriteTo
+}
+----
+
+For https://pkg.go.dev/net/http/pprof[http/pprof package in Go Standard Library:]
+
+Do not import ``++net/http/pprof++`` or ensure the HTTP handlers can't be accessed by end-users.
+
+[source,go,diff-id=3,diff-type=compliant]
+----
+import (
+    "net/http"
+    // Compliant: Does not import "net/http/pprof"
+)
+
+func main() {
+    // Start an HTTP server
+    http.ListenAndServe(":6060", nil)
+}
+----
+
+For https://pkg.go.dev/net/http/httputil[httputil package in Go Standard Library:]
+
+Avoid calling methods such as `httputil.DumpRequest()` in production.
+
+[source,go,diff-id=4,diff-type=compliant]
+----
+func requestHandler(w http.ResponseWriter, req *http.Request) {
+     // Compliant: Does not call httputil.DumpRequest
+}
+----
+
+For https://pkg.go.dev/gorm.io/gorm[GORM Library:]
+
+Configure loggers to not log debug-level information. GORM writes debug-level information when configured with the `Info` logging mode. Avoid using the `DB.Debug()` method as it creates a new `Session` that always logs debug-level information.
+
+[source,go,diff-id=5,diff-type=compliant]
+----
+import (
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+)
+
+db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{
+    Logger: logger.Default.LogMode(logger.Warn), // Compliant
+})
+if err != nil {
+    panic("failed to connect database")
+}
+
+db.Create(&User{Account: acccount, Password: password}) // Compliant: Debug() is not called
+----
+
+include::../see.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+=== Highlighting
+
+Highlight the following:
+
+* The function ``++PrintStack++`` from the package ``++runtime/debug++``.
+* The method ``++WriteTo++`` of the type ``++Profile++`` from the package ``++runtime/pprof++``.
+* The name of the package ``++net/http/pprof++`` when it is imported.
+* The functions ``++DumpRequest++`` and ``++DumpResponse++`` from the package ``++net/http/httputil++``.
+* The method ``++Debug++`` of the type ``++DB++`` from the package ``++gorm.io/gorm++``.
+* The value `Info` of the type ``++LogLevel++`` from the package ``++gorm.io/gorm++``.
+
+'''
+== Comments And Links
+(visible only on this page)
+
+include::../comments-and-links.adoc[]
+
+endif::env-github,rspecator-view[]

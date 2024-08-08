@@ -1,25 +1,125 @@
+Generic types should not be used raw (without type arguments).
+To fix this issue, add the type parameters.
+
 == Why is this an issue?
 
-Generic types shouldn't be used raw (without type parameters) in variable declarations or return values. Doing so bypasses generic type checking, and defers the catch of unsafe code to runtime.
+A generic type is a generic class or interface that is parameterized over types.
+For example, `java.util.List` has one type parameter: the type of its elements.
 
+Using generic types raw (without binding arguments to the type parameters) prevents compile-time type checking for expressions that use these type parameters.
+Explicit type casts are necessary for them, which do perform a runtime type check that may fail with a `ClassCastException`.
 
-=== Noncompliant code example
+=== What is the potential impact?
 
-[source,java]
+The compiler cannot assert that the program is inherently type safe.
+When a cast fails, a `ClassCastException` is thrown during runtime and the program most likely crashes.
+Therefore, this issue might impact the availability and reliability of your application.
+
+=== Exceptions
+
+The rule does not raise an issue for the simple `instanceof` operator, which checks against runtime types where type parameter information has been erased.
+Since it does not return a rawly typed instance but a boolean value, it does not prevent compile-time type checking.
+
+This, however, is not the case for the `cast`  operator as well as the extended `instanceof` operator which are both not an exception from this rule.
+Since they operate on the erased runtime type as well, they must use wildcard type arguments when checked against a parameterized type (see the examples).
+
+== How to fix it
+
+For any usage of parameterized types, bind the type parameters with type arguments.
+For example, when a function returns a list of strings, the return type is `List<String>`, where the type parameter `E` in interface `List<E>` is bound with the argument `String`.
+
+If the concrete binding is unknown, you still should not use the type raw.
+Use a wildcard type argument instead, with optional lower or upper bound, such as in `List<?>` for a list whose element type is unknown,
+or `List<? extends Number>` for a list whose element type is `Number` or a subtype of it.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-List myList; // Noncompliant 
-Set mySet; // Noncompliant
+// List is supposed to store integers only
+List integers = new ArrayList<>();
+
+// Yet, we can add strings, because we did not give
+// this information to the compiler
+integers.add("Hello World!");
+
+// Type is checked during runtime and will throw a ClassCastException
+Integer a = (Integer) integers.get(0);
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-List<String> myList;
-Set<? extends Number> mySet;
+// List is supposed to store integers, and we let the compiler know
+List<Integer> integers = new ArrayList<>();
+
+// Now we can add only integers.
+// Adding a string results in a compile time error.
+integers.add(42);
+
+// No cast required anymore, and no possible ClassCastException
+Integer a = integers.get(0);
 ----
 
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+String getStringFromForcedList(Object object) {
+  // Cast expression and instanceof can check runtime type only.
+  // The solution is _not_ to skip the type argument in that case.
+  return object instanceof List stringList ? (String) stringList.getFirst(): "";
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+String getStringFromForcedList(Object object) {
+  // The solution is to use a wildcard type argument in that case.
+  return object instanceof List<?> stringList ? (String) stringList.getFirst(): "";
+}
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+String getStringFromForcedList(Object object) {
+  return object instanceof List stringList ? (String) stringList.getFirst(): "";
+}
+
+String returnString() {
+  Object object = List.of("Hello");
+  return getStringFromForcedList(object);
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+Object getObjectFromForcedList(Object object) {
+  // You may also choose not to make assumptions about type arguments you cannot infer.
+  return object instanceof List<?> list ? list.getFirst(): "";
+}
+
+String returnString(Object object) {
+  // Instead, delegate the decision to use-site, which may have more information.
+  Object object = List.of("Hello");
+  return (String) getObjectFromForcedList(object);
+}
+----
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/javase/tutorial/java/generics/rawTypes.html[Raw types] in the Java Tutorial.
 
 
 ifdef::env-github,rspecator-view[]
@@ -28,13 +128,24 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
 
-include::highlighting.adoc[]
+Provide the parametrised type for this generic.
+
+
+=== Highlighting
+
+type name
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 31 Oct 2018, 09:35:37 Nicolas Peru wrote:
+\[~alexandre.gigleux] I would suggest title to be reworked to : Don't use raw types. The wording seems dodgy.
+
+=== on 31 Oct 2018, 12:31:09 Ann Campbell wrote:
+"Raw types should not be used"?
+
 endif::env-github,rspecator-view[]

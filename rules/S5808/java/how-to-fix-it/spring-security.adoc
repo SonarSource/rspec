@@ -1,0 +1,81 @@
+== How to fix it in Spring
+
+=== Code examples
+
+==== Noncompliant code example
+
+The ``++vote++`` method of an https://docs.spring.io/spring-security/site/docs/6.1.x/api/org/springframework/security/access/AccessDecisionVoter.html[AccessDecisionVoter] implementation is not compliant when it returns only an affirmative decision (``++ACCESS_GRANTED++``) or abstains to make a decision (``++ACCESS_ABSTAIN++``):
+
+[source,java,diff-id=101,diff-type=noncompliant]
+----
+public class WeakNightVoter implements AccessDecisionVoter {
+    @Override
+    public int vote(Authentication authentication, Object object, Collection collection) {
+        Calendar calendar = Calendar.getInstance();
+        int currentHour = calendar.get(Calendar.HOUR_OF_DAY);
+
+        if (currentHour >= 8 && currentHour <= 19) {
+            return ACCESS_GRANTED;
+        }
+
+        return ACCESS_ABSTAIN; // Noncompliant: when users connect during the night, no decision is made
+    }
+}
+----
+
+The ``++hasPermission++`` method of a https://docs.spring.io/spring-security/site/docs/6.1.x/api/org/springframework/security/access/PermissionEvaluator.html[PermissionEvaluator] implementation is not compliant when it doesn't return ``++false++``:
+
+[source,java,diff-id=102,diff-type=noncompliant]
+----
+public class MyPermissionEvaluator implements PermissionEvaluator {
+    @Override
+    public boolean hasPermission(Authentication authentication, Object targetDomainObject, Object permission) {
+        Object user = authentication.getPrincipal();
+
+        if (user.getRole().equals(permission)) {
+              return true;
+        }
+
+        return true; // Noncompliant
+    }
+} 
+----
+
+==== Compliant solution
+
+The ``++vote++`` method of an https://docs.spring.io/spring-security/site/docs/4.0.x/apidocs/org/springframework/security/access/AccessDecisionVoter.html[AccessDecisionVoter] implementation should return a negative decision (``++ACCESS_DENIED++``):
+
+[source,java,diff-id=101,diff-type=compliant]
+----
+public class StrongNightVoter implements AccessDecisionVoter {
+    @Override
+    public int vote(Authentication authentication, Object object, Collection collection) {
+        Calendar calendar = Calendar.getInstance();
+        int currentHour = calendar.get(Calendar.HOUR_OF_DAY);
+
+        if (currentHour >= 8 && currentHour <= 19) {
+            return ACCESS_GRANTED;
+        }
+        
+        return ACCESS_DENIED; // Users are not allowed to connect during the night
+    }
+}
+----
+
+The ``++hasPermission++`` method of a https://docs.spring.io/spring-security/site/docs/4.2.13.RELEASE/apidocs/org/springframework/security/access/PermissionEvaluator.html[PermissionEvaluator] implementation should return ``++false++``:
+
+[source,java,diff-id=102,diff-type=compliant]
+----
+public class MyPermissionEvaluator implements PermissionEvaluator {
+    @Override
+    public boolean hasPermission(Authentication authentication, Object targetDomainObject, Object permission) {
+        Object user = authentication.getPrincipal();
+
+        if (user.getRole().equals(permission)) {
+              return true;
+        }
+
+        return false;
+    }
+} 
+----

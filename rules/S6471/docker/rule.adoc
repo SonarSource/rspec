@@ -1,7 +1,8 @@
 Running containers as a privileged user weakens their runtime security,
 allowing any user whose code runs on the container to perform administrative
 actions. +
-In Linux containers, the privileged user is usually named `root`. In Windows containers, the equivalent is `ContainerAdministrator`.
+In Linux containers, the privileged user is usually named `root`. In Windows
+containers, the equivalent is `ContainerAdministrator`.
 
 A malicious user can run code on a system either thanks to actions that could
 be deemed legitimate - depending on internal business logic or operational
@@ -11,9 +12,12 @@ code execution after exploiting a service that the container hosts.
 Suppose the container is not hardened to prevent using a shell, interpreter, or
 https://man7.org/linux/man-pages/man7/capabilities.7.html[Linux capabilities].
 In this case, the malicious user can read and exfiltrate any file (including
-from Docker volumes), open new network connections, install malicious software,
-or, worse, break out of the container's isolation context by exploiting other
+Docker volumes), open new network connections, install malicious software, or,
+worse, break out of the container's isolation context by exploiting other
 components.
+
+This means giving the possibility to attackers to steal important
+infrastructure files, intellectual property, or personal data.
 
 Depending on the infrastructure's resilience, attackers may then extend their
 attack to other services, such as Kubernetes clusters or cloud providers, in
@@ -23,7 +27,7 @@ order to maximize their reach.
 
 This container:
 
-* Serves internet-facing services.
+* Serves services accessible from the Internet.
 * Does not require a privileged user to run.
 
 There is a risk if you answered yes to any of those questions.
@@ -62,13 +66,13 @@ the `USER` instruction with a non-root user:
 
 [source,docker]
 ----
-FROM alpine as builder
+FROM alpine AS builder
 COPY Makefile ./src /
 RUN make build
 USER nonroot
 
 # Sensitive, previous user settings are dropped
-FROM alpine as runtime
+FROM alpine AS runtime
 COPY --from=builder bin/production /app
 ENTRYPOINT ["/app/production"]
 ----
@@ -76,7 +80,8 @@ ENTRYPOINT ["/app/production"]
 
 == Compliant Solution
 
-For Linux-based images:
+For Linux-based images and scratch-based images that untar a Linux
+distribution:
 
 [source,docker]
 ----
@@ -101,42 +106,8 @@ RUN net user /add nonroot
 USER nonroot
 ----
 
-If the `scratch` Dockerfile untars a Linux distribution, the "Linux image"
-solution should be applied. Else, you have a choice between using a pre-written
-`/etc/passwd` file (regardless of the host operating system) or using a
-multi-stage build.
+For multi-stage builds, the non-root user should be on the last stage:
 
-[source,docker]
-----
-FROM scratch
-
-COPY etc_passwd /etc/passwd
-# contains "nonroot:x:1337:1337:nonroot:/nonroot:/usr/sbin/nologin"
-
-USER nonroot
-
-COPY production_binary /app
-
-ENTRYPOINT ["/app/production_binary"]
-----
-
-or you can use a multi-stage build:
-
-[source,docker]
-----
-FROM alpine:latest as security_provider
-RUN addgroup -S nonroot \
-    && adduser -S nonroot -G nonroot
-
-FROM scratch as production
-COPY --from=security_provider /etc/passwd /etc/passwd
-USER nonroot
-COPY production_binary /app
-ENTRYPOINT ["/app/production_binary"]
-----
-
-
-For multi-stage builds:
 [source,docker]
 ----
 FROM alpine as builder
@@ -151,9 +122,28 @@ USER nonroot
 ENTRYPOINT ["/app/production"]
 ----
 
+For images that use `scratch` as their base, it is not possible to add non-privileged
+users by default. To do this, add an additional build stage to add the group
+and user, and later copy `/etc/passwd`.
+
+Here is an example that uses `adduser` in the first stage to generate a user and add it to the `/etc/passwd` file. In the next stage, this user is added by copying that file over from the previous stage:
+
+[source,docker]
+----
+FROM alpine:latest as security_provider
+RUN addgroup -S nonroot \
+    && adduser -S nonroot -G nonroot
+
+FROM scratch as production
+COPY --from=security_provider /etc/passwd /etc/passwd
+USER nonroot
+COPY production_binary /app
+ENTRYPOINT ["/app/production_binary"]
+----
+
 == See
 
-* https://cwe.mitre.org/data/definitions/284.html[MITRE, CWE-284] - Improper Access Control
+* CWE - https://cwe.mitre.org/data/definitions/284[CWE-284 - Improper Access Control]
 * https://hub.docker.com/r/nginxinc/nginx-unprivileged[nginxinc/nginx-unprivileged: Example of a non-root container by default]
 * https://learn.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/container-security#when-to-use-containeradmin-and-containeruser-user-accounts[Microsoft docs, When to use ContainerAdmin and ContainerUser user accounts]
 

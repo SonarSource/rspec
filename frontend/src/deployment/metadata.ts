@@ -4,12 +4,10 @@ import path from 'path';
 import { LanguageSupport } from '../types/RuleMetadata';
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 
-type Metadata = any;
-
 /**
  * Save the given metadata to disk.
  */
-function writeRuleMetadata(dstDir: string, filename: string, metadata: Metadata) {
+function writeRuleMetadata(dstDir: string, filename: string, metadata: {}) {
   const file = path.join(dstDir, filename);
   fs.writeFileSync(file, JSON.stringify(metadata), { encoding: 'utf8' });
 }
@@ -71,7 +69,16 @@ export function generateOneRuleMetadata(srcDir: string, dstDir: string, branch: 
   const languageSupports =
     allMetadata.map(m => ({ name: m.language, status: m.metadata.status } as LanguageSupport));
 
-  const allKeys = getAllKeys(allMetadata);
+  // Needed to fetch the sqKey, that might be overridden with a legacy key in each language
+  const genericMetadata = getRuleMetadata(srcDir);
+  const metadatasWithAllKeys = [...allMetadata];
+
+  // The rule directory might contain an empty metadata.json
+  if ('sqKey' in genericMetadata) {
+    metadatasWithAllKeys.push({ 'language': 'default', 'metadata': genericMetadata });
+  }
+
+  const allKeys = getAllKeys(metadatasWithAllKeys);
   allMetadata.forEach(({ metadata }) => {
     metadata.allKeys = allKeys;
     if (prUrl) {

@@ -1,23 +1,26 @@
 == Why is this an issue?
 
-{cpp}20 introduces the "spaceship" ``++operator<=>++`` that replaces all the other comparison operators in most cases. When this operator is defined, the compiler can rewrite expressions using ``++<++``, ``++<=++``, ``++>++`` and ``++>=++`` to use this operator instead. This presents three advantages: 
+{cpp}20 introduces the "spaceship" ``++operator<=>++`` that replaces all the other comparison operators in most cases. When this operator is defined, the compiler can rewrite expressions using ``++<++``, ``++<=++``, ``++>++`` and ``++>=++`` to use this operator instead. This presents three advantages:
 
-* Less code to write (and therefore fewer bugs too),
+* Less code to write (and therefore fewer bugs, too),
 * Guaranteed consistency between all the comparison operators (for instance, in this situation, ``++a < b++`` and ``++!(a >= b)++`` will always return the same value).
-* Guaranteed symmetry for comparisons: If you can write ``++a<b++``, and that operation is resolved through ``++operator<=>++``, you can also write ``++b<a++``, and get a consistent result. Achieving the same result with classical comparison operators require to double the number overloads if ``++a++`` and ``++b++`` are of different types. 
+* Guaranteed symmetry for comparisons: if you can write ``++a < b++``, and that operation is resolved through ``++operator<=>++``, you can also write ``++b < a++``, and get a consistent result. Achieving the same result with classical comparison operators requires twice as many overloads if ``++a++`` and ``++b++`` have different types.
 
-Additionally, if the ``++operator<=>++`` has the defaulted implementation, the compiler can also implicitly generate a defaulted implementation of operator==, simplifying the class definition one step further.
-
-
-Before {cpp}20, if was common to provide only ``++operator<++`` for a class, and ask the user of this class to write all his code only using this operator (this is what ``++std::map++`` requires of its key type, for instance). It is still advised in this case to replace the operator with ``++<=>++``: The quantity of required work is similar, and the user of the class will benefit from a much greater expressivity.
+Additionally, if the ``++operator<=>++`` has the defaulted implementation, the compiler can implicitly generate a defaulted implementation of `operator==`, simplifying the class definition one step further.
 
 
-This rule reports user-provided comparison operators (member functions or free functions) ``++<++``, ``++<=++``, ``++>++`` and ``++>=++``.
+Before {cpp}20, it was common to provide only ``++operator<++`` for a class and ask the users of this class to write all their code only using this operator (this is what ``++std::map++`` requires of its key type, for instance). In this case, it is still advised to replace the operator with ``++<=>++``: the quantity of required work is similar, and users of the class will benefit from a much greater expressivity.
 
 
-=== Noncompliant code example
+== How to fix it
 
-[source,cpp]
+This rule reports user-provided comparison operators (member functions or free functions) ``++<++``, ``++<=++``, ``++>++`` and ``++>=++`` that could be replaced by defining the ``++operator<=>++``.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 class A { // Noncompliant: defines operator< that can be replaced with operator<=>
   int field;
@@ -26,34 +29,11 @@ class A { // Noncompliant: defines operator< that can be replaced with operator<
       return field < other.field;
     }
 };
-class C;
-class B { // Noncompliant: defines 12 comparison operators that can be replaced with 2 operators
-  int field;
-  public:
-    bool operator==(const C&) const;
-    bool operator!=(const C&) const;
-    bool operator<=(const C&) const;
-    bool operator<(const C&) const;
-    bool operator>=(const C&) const;
-    bool operator>(const C&) const;
-    friend bool operator==(const C&, const B&);
-    friend bool operator!=(const C&, const B&);
-    friend bool operator<=(const C&, const B&);
-    friend bool operator<(const C&, const B&);
-    friend bool operator>=(const C&, const B&);
-    friend bool operator>(const C&, const B&);
-};
-
-enum class MyEnum {low = 1, high = 2};
-bool operator<(MyEnum lhs, MyEnum rhs) { // Noncompliant: can be replaced with operator<=>
-    return static_cast<int>(lhs) < static_cast<int>(rhs);
-}
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
 class A {
   int field;
@@ -61,14 +41,63 @@ class A {
     auto operator<=>(const A& other) const = default;
     // Note that here, operator == will be implicitly defaulted
 };
-class B { // Compliant. the same comparisons are possible as with the 12 operators
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+class B;
+
+class C { // Noncompliant: defines 12 comparison operators that can be replaced with 2 operators
   int field;
   public:
-    auto operator<=>(const C&) const;
-    auto operator==(const C&) const;
+    bool operator==(const B&) const;
+    bool operator!=(const B&) const;
+    bool operator<=(const B&) const;
+    bool operator<(const B&) const;
+    bool operator>=(const B&) const;
+    bool operator>(const B&) const;
+    friend bool operator==(const B&, const C&);
+    friend bool operator!=(const B&, const C&);
+    friend bool operator<=(const B&, const C&);
+    friend bool operator<(const B&, const C&);
+    friend bool operator>=(const B&, const C&);
+    friend bool operator>(const B&, const C&);
 };
+----
 
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class B;
+
+class C { // Compliant. the same comparisons are possible as with the 12 operators
+  int field;
+  public:
+    auto operator<=>(const B&) const;
+    auto operator==(const B&) const;
+};
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
 enum class MyEnum {low = 1, high = 2};
+
+bool operator<(MyEnum lhs, MyEnum rhs) { // Noncompliant: can be replaced with operator<=>
+    return static_cast<int>(lhs) < static_cast<int>(rhs);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+enum class MyEnum {low = 1, high = 2};
+
 auto operator<=>(MyEnum lhs, MyEnum rhs) {
     return static_cast<int>(lhs) <=> static_cast<int>(rhs);
 }
@@ -77,7 +106,14 @@ auto operator<=>(MyEnum lhs, MyEnum rhs) {
 
 == Resources
 
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/operator_comparison#Three-way_comparison[Three-way comparison]
+
+=== Related rules
+
 * S6186 - Redundant comparison operators should not be defined.
+* S6230 - Comparision operators (``++<=>++``, `==`) should be defaulted unless non-default behavior is required
 
 
 ifdef::env-github,rspecator-view[]
@@ -85,5 +121,8 @@ ifdef::env-github,rspecator-view[]
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== relates to: S6186
+
+=== is related to: S6230
+
 endif::env-github,rspecator-view[]

@@ -3,10 +3,10 @@
 An inherited member function can be hidden in a derived class and that creates a class that behaves differently depending on which interface is used to manipulate it.
 
 
-Overriding happens when the inherited method is virtual and a method declared in the derived class uses the same identifier as well as the same signature (the return types can be different, as long as they are covariant). However, if the inherited method is non-virtual or if the two declarations of the method do not share the same signature, the method of the base class will be hidden.
+Overriding happens when the inherited method is virtual and a method declared in the derived class uses the same identifier as well as the same signature (the return types can be different, as long as they are https://en.wikipedia.org/wiki/Covariance_and_contravariance_(computer_science)[covariant]). However, if the inherited method is non-virtual or if the two declarations of the method do not share the same signature, the method of the base class will be hidden.
 
 
-Such a class increases the inheritance complexity, and confuses consumers with its non-polymorphic behavior, which can lead to errors.
+Such a class increases the inheritance complexity and confuses consumers with its non-polymorphic behavior, which can lead to errors.
 
 
 === Noncompliant code example
@@ -56,10 +56,88 @@ void stopServer(Base *obj) {
 }
 ----
 
+== How to fix it
+The first step is to determine what is the expected behavior. Let us see two common situations.
+
+////
+- You want the derived class function to override a base class function instead of hiding it. In that case, mark the function as `virtual` in the base class and as `override` in the derived class.
+- You want the derived class to extend the overload set for the function in the base class. To do so, add a using declaration to import the base class functions in the derived class and avoid hiding.
+////
+=== Function that should have been virtual
+
+In the following example, the intent for the `draw` function was to be virtual, but the keyword was forgotten.
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+class Shape {
+  void draw();
+}
+
+class Rectangle : public Shape {
+  void draw(); // Noncompliant
+}
+----
+
+As a consequence, the following code will not behave as expected:
+[source,cpp]
+----
+Rectangle r;
+Shape &s = r;
+s.draw(); // Calls Shape::draw, not Rectangle::draw
+----
+
+This code can be rewritten:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+class Shape {
+  virtual void draw(); // Should probably be virtual void draw() = 0
+}
+
+class Rectangle : public Shape {
+  void draw() override;
+}
+----
+
+=== Creating an overload set
+For the following example, the intent is to add an overload to a nonvirtual function in the derived class:
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+class Vehicle {
+  void drive(double targetSpeed);
+};
+
+class MedicalVehicle {
+  void drive(double targetSpeed, double maxAcceleration);
+}
+----
+
+Here, the goal is that a user of the derived class should be able to choose between two overloads for `drive`. However, this is not how it works: `MedicalVehicle::drive` hides the base class function `Vehicle::drive`.
+
+[source,cpp]
+----
+MedicalVehicle mv;
+mv.drive(50); // Compiler error
+----
+
+The best way to build the right overload set in this case is to import the base class' functions through a using declaration:
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class Vehicle {
+  void drive(double targetSpeed);
+};
+
+class MedicalVehicle {
+  using Vehicle::drive;
+  void drive(double targetSpeed, double maxAcceleration);
+}
+----
+
+Now, the call `mv.drive(50)` compiles and calls `Vehicle::drive`.
 
 == Resources
 
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#c138-create-an-overload-set-for-a-derived-class-and-its-bases-with-using[{cpp} Core Guidelines C.138] - Create an overload set for a derived class and its bases with using
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c138-create-an-overload-set-for-a-derived-class-and-its-bases-with-using[C.138: Create an overload set for a derived class and its bases with `using`]
 
 
 ifdef::env-github,rspecator-view[]
@@ -68,13 +146,23 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
 
-include::highlighting.adoc[]
+Rename this member function so that it doesn't hide an inherited non-virtual function, or make it virtual in the base class "XXX".
+
+"XXX" hides overloaded virtual functions
+
+
+=== Highlighting
+
+Function name
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 2 May 2016, 16:32:04 Ann Campbell wrote:
+I've made some small edits [~alban.auzeill], but basically this looks good.
+
 endif::env-github,rspecator-view[]

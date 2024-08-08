@@ -1,10 +1,71 @@
 == Why is this an issue?
 
-include::../description.adoc[]
+Connections, streams, files, and other classes that implement the ``++Closeable++`` interface or its super-interface, ``++AutoCloseable++``, needs to be closed after use. Further, that ``++close++`` call must be made in a ``++finally++`` block otherwise an exception could keep the call from being made. Preferably, when class implements ``++AutoCloseable++``, resource should be created using "try-with-resources" pattern and will be closed automatically.
 
-include::../noncompliant.adoc[]
 
-include::../compliant.adoc[]
+Failure to properly close resources will result in a resource leak which could bring first the application and then perhaps the box the application is on to their knees.
+
+
+=== Noncompliant code example
+
+[source,java]
+----
+private void readTheFile() throws IOException {
+  Path path = Paths.get(this.fileName);
+  BufferedReader reader = Files.newBufferedReader(path, this.charset);
+  // ...
+  reader.close();  // Noncompliant
+  // ...
+  Files.lines("input.txt").forEach(System.out::println); // Noncompliant: The stream needs to be closed
+}
+
+private void doSomething() {
+  OutputStream stream = null;
+  try {
+    for (String property : propertyList) {
+      stream = new FileOutputStream("myfile.txt");  // Noncompliant
+      // ...
+    }
+  } catch (Exception e) {
+    // ...
+  } finally {
+    stream.close();  // Multiple streams were opened. Only the last is closed.
+  }
+}
+----
+
+
+=== Compliant solution
+
+[source,java]
+----
+private void readTheFile(String fileName) throws IOException {
+    Path path = Paths.get(fileName);
+    try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+      reader.readLine();
+      // ... 
+    }
+    // ..
+    try (Stream<String> input = Files.lines("input.txt"))  {
+      input.forEach(System.out::println);
+    }
+}
+
+private void doSomething() {
+  OutputStream stream = null;
+  try {
+    stream = new FileOutputStream("myfile.txt");
+    for (String property : propertyList) {
+      // ...
+    }
+  } catch (Exception e) {
+    // ...
+  } finally {
+    stream.close();
+  }
+}
+----
+
 
 === Exceptions
 
@@ -19,6 +80,7 @@ Instances of the following classes are ignored by this rule because ``++close++`
 
 Java 7 introduced the try-with-resources statement, which implicitly closes ``++Closeables++``. All resources opened in a try-with-resources statement are ignored by this rule. 
 
+[source,java]
 ----
 try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
   //...
@@ -30,8 +92,8 @@ catch ( ... ) {
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/459[MITRE, CWE-459] - Incomplete Cleanup
-* https://cwe.mitre.org/data/definitions/772[MITRE, CWE-772] - Missing Release of Resource after Effective Lifetime
+* CWE - https://cwe.mitre.org/data/definitions/459[CWE-459 - Incomplete Cleanup]
+* CWE - https://cwe.mitre.org/data/definitions/772[CWE-772 - Missing Release of Resource after Effective Lifetime]
 * https://wiki.sei.cmu.edu/confluence/x/vjdGBQ[CERT, FIO04-J.] - Release resources when they are no longer needed
 * https://wiki.sei.cmu.edu/confluence/x/QtUxBQ[CERT, FIO42-C.] - Close files when they are no longer needed
 * https://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html[Try With Resources]
@@ -42,13 +104,24 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::../message.adoc[]
+=== Message
 
-include::parameters.adoc[]
+Use try-with-resources or close this "xxx" in a "finally" clause.
+
+
+=== Parameters
+
+.excludedResourceTypes
+****
+
+Comma separated list of the excluded resource types, using fully qualified names (example: "org.apache.hadoop.fs.FileSystem")
+****
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
 include::../comments-and-links.adoc[]
+
 endif::env-github,rspecator-view[]

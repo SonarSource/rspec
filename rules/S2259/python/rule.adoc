@@ -1,31 +1,103 @@
+
+Accessing attributes on `None` is almost always a logical error and will raise
+an `AttributeError`.
+To fix this issue, make sure not to access an attribute or method on a value
+that can be `None`.
+
 == Why is this an issue?
 
-Attributes of ``++None++`` values should never be accessed. Doing so will cause an ``++AttributeError++`` to be thrown. At best, such an exception will cause abrupt program termination. At worse, it could expose debugging information that would be useful to an attacker, or it could allow an attacker to bypass security measures.
+`None` is a built-in object that represents the absence of a value.
+It is often used as a placeholder value for variables that only sometimes hold a
+value or as a return value for method calls that have no result.
 
-=== Noncompliant code example
+Attributes and methods of symbols that sometimes can be `None` should only be
+accessed in circumstances where it is certain that they are not set to `None`.
+Otherwise, an `AttributeError` is raised, and the program is interrupted.
+Hence, this issue indicates a logical error as it results from incorrect
+assumptions about the state of variables or the results of computations.
 
-[source,python]
+=== What is the potential impact?
+
+include::../../../shared_content/layc/exception-impact.adoc[]
+
+If a `None` value can be induced by user input, this issue may even be
+exploited by attackers to disrupt your application or gain information from
+stack traces.
+
+=== Exceptions
+
+`None` does support a fixed set of special attributes like `++__class__++` or
+`++__bool__++`, and this issue is not raised when accessing these attributes.
+
+== How to fix it
+
+If your code contains `if-else` statements or similar constructs where some
+branches potentially assign the `None` value to a variable, you must ensure
+that this variable is handled safely afterwards.
+I.e., its attributes should not be accessed at all or only after explicitly
+confirming that it is not `None`.
+
+Similarly, for any function calls that can return `None` under certain
+conditions, carefully confirm that your code avoids these conditions.
+Again, the safest approach is to check for a `None` return value explicitly.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
 ----
-def myfunc(param):
-    if param is None:
-        print(param.test())  # Noncompliant
-
-    if param == None:
-        print(param.test())  # Noncompliant
-
-    if param is not None:
-        pass
+def render(file_path):
+    if os.path.isfile(file_path):
+        data = interpret_csv(file_path)
     else:
-        print(param.test())  # Noncompliant
+        data = None
 
-    if param != None:
-        pass
-    else:
-        print(param.test())  # Noncompliant
+    # ...
 
+    data.plot_graph() # Noncompliant
 ----
 
-include::../see.adoc[]
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+def render(file_path):
+    if os.path.isfile(file_path):
+        data = interpret_csv(file_path)
+    else:
+        data = None
+
+    # ...
+
+    if data is not None:
+        data.plot_graph()
+    else:
+        print("No data available.")
+----
+        
+=== How does this work?
+
+In the given example, the function `render` tries to load information into a
+variable `data`, depending on whether `file_path` is a path to a file.
+If this is not the case, `None` is assigned to `data`.
+
+At the end of the function, a method `plot_graph()` is called on `data`.
+The call is sure to fail if `data` was assigned to `None`.
+This is prevented by checking first whether `data` is not `None` before
+performing the call.
+
+== Resources
+
+=== Documentation
+
+* The Python Data Model on https://docs.python.org/3/reference/datamodel.html#none[None]
+* https://docs.python.org/3/library/exceptions.html#AttributeError[Attribute Error]
+* https://docs.python.org/3/reference/expressions.html#attribute-references[Attribute References]
+
+=== Articles & blog posts
+
+* CVE  - https://cwe.mitre.org/data/definitions/476[CWE-476 - NULL Pointer Dereference]
 
 ifdef::env-github,rspecator-view[]
 
@@ -42,4 +114,5 @@ include::../highlighting.adoc[]
 (visible only on this page)
 
 include::../comments-and-links.adoc[]
+
 endif::env-github,rspecator-view[]
