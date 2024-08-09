@@ -1,0 +1,139 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Some method calls can effectively be "no-ops", meaning that the invoked method does nothing, based on the application&#8217;s configuration (eg: debug logs in production).
+However, even if the method effectively does nothing, its arguments may still need to evaluated before the method is called.</p>
+</div>
+<div class="paragraph">
+<p>Passing message arguments that require further evaluation into a Guava <code>com.google.common.base.Preconditions</code> check can result in a performance penalty.
+That is because whether or not they&#8217;re needed, each argument must be resolved before the method is actually called.</p>
+</div>
+<div class="paragraph">
+<p>Similarly, passing concatenated strings into a logging method can also incur a needless performance hit because the concatenation will be performed every time the method is called, whether or not the log level is low enough to show the message.</p>
+</div>
+<div class="paragraph">
+<p>Instead, you should structure your code to pass static or pre-computed values into <code>Preconditions</code> conditions check and logging calls.</p>
+</div>
+<div class="paragraph">
+<p>Specifically, the built-in string formatting should be used instead of string concatenation, and if the message is the result of a method call, then <code>Preconditions</code> should be skipped altogether, and the relevant exception should be conditionally thrown instead.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">logger.log(Level.DEBUG, "Something went wrong: " + message);  // Noncompliant; string concatenation performed even when log level too high to show DEBUG messages
+
+logger.fine("An exception occurred with message: " + message); // Noncompliant
+
+LOG.error("Unable to open file " + csvPath, e);  // Noncompliant
+
+Preconditions.checkState(a &gt; 0, "Arg must be positive, but got " + a);  // Noncompliant. String concatenation performed even when a &gt; 0
+
+Preconditions.checkState(condition, formatMessage());  // Noncompliant. formatMessage() invoked regardless of condition
+
+Preconditions.checkState(condition, "message: %s", formatMessage());  // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">logger.log(Level.DEBUG, "Something went wrong: {0} ", message);  // String formatting only applied if needed
+logger.log(Level.SEVERE, () -&gt; "Something went wrong: " + message); // since Java 8, we can use Supplier , which will be evaluated lazily
+
+logger.fine("An exception occurred with message: {}", message);  // SLF4J, Log4j
+
+LOG.error("Unable to open file {0}", csvPath, e);
+
+if (LOG.isDebugEnabled()) {
+  LOG.debug("Unable to open file " + csvPath, e);  // this is compliant, because it will not evaluate if log level is above debug.
+}
+
+Preconditions.checkState(arg &gt; 0, "Arg must be positive, but got %d", a);  // String formatting only applied if needed
+
+if (!condition) {
+  throw new IllegalStateException(formatMessage());  // formatMessage() only invoked conditionally
+}
+
+if (!condition) {
+  throw new IllegalStateException("message: " + formatMessage());
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p><code>catch</code> blocks are ignored, because the performance penalty is unimportant on exceptional paths (catch block should not be a part of standard program flow). Getters are ignored as well as methods called on annotations which can be considered as getters. This rule accounts for explicit test-level testing with SLF4J methods <code>isXXXEnabled</code> and ignores the bodies of such <code>if</code> statements.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use the built-in formatting to construct this argument.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_31_mar_2015_151232_ann_campbell_wrote">on 31 Mar 2015, 15:12:32 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>reassigning to you [~nicolas.peru] because I&#8217;ve updated the formatting in the code samples &amp; I&#8217;d like you to double-check me, please.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_apr_2015_145927_nicolas_peru_wrote">on 8 Apr 2015, 14:59:27 Nicolas Peru wrote:</h3>
+<div class="paragraph">
+<p>seems ok.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_14_apr_2016_101349_freddy_mallet_wrote">on 14 Apr 2016, 10:13:49 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>I would add the tag 'slf4j' [~ann.campbell.2]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_14_apr_2016_154119_ann_campbell_wrote">on 14 Apr 2016, 15:41:19 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>I disagree [~freddy.mallet]. If this rule were specifically for and only about slf4j then I would, but this covers multiple frameworks.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_17_nov_2016_154141_tibor_blenessy_wrote">on 17 Nov 2016, 15:41:41 Tibor Blenessy wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] if we want to support multiple frameworks, how should they be detected? i.e. should every string concatenation in arguments be flagged, or should the method name be used as a heuristic to find out that string concatenation will infer penalty? Other option could be to blacklist well known method signatures? If yes, what are the signatures?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_17_nov_2016_161758_ann_campbell_wrote">on 17 Nov 2016, 16:17:58 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~tibor.blenessy] that&#8217;s probably a discussion that&#8217;s better to have with [~nicolas.peru] or [~michael.gumowski].</p>
+</div>
+</div>
+</div>
+</div>

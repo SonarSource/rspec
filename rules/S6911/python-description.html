@@ -1,0 +1,132 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a <code>tensorflow.function</code> depends on a global or free Python variable.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When calling a <code>tensorflow.function</code> behind the scenes a <code>ConcreteFunction</code> is created everytime a new value is passed as argument.
+This is not the case with Python global variables, closure or nonlocal variables.</p>
+</div>
+<div class="paragraph">
+<p>This means the state and the result of the <code>tensorflow.function</code> may not be what is expected.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import tensorflow as tf
+
+@tf.function
+def addition():
+  return 1 + foo
+
+foo = 4
+addition() # tf.Tensor(5, shape=(), dtype=int32): on this first step we obtain the expected result
+
+foo = 10
+addition() # tf.Tensor(5, shape=(), dtype=int32): unexpected result of 5 instead of 11</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As we can see in the example above the second time <code>addition</code> is called, we obtain the same result as the first call.
+This is due to the fact that between the 2 calls of <code>addition</code> the value of the argument passed to the function did not change.
+This result in the creation of a single <code>ConcreteFunction</code> during the first call of <code>addition</code>, with the value of foo set to 4.</p>
+</div>
+<div class="paragraph">
+<p>This is why it is a good practice to not use and mutate global variables or nonlocal variables inside of a <code>tensorflow.function</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>This rule will not raise an issue if the global or nonlocal variable is a <code>tensorflow.Variable</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import tensorflow as tf
+
+@tf.function
+def addition():
+  return 1 + foo
+
+foo = tf.Variable(4)
+addition()
+
+foo.assign(10)
+addition()</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this case the <code>ConcreteFunction</code> will be created properly each call if the value of the variable changes.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue refactor the Python global or nonlocal variable to be an argument of the <code>tensorflow.function</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import tensorflow as tf
+
+@tf.function
+def addition():
+  return 1 + foo # Noncompliant the usage of the nonlocal variable may not behave as expected.
+
+foo = 4
+addition()
+
+foo = 10
+addition()</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import tensorflow as tf
+
+@tf.function
+def addition(foo):
+  return 1 + foo # Compliant
+
+foo = 4
+addition(foo)
+
+foo = 10
+addition(foo)</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>TensorFlow Documentation - <a href="https://www.tensorflow.org/guide/function#depending_on_python_global_and_free_variables">Depending on Python global and free variables</a></p>
+</li>
+<li>
+<p>TensorFlow Documentation - <a href="https://www.tensorflow.org/jvm/api_docs/java/org/tensorflow/ConcreteFunction?hl=en">ConcreteFunction reference</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
