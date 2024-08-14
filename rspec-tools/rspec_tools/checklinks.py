@@ -10,8 +10,8 @@ import pathlib
 
 TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = './link_probes.history'
-PROBING_COOLDOWN = datetime.timedelta(days=1)
-PROBING_SPREAD = 100 # minutes
+PROBING_COOLDOWN = datetime.timedelta(days=2)
+PROBING_SPREAD = 60 * 24 # in minutes, 1 day
 link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
