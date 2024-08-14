@@ -13,17 +13,20 @@ else
   git diff --name-only "${base}" -- rules/ | # Get all the changes in rules
     sed -Ee 's#(rules/S[0-9]+)/.*#\1#' | # extract the rule directories
     sort -u | # deduplicate
-    while IFS= read -r rule; do [[ -d "$rule" ]] && echo "$rule" || true; done |  # filter non-deleted rules
+    while IFS= read -r rule; do if [[ -d "$rule" ]]; then echo "$rule"; fi done |  # filter out deleted rules
     sed 's#rules/##' | # get rule ids
     mapfile -t affected_rules # store them in the `affected_rules` array
-  echo "Validating ${affected_rules[@]}"
+  echo "Validating ${affected_rules[*]}"
 fi
+
+printf '\n\n\n'
 
 # Validate metadata
 if [[ "${#affected_rules[@]}" -gt 0 ]]
 then
   cd rspec-tools
   pipenv install
+  printf '\n\n\n'
   pipenv run rspec-tools validate-rules-metadata "${affected_rules[@]}"
 else
   echo "No rule changed or added"
