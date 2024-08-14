@@ -21,6 +21,9 @@ EXCEPTION_PREFIXES = [
   # Intermediate certificate used to issue the server cert. Because of that
   # some application are not able to verify the complete chain of trust.
   "https://wiki.sei.cmu.edu/",
+  # The CI reports 403 on drupal.org while it works locally.
+  # Maybe the CI's IP is blocklisted...
+  "https://www.drupal.org/",
 ]
 
 def show_files(filenames):
