@@ -15,7 +15,12 @@ PROBING_SPREAD = 60 * 24 # in minutes, 1 day
 link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
-EXCEPTIONS = [
+EXCEPTION_PREFIXES = [
+  # It seems the server certificate was renewed on 2nd of August 2024.
+  # The server is sending only its certificate, without including the
+  # Intermediate certificate used to issue the server cert. Because of that
+  # some application are not able to verify the complete chain of trust.
+  "https://wiki.sei.cmu.edu/",
 ]
 
 def show_files(filenames):
@@ -145,7 +150,12 @@ def get_all_links_from_htmls(dir):
   print("All html files crawled")
   return urls
 
-def probe_links(urls):
+def url_is_exception(url: str) -> bool:
+  return any(
+    url.startswith(e) for e in EXCEPTION_PREFIXES
+  )
+
+def probe_links(urls: dict) -> bool:
   errors = []
   link_cache_exception = 0
   link_cache_hit = 0
@@ -154,7 +164,7 @@ def probe_links(urls):
   link_count = len(urls)
   for idx, url in enumerate(urls):
     print(f"[{idx+1}/{link_count}] {url} in {len(urls[url])} files")
-    if url in EXCEPTIONS:
+    if url_is_exception(url):
       link_cache_exception += 1
       print("skip as an exception")
     elif url_was_reached_recently(url):
