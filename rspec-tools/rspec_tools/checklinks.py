@@ -147,18 +147,44 @@ def get_all_links_from_htmls(dir):
 
 def probe_links(urls):
   errors = []
+  link_cache_exception = 0
+  link_cache_hit = 0
+  link_cache_miss = 0
   print("Testing links")
-  for url in urls:
-    print(f"{url} in {len(urls[url])} files")
+  link_count = len(urls)
+  for idx, url in enumerate(urls):
+    print(f"[{idx+1}/{link_count}] {url} in {len(urls[url])} files")
     if url in EXCEPTIONS:
+      link_cache_exception += 1
       print("skip as an exception")
     elif url_was_reached_recently(url):
+      link_cache_hit += 1
       print("skip probing because it was reached recently")
     elif live_url(url, timeout=5):
+      link_cache_miss += 1
       rejuvenate_url(url)
     elif url_is_long_dead(url):
+      link_cache_miss += 1
       errors.append(url)
-  return errors
+    else:
+      link_cache_miss += 1
+
+  confirmed_errors = confirm_errors(errors, urls)
+
+  print(f"\n\n\n{'=' * 80}\n\n\n")
+  if confirmed_errors:
+    report_errors(confirmed_errors, urls)
+    print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files\n\n")
+  print("Cache statistics:")
+  print(f"\t{link_cache_hit=}")
+  print(f"\t{link_cache_miss=}")
+  link_cache_hit_ratio = (link_cache_hit) / (link_cache_hit + link_cache_miss)
+  print(f"\t{link_cache_hit_ratio:03.2%} hits")
+  print(f"\t{link_cache_exception=}")
+  print(f"\n\n\n{'=' * 80}\n\n\n")
+
+  success = len(confirmed_errors) == 0
+  return success
 
 def confirm_errors(presumed_errors, urls):
   confirmed_errors = []
@@ -180,16 +206,9 @@ def report_errors(errors, urls):
 def check_html_links(dir):
   load_url_probing_history()
   urls = get_all_links_from_htmls(dir)
-  errors = probe_links(urls)
-  exit_code = 0
-  if errors:
-    confirmed_errors = confirm_errors(errors, urls)
-    if confirmed_errors:
-      report_errors(confirmed_errors, urls)
-      print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files")
-      exit_code = 1
-  if exit_code == 0:
+  success = probe_links(urls)
+  if success:
     print(f"All {len(urls)} links are good")
   save_url_probing_history()
-  exit(exit_code)
+  exit(0 if success else 1)
 
