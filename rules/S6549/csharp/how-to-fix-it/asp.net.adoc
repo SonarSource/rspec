@@ -1,0 +1,98 @@
+== How to fix it in ASP.NET
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+using Microsoft.AspNetCore.Mvc;
+
+[ApiController]
+[Route("Example")]
+public class ExampleController : ControllerBase
+{
+    private const string TargetDirectory = "/path/to/target/directory";
+
+    public IActionResult FileExists()
+    {
+        string file = Request.Query["file"];
+        string path = TargetDirectory + file;
+        if (!System.IO.File.Exists(path)) { // Noncompliant
+            return NotFound("File not found");
+        }
+        return Ok("File found");
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+using Microsoft.AspNetCore.Mvc;
+
+[ApiController]
+[Route("Example")]
+public class ExampleController : ControllerBase
+{
+    private const string TargetDirectory = "/path/to/target/directory";
+
+    public IActionResult FileExists()
+    {
+        string file = Request.Query["file"];
+        string canonicalPath = Path.GetFullPath(TargetDirectory + file);
+        if (!canonicalPath.StartsWith(TargetDirectory)) {
+            return NotFound("Entry is outside of the target directory");
+        } else if (!System.IO.File.Exists(canonicalPath)) { 
+            return NotFound("File not found");
+        }
+        return Ok("File found");
+    }
+}
+----
+
+=== How does this work?
+
+:canonicalization_function: Path.GetFullPath
+
+include::../../common/fix/canonical-path-validation.adoc[]
+
+=== Pitfalls
+
+include::../../common/pitfalls/partial-path-traversal.adoc[]
+
+For example, the following code is vulnerable to partial path injection. Note
+that the string `targetDirectory` does not end with a path separator:
+
+
+[source, csharp]
+----
+using Microsoft.AspNetCore.Mvc;
+
+[ApiController]
+[Route("Example")]
+public class ExampleController : ControllerBase
+{
+    private const string TargetDirectory = "/Users/John";
+
+    public IActionResult FileExists()
+    {
+        string file = Request.Query["file"];
+        string canonicalPath = Path.GetFullPath(TargetDirectory + file);
+        if (!canonicalPath.StartsWith(TargetDirectory)) {
+            return NotFound("Entry is outside of the target directory");
+        } else if (!System.IO.File.Exists(canonicalPath)) { 
+            return NotFound("File not found");
+        }
+        return Ok();
+    }
+}
+----
+
+This check can be bypassed if other directories start with `John`. For instance, `"/Users/Johnny".StartsWith("/Users/John")`
+returns `true`. Thus, for validation, `"/Users/John"` should actually be
+`"/Users/John/"`.
+
