@@ -13,7 +13,9 @@ A commonly used attribute is `nonnull` which can be used to mark a function's re
 #include <string.h>
 
 __attribute__((returns_nonnull)) int *
-make_array_copy(__attribute__((nonnull)) int *src, size_t len) {
+make_array_copy(int *src, size_t len) __attribute__((nonnull(1)));
+
+int *make_array_copy(int *src, size_t len) {
   int *dst = (int *)malloc(len * sizeof(int));
   if (dst == NULL) {
     perror("malloc failed");
@@ -32,8 +34,8 @@ However, developers may accidentally break the `nonnull` attribute as shown in t
 [source,cpp]
 ----
 __attribute__((returns_nonnull))
-int* foo(__attribute__((nonnull)) int* x) {
-  x = 0; // Noncompliant: `x` is marked "nonnull" but is set to null
+int *foo(__attribute__((nonnull)) int *x) {
+  x = 0; // This is compliant but might be surprising, use with caution
   foo(0); // Noncompliant: null is passed as an argument marked as "nonnull"
   return 0; // Noncompliant: return value is marked "nonnull" but null is returned
 }
@@ -42,10 +44,34 @@ int* foo(__attribute__((nonnull)) int* x) {
 Failing to adhere to the attribute may introduce serious program errors.
 In particular, the compiler does not enforce that values marked as `nonnull` are indeed non-null at runtime; it is the developers' responsibility to adhere to the attribute.
 These values are typically _not_ null-checked before use.
-Setting a value marked as `nonnull` to null (i.e., `NULL`, `0` or `nullptr`) is hence likely to cause a null-pointer dereference.
+Passing null (i.e., `NULL`, `0` or `nullptr`) as an argument to a parameter that is marked as `nonnull`
+or returning null from a function marked as `returns_nonnull` is, hence, likely to cause a null-pointer dereference.
 Compilers may even apply optimizations based on this attribute and might, for instance, _remove_ an explicit null-check if the parameter is declared as `nonnull` -- even in code outside of the function with the attribute.
 
 Note that the `nonnull` attribute is a GNU extension (see https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-nonnull-function-attribute[nonnull] and https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-returns_005fnonnull-function-attribute[returns_nonnull]) which many compiler vendors have implemented.
+
+Note that it is allowed to _assign_ null to a parameter marked as `nonnull`.
+This attribute is only concerned with the function call contract
+and does not control the evolution of the parameter variable.
+For example, a linked-list search could be implemented as follows:
+
+[source,cpp]
+----
+struct List {
+  int value;
+  List *next; // nullptr for a tail node.
+};
+
+
+List *findElement(List *l, int elem) __attribute__((nonnull(1)));
+
+List *findElement(List *l, int elem) {
+  while(l && l->value != elem)
+    l = l->next;
+  return l;
+}
+----
+
 
 
 == What is the potential impact?
@@ -58,29 +84,26 @@ In practice, dereferencing a null pointer may lead to program crashes, or the ap
 Besides affecting the application's availability, null-pointer dereferences may lead to malicious code execution, in rare circumstances.
 If null is equivalent to the 0x0 memory address that can be accessed by privileged code, writing, and reading memory is possible, which compromises the integrity and confidentiality of the application.
 
-Because compilers may apply optimizations based on the `nonnull` attribute, not respecting `nonnull` can also introduce more complex bugs such as resource leaks or infinite loops as indicated in the following code snippet:
+Because compilers may apply optimizations based on the `nonnull` attribute, not respecting `nonnull` can also introduce more complex bugs such as resource leaks or infinite recursion as indicated in the following code snippet:
 
 [source,cpp]
 ----
-struct Node {
-  int data;
-  Node *next; // NULL for a tail node.
+struct List {
+  int value;
+  List *next; // nullptr for a tail node.
 };
 
-size_t len(__attribute__((nonnull)) Node *n) {
-  size_t l = 0;
-  while (n) {
-    ++l;
-    n = n->next;
-  }
-  return l;
+size_t len(List *n) __attribute__((nonnull));
+size_t len(List *l) {
+  if (!l) return 0; // Impossible branch according to the attribute
+  return 1 + len(l->next);
 }
 ----
 
 
 == How to fix it
 
-Ensure not to pass null values when non-null arguments are expected, do not return a null value when a non-null return value is expected, and do not assign null to parameters marked as non-null.
+Ensure not to pass null values when `nonnull` arguments are expected and not to return a null value when a function is marked as `returns_nonnull`.
 This especially holds for library functions, which frequently require `nonnull` pointer parameters.
 
 On other occasions, it might be more appropriate to remove the attribute.
@@ -92,8 +115,8 @@ On other occasions, it might be more appropriate to remove the attribute.
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-__attribute__((returns_nonnull))
-int* foo(__attribute__((nonnull)) int* x) {
+int *foo(int *x) __attribute__((nonnull));
+int *foo(int *x) {
   *x = 42;
   return x;
 }
@@ -108,8 +131,8 @@ void bar() {
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-__attribute__((returns_nonnull))
-int* foo(__attribute__((nonnull)) int* x) {
+int *foo(int *x) __attribute__((nonnull));
+int *foo(int *x) {
   *x = 42;
   return x;
 }
@@ -126,7 +149,7 @@ void bar() {
 [source,cpp,diff-id=2,diff-type=noncompliant]
 ----
 __attribute__((returns_nonnull))
-int* foo() {
+int *foo() {
   return nullptr; // Noncompliant: function may not return a null pointer
 }
 ----
@@ -136,32 +159,9 @@ int* foo() {
 [source,cpp,diff-id=2,diff-type=compliant]
 ----
 __attribute__((returns_nonnull))
-int* foo() {
+int *foo() {
   int *p = new int(0);
   return p; // Compliant: `p` points to a valid memory location
-}
-----
-
-==== Noncompliant code example
-
-[source,cpp,diff-id=3,diff-type=noncompliant]
-----
-void process(int *p);
-
-void foo(__attribute__((nonnull)) int *p) {
-  p = nullptr; // Noncompliant: `p` is marked "nonnull" but is set to null
-  process(p);
-}
-----
-
-==== Compliant solution
-
-[source,cpp,diff-id=3,diff-type=compliant]
-----
-void process(int *p);
-
-void foo(__attribute__((nonnull)) int *p) {
-  process(p);
 }
 ----
 
