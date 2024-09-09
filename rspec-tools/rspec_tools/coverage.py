@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import collections
 from git import Repo
 from git import Git
 from pathlib import Path
@@ -133,7 +134,7 @@ class Coverage:
         self.rule_implemented(rule_id, language, analyzer, version)
 
 def all_implemented_rules():
-  implemented_rules = {}
+  implemented_rules = collections.defaultdict(list)
   for sp_file in Path('.').rglob('sonarpedia.json'):
     print(sp_file)
     sonarpedia_path=sp_file.parents[0]
@@ -141,7 +142,10 @@ def all_implemented_rules():
       sonarpedia = load_json(sp_file)
       path = str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
       languages = sonarpedia['languages']
-      implemented_rules.update(get_implemented_rules(path, languages))
+
+      implemented_rules_in_path = get_implemented_rules(path, languages)
+      for lang, rules in implemented_rules_in_path.items():
+        implemented_rules[lang] += rules
     except Exception as e:
       print(f"failed to collect implemented rules for {sp_file}: {e}")
       continue
@@ -151,7 +155,7 @@ def checkout_repo(repo):
   git_url=f"https://github.com/SonarSource/{repo}"
   token=os.getenv('GITHUB_TOKEN')
   if token:
-    git_url=f"https://{token}@github.com/SonarSource/{repo}"
+    git_url=f"https://oauth2:{token}@github.com/SonarSource/{repo}"
   if not os.path.exists(repo):
     return Repo.clone_from(git_url, repo)
   else:
