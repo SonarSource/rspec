@@ -1,0 +1,157 @@
+Fields should not be overridden in derived classes.
+
+== Why is this an issue?
+
+Unlike other languages, Dart allows to https://dart.dev/language/extend#overriding-members[override] in derived classes any instance member of a class, including fields.
+
+Overriding a field in a derived class results in a "double storage": the field in the base class is still present, but it is shadowed by the field in the derived class. So the same name refers to two different storage areas, in two different contexts. 
+
+That can lead to confusion and unexpected behavior, because, depending on the context, two completely different values are accessed using the same name.
+
+[source,dart]
+----
+class BaseClass {
+    int field = 0;
+
+    void printField() => print(field);
+}
+
+class DerivedClass extends BaseClass {
+    @override int field = 1;
+
+    @override void printField() {
+        print(super.field); // Prints the field from the base class
+        print(field);       // Prints the field from the derived class
+    }
+}
+
+void main() {
+    BaseClass().printField();    // Prints 0
+    DerivedClass().printField(); // Prints 0 and 1
+}
+----
+
+Moreover, if no explicit way to access to the field is provided in the base class, the derived class would not be able to access the field at all. This is hardly ever the intended behavior.
+
+More likely, overriding a field was a mistake, often not caught by the developer since the compiler doesn't enforce the presence of the `@override` annotation.
+
+The rule also applies to mixins, but not to extensions methods or types, since extensions cannot contain instance variable fields.
+
+== How to fix it
+
+The solution depends on the original intent of the field override:
+
+* if the field override was unintentional, for example the result of a copy-paste error, the field in the derived class should be removed, if it is a duplicate, or renamed, if it semantically a new field
+* if the field override was intentional, the field should be wrapped into a property, and the derived class should override the accessors to the field, instead of the field itself
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+class BaseClass {
+    int field = 0;
+}
+
+class DerivedClass extends BaseClass {
+    @override int field = 1;
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+class BaseClass {
+    int field = 0;
+}
+
+class DerivedClass extends BaseClass {
+    // Field removed as it was a duplicate
+}
+----
+
+==== Noncompliant code example
+
+[source,dart,diff-id=2,diff-type=noncompliant]
+----
+class BaseClass {
+    int field = 0;
+}
+
+class DerivedClass extends BaseClass {
+    @override int field = 1;
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=2,diff-type=compliant]
+----
+class BaseClass {
+    int field = 0;
+}
+
+class DerivedClass extends BaseClass {
+    int differentField = 1; // Field renamed to better reflect its purpose
+}
+----
+
+==== Noncompliant code example
+
+[source,dart,diff-id=3,diff-type=noncompliant]
+----
+class BaseClass {
+    int field = 0;
+}
+
+class DerivedClass extends BaseClass {
+    @override int field = 1;
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=3,diff-type=compliant]
+----
+class BaseClass {
+    int _field = 0;
+    // Property wrapping the field
+    int get field => _field;
+    set field(int value) => _field = value;
+}
+
+class DerivedClass extends BaseClass {
+    // Override of the property, rather than the field
+    @override int get field => ...
+    @override set field(int value) => ...
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Dart Docs - https://dart.dev/tools/linter-rules/overridden_fields[Dart Linter rule - overridden_fields]
+* Dart Docs - https://dart.dev/language/extend#overriding-members[Language - Overriding members]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* Field overrides a field inherited from '<base_type_name>'.
+
+=== Highlighting
+
+* The identifier of the overriding field in the derived class.
+
+'''
+== Comments And Links
+(visible only on this page)
+
+endif::env-github,rspecator-view[]
