@@ -44,7 +44,6 @@ LANG_TO_LABEL = {'abap': 'abap',
                  'cloudformation': 'iac',
                  'terraform': 'iac',
                  'kubernetes': 'iac',
-                 'ansible': 'ansible',
                  'xml': 'xml',
 }
 
@@ -88,7 +87,6 @@ LANG_TO_SOURCE = {
     'rpg': 'rpg',
     'secrets': 'secrets',
     'terraform': 'terraform',
-    'ansible': 'ansible',
     'text': 'text',
     'vb6': 'vb6'
 }
