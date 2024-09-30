@@ -77,8 +77,8 @@ LANG_TO_SOURCE = {
     'c': 'c',
     'objectivec': 'objectivec',
     'vb': 'vb',
+    'ansible': 'yaml',
     # these languages are not supported by highlight.js as the moment:
-    'ansible': 'ansible',
     'apex': 'apex',
     'azureresourcemanager': 'bicep',
     'cobol': 'cobol',
