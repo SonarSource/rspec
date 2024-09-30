@@ -37,7 +37,8 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'cloudformation': ['CLOUDFORMATION'],
   'terraform': ['TERRAFORM'],
   'kubernetes': ['KUBERNETES'],
-  'text': ['TEXT']
+  'text': ['TEXT'],
+  'ansible': ['ANSIBLE']
 }));
 
 export function useRuleCoverage() {
