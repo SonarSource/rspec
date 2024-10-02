@@ -212,7 +212,7 @@ const languageToGithubProject = new Map(Object.entries({
   'KUBERNETES': 'sonar-iac',
   'SECRETS': 'sonar-secrets',
   'TEXT': 'sonar-text',
-  'ANSIBLE': 'sonar-iac',
+  'ANSIBLE': 'sonar-iac-enterprise',
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
