@@ -1,0 +1,143 @@
+Getters and setters that do nothing more than reading or writing a field should be removed.
+
+== Why is this an issue?
+
+Unlike other languages, where properties and fields are two distinct constructs and generate different instructions when compiled, Dart https://dart.dev/language/classes#instance-variables[class instance variables] (the equivalent of a "field" in Dart) and https://dart.dev/language/methods#getters-and-setters[getters/setters] are part of a single construct.
+
+A Dart instance variable/field is equivalent to a pair of getters and setters, from the perspective of a user of the class. Not only syntactically, but also at binary level.
+
+More specifically, if an instance variable is replaced with a pair of getters and setters having the same name of the instance variable, existing code referencing the instance variable will continue to work without any change. It will correctly invoke the newly introduced getters and setters, even if it is defined in an external library and it has not been recompiled after the change.
+
+For example, given the following class `C` and its usage in `aMethodUsingTheClassC`:
+
+[source,dart]
+----
+// Class with a plain field and no getter/setter for it
+class C {
+  int x;
+}
+
+// Possibly in another library or package
+void aMethodUsingTheClassC() {
+  var c = C();
+  c.x = 42; // This will set the value of the field
+  print(c.x); // This will get the value of the field
+}
+----
+
+If the field `x` is replaced with a getter and a setter, the code in `aMethodUsingTheClassC` will continue to work without any change or recompilation, and the setter will be invoked when `c.x = 42` is executed, checking the newly introduced precondition.
+
+[source,dart]
+----
+// Class with a getter and a setter, introducing a precondition check
+class C {
+  int _x = 42;
+  int get x => _x;
+  set x(int value) {
+    if (value < 0) {
+      throw ArgumentError('value must be non-negative');
+    }
+    _x = value;
+  }
+}
+
+// Possibly in another library or package
+void aMethodUsingTheClassC() {
+  var c = C();
+  c.x = 42; // This will invoke the x setter
+  print(c.x); // This will invoke the x getter
+}
+----
+
+Therefore, there is no need to define getters and setters that do nothing more than reading or writing a field, just to be "future-proof" in case there may be more to do than accessing the backing field. They can be safely removed in all circumstances, and added later when need arises.
+
+=== What is the potential impact?
+
+Defining unnecessary getters and setters makes the code more verbose, since instead of defining a single member, it requires the definition of three members: a getter, a setter, and the field backing the property. This increases the cognitive load on the reader.
+
+Moreover, it may lead to confusion about the actual behavior of the property. For example, a developer may see a getter or a setter and assume that it may be doing some computation, while it is just returning or setting the value of the underlying field.
+
+=== Exceptions
+
+The rule doesn't apply to read-only or write-only properties, since they constraint write access or read access to the field, respectively, therefore they are not equivalent to a field.
+
+[source,dart]
+----
+class C {
+  int _field = 42;
+  int get field => _field; // Non applicable
+}
+----
+
+The rule doesn't apply when the type of the field is different from the type of the getter or setter, for example with `dynamic`:
+
+[source,dart]
+----
+class C {
+  dynamic _fieldDynamicType = 42;
+  int get fieldDynamicType => _fieldDynamicType; // Non applicable
+  set fieldDynamicType(int value) => _fieldDynamicType = value;
+}
+----
+
+The rule doesn't apply when either the getter or the setter is decorated with an annotation, since the annotation may have side effects, as in altering the behavior of other functionalities (e.g., serialization, persistence, etc.).
+
+[source,dart]
+----
+class C {
+  int _annotatedGetter = 42;
+  @AnAnnotation() int get annotatedGetter => _annotatedGetter;
+  set annotatedGetter(int value) => _annotatedGetter = value;
+}
+----
+
+== How to fix it
+
+Remove the unnecessary getter, setter, and the backing field, and replace the three class members with a single field named as the getter and setter. 
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+class C {
+  int _x;
+  int get x => _x;
+  set x(int value) => _x = value;
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+class C {
+  int x;
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Dart Docs - https://dart.dev/tools/linter-rules/unnecessary_getters_setters[Dart Linter rule - unnecessary_getters_setters]
+* Dart Docs - https://dart.dev/language/classes#instance-variables[Language - Instance variables]
+* Dart Docs - https://dart.dev/language/methods#getters-and-setters[Language - Getters and setters]
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Unnecessary use of getter and setter to wrap a field.
+
+=== Highlighting
+
+The name of the getter that is unnecessarily wrapping a backing field. 
+
+endif::env-github,rspecator-view[]
