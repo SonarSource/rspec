@@ -8,7 +8,38 @@ from pathlib import Path
 
 from rspec_tools.utils import (load_json, pushd)
 
-REPOS = ['sonar-abap','sonar-architecture','sonar-cpp','sonar-cobol','sonar-dart','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-text','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security', 'sonar-dataflow-bug-detection', 'sonar-iac-enterprise']
+REPOS = [
+  'sonar-abap',
+  'sonar-apex',
+  'sonar-architecture',
+  'sonar-cobol',
+  'sonar-cpp',
+  'sonar-css',
+  'sonar-dart',
+  'sonar-dataflow-bug-detection',
+  'sonar-dotnet',
+  'sonar-flex',
+  'sonar-go',
+  'sonar-html',
+  'sonar-iac-enterprise',
+  'sonar-java',
+  'SonarJS',
+  'sonar-kotlin',
+  'sonar-php',
+  'sonar-pli',
+  'sonar-plsql',
+  'sonar-python',
+  'sonar-rpg',
+  'sonar-ruby',
+  'sonar-scala',
+  'sonar-secrets',
+  'sonar-security',
+  'sonar-swift',
+  'sonar-text',
+  'sonar-tsql',
+  'sonar-vb',
+  'sonar-xml'
+]
 
 CANONICAL_NAMES = {
   'CLOUD_FORMATION': 'CLOUDFORMATION',
