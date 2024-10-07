@@ -1,44 +1,160 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+First element of array should be accessed using subsript operator (`array[0]`),
+instead of dereference (`*array`) or arrow (`array->mem`).
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+When an expression refers to a variable or another object of array type,
+it usually produces a pointer to the first element of the array. 
+This behavior is known as array-to-pointer decay or simply array decay.
 
-//=== What is the potential impact?
+Because of array-to-pointer decay, it is possible to use the dereference operator (`*`) or
+the pointer member access operator (`->`) on an array object to access first element.
+However, the it remains unclear, if access to such element was done intentionally.
+In contrast using array subscript (`[0]`) remove any such ambiguity.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+This rule raises issue when deference or member access operator is used
+on array object or variable.
+
+[source,c]
+----
+struct Struct { int x; };
+Struct elems[10];
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    *integers = i; // Noncomliant: `*` used to access `integers[0]`
+  }
+}
+
+void prcess() {
+  for (int i = 0; i < 10; ++i) {
+    Struct* elem = elems + i;
+    elems->x += elems[i].x; // Noncomplaint: `->` used to access `elems[0]`
+  }
+}
+----
+
+== How to fix it?
+
+The fix depends on the intended effect of the code, but either
+
+* access of first element was intentional, and uses of `->` or `*` should be replaced with subscript with index `0`;
+* other element was meant to be accessed, and subscript appropariate index value may be used;
+* pointer values was mean to be derferenced, in that case array should be replaced with given pointer.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,cpp,diff-id=1,diff-type=noncompliant]
+[source,c,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+struct Struct { int x; };
+Struct elems[10];
+
+void prcess() {
+  for (int i = 0; i < 10; ++i) {
+    Struct* elem = elems + i;
+    elems->x += elems[i].x; // Noncomplaint: -> used to access elems[0]
+  }
+}
 ----
 
 ==== Compliant solution
 
+If the access to first element was intentional, you can use subscript expliclty:
+
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+struct Struct { int x; };
+Struct elems[10];
+
+void prcess() {
+  for (int i = 0; i < 10; ++i) {
+    Struct* elem = elems + i;
+    elems[0].x += elems[i].x; // Complaint: subscript is used to access array
+  }
+}
 ----
 
-//=== How does this work?
+Otherwise, if ``++i++``th element was to be updated:
 
-//=== Pitfalls
+[source,cpp]
+----
+struct Struct { int x; };
+Struct elems[10];
 
-//=== Going the extra mile
+void prcess() {
+  for (int i = 0; i < 10; ++i) {
+    Struct* elem = elems + i;
+    elems[i].x += elems[i].x; // Complaint: subscript is used to access array
+  }
+}
+----
+
+Finally, the ``++i++``th element can be accessed using `->` and `elem` pointer:
+[source,cpp]
+----
+struct Struct { int x; };
+Struct elems[10];
+
+void prcess() {
+  for (int i = 0; i < 10; ++i) {
+    Struct* elem = elems + i;
+    elem->x += elem->x; // Complaint: dereferencing an pointer
+  }
+}
+----
 
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    *integers = i; // Noncomliant: `*` used to access `integers[0]`
+  }
+}
+----
+
+==== Compliant solution
+
+Access ``++i++``th element of `integers` as intended:
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    integers[i] = i; // Complaint: subscript is used to access array
+  }
+}
+----
+
+Or, to preserve current behavior, use subscript to access first element:
+
+[source,cpp]
+----
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    integers[0] = i; // Complaint: subscript is used to access array
+  }
+}
+----
+
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/array#Array-to-pointer_decay[Array-to-pointer decay]
+
