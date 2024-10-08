@@ -80,27 +80,144 @@ TODO
 This section present few general approaches to resolving issues related to order of initialization,
 covering various scenarios and uses of the code.
 
-=== Define depedendent variable in one source file.
+=== Define connected variables in one source file.
 
- 
+As order of initialization is defined by the standard for variables defined in same file,
+defining all dependent variables in single source file addressed the issue. 
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: `s1` may be initialized after `s2`
 ----
 
 ==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+std::string s2 = s1 + " in other file"; // Complaint: `s1` is initialized before `s2`
+
+// source2.cpp
+#include "header.h"
 ----
 
+=== Force constant initialization of reffered variable.
 
-* defining in samne file
-* making in constant
+Order of initialization issues are limited to variables that are initialized at runtime (has dynamic initialization),
+and does not affect variable that are initialized at compile time, i.e. has constant initialization.
+
+This requires the initializer of the variable to be available at compile time, 
+i.e. use only literals, other constant variables, and invocation of `constexpr` functions or constructors.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+// header.h
+extern int const count;
+extern std::vector<int> entries;
+
+// source1.cpp
+#include "header.h"
+int const count = 20;
+
+// source2.cpp
+#include "header.h"
+std::vector<int> entries(count); // Noncomplaint: `count` may not initialized before `entries`
+----
+
+==== Compliant solution
+
+If the project uses {cpp}11 or later standard, you may defined the variable as `constexpr`, to foce constant initialization.
+In case when the initialization cannot be performed at compile time, the program will be ill-formed.
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+// header.h
+constexpr int count = 20;
+extern std::vector<int> entries;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::vector<int> entries(count); // Complaint: `count` is initialized as compile time to 20
+----
+
+If the project is limited to {cpp}98/{cpp}03, the constant initialization is only supported for the variables of integral types,
+that are defined as `const` and user literals or other constant in initializer.
+
+[source,cpp]
+----
+// header.h
+int const count = 20;
+extern std::vector<int> entries;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::vector<int> entries(count); // Complaint: `count` is initialized as compile time to 20
+----
+
+==== Using `inline` to avoid multiple definitions. 
+
+In {cpp} variables declares as `const`, which also covers `constexpr`, has internal linkage.
+This means that they are not visible outside of the source file.
+As consequence multiple files can defined variable with same name, and each of such file will contain indenpedent copy of variable.
+
+This affects also cases, when `const` variable is defined in the header file, that is included from multiple files.
+In the following example, each `source1.cpp` and `source2.cpp` files contains independent copies of variables `count`.
+
+[source,cpp]
+----
+// header.h
+constexpr int count = 20;
+
+// source1.cpp
+#include "header.h"
+
+void print1() {
+  std::cout << &count << std::endl;
+}
+
+// source2.cpp
+#include "header.h"
+
+void print2() {
+  std::cout << &count << std::endl;
+}
+----
+
+This behavior is usually not affecting the code, as the value read from the variable is always the same, due it being `const`.
+However, the taking the address of such variable will produce different result (i.e. `print1` and `print2` will produce different outputs).
+
+Since {cpp}17 this may be addressed by makrking such variable as `inline`, for more details plese refer to later section.
+
+
+=== Define.
+
+
 * static variable in function
 * inline variable
 
