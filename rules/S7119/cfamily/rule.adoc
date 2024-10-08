@@ -1,18 +1,88 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue if initializer of the variable with static storage duration (global or static),
+refers to variable that may not yet be initialized. 
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+{cpp} allows variables with static storage duration, 
+such as global or static variables inside of class of funciton,
+to have arbitrally complex initializers.
 
-//=== What is the potential impact?
+Such variables are zero-initialized at the start of the program,
+and further initialization is performed at runtime,
+in the process reffered as dynamic initialization.
+
+The dynamic such variables is performed in the order of they defintions in the source file.
+However, the order of initialization of variables defined in different source files is not specified.
+In case when the global variable refers to variable defined in different source file,
+the behavior of the program is not guaranteed:
+
+[source,cpp]
+----
+extern int global1;
+// Defined in different source file as:
+// int global1 = 20;
+
+int const global2 = global1 + 10; // Noncomplaint 
+----
+
+Depending on the ordering of the initialization of `global1` and `global2` variables,
+the `global2` may be set to:
+
+* `30` if `global1` is initialized before `global2`
+* `10` if `global2` is initialized before `global1`, as `global1` will have value `0`.
+
+This rule raises issue if the initializer of the global or static variable,
+directly refers to the other global variable, that may not yet be initialized.
+In other words, refering to a variable is not required to be initialized before given variable.
+
+This is subset of issues related to initialization of global variables,
+commonly reffered as static initialization order fiasco.
+
+=== What is the potential impact?
+
+The bahavior of any program that is prone to static initialization order fiasco issue,
+is very fragile. 
+The order of initialization may change with modification of source files, 
+that does not contain impacted variable, or even differ between the builds of same source.
+As such any such issues are hard to reproduce and debug.
+
+Furthermore, the impact of this issues are vast and varied.
+It is not only limited to observing different values of variables betwen builds,
+as presented in example of `global1` and `global2`.
+
+For the class types, invoking any member functions of object that was zero-initialized,
+but for which constructor was not run, may cause undefined behavior and crash the program:
+
+[source,cpp]
+----
+extern std::string const string1;
+std::string const string2 = string1; // Noncompliant: undefined behavior
+----
+
+And even, in case when particular implementation supports using zero-initialized object,
+the program may still encounter undefined-behavior even:
+
+[source,cpp]
+----
+extern std::vector<std::string> const list;
+// Defined in different source file as:
+// std::vector<std::string> const list{"entry1", "entry2"};
+
+std::string const firstElem = list[0]; // Noncompliant: undefined behavior
+----
+
+=== Static variable in template classes and variable templates are also impacted
+
+TODO
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
-=== Code examples
+This section present few general approaches to resolving issues related to order of initialization,
+covering various scenarios and uses of the code.
+
+=== Define depedendent variable in one source file.
+
+ 
 
 ==== Noncompliant code example
 
@@ -28,6 +98,16 @@ FIXME
 FIXME
 ----
 
+
+* defining in samne file
+* making in constant
+* static variable in function
+* inline variable
+
+* pitfall: const implies static - may need inline
+
+
+
 //=== How does this work?
 
 //=== Pitfalls
@@ -35,10 +115,11 @@ FIXME
 //=== Going the extra mile
 
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/siof[Static Initialization Order Fiasco]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/initialization#Non-local_variables[Initialization of non-local variables]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/zero_initialization[Zero-initialization]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/constant_initialization[Constant initialization]
