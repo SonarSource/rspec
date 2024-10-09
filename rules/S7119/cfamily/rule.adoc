@@ -260,7 +260,7 @@ int const Clazz::constMem;
 int const Clazz::constexprMem; // const is implied by `constexpr`
 ----
 
-Or when using {cpp}17 or later in the header file with inline keyword,
+Or when using {cpp}17 or later in the header file with `inline` keyword,
 in this case only `const` variable needs to be defined:
 [source,cpp]
 ----
@@ -301,13 +301,78 @@ However, the taking the address of such variable will produce different result (
 
 Since {cpp}17 this may be addressed by makrking such variable as `inline`, for more details plese refer to later section.
 
+=== Replace global variable with static function variable
 
-=== Define.
+A static variable defined in the function body, is initialized when the function is called for the first time,
+so it is not possible to read it value before the initialization. 
+In consequence, replacing a global variable with a function that declares a static variable and return reference to it eliminates the order of initialization issues.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: `s1` may be initialized after `s2`
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+// header.h
+std::string& getS1();
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string& getS1() {
+  static std::string s1 = "Some string";
+  return s1;
+}
+
+// source2.cpp
+#include "header.h"
+
+std::string s2 = getS1() + " in other file"; // Compliant: `s1` is initialized as part of `getS1()` call
+----
+
+While the above is sufficient to fix the issue, 
+replacing `s2` with `getS2` function defined in similar way would prevent future problems.
+
+This solution is also aplicable for the variable templates and static data members of class templates.
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+template<typename CharT>
+std::basic_string<CharT> const basicBuildID = /* runtime initializer */;
+
+std::string const buildID = basicBuildID<char>(); // Noncompliant: `basicBuildID<char>` may not be initialized
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+template<typename CharT>
+std::basic_string<CharT> const& getBuildID() {
+  static std:basic_stirng<CharT> basicBuildID =  /* runtime initializer */;
+  return basicBuildID;
+}
 
 
-* static variable in function
-* inline variable
+std::string const buildID = getBuildID<char>(); // Compliant: `basicBuildID` is intialized as part of `getBuildID<char>` call
+----
 
+=== Define variables as inline in the header
 
 == Resources
 
