@@ -1,11 +1,9 @@
-This rule raises an issue if initializer of the variable with static storage duration (global or static),
-refers to variable that may not yet be initialized. 
+This rule raises an issue if initializer of the global variable,
+refers to  other global variable that may not yet be initialized. 
 
 == Why is this an issue?
 
-{cpp} allows variables with static storage duration, 
-such as global or static variables inside of class of funciton,
-to have arbitrally complex initializers.
+{cpp} allows global variables, to have arbitrally complex initializers.
 
 Such variables are zero-initialized at the start of the program,
 and further initialization is performed at runtime,
@@ -31,9 +29,9 @@ the `global2` may be set to:
 * `30` if `global1` is initialized before `global2`
 * `10` if `global2` is initialized before `global1`, as `global1` will have value `0`.
 
-This rule raises issue if the initializer of the global or static variable,
+This rule raises issue if the initializer of the global variable,
 directly refers to the other global variable, that may not yet be initialized.
-In other words, refering to a variable is not required to be initialized before given variable.
+In other words, refering to other variable is not required to be initialized before given variable.
 
 This is subset of issues related to initialization of global variables,
 commonly reffered as static initialization order fiasco.
@@ -71,9 +69,70 @@ extern std::vector<std::string> const list;
 std::string const firstElem = list[0]; // Noncompliant: undefined behavior
 ----
 
-=== Static variable in template classes and variable templates are also impacted
+=== Static class data members also use dynamic initialization
 
-TODO
+Static data members of the class, are dynamically initialized, if they initializer is not constant expression.
+As in of global variables, the rule will raise issue, if static data member of the class with dynamic initialization:
+ * is refering to global variable of static data member of the class that may not yet be initialized
+ * is refered by initializer of global variable of static data member of class in place, when it may not yet be initialized.
+
+[source,cpp]
+----
+// Clazz.hpp
+extern int global;
+class Clazz {
+  static int staticMem;
+};
+
+// Clazz.cpp
+#include "Clazz.hpp"
+
+int Clazz::staticMem = global + 10; // Non-complaint: `global` may not yet be initialized
+
+// Source.cpp
+#include "Clazz.hpp"
+
+int global = 10;
+int otherGlobal = Clazz::staticMem; // Non-complaint: `Clazz::staticMem` may not yet be initalized
+----
+
+=== Initialization of variable template instantiations is unordered
+
+The {cpp}14 introduced possibilty to define a template for the global variable, that can be instantiated by providing a template argument. 
+If instantition of such template requires a dynamic initialization (because initialization is non-constant),
+there is no guarantee for the ordering of such initialization.
+It may be performed before initializer of global variable that was declared before it.
+As consequence any such variable should not refer in initializer or be refered from initializer,
+any global variables with dynamic initialization.
+
+[source,cpp]
+----
+int global1 = runtimeFunc();
+
+template<typename T>
+T varTempl = global1; // Non-compliant: `global1` may be initializer later
+
+int global2 = varTempl<long>; // Non-complaint: `varTempl` may be initializer later
+----
+
+
+Similary, the intialization of static data members of class template instantiations are unordered:
+[source,cpp]
+----
+int global1 = runtimeFunc();
+
+template<typename T>
+struct Clazz {
+  static T staticMem;
+};
+
+template<typename T>
+T Clazz<T>::staticMem = global1; // Non-compliant: `global1` may be initializer later
+
+int global2 = Clazz<long>::staticMem; // Non-complaint: `Clazz<long>::varTempl` may be initializer later
+----
+
+To avoid such problems initializers of variable templates, should refer only to constant global variables.
 
 == How to fix it
 
@@ -178,6 +237,34 @@ extern std::vector<int> entries;
 // source2.cpp
 #include "header.h"
 std::vector<int> entries(count); // Complaint: `count` is initialized as compile time to 20
+----
+
+==== Handling class static data members
+
+If the static data member is constant, it's value may be defined in class:
+[source,cpp]
+----
+struct Clazz {
+  static int const constMem = 10;
+  static constexpr int constexprMem = 10;
+};
+----
+
+However, in case of `const` members and `constexpr` static data members before {cpp}17,
+the definition of the class needs to be provided when address or reference to such variable is taken.
+
+Such defintion should not repeat the initializer, and can be placed in source file:
+[source,cpp]
+----
+int const Clazz::constMem;
+int const Clazz::constexprMem; // const is implied by `constexpr`
+----
+
+Or when using {cpp}17 or later in the header file with inline keyword,
+in this case only `const` variable needs to be defined:
+[source,cpp]
+----
+inline int const Clazz::constMem;
 ----
 
 ==== Using `inline` to avoid multiple definitions. 
