@@ -1,44 +1,149 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+`std::string` methods should be preferred over operations on the result of `c_str()` or `data()` when manipulating a standard string.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+When manipulating standard strings, it is recommended to use their methods, rather than accessing the underlying char array representation with low level C methods. The string methods are clearer in their purpose, less error-prone and will sometime be more performant
 
-//=== What is the potential impact?
+[source,cpp]
+----
+void func(std::string const& param1, std::string const& param2) {
+  int size = strlen(param1.data()); // Noncompliant
+  bool same = (strcmp(param1.c_str(), param2.c_str()) == 0); // Noncompliant
+}
+----
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
-=== Code examples
+=== size calculation
+
+Using strlen to calculate the size of a string will necessitate to find its null-terminator. The string already stores its own size and can return it for free.
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+int size = strlen(string.c_str()); // Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+int size = string.size(); // Compliant
 ----
 
-//=== How does this work?
+=== Embedded null-terminators detection
 
-//=== Pitfalls
+Note that as mentioned in the "Pitfalls" part, `size()` will return the full size,
+ including embedded null characters. If the goal of the call to `c_str()` is to detect
+ the presence of embedded null-terminators, more explicit methods like `std::string::find()` or `std::string::contains()` should be used:
 
-//=== Going the extra mile
+==== Noncompliant code example
 
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+bool hasEmbeddedNull = (string.size() != strlen(string.c_str())); // Noncompliant
+----
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+bool hasEmbeddedNull = string.contains('\0'); // Compliant - since C++23
+bool hasEmbeddedNull2 = string.find('\0') != std::string::npos; // Compliant - all C++ versions
+----
+
+=== string comparison
+
+Comparing two full strings test their equality can be directly performed using the equality operator. For other comparisons, `std::string::compare` is more readable.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+void comparisons(std::string const& s1, std::string const& s2) {
+  bool equal = strcmp(s1.c_str(), s2.c_str()) == 0; // Noncompliant
+  int comparePart = strncmp(s1.c_str() + 2, s2.c_str() + 2, 10); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+void comparisons(std::string const& s1, std::string const& s2) {
+  bool equal = s1 == s2; // Compliant
+  int comparePart = s1.compare(2, 10, s2, 2, 10); // Compliant
+}
+----
+
+=== Searching a substring
+
+Either searching a substring or a single character inside a string can be done with `std::string::find()`
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+void search(std::string const& string) {
+  char const* sub = strstr(string.c_str(), "substring"); // Noncompliant
+  char const* dot = strchr(string.c_str(), '.'); // Noncompliant
+  // ...
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+void search(std::string const& string) {
+  size_t sub = string.find("substring"); // Compliant
+  size_t dot = string.find('.'); // Compliant
+  // ...
+}
+----
+
+=== Searching one of many characters
+
+Four methods allow to search for any character from a list inside a string: `find_first_of`, `find_first_not_of`, `find_last_of`, and `find_last_not_of`. They are better alternative than `strspn`, `strcspn`, and `strpbrk` when manipulating strings.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=5,diff-type=noncompliant]
+----
+void search(std::string const& string) {
+  size_t firstNonNumeric = strspn(string.c_str(), "0123456789"); // Noncompliant
+  size_t firstSeparator = strcspn(string.c_str(), ",. ;"); // Noncompliant
+  // ...
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+void search(std::string const& string) {
+  size_t firstNonNumeric = string.find_first_not_of("0123456789"); // Compliant
+  size_t firstSeparator = string.find_first_of(",. ;"); // Compliant
+  // ...
+}
+----
+
+=== Pitfalls
+
+Using string methods instead of the result of `c_str()` (or `data()`) will have different results when the string contains embedded null-terminators in its content. Operations on `c_str()` will stop at the first null-terminator while string methods will apply on the whole content.
+
+Most of the time, operating on the whole content is the intended behavior, but in cases where it isn't, using methods might be less straight-forward. It is still recommended to fix the code, to make this pitfall clear to other maintainers. One possible approach is to create a `std::string_view` and use its methods, which mirror those of `std::string`.
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+std::string_view beginning{string.c_str()};
+// Use string_view methods afterward
+// ...
+----
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/string/basic_string[Native functions for std::string]
