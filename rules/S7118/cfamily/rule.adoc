@@ -2,7 +2,7 @@
 
 == Why is this an issue?
 
-When manipulating standard strings, it is recommended to use their methods, rather than accessing the underlying char array representation with low-level C methods. The string methods are clearer in their purpose, less error-prone, and will sometimes be more performant
+When manipulating standard strings, it is recommended to use their methods, rather than accessing the underlying char array representation with low-level C methods. The string methods are clearer in their purpose, less error-prone, and will sometimes be more performant.
 
 [source,cpp]
 ----
@@ -36,26 +36,43 @@ int size = string.size(); // Compliant
 
 Note that as mentioned in the "Pitfalls" part, `size()` will return the full size,
  including embedded null characters. If the goal of the call to `c_str()` is to detect
- the presence of embedded null-terminators, more explicit methods like `std::string::find()` or `std::string::contains()` should be used:
+ the presence of embedded null-terminators, more explicit methods like `std::string::find()` or `std::string::contains()` should be used.
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=2,diff-type=noncompliant]
 ----
-bool hasEmbeddedNull = (string.size() != strlen(string.c_str())); // Noncompliant
+if (string.size() != strlen(string.c_str())) // Noncompliant
+{
+  // ...
+}
 ----
 
 ==== Compliant solution
 
+In C++23 `std::string::contains()` is the best solution.
+
 [source,cpp,diff-id=2,diff-type=compliant]
 ----
-bool hasEmbeddedNull = string.contains('\0'); // Compliant - since C++23
-bool hasEmbeddedNull2 = string.find('\0') != std::string::npos; // Compliant - all C++ versions
+if (string.contains('\0')) // Compliant
+{
+  // ...
+}
+----
+
+Before that, `std::string::find()` is an alternative.
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+if (string.find('\0') != std::string::npos) // Compliant
+{
+  // ...
+}
 ----
 
 === string comparison
 
-Comparing two full strings test their equality can be directly performed using the equality operator. For other comparisons, `std::string::compare` is more readable.
+Testing the equality between two full strings can be directly performed using the equality operator. For other comparisons, `std::string::compare` is more readable.
 
 ==== Noncompliant code example
 
@@ -79,7 +96,7 @@ void comparisons(std::string const& s1, std::string const& s2) {
 
 === Searching a substring
 
-Either searching a substring or a single character inside a string can be done with `std::string::find()`
+Either searching a substring or a single character inside a string can be done with `std::string::find()`.
 
 ==== Noncompliant code example
 
@@ -133,12 +150,30 @@ void search(std::string const& string) {
 
 Using string methods instead of the result of `c_str()` (or `data()`) will have different results when the string contains embedded null terminators in its content. Operations on `c_str()` will stop at the first null-terminator while string methods will apply to the whole content.
 
-Most of the time, operating on the whole content is the intended behavior, but in cases where it isn't, using methods might be less straightforward. It is still recommended to fix the code, to make this pitfall clear to other maintainers. One possible approach is to create a `std::string_view` and use its methods, which mirror those of `std::string`.
+Most of the time, operating on the whole content is the intended behavior, but in cases where it isn't, using methods might be less straightforward. It is still recommended to fix the code, to make this pitfall clear to other maintainers.
 
-[source,cpp,diff-id=5,diff-type=compliant]
+If the goal is to only keep the first part, the string can be cropped in place using `std::string::resize()` or `std::string::erase()`.
+Calling `strlen(string.c_str())` inside a call to resize or erase is compliant by exception because it is the simplest way to crop a string like that.
+[source,cpp]
+----
+string.resize(strlen(string.c_str())); // Compliant by exception
+----
+
+Otherwise, if working with {cpp}17 or higher and if the goal is to just query the content, a good approach is to create a `std::string_view` and use its methods, which mirror those of `std::string`.
+
+[source,cpp]
 ----
 std::string_view beginning{string.c_str()};
 // Use string_view methods afterward
+// ...
+----
+
+Otherwise, if working with older {cpp} versions or if the resulting string will be modified, doing a full copy also works.
+
+[source,cpp]
+----
+std::string beginning{string.c_str()};
+// Use beginning and its methods afterward
 // ...
 ----
 
