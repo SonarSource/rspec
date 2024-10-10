@@ -1,0 +1,306 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Throwing an exception from a destructor may result in a call to <code>std::terminate</code>.</p>
+</div>
+<div class="paragraph">
+<p>By default, compilers implicitly declare destructors as <code>noexcept</code>, so <code>std::terminate</code> is called when they exit with an exception.
+Destructors may still propagate an exception if they are explicitly declared as <code>noexcept(false)</code>.
+However, even a destructor declared as <code>noexcept(false)</code> calls <code>std::terminate</code> when it throws during stack unwinding.</p>
+</div>
+<div class="paragraph">
+<p>The following example illustrates the severity of the underlying problem:</p>
+</div>
+<div class="paragraph">
+<p>The destructor of a container needs to call the destructors for all managed objects.
+Suppose a call to an object&#8217;s destructor throws an exception.
+In that case, there are only two <em>conceptual</em> ways to proceed:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Abort the destruction.
+This results in a partially destroyed object and possibly many more objects whose destructors are never called.</p>
+</li>
+<li>
+<p>Ignore the exception and proceed with destroying the remaining objects.
+However, this potentially results in more partially destroyed objects if further destructors throw an exception.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Because both options are undesired, destructors should never <code>throw</code> exceptions.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In most cases, throwing exceptions in destructors makes the program unreliable:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If <code>std::terminate</code> is called, the program terminates in an implementation-defined, abrupt, and unclean manner.</p>
+</li>
+<li>
+<p>The program&#8217;s behavior is undefined if a standard library component (a container, an algorithm, &#8230;&#8203;) manages a user-defined object that throws an exception from its destructor.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a destructor is not <code>noexcept</code>.</p>
+</div>
+<div class="paragraph">
+<p>Usually, nothing needs to be written in the source code because destructors are <code>noexcept</code> by default.
+However, a destructor becomes not <code>noexcept</code> when:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The base class or a data member has a non <code>noexcept</code> destructor;</p>
+</li>
+<li>
+<p>The destructor is decorated with the <code>noexcept(expression)</code>  and <code>expression</code> evaluates to <code>false</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The code should be modified to avoid those two scenarios.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct A {
+  ~A() noexcept(false) {} // Noncompliant
+};
+
+struct C {
+  A a; // This member data prevents automatic declaration of the destructor as noexcept
+
+  ~C() { // Noncompliant by transitivity
+    // ...
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct A {
+  ~A() noexcept(true) {} // Compliant
+};
+
+struct C {
+  A a;
+
+  ~C() { // Compliant, noexcept by default
+    // ...
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/noexcept_spec"><code>noexcept</code> specifier</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c36-a-destructor-must-not-fail">C.36: A destructor must not fail</a></p>
+</li>
+<li>
+<p>C&#43;&#43; Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c37-make-destructors-noexcept">C.37: Make destructors <code>noexcept</code></a></p>
+</li>
+<li>
+<p>MISRA C&#43;&#43;:2008, 15-5-1 - A class destructor shall not exit with an exception.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S1048" class="rspec-auto-link">S1048</a> - Destructors should not throw exceptions</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Ensure that this destructor is exception-free and declare it "noexcept".</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>destructor name</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_22_jun_2016_082353_ann_campbell_wrote">on 22 Jun 2016, 08:23:53 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>FYI [~alban.auzeill], we&#8217;re not citing the Core Guidelines (yet) in the See sections because we&#8217;re not sure how stable the naming/numbering will be.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_6_nov_2018_194421_ann_campbell_wrote">on 6 Nov 2018, 19:44:21 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~loic.joly] this is confusing:</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>This rule raises an issue when a destructor is not specified to be noexcept. Note that most of the time, nothing needs to be written in the source code, because destructors are, by default, noexcept if their data members allow it.</p>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>It raises a rule when <code>noexcept</code> isn&#8217;t used, but you don&#8217;t need to use <code>noexcept</code> because that&#8217;s the default&#8230;&#8203;?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_7_nov_2018_085500_loïc_joly_wrote">on 7 Nov 2018, 08:55:00 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2]</p>
+</div>
+<div class="paragraph">
+<p>There is a distinction between being noexcept (a property of a function) and using the <code>noexcept</code> keyword to coerce the noexcept status. Here, the destructor needs to be noexcept, we don&#8217;t directly care about the keyword (this is a change in behaviour from the previous implementation).</p>
+</div>
+<div class="paragraph">
+<p>By default a destructor is noexcept. There are two ways for it not to be noexcept:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It is decorated with the <code>noexcept</code> keyword followed by something that evaluates to false</p>
+</li>
+<li>
+<p>Some data member/base class prevent it from being noexcept (which means there is a violation of this rule on another class)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Maybe remving the word "specified" in the quoted sentence would make it clearer?</p>
+</div>
+<div class="paragraph">
+<p>You may also see the full decision graph in CPP-2026</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_7_nov_2018_202542_ann_campbell_wrote">on 7 Nov 2018, 20:25:42 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~loic.joly] I think I&#8217;ve just realized that a couple cases aren&#8217;t covered in the "raises an issue" clause.</p>
+</div>
+<div class="paragraph">
+<p>I counter-propose:</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>This rule raises an issue when</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>a destructor&#8217;s default <code>noexcept</code> behavior is overridden</p>
+</li>
+<li>
+<p>a destructor throws an exception</p>
+</li>
+<li>
+<p>a destructor allows an exception to be thrown from one of its calls</p>
+</li>
+</ul>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>Because once you introduce an explicit  "raises an issue" clause, you need to cover all the cases.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_nov_2018_092424_loïc_joly_wrote">on 8 Nov 2018, 09:24:24 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] Only the first bullet of your list is (partially) covered. So I prefer to keep "when a destructor is not <code>noexcept</code>".</p>
+</div>
+<div class="paragraph">
+<p>It would be nice to detect that a destructor throws (directly or indirectly) an exception, but :</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This would be very hard to do correctly, and we are not doing it in this case</p>
+</li>
+<li>
+<p>This belongs, I believe, to a more generic, yet to be written, rule: <code>noexcept</code> functions should not throw.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_nov_2018_174845_loïc_joly_wrote">on 8 Nov 2018, 17:48:45 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I applied the change we talked about. Can you please review?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_nov_2018_193331_ann_campbell_wrote">on 8 Nov 2018, 19:33:31 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~loic.joly] I&#8217;ve edited the first bullet in the 'raises issues' clause. Please double-check me. Assuming it&#8217;s okay, this is good to go!</p>
+</div>
+</div>
+</div>
+</div>
