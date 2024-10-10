@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Final, Dict, List
+from typing import Dict, Final, List, Union
 
 from bs4 import BeautifulSoup
 from rspec_tools.errors import RuleValidationError
@@ -78,15 +78,26 @@ def intersection(list1, list2):
 def difference(list1, list2):
   return list(set(list1) - set(list2))
 
+def validate_titles_are_not_misclassified_as_subtitles(rule_language: LanguageSpecificRule, subtitles: list[str], allowed_h2_sections: list[str]):
+  # TODO This does not validate How to fix it section for framework as the section names are a bit specials.
+  misclassified = intersection(subtitles, allowed_h2_sections)
+  if misclassified:
+    misclassified.sort()
+    misclassified_str = ', '.join(misclassified)
+    raise RuleValidationError(f'Rule {rule_language.id} has some sections misclassified. Ensure there are not too many `=` in the asciidoc file for: {misclassified_str}')
+
 def validate_section_names(rule_language: LanguageSpecificRule):
   """Validates all h2-level section names"""
+  def get_titles(level: Union[str, list[str]]) -> list[str]:
+    return list(map(lambda x: x.text.strip(), rule_language.description.find_all(level)))
 
-  descr = rule_language.description
-  h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
-
+  h2_titles = get_titles('h2')
+  subtitles = get_titles(['h3', 'h4', 'h5', 'h6'])
+  allowed_h2_sections = list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys())
+  validate_titles_are_not_misclassified_as_subtitles(rule_language, subtitles, allowed_h2_sections)
   validate_duplications(h2_titles, rule_language)
 
-  education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()))
+  education_titles = intersection(h2_titles, allowed_h2_sections)
   if education_titles:
     # Using the education format.
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
@@ -234,7 +245,7 @@ def validate_security_standard_links(rule_language: LanguageSpecificRule):
   # Avoid raising mismatch issues on deprecated or closed rules
   if metadata.get('status') != 'ready':
     return
-  
+
   security_standards_metadata = metadata.get('securityStandards', {})
   for standard in SECURITY_STANDARD_URL.keys():
 
@@ -244,7 +255,7 @@ def validate_security_standard_links(rule_language: LanguageSpecificRule):
     extra_links = difference(links_mapping, metadata_mapping)
     if len(extra_links) > 0:
       raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Remove links from the Resources/See section ({extra_links}) or fix the rule metadata')
-    
+
     missing_links = difference(metadata_mapping, links_mapping)
     if len(missing_links) > 0:
       raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Add links to the Resources/See section ({missing_links}) or fix the rule metadata')
