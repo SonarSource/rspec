@@ -1,17 +1,17 @@
-This rule raises an issue if the initializer of the global variable,
-refers to another global variable that may not yet be initialized.
+This rule raises an issue if the initializer of a global variable `a`,
+refers to another global variable `b`, when there is no guarantee that `b` is initialized before `a`.
 
 == Why is this an issue?
 
-{cpp} allows global variables, to have arbitrally complex initializers.
+{cpp} allows global variables to have arbitrally complex initializers.
 
 Such variables are zero-initialized statically,
 and further initialization is performed at runtime,
 in the process referred to as dynamic initialization.
 
-The dynamic initialization of such variables is performed in the order of their definitions in the source file.
+Within a single source file, the dynamic initialization of such variables is performed in the order of their definitions.
 However, the order of initialization of variables defined in different source files is not specified.
-In case when the global variable refers to a variable defined in a different source file,
+Therefore, when a global variable refers to a variable defined in a different source file,
 the behavior of the program is not guaranteed:
 
 [source,cpp]
@@ -20,36 +20,32 @@ extern int global1;
 // Defined in different source file as:
 // int global1 = 20;
 
-int const global2 = global1 + 10; // Noncomplaint
+int const global2 = global1 + 10; // Noncompliant
 ----
 
-Depending on the ordering of the initialization of `global1` and `global2` variables,
-the `global2` may be set to:
+Depending on the order of initialization of `global1` and `global2`, `global2` may be set to:
 
 * `30` if `global1` is initialized before `global2`
-* `10` if `global2` is initialized before `global1`, as `global1` will have value `0`.
+* `10` if `global2` is initialized before `global1`, as `global1` will only be zero-initialized to `0`.
 
 This rule raises an issue if the initializer of the global variable
 directly refers to the other global variable, that may not yet be initialized.
 In other words, referring to other variables is not required to be initialized before a given variable.
 
-This is a subset of issues related to initialization of global variables,
+This is a subset of the issues related to initialization of global variables,
 commonly referred to as a static initialization order fiasco.
 
 === What is the potential impact?
 
 The behavior of any program that is prone to static initialization order fiasco issues,
 is very fragile.
-The order of initialization may change with a modification of source files,
-that do not contain impacted variables or even differ between the builds of the same source.
-As such any such issues are hard to reproduce and debug.
+The order of initialization may change at any time, for instance, when performing unrelated changes to the source code, or even differ between the builds of the same source.
+Such issues are very hard to reproduce and debug.
 
-Furthermore, the impact of these issues is vast and varied.
-It is not only limited to observing different values of variables between builds,
-as presented in the example of `global1` and `global2`.
+Furthermore, the impact is not only limited to observing fluctuating values of global variables, as presented in the previous example.
 
-For the class types, invoking any member functions of an object that was zero-initialized,
-but for which constructor was not run, may cause undefined behavior and crash the program:
+For class types, invoking any member functions of an object that is only zero-initialized and 
+for which the constructor has not run, may cause undefined behavior and crash the program:
 
 [source,cpp]
 ----
@@ -57,8 +53,8 @@ extern std::string const string1;
 std::string const string2 = string1; // Noncompliant: undefined behavior
 ----
 
-Even, in cases when particular implementation supports using zero-initialized objects,
-the program may still encounter undefined behavior even:
+Even if, for a particular implementation, zero-initialized objects are equivalent to default-initialized objects,
+the program may still encounter undefined behavior:
 
 [source,cpp]
 ----
@@ -71,10 +67,8 @@ std::string const firstElem = list[0]; // Noncompliant: undefined behavior
 
 === Static class data members also use dynamic initialization
 
-Static data members of the class are dynamically initialized if the initializer is not a constant expression.
-As in the case of global variables, the rule will raise the issue, if static data member of the class with dynamic initialization:
- * refers to global variable of the static data member of the class that may not yet be initialized
- * is referred to by the initializer of the global variable of the static data member of the class in place, when it may not yet be initialized.
+Static data members of classes are dynamically initialized if their initializers are not constant expressions.
+Therefore, this rule will consider static data members of classes as if they were global variables.
 
 [source,cpp]
 ----
@@ -87,32 +81,31 @@ class Clazz {
 // Clazz.cpp
 #include "Clazz.hpp"
 
-int Clazz::staticMem = global + 10; // Non-complaint: `global` may not yet be initialized
+int Clazz::staticMem = global + 10; // Noncompliant: `global` may not yet be fully initialized
 
 // Source.cpp
 #include "Clazz.hpp"
 
 int global = 10;
-int otherGlobal = Clazz::staticMem; // Non-complaint: `Clazz::staticMem` may not yet be initalized
+int otherGlobal = Clazz::staticMem; // Noncompliant: `Clazz::staticMem` may not yet be fully initalized
 ----
 
 === Initialization of variable template instantiations is unordered
 
-The {cpp}14 introduced the possibility to define a template for the global variable that can be instantiated by providing a template argument.
+{cpp}14 introduced the possibility to define a global variable template that can be instantiated by providing a template argument.
 If instantiation of such a template requires a dynamic initialization (because initialization is non-constant),
 there is no guarantee for the ordering of such initialization.
 It may be performed before the initializer of the global variable that was declared before it.
-As a consequence, any such variable should not refer in the initializer or be referred from initializer,
-any global variables with dynamic initialization.
+As a consequence, such variables should not refer to any global variable in their initializers, or be referred from the initializer of any variable with dynamic initialization.
 
 [source,cpp]
 ----
 int global1 = runtimeFunc();
 
 template<typename T>
-T varTempl = global1; // Non-compliant: `global1` may be initializer later
+T varTempl = global1; // Noncompliant: `global1` may be initializer later
 
-int global2 = varTempl<long>; // Non-complaint: `varTempl` may be initializer later
+int global2 = varTempl<long>; // Noncompliant: `varTempl` may be initializer later
 ----
 
 
@@ -127,19 +120,19 @@ struct Clazz {
 };
 
 template<typename T>
-T Clazz<T>::staticMem = global1; // Non-compliant: `global1` may be initializer later
+T Clazz<T>::staticMem = global1; // Noncompliant: `global1` may be initializer later
 
-int global2 = Clazz<long>::staticMem; // Non-complaint: `Clazz<long>::varTempl` may be initializer later
+int global2 = Clazz<long>::staticMem; // Noncompliant: `Clazz<long>::staticMem` may be initializer later
 ----
 
-To avoid such problems, initializers of variable templates should refer only to constant global variables.
 
 == How to fix it
 
 This section presents few general approaches to resolving issues related to the order of initialization,
 covering various scenarios and uses of the code.
+An important consideration is that if you are having trouble with the initialization order fiasco, this may be a sign that you are using too much global state in your code.
 
-=== Define connected variables in one source file.
+=== Define related variables in a single source file.
 
 As the order of initialization is defined by the standard for variables defined in the same file,
 defining all dependent variables in a single source file addressed the issue.
@@ -180,11 +173,10 @@ std::string s2 = s1 + " in other file"; // Complaint: `s1` is initialized before
 
 === Force constant initialization of referred variable.
 
-Order of initialization issues are limited to variables that are initialized at runtime (has dynamic initialization),
-and does not affect variables that are initialized at compile time, i.e., has constant initialization.
+Order of initialization issues are limited to variables that are initialized at runtime (via dynamic initialization),
+and do not affect variables that are initialized at compile time, via constant initialization.
 
-This requires the initializer of the variable to be available at compile time,
-i.e. use only literals, other constant variables, and invocation of `constexpr` functions or constructors.
+A variable, even dynamically initialized, can safely use in its initializer data available at compile-time: literals or variables with constant initialization.
 
 ==== Noncompliant code example
 
@@ -200,12 +192,12 @@ int const count = 20;
 
 // source2.cpp
 #include "header.h"
-std::vector<int> entries(count); // Noncomplaint: `count` may not initialized before `entries`
+std::vector<int> entries(count); // Noncompliant: `count` may not initialized before `entries`
 ----
 
 ==== Compliant solution
 
-If the project uses {cpp}11 or later standard, you may defined the variable as `constexpr`, to foce constant initialization.
+If the project uses {cpp}11 or later standard, you may define the variable as `constexpr` to force constant initialization.
 In case when the initialization cannot be performed at compile time, the program will be ill-formed.
 
 [source,cpp,diff-id=2,diff-type=compliant]
@@ -219,11 +211,11 @@ extern std::vector<int> entries;
 
 // source2.cpp
 #include "header.h"
-std::vector<int> entries(count); // Complaint: `count` is initialized as compile time to 20
+std::vector<int> entries(count); // Compliant: `count` is initialized at compile time to 20
 ----
 
-If the project is limited to {cpp}98/{cpp}03, the constant initialization is only supported for the variables of integral types,
-that are defined as `const` and user literals or other constant in the initializer.
+If the project is limited to {cpp}98/{cpp}03, constant initialization is only supported for variables of integral types
+that are defined as `const` and only use literals or other constants in their initializers.
 
 [source,cpp]
 ----
@@ -236,12 +228,12 @@ extern std::vector<int> entries;
 
 // source2.cpp
 #include "header.h"
-std::vector<int> entries(count); // Complaint: `count` is initialized as compile time to 20
+std::vector<int> entries(count); // Compliant: `count` is initialized at compile time to 20
 ----
 
 ==== Handling class static data members
 
-If the static data member is constant, its value may be defined in class:
+If a static data member is constant, its value may be defined in its class:
 [source,cpp]
 ----
 struct Clazz {
@@ -251,13 +243,13 @@ struct Clazz {
 ----
 
 However, in the case of `const` members and `constexpr` static data members before {cpp}17,
-the definition of the class needs to be provided when address or reference to such variable is taken.
+the definition of the variable needs to be provided when its address is taken or a reference to it is created.
 
-Such definition should not repeat the initializer, and can be placed in the source file:
+Such a definition should not repeat the initializer, and can be placed in a source file (not in the header):
 [source,cpp]
 ----
 int const Clazz::constMem;
-// separe `Clazz::constexprMem` definition is only required before C++17
+// separate `Clazz::constexprMem` definition is only required before C++17
 int const Clazz::constexprMem; //  const is implied by `constexpr`
 ----
 
@@ -271,10 +263,10 @@ inline int const Clazz::constMem;
 ==== Using `inline` to avoid multiple definitions.
 
 In {cpp} variables declares as `const`, which also covers `constexpr`, has internal linkage.
-This means that they are not visible outside of the source file.
-As a consequence, multiple files can define variables with the same name, and each such file will contain an independent copy of the variable.
+This means that they are not visible outside of the translation unit.
+As a consequence, multiple files can define constants with the same name, and each such file will contain an independent occurrence of the variable.
 
-This also affects cases when the `const` variable is defined in the header file which is included from multiple files.
+This also applies when the `const` variable is defined in a header file which is included from multiple files.
 In the following example, each `source1.cpp` and `source2.cpp` files contains independent copies of variables `count`.
 
 [source,cpp]
@@ -347,7 +339,7 @@ std::string s2 = getS1() + " in other file"; // Compliant: `s1` is initialized a
 ----
 
 While the above is sufficient to fix the issue,
-replacing `s2` with the `getS2` function defined in a similar way would prevent future problems.
+replacing `s2` with a `getS2` function defined in a similar way would prevent future problems.
 
 This solution is also applicable to the variable templates and static data members of class templates.
 
@@ -374,7 +366,7 @@ std::string const buildID = getBuildID<char>(); // Compliant: `basicBuildID` is 
 
 === Define variables as inline in the header
 
-With the introduction of `inline` variables in the {cpp}17, non-local variables can now be defined in the header without causing double-definition errors.
+With the introduction of `inline` variables in {cpp}17, non-local variables can now be defined in the header without causing double-definition errors.
 Dynamic initialization of any such `inline` variables is performed before any variable that is defined consistently after it in all source files.
 This is generally true for variables defined in the same headers or in sources that always include a given header.
 
@@ -412,7 +404,7 @@ std::string s2 = s1 + " in other file"; // Compliant: `s1` may be initialized af
 ----
 
 Again, declaring `s1` in the header file is sufficient for addressing the issue,
-however, changing `s2` to also be declared in the header file will prevent initialization order issues related to them.
+however, changing `s2` to also be declared in the header file will prevent initialization order issues related to it.
 
 ==== `inline` and templates
 
