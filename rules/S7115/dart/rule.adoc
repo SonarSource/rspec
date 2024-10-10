@@ -1,0 +1,115 @@
+The https://api.flutter.dev/flutter/widgets/BuildContext/mounted.html[`mounted property`] should be checked before using a https://api.flutter.dev/flutter/widgets/BuildContext-class.html[`BuildContext`], after every async operation.
+
+== Why is this an issue?
+
+Asynchronous operations making use of futures or `async`/`await` constructs decouple code from its execution. This means that, unlike sequential code, asynchronous code will not necessarily execute in the order it is written.
+
+For example, in a sequence of `await` calls, the code following the first `await` will not be executed until the future returned by the first `await` completes, and the same is true for the subsequent `await` call.
+
+[source,dart]
+----
+Future<Data> fetchData(String uri) async { /* ... */ }
+
+void sequenceOfAsyncOperations() async {
+  final data1 = await fetchData('https://example.com/data1');
+  // Executed after the future returned by the 1st fetchData completes
+  final data1Info = data1.info; 
+  print(data1Info);
+  final data2 = await fetchData('https://example.com/data2');
+  // Executed after the future returned by the 1st fetchData completes
+  final data2Info = data2.info;
+  print(data2Info);
+  // ...
+}
+----
+
+Because the execution suspends on awaiting, and the thread is potentially assigned to another task, all variables which are in scope need to be stored, so that they can be restored when the result of the future is available and the execution can resume. This is done behind the scenes by the Dart compiler, in a way that makes the code appear to be executed sequentially from a syntactical perspective, whereas it is actually not.
+
+When all variables used in an `async` function are local to that function, and not visible to the outside world, there is no concern of using them after a future completes. This is not the case, however, for `BuildContext`, which is typically passed to `WidgetBuilder` functions, and can be accessed via `State.context`.
+
+That means that, the `BuildContext` instance may change internal state between the time the future has been created and awaited, and the time it completes and the execution restores. That time interval is generally referred to as an "async gap".
+
+Dart provides a property of `BuildContext` called `mounted`, which can be used to check if the widget associated with the `BuildContext` is still in the widget tree, and can be safely accessed in the current context. 
+
+[source,dart]
+----
+@override
+Widget build(BuildContext context) => OutlinedButton(
+    onPressed: () async {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        if (context.mounted) {
+          // The context is mounted, so it's safe to use it
+          Navigator.of(context).pop();
+        }
+    },
+    child: const Text('Delayed pop'),
+  );
+----
+
+=== What is the potential impact?
+
+If the `BuildContext` is used across an async gap without checking the `mounted` property, the code may access a `BuildContext` instance made invalid by the Flutter framework, which can lead to runtime errors and unpredictable behaviors.
+
+== How to fix it
+
+Checks for the `mounted` property before every access to an instance of a `BuildContext`, whether it is a read access (of the instance itself or of any of its properties) or a write access (such as calling a method or setting a property).
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+@override
+Widget build(BuildContext context) => OutlinedButton(
+    onPressed: () async {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        Navigator.of(context).pop(); // Non compliant
+    },
+    child: const Text('Delayed pop'),
+  );
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+@override
+Widget build(BuildContext context) => OutlinedButton(
+    onPressed: () async {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        if (context.mounted) {
+          // The context is mounted, so it's safe to use it
+          Navigator.of(context).pop();
+        }
+    },
+    child: const Text('Delayed pop'),
+  );
+----
+
+== Resources
+
+=== Documentation
+
+* Dart Docs - https://dart.dev/tools/linter-rules/use_build_context_synchronously[Dart Linter rule - use_build_context_synchronously]
+* Dart Docs - https://dart.dev/libraries/async/async-await[Asynchronous programming: futures, async, await]
+* Flutter API Reference - https://api.flutter.dev/flutter/widgets/BuildContext/mounted.html[BuildContext class - mounted property]
+* Medium - https://medium.com/@wartelski/everything-you-need-to-know-about-the-mounted-property-in-flutter-b603fdb51cb4[Everything You Need to Know About the Mounted Property in Flutter.]
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* Don't use 'BuildContext's across async gaps.
+* Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check.
+
+=== Highlighting
+
+The identifier of the 'BuildContext' variable: e.g. `context` in `Navigator.of(context).pushNamed('/home')`.
+
+endif::env-github,rspecator-view[]
