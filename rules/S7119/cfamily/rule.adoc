@@ -80,7 +80,7 @@ class Clazz {
 // Clazz.cpp
 #include "Clazz.hpp"
 
-int Clazz::staticMem = global + 10; // Noncompliant: `global` may not yet be fully initialized
+int Clazz::staticMem = global + 10; // Noncompliant: `global` may be initialized after `Clazz::staticMem`
 
 // Source.cpp
 #include "Clazz.hpp"
@@ -91,14 +91,14 @@ int otherGlobal = Clazz::staticMem; // Noncompliant: `Clazz::staticMem` may not 
 
 === Initialization of instantiated variable is unordered
 
-If a global variable instantiated from the template requires a dynamic initialization (because initialization is non-constant),
-there is no guarantee for the ordering of such initialization.
-It may be performed before the initializer of the global variable that was declared before it.
-As a consequence, such variables should not refer to any global variable in their initializers, 
-or be referred from the initializer of any variable with dynamic initialization.
+If a global variable instantiated from a template requires a dynamic initialization (because its initialization is non-constant),
+the ordering of this initialization is unspecified.
+It may be performed before the initialization of a global variable declared before it.
+As a consequence, such variables should not refer to any dynamically initialized global variable in their initializers, 
+or be referred to from the initializer of any global variable with dynamic initialization.
 
-An instantiated variable may be produced directly from the instantiation of a variable template (introduced {cpp}14),
-when such a template is used with template arguments.
+An instantiated variable may be produced directly from the instantiation of a variable template (introduced in {cpp}14),
+when such a template is used with template arguments:
 
 [source,cpp]
 ----
@@ -110,8 +110,7 @@ T varTempl = global1; // Noncompliant: `global1` may be initializer later
 int global2 = varTempl<long>; // Noncompliant: `varTempl` may be initializer later
 ----
 
-Similarly, static data members of class template instantiation behave as instantiated global variables,
-and their initialization is unordered.
+Similarly, static data members of class template instantiation behave as instantiated global variables:
 
 [source,cpp]
 ----
@@ -170,7 +169,7 @@ extern std::string s2;
 // source1.cpp
 #include "header.h"
 std::string s1 = "Some string";
-std::string s2 = s1 + " in other file"; // Complaint: `s1` is initialized before `s2`
+std::string s2 = s1 + " in other file"; // Compliant: `s1` is initialized before `s2`
 
 // source2.cpp
 #include "header.h"
@@ -255,7 +254,7 @@ Such a definition should not repeat the initializer, and can be placed in a sour
 ----
 int const Clazz::constMem;
 // separate `Clazz::constexprMem` definition is only required before C++17
-int const Clazz::constexprMem; //  const is implied by `constexpr`
+constexpr int Clazz::constexprMem;
 ----
 
 Or when using {cpp}17 or later in the header file with `inline` keyword.
@@ -267,12 +266,12 @@ inline int const Clazz::constMem;
 
 ==== Using `inline` to avoid multiple definitions.
 
-In {cpp} variables declared as `const`, which also covers `constexpr`, has internal linkage.
+In {cpp}, variables declared as `const`, which also includes `constexpr` variables, have internal linkage.
 This means that they are not visible outside of the translation unit.
 As a consequence, multiple files can define constants with the same name, and each such file will contain an independent occurrence of the variable.
 
 This also applies when the `const` variable is defined in a header file which is included from multiple files.
-In the following example, each `source1.cpp` and `source2.cpp` file contains independent copies of variable `count`.
+In the following example, the translation units generated from `source1.cpp` and `source2.cpp` contain independent copies of the variable `count`.
 
 [source,cpp]
 ----
@@ -294,11 +293,17 @@ void print2() {
 }
 ----
 
-As each copy of `count` is constantly initialized, issues related to the order of initialization are addressed.
-However, the address of such a variable is different when observed from different files  (i.e., `print1` and `print2` will produce different outputs),
+As each copy of `count` is constantly initialized, the code is not susceptible to the initialization order fiasco.
+However, the address of such a variable is now different when observed from different files  (i.e., `print1` and `print2` will produce different outputs),
 and this solution may not be viable if the original code depends on `count` being unique.
 
-This limitation may be addressed when using {cpp}17 or later, by marking by marking such variable as `inline`.
+This limitation may be addressed when using {cpp}17 or later, by making the constant `inline`:
+
+[source,cpp]
+----
+// header.h
+inline constexpr int count = 20;
+----
 
 === Replace global variable with static function variable
 
@@ -347,7 +352,7 @@ std::string s2 = getS1() + " in other file"; // Compliant: `s1` is initialized a
 While the above is sufficient to fix the issue,
 replacing `s2` with a `getS2` function defined in a similar way would prevent future problems.
 
-This solution is also applicable to the variable templates and static data members of class templates.
+This solution is also applicable to variable templates and static data members of class templates.
 
 [source,cpp]
 ----
@@ -373,13 +378,12 @@ std::string const buildID = getBuildID<char>(); // Compliant: `basicBuildID` is 
 ==== Constant initialization mitigates initialization overhead
 
 As the static function variable is initialized when the function is first called,
-an additional boolean flag needs to be stored to indicate that the variable is already initialized.
-Furthermore, if the function is called from multiple threads, a code synchronizing he initialization of such variable is inserted by compiler.
+the compiler uses, under the hood, an additional boolean flag to record if the variable is already initialized.
+Furthermore, if the function is called from multiple threads, the compiler also needs to insert synchronization code.
 
-As a consequence using static variables has a performance impact related to checks if initialization is required,
-however they are not necessary if it is analyzed by compile-time and have constant initialization.
+As a consequence, dynamic initialization of static local variables comes with a performance cost that can be avoided if the variable can be initialized constantly, at compile-time.
 
-For constant initialized variables, you can force constant initialization, by using:
+You can enforce constant initialization, by using:
 
 * `constexpr` (since {cpp}11) if the variable is not mutated and has a constant destructor,
 * `continit` (since {cpp}20) otherwise
@@ -423,27 +427,25 @@ extern std::string s2;
 std::string s2 = s1 + " in other file"; // Compliant: `s1` may be initialized after `s2`
 ----
 
-Again, declaring `s1` in the header file is sufficient for addressing the issue,
+Again, declaring `s1` in the header file is sufficient to address the issue,
 however, changing `s2` to also be declared in the header file will prevent initialization order issues related to it.
 
 ==== Use `constinit` for constant initilization
 
-As mentioned in the previous section, combining `inline` and `constexpr` will prevent the variable from being defined multiple times,
-in different source files. 
-Furthermore, since {cpp}20 you can use `constinit` to enforce constant initialization of global variables,
+As mentioned in the previous section, combining `inline` and `constexpr` will prevent the variable from being defined multiple times in different source files. 
+Furthermore, since {cpp}20 you can use `constinit` to enforce constant initialization of global variables
 that needs to be mutated.
 
 ==== Templates are implicitly `inline`
 
-Instantiations of variable templates and static data members of class template instantiation, are implicitly `inline`.
-As a consequence, marking them as `inline` does not impact the order of initialization and does not prevent the issue from occurring.
+Even though instantiations of variable templates and static data members of class template instantiation are
+implicitly `inline`, their order of initialization is not specified, and explicitly marking them inline will have no impact.
 
 === Updating code incrementally
 
 The options for addressing the order of initialization issues for non-`const` global variables are limited,
-especially in cases when older {cpp} standard.
-The most robust solution of refactoring the global variable into a static function variable,
-requires replacing references to variables with the call to newly used functions.
+especially when targeting old {cpp} standards.
+The most robust solution is to replace the global variable with a function returning a reference to a local static variable. This requires replacing all references to the global variable with a function call.
 
 For some projects and code bases, this may be too expensive or even infeasible.
 In such a case, you may consider replacing the global variable with a reference variable that is initialized with the result of the getter function.
@@ -504,4 +506,4 @@ This solution is inspired by "Nifty Counter" idiom.
 
 === Related rules
 
-* S5421 detects uses of non-const global variables.
+* S5421 detects non-const global variables.
