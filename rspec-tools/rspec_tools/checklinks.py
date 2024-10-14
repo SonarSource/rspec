@@ -86,7 +86,7 @@ def live_url(url: str, timeout=5):
     response = session.send(req.prepare(), timeout=timeout)
     code = response.status_code
     if (code / 100 >= 4):
-      print(f"ERROR: {code} Nothing there ({response.text})")
+      print(f"ERROR: {code} Nothing there ({response.headers})")
       return False
     else:
       return True
