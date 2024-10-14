@@ -79,7 +79,7 @@ def difference(list1, list2):
   return list(set(list1) - set(list2))
 
 def validate_titles_are_not_misclassified_as_subtitles(rule_language: LanguageSpecificRule, subtitles: list[str], allowed_h2_sections: list[str]):
-  # TODO This does not validate How to fix it section for framework as the section names are a bit specials.
+  # TODO This does not validate "How to fix it" section for frameworks as the section names are a bit special.
   misclassified = intersection(subtitles, allowed_h2_sections)
   if misclassified:
     misclassified.sort()
