@@ -39,6 +39,11 @@ def test_unexpected_section_fails_validation(invalid_rule):
   with pytest.raises(RuleValidationError, match=fr'^Rule {rule.id} has an unconventional header "Invalid header"'):
     validate_section_names(rule)
 
+def test_sections_with_wrong_level_fails_validation(invalid_rule):
+  rule = invalid_rule('S100', 'php')
+  with pytest.raises(RuleValidationError, match=fr'^Rule {rule.id} has some sections misclassified. Ensure there are not too many `=` in the asciidoc file for: How to fix it, Resources'):
+    validate_section_names(rule)
+
 def test_valid_section_levels_passes_validation(rule_language):
   '''Check that description with correct formatting is considered valid.'''
   validate_section_levels(rule_language('S100', 'cfamily'))
