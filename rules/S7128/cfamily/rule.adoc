@@ -1,44 +1,71 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raise issue of calls `strlen(ptr + 1)`, for which the intent is unclear.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+The call `strlen(ptr) + 1` is commonly used to compute memory required to copy a string:
+the one is added to preserve space for having null-terminator.
 
-//=== What is the potential impact?
+The very similiar call `strlen(ptr + 1)` that differs by placement of the right parenthesis,
+produces a vastly different results:
+ * non-empty string computes the lenght of string without first character (reduced by one)
+ * if string is empty, traverse memory after it until null terminator (`'\0'`) is found.
+The later may lead to undefined behavior.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+Due above, the `strlen(ptr + 1)` calls are likely to be unintended,
+and result from the type. This rule raises issue on such calls.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,cpp,diff-id=1,diff-type=noncompliant]
+[source,c]
 ----
-FIXME
+size_t size = strlen(ptr + 1); // Noncompliant
 ----
 
 ==== Compliant solution
 
-[source,cpp,diff-id=1,diff-type=compliant]
+If the use of `strlen(ptr + 1)` was an typo:
+
+[source,c]
 ----
-FIXME
+size_t size = strlen(ptr) + 1; // Compliant
 ----
 
-//=== How does this work?
+In case when the `strlen(ptr + 1)` was intentional,
+to preserve same behavior you may incerement the pointer before the call.
 
-//=== Pitfalls
+[source,c]
+----
+char const* next = ptr + 1;
+size_t size = strlen(next); // Compliant
+----
 
-//=== Going the extra mile
+This will convey the intent more cleanly, and avoid any suspiction regarding the typo.
+
+=== What is the potential impact?
+
+If the `strlen(ptr + 1)` is accidentally used instead of `strlen(ptr) + 1`, may have vast range of effects.
+For example, it can lead to buffer overlflow it the operation was used to compute required memory:
+
+[source,c]
+----
+char* duplicate(char const* source) {
+  char result = (char*)malloc(strlen(source + 1)); // Should be malloc(strlen(source) + 1))
+  strcpy(result, source);  // Writes two characters outside of `result` buffer
+  return result;
+}
+----
+
+Buffer overflow, as other undefined behavior, has a wide range of effects.
+In many cases, the access works by accident and succeeds at writing or reading a value.
+However, it can start misbehaving at any time.
+If compilation flags, compiler, platform, or runtime environment change,
+the same code can crash the application, corrupt memory, or leak a secret.
+
+=== Going extra mile.
+
+{cpp} offers `std::string`, `std::string_view` and many other functions simplifying operating on string.
+whne possible, higher-level level features shall be preffered over C-strings APIs.
 
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
