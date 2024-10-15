@@ -1,0 +1,152 @@
+The first element of an array should be accessed using the subscript operator (`array[0]`),
+instead of dereferencing the array (``++*array++``) or using the arrow operator on it (``++array->mem++``).
+
+== Why is this an issue?
+
+When an expression refers to an object of array type,
+it can produce a pointer to the first element of the array. 
+This behavior is known as array-to-pointer decay or simply array decay.
+
+Because of array-to-pointer decay, it is possible to use the dereference operator (`*`) or
+the pointer member access operator (``++->++``) on an array object to access its first element.
+However, it remains unclear if accessing the first element was intentional.
+In contrast, using array subscript (`[0]`) removes any such ambiguity.
+
+This rule raises an issue when the deference operator or the member access operator is used
+on an array.
+
+[source,c]
+----
+struct Struct { int x; };
+Struct elems[10];
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    *integers = i; // Noncompliant: "*" used to access "integers[0]"
+  }
+}
+
+void process() {
+  for (int i = 0; i < 10; ++i) {
+    elems->x *= 2; // Noncompliant: "->" used to access "elems[0]"
+  }
+}
+----
+
+== How to fix it
+
+The fix depends on the intended effect of the code:
+
+* If the intent is to access the first element, ``++->++`` or `*` should be replaced with an explicit subscripts with `[0]`;
+* If another element was meant to be accessed, a subscript with the appropriate index should be used;
+* If the intent was to dereference a pointer (for instance to iterate on array elements), the array should be replaced with the appropriate pointer.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,c,diff-id=1,diff-type=noncompliant]
+----
+struct Struct { int x; };
+Struct elems[10];
+
+void process() {
+  for (int i = 0; i < 10; ++i) {
+    elems->x *= 2; // Noncompliant: "->" used to access "elems[0]"
+  }
+}
+----
+
+==== Compliant solution
+
+If the access to the first element was intentional, you can use subscript explicitly:
+[source,cpp,,diff-id=1,diff-type=compliant]
+----
+struct Struct { int x; };
+Struct elems[10];
+
+void process() {
+  for (int i = 0; i < 10; ++i) {
+    elems[0].x *= 2; // Compliant: element accessed through subscript
+  }
+}
+----
+
+Otherwise, if ``++i++``th element was to be updated:
+[source,cpp]
+----
+struct Struct { int x; };
+Struct elems[10];
+
+void process() {
+  for (int i = 0; i < 10; ++i) {
+    elems[i].x *= 2; // Compliant: element accessed through subscript
+  }
+}
+----
+
+Finally, the ``++i++``th element can be accessed using ``++->++`` and `elem` pointer:
+[source,cpp]
+----
+struct Struct { int x; };
+Struct elems[10];
+
+void process() {
+  for (Struct* elem = elems, end = elems + 10; elem != end; ++elem) {
+    elem->x *= 2; // Compliant: dereferencing a pointer
+  }
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    *integers = i; // Noncompliant: "*" used to access "integers[0]"
+  }
+}
+----
+
+==== Compliant solution
+
+The intent was probably to access the ``++i++``th element of `integers`:
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    integers[i] = i; // Compliant: element accessed through subscript
+  }
+}
+----
+
+Or, to preserve current behavior, use a subscript to explicitly access the first element:
+
+[source,cpp]
+----
+int integers[5]; 
+
+void init() {
+  for (int i = 0; i < 5; ++i) {
+    integers[0] = i; // Compliant: element accessed through subscript
+  }
+}
+----
+
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/array#Array-to-pointer_decay[Array-to-pointer decay]
+
+=== Related rules
+
+ * S945 detects array decays that happen when passing an array object to a function that has a pointer parameter.
