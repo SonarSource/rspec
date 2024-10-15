@@ -1,44 +1,141 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises issue if the division of `sizeof` is used to compute size of array,
+that could be replaced with `std::size` or `std::ranges::size` (since {cpp}20).
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+The `C` array does not expose the number of elements as data member, or member functions.
+This information is present in type system.
 
-//=== What is the potential impact?
+In {cpp} in can be extracted by calling `std::size` (introduced in {cpp}17) or `std::ranges::size` (introduced in {cpp}20),
+as above functions supports C-arrays in addition to containers and ranges.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+Alternative, that is supported also in C, is to dived sizeof of the array, by size of element type.
+Using this solution does not convey the intent of the code,
+and may be prone to producing incorect value when element type is changed,
+but the sizeof code was not updated.
 
-=== Code examples
+This rule raises an issue when division of `sizeof` is used to compute number of elements in array:
 
 ==== Noncompliant code example
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+int carr[10]; 
+
+void process() {
+  std::size_t size = sizeof(carr) / sizeof(int); // Non-compliant
+}
 ----
 
 ==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+int carr[10]; 
+
+void process() {
+  std::size_t size = std::size(carr); // Compliant
+}
 ----
 
-//=== How does this work?
-
-//=== Pitfalls
-
-//=== Going the extra mile
+The rule also detect cases when the `sizeof` divsion is expanded from macro:
 
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+int carr[10]; 
+
+void process() {
+  std::size_t size = ARRAY_SIZE(carr); // Non-compliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+int carr[10]; 
+
+void process() {
+  std::size_t size = std::size(carr); // Compliant
+}
+----
+
+=== `std::array` is also covered
+
+This rule will aslo raise issue when the `sizeof` division, 
+is used to compute size of `std::array` type.
+
+Such code may be leftover from replacement of C-array,
+without updating all necessary call sides (see S5954).
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+std::array<int, 10> arr; 
+
+void process() {
+  std::size_t size1 = sizeof(arr) / sizeof(int); // Non-compliant
+  std::size_t size2 = ARRAY_SIZE(arr); // Non-compliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#define array_size(arr) sizeof(arr) / sizeof((arr)[0])
+
+std::array<int, 10> arr; 
+
+void process() {
+  std::size_t size1 = std::size(arr); // Compliant
+  std::size_t size2 = std::size(arr); // Compliant
+}
+----
+
+Alternatively, `size` member function may be invoked in non-generic context.
+
+[source,cpp]
+----
+#define array_size(arr) sizeof(arr) / sizeof((arr)[0])
+
+std::array<int, 10> arr; 
+
+void process() {
+  std::size_t size1 = arr.size(); // Compliant
+  std::size_t size2 = arr.size(); // Compliant
+}
+----
+
+=== How does this work?
+
+The implementation of `std::size` for arrays, relies of template argument deduction,
+to deduce size of array from its type:
+
+[source,cpp]
+----
+template<typename T, std::size_t N>
+constexpr N my_size(T const& (arr)[N]) {
+  return N;
+}
+
+int arr[10];
+std::size_t s = my_size(arr); // Deduces: "N" == 10
+---
+
+== Resources
+
+=== Related rules
+
+* S5945 - suggest replacing C-arrays with `std::array` and `std::vector`
+
