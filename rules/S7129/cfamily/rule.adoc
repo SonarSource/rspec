@@ -1,44 +1,102 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+String literals, represented by a text surrounded by `"` like `"Hello world"` are stored in read-only memory and cannot be mutated.
 
-//=== What is the potential impact?
+Historically, string literals were introduced in C before the keyword `const` so it was possible to create a mutable pointer to a string literal:
+
+[source,c]
+----
+char * ptr = "Hello world!"; // Noncompliant
+----
+
+To maintain retrocompatibility with an enormous amount of code that had been written without const, pointing to a string literal with a mutable char pointer is still allowed in C and although it has been officially removed from {cpp} since {cpp}11, most compilers still allow it with a warning.
+
+Because it is a pointer to read-only memory, trying to modify `ptr` will lead to undefined behavior. And because it is not declared as `const`, the typesystem will not be able to prevent or warn of such modification attempt.
+
+=== Exceptions
+
+This rule doesn't raise an issue for explicit conversion to `char *`.
+
+[source,c]
+----
+char * ptr = (char *)"Hello world!"; // Compliant by exception, but you should avoid it.
+----
+
+This can be necessary in some very specific cases where an external API takes a mutable `char *` with the clear contract that it will never modify it.
+
+That remains a very dangerous pattern that should be avoided as much as possible.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
-=== Code examples
+=== {cpp}
 
-==== Noncompliant code example
+==== Immutable case
+
+In {cpp}, since {cpp}17, if the text does not need to be mutated, the optimal way to fix it is to use `std::string_view`. It doesn't create an unnecessary copy and it points to the literal in a non-mutable way.
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+char * s = "Hello world!"; // Noncompliant
 ----
-
-==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+std::string_view s = "Hello world!"; // Compliant, not mutable
 ----
 
-//=== How does this work?
+==== Mutable case
 
-//=== Pitfalls
+If `std::string_view` is not an option, either because of the {cpp} version or because the text needs to be mutated, `std::string` will create a full copy of the literal, that can be modified without a risk.
 
-//=== Going the extra mile
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+char * s = "Hello world!"; // Noncompliant
+----
 
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+std::string s = "Hello world!"; // Compliant, mutable
+----
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+=== C
+
+==== Immutable case
+
+In C, if the text doesn't need to mutate, the pointer should be declared const
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+char * s = "Hello world!"; // Noncompliant
+----
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+const char * s = "Hello world!"; // Compliant, non mutable
+----
+
+==== Mutable case
+
+In C, if the text needs to be mutated, the data needs to be copied in a mutable array.
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+char * s = "Hello world!"; // Noncompliant
+mutate(s);
+----
+
+The copy can be on the stack
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+char s[] = "Hello world!"; // Compliant, full copy on the stack
+mutate(s);
+----
+
+Or on the heap, in which case it will need to be ``free``d aftwerward
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+char *s = strdup("Hello world!"); // Compliant, full copy on the heap
+mutate(s);
+free(s);
+----
