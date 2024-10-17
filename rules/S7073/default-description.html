@@ -1,0 +1,144 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Inter-Process Communication (IPC) in Electron applications
+enables communication between the main process and renderer
+processes. The main process typically has higher privileges
+and greater access to system resources. Since any Web Frame
+has the potential to make IPC calls, not securing IPC calls
+opens up vulnerabilities that can be exploited by malicious
+actors to compromise the main process.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Failing to validate the senders of IPC messages in Electron applications
+can have severe consequences, including:</p>
+</div>
+<div class="sect3">
+<h4 id="_arbitrary_code_execution">Arbitrary Code Execution</h4>
+<div class="paragraph">
+<p>Unvalidated IPC messages can be exploited by attackers to execute arbitrary
+code, potentially leading to full system compromise.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_data_leakage">Data Leakage</h4>
+<div class="paragraph">
+<p>Sensitive information can be intercepted or exfiltrated by
+unauthorized entities, resulting in data breaches and loss of confidentiality.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_privilege_escalation">Privilege Escalation</h4>
+<div class="paragraph">
+<p>Malicious actors can leverage unvalidated IPC messages
+to gain elevated privileges within the application, allowing them to perform
+actions beyond their intended permissions.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">ipcMain.handle('get-sensitive-data', (event) =&gt; { // Noncompliant
+  return getSensitiveData()
+})</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">ipcMain.handle('get-sensitive-data', (event) =&gt; {
+  if (validateSenderFrame(event.senderFrame)) {
+    return getSensitiveData()
+  } else {
+    throw new Error('Unauthorized access')
+  }
+})
+
+function validateSenderFrame(senderFrame) {
+  const senderUrl = new URL(senderFrame.url)
+  return (senderUrl.hostname === 'safe.example.org'
+        &amp;&amp; senderUrl.protocol === 'https:'
+        &amp;&amp; senderUrl.port === '')
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>In the given example, the compliant code verifies that the URL
+of the sender frame is pointing to a trusted resource.
+The verification takes into account the protocol to make sure
+that only securely obtained web content can obtain sensitive data.
+Additionally, the host name and port are checked (in the given example
+it is checked, that the URL does not specify a port, so that
+443, the default port for HTTPS will be used).</p>
+</div>
+<div class="paragraph">
+<p>If you&#8217;re app is loading files using the <code>file</code> protocol, than the path
+of the loaded file should be validated to make sure that only the intended
+files can successful make IPC calls. The following code shows how the path
+of a sender can be verified:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const url = require('url')
+
+function validateSenderFrame(senderFrame) {
+  const senderUrl = new URL(senderFrame.url)
+  return senderUrl.protocol === 'file:'
+        &amp;&amp; url.fileUrlToPath(senderUrl).startsWith('/trusted/folder')
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>Instead of using <code>event.senderFrame.url</code> it might be tempting to use
+<code>event.sender.getUrl()</code> for validation. However, if an iframe on a page
+makes an IPC call, the <code>event.sender</code> property will contain the properties
+of the parent. So if an iframe is embedded in the web page obtained from
+<code><a href="https://example.org" class="bare">https://example.org</a></code>, and this iframe makes an IPC call, <code>event.sender.getUrl()</code>
+will return <code><a href="https://example.org" class="bare">https://example.org</a></code> regardless of which URL was used to obtain the
+resource loaded in the iframe.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Electron Documentation - <a href="https://www.electronjs.org/docs/latest/tutorial/security#17-validate-the-sender-of-all-ipc-messages">Security - Validate the sender of all IPC messages</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
