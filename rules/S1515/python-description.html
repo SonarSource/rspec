@@ -1,0 +1,215 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nested functions and lambdas can reference variables defined in enclosing scopes. This can create tricky bugs when the variable and the function are defined in a loop. If the function is called in another iteration or after the loop finishes, it will see the variables' last value instead of seeing the values corresponding to the iteration where the function was defined.</p>
+</div>
+<div class="paragraph">
+<p>Capturing loop variables might work for some time but:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>it makes the code difficult to understand.</p>
+</li>
+<li>
+<p>it increases the risk of introducing a bug when the code is refactored or when dependencies are updated. See an example with the builtin "map" below.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>One solution is to add a parameter to the function/lambda and use the previously captured variable as its default value. Default values are only executed once, when the function is defined, which means that the parameter&#8217;s value will remain the same even when the variable is reassigned in following iterations.</p>
+</div>
+<div class="paragraph">
+<p>Another solution is to pass the variable as an argument to the function/lambda when it is called.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when a function or lambda references a variable defined in an enclosing loop.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def run():
+    mylist = []
+    for i in range(5):
+        mylist.append(lambda: i)  # Noncompliant
+
+        def func():
+            return i  # Noncompliant
+        mylist.append(func)
+
+def example_of_api_change():
+    """"
+    Passing loop variable as default values also makes sure that the code is future-proof.
+    For example the following code will work as intended with python 2 but not python 3.
+    Why? because "map" behavior changed. It now returns an iterator and only executes
+    the lambda when required. The same is true for other functions such as "filter".
+    """
+    lst = []
+    for i in range(5):
+        lst.append(map(lambda x: x + i, range(3)))  # Noncompliant
+    for sublist in lst:
+        # prints [4, 5, 6] x 4 with python 3, with python 2 it prints [0, 1, 2], [1, 2, 3], ...
+        print(list(sublist))</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def run():
+    mylist = []
+    for i in range(5):
+        mylist.append(lambda i=i: i)  # passing the variable as a parameter with a default value
+
+        def func(i=i):  # same for nested functions
+            return i
+        mylist.append(func)
+
+def example_of_api_change():
+    """"
+    This will work for both python 2 and python 3.
+    """
+    lst = []
+    for i in range(5):
+        lst.append(map(lambda x, value=i: x + value, range(3)))  # Passing "i" as a default value
+    for sublist in lst:
+        print(list(sublist))</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>No issue will be raised if the function or lambda is directly called in the same loop. This still makes the design difficult to understand but it is less error prone.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def function_called_in_loop():
+    for i in range(10):
+        print((lambda param: param * i)(42)) # Calling the lambda directly
+
+        def func(param):
+            return param * i
+
+        print(func(42))  # Calling "func" directly</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments">The Hitchhiker&#8217;s Guide to Python - Common Gotchas</a></p>
+</li>
+<li>
+<p>Python documentation - <a href="https://docs.python.org/3/reference/compound_stmts.html#function-definitions">Function definitions</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>If the function is NOT a lambda: "Add a parameter to function "FFF" and use variable "XXX" as its default value; The value of "XXX" value might change at the next loop iteration."</p>
+</li>
+<li>
+<p>If the function is a lambda: "Add a parameter to the parent lambda function and use variable "XXX" as its default value; The value of "XXX" value might change at the next loop iteration."</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary: the first time the variable is used in the function/lambda</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Secondaries:</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>every assignment of the variable in the enclosing loop</p>
+<div class="ulist">
+<ul>
+<li>
+<p>message: Assignment in the loop</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>the nested function name:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>message: Function capturing this variable</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>the "lambda" keyword</p>
+<div class="ulist">
+<ul>
+<li>
+<p>message: Lambda capturing this variable</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s3044">is related to: <a data-rspec-id="S3044" class="rspec-auto-link">S3044</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_21_apr_2017_144945_elena_vilchik_wrote">on 21 Apr 2017, 14:49:45 Elena Vilchik wrote:</h3>
+<div class="paragraph">
+<p>\[~jeanchristophe.collet] Could you please update message for this rule? Something like "Review this function declated inside loop and make sure it is not called after loop ends and it doesn&#8217;t depend on variables updated with each iteration." (https://github.com/SonarSource/sonar-javascript/issues/573)</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_16_feb_2018_104258_elena_vilchik_wrote">on 16 Feb 2018, 10:42:58 Elena Vilchik wrote:</h3>
+<div class="paragraph">
+<p>Function declared inside is a problem when using <code>var</code> declaration for counter. This is very unlikely that in TS somebody will use <code>var</code>. So this rule will have very low ROI. So we will not implement it for TS.</p>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,312 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A reference to <code>null</code> should never be dereferenced/accessed.
+Doing so will cause a <code>NullPointerException</code> to be thrown.
+At best, such an exception will cause abrupt program termination.
+At worst, it could expose debugging information that would be useful to an attacker,
+or it could allow an attacker to bypass security measures.</p>
+</div>
+<div class="paragraph">
+<p>Note that when they are present, this rule takes advantage of nullability annotations,
+like <code>@CheckForNull</code> or <code>@Nonnull</code>, defined in <a href="https://jcp.org/en/jsr/detail?id=305">JSR-305</a>
+to understand which values can be null or not.
+<code>@Nonnull</code> will be ignored if used on the parameter of the <code>equals</code> method, which by contract should always work with null.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The variable <code>myObject</code> is equal to <code>null</code>, meaning it has no value:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public void method() {
+  Object myObject = null;
+  System.out.println(myObject.toString()); // Noncompliant: myObject is null
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The parameter <code>input</code> might be <code>null</code> as suggested by the <code>if</code> condition:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public void method(Object input)
+{
+  if (input == null)
+  {
+    // ...
+  }
+  System.out.println(input.toString()); // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The unboxing triggered in the return statement will throw a <code>NullPointerException</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public boolean method() {
+  Boolean boxed = null;
+  return boxed; // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Both <code>conn</code> and <code>stmt</code> might be <code>null</code> in case an exception was thrown in the try{} block:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">Connection conn = null;
+Statement stmt = null;
+try {
+  conn = DriverManager.getConnection(DB_URL,USER,PASS);
+  stmt = conn.createStatement();
+  // ...
+} catch(Exception e) {
+  e.printStackTrace();
+} finally {
+  stmt.close();  // Noncompliant
+  conn.close();  // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As <code>getName()</code> is annotated with <code>@CheckForNull</code>, there is a risk of <code>NullPointerException</code> here:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@CheckForNull
+String getName() {...}
+
+public boolean isNameEmpty() {
+  return getName().length() == 0; // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As <code>merge(&#8230;&#8203;)</code> parameter is annotated with <code>@Nonnull</code>, passing an identified potential null value (thanks to @CheckForNull) is not safe:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">private void merge(@Nonnull Color firstColor, @Nonnull Color secondColor) {...}
+
+public void append(@CheckForNull Color color) {
+  merge(currentColor, color);  // Noncompliant: color should be null-checked because merge(...) doesn't accept nullable parameters
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Ensuring the variable <code>myObject</code> has a value resolves the issue:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public void method() {
+  Object myObject = new Object();
+  System.out.println(myObject.toString()); // Compliant: myObject is not null
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Preventing the non-compliant code to be executed by returning early:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public void method(Object input)
+{
+  if (input == null)
+  {
+    return;
+  }
+  System.out.println(input.toString()); // Compliant: if 'input' is null, this is unreachable
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Ensuring that no unboxing of <code>null</code> value can happen resolves the issue</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public boolean method() {
+  Boolean boxed = true;
+  return boxed; // Compliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Ensuring that both <code>conn</code> and <code>stmt</code> are not <code>null</code> resolves the issue:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">Connection conn = null;
+Statement stmt = null;
+try {
+  conn = DriverManager.getConnection(DB_URL,USER,PASS);
+  stmt = conn.createStatement();
+  // ...
+} catch(Exception e) {
+  e.printStackTrace();
+} finally {
+  if (stmt != null) {
+    stmt.close();  // Compliant
+  }
+  if (conn != null) {
+    conn.close();  // Compliant
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Checking the returned value of <code>getName()</code> resolves the issue:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@CheckForNull
+String getName() {...}
+
+public boolean isNameEmpty() {
+  String name = getName();
+  if (name != null) {
+    return name.length() == 0; // Compliant
+  } else {
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Ensuring that the provided <code>color</code> is not <code>null</code> resolves the issue:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">private void merge(@Nonnull Color firstColor, @Nonnull Color secondColor) {...}
+
+public void append(@CheckForNull Color color) {
+  if (color != null) {
+    merge(currentColor, color);  // Compliant
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/476">CWE-476 - NULL Pointer Dereference</a></p>
+</li>
+<li>
+<p>CERT, EXP34-C. - <a href="https://wiki.sei.cmu.edu/confluence/x/QdcxBQ">Do not dereference null pointers</a></p>
+</li>
+<li>
+<p>CERT, EXP01-J. - <a href="https://wiki.sei.cmu.edu/confluence/x/aDdGBQ">Do not use a null in a case where an object is required</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>'XXXX' is nullable here and method 'YYY' don&#8217;t accept nullable argument</p>
+</li>
+<li>
+<p>NullPointerException might be thrown as 'XXXX' is nullable here</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary : the variable on which a function call can lead to a null pointer dereference (if this value is the output of another function call, this other function call must be highlighted instead)</p>
+</div>
+<div class="paragraph">
+<p>Secondary : the last locations in the code where the nullability condition has been set on the variable. The associated location message should be either :</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>So "xxxx" is null</p>
+</li>
+<li>
+<p>So "xxxx" is nullable</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_duplicated_by_s1678">is duplicated by: <a data-rspec-id="S1678" class="rspec-auto-link">S1678</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_replaces_s2220">replaces: <a data-rspec-id="S2220" class="rspec-auto-link">S2220</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_supercedes_s1697">supercedes: <a data-rspec-id="S1697" class="rspec-auto-link">S1697</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_11_feb_2015_123815_sébastien_gioria_wrote">on 11 Feb 2015, 12:38:15 Sébastien Gioria wrote:</h3>
+<div class="paragraph">
+<p>This Rule fall into :</p>
+</div>
+<div class="paragraph">
+<p>OWASP A6 &#8658; if this expose informations</p>
+</div>
+<div class="paragraph">
+<p>OWASP A2 &#8658; if this can give attackers capacity to bypass authentication or authorization</p>
+</div>
+<div class="paragraph">
+<p>OWASP A1 &#8658; is this can give attacker capacity to inject something</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_feb_2015_131839_ann_campbell_wrote">on 11 Feb 2015, 13:18:39 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Thanks [~sebastien.gioria]</p>
+</div>
+</div>
+</div>
+</div>
