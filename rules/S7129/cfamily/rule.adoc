@@ -1,0 +1,107 @@
+== Why is this an issue?
+
+String literals, represented by a text surrounded by double quotes like `"Hello world"` are stored in read-only memory and cannot be mutated.
+
+Historically, string literals were introduced in C before the keyword `const` so it was possible to create a mutable pointer to a string literal:
+
+[source,c]
+----
+char * ptr = "Hello world!"; // Noncompliant
+----
+
+To maintain retro-compatibility with the enormous amount of code that had been written without const, pointing to a string literal with a mutable char pointer remained allowed in C, and although it has been officially removed from {cpp} since {cpp}11, most compilers still allow it with a warning.
+
+Because it is a pointer to read-only memory, trying to modify `ptr` will lead to undefined behavior. And because it is not declared as `const`, the type system will not be able to prevent or warn of such modification attempts.
+
+=== Exceptions
+
+This rule doesn't raise an issue for explicit conversions to `char *`.
+
+[source,c]
+----
+char * ptr = (char *)"Hello world!"; // Compliant by exception, but you should avoid it.
+----
+
+This can be necessary in some very specific cases where an external API takes a mutable `char *` with the clear contract that it will never modify it.
+
+That remains a very dangerous pattern that should be avoided as much as possible.
+
+== How to fix it
+
+=== Using {cpp} string classes
+
+==== Immutable case
+
+Since {cpp}17, if the text does not need to be mutated, the optimal way to fix this issue is to use `std::string_view`. It doesn't create an unnecessary copy and it points to the literal in a non-mutable way.
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+char * s = "Hello world!"; // Noncompliant
+----
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+std::string_view s = "Hello world!"; // Compliant, not mutable
+----
+
+==== Mutable case
+
+If `std::string_view` is not an option because the text needs to be mutated, `std::string` will create a full copy of the literal, that can be modified without a risk.
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+char * s = "Hello world!"; // Noncompliant
+----
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+std::string s = "Hello world!"; // Compliant, mutable
+----
+
+That solution creates a local variable, check the "Pitfalls" section if the variable may be used outside of its scope.
+
+=== Keeping C-string usage
+
+==== Immutable case
+
+If the text doesn't need to be mutated, the pointer should be declared const
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+char * s = "Hello world!"; // Noncompliant
+----
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+const char * s = "Hello world!"; // Compliant, non mutable
+----
+
+==== Mutable case
+
+If the text needs to be mutated, the data needs to be fully copied.
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+char * s = "Hello world!"; // Noncompliant
+mutate(s);
+----
+
+The copy can be made on the stack by declaring a new array initialized with the content of the literal:
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+char s[] = "Hello world!"; // Compliant, full copy on the stack
+mutate(s);
+----
+
+That solution creates a local variable, check the "Pitfalls" section if the variable may be used outside of its scope.
+
+=== Pitfalls
+
+String literals are static and thus can be accessed without worrying about their lifetime. When replacing a pointer to a string literal with a variable owning a copy, it is important to consider what the lifetime of that copy needs to be.
+
+If every access to the copy is local, a local variable is enough. If the copy is passed to other functions that might keep a reference to it, the scope of the variable needs to be adjusted. Depending on what the code does, that can be obtained by:
+
+* declaring the variable at a higher scope.
+* creating the copy on the heap, in which case it needs to be properly deallocated afterward.
+* declaring the variable as static, like the string literal was, in which case the same variable will be mutated every time its parent function is called.
