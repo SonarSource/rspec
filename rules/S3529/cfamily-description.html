@@ -1,0 +1,284 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Accessing a memory block that was already freed is undefined behavior.
+This rule flags access via a pointer or a reference to released heap memory.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A program may allocate an additional memory block using the <code>malloc</code> function.
+When no longer needed, such memory blocks are released using the <code>free</code> function.
+After it is released, reading or writing to a heap-allocated memory block leads to undefined behavior.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">char *cp = (char*)malloc(sizeof(char)*10); // memory is allocated
+// all bytes in cp can be used here
+free(cp); // memory is released
+cp[9] = 0; // Noncompliant: memory is used after it was released</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In addition to the <code>malloc</code> and <code>free</code> pair, in C&#43;&#43; a heap memory may be acquired by use of the operator <code>new</code>,
+and later released using the operator <code>delete</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int *intArray = new int[20]; // memory is allocated
+// elements of intArray can be written or read here
+delete[] intArray; // memory is released
+intArray[3] = 10; // Noncompliant: memory is used after it was released</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Releasing a memory block by invoking <code>free</code> or operator <code>delete</code>
+informs the memory management system that the program no longer uses the given block.
+Depending on the state and load of the program, such block can be then:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>reused, i.e., the allocation function returns the same pointer,</p>
+</li>
+<li>
+<p>released to the operating system, making it inaccessible to the program.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Accessing released memory causes undefined behavior.
+This means the compiler is not bound by the language standard anymore, and your program has no meaning assigned to it.</p>
+</div>
+<div class="paragraph">
+<p>Practically this has a wide range of effects:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The program may crash due to the memory no longer being accessible,
+or due to unexpected value being read or written via the pointer.</p>
+</li>
+<li>
+<p>Reading from the released memory may produce a garbage value.</p>
+</li>
+<li>
+<p>When the memory was already reused to store sensitive data, such as passwords, it may lead to a vulnerability that uses this defect to extract information from an instance of the program.</p>
+</li>
+<li>
+<p>Writing to released memory may change the value of the unrelated object in a remote part of the code if the memory was reused by it.
+As different objects may reuse same the block of memory between runs, this leads to unintuitive and hard diagnose bugs.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In most situations, the use of an uninitialized object is a strong indication of a defect in the code,
+and fixing it requires a review of the object allocation and deallocation strategies.
+Generally, the fix requires adjusting the code, so either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Moving accesses to the memory before the deallocation</p>
+</li>
+<li>
+<p>Moving the deallocation so it happens after all the uses</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If possible, it is desired to remove manual memory allocation,
+and replace it with stack-allocated objects, or in the case of C&#43;&#43;,
+stack objects that manage memory (using RAII idiom).</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int *intArray = (int*)malloc(sizeof(int)*10);
+// ...
+free(intArray);
+intArray[9] = 0;  // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Release the memory after all of its uses.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int *intArray = (int*)malloc(sizeof(int)*10);
+// ...
+intArray[9] = 0;  // Compliant
+free(intArray);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Alternatively, allocate the array on the stack,
+if the size of the array is known at compile-time:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int intArray[10];
+// ...
+intArray[9] = 0;  // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In C&#43;&#43;, use <code>std::vector</code> with an arbitrary number of elements:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::vector&lt;int&gt; intArray;
+intArray.resize(10);
+// ...
+intArray[9] = 0;  // Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>In C&#43;&#43;, manually allocating and deallocating memory is considered a code smell.</p>
+</div>
+<div class="paragraph">
+<p>It is recommended to follow the <em>RAII</em> idiom and create a class that manages the memory by allocating it when the object is constructed and freeing it when it is destroyed.
+Furthermore, copy and move operations on such objects are designed such that this object can be passed by value between functions (either as an argument or by being returned)
+in place of raw pointers.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the type, passing an <em>RAII</em> object operations may either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Allocate a new block of memory and copy the elements (<code>std::vector</code>).</p>
+</li>
+<li>
+<p>Transfer ownership of the memory to constructed object (<code>std::unique_ptr</code>).</p>
+</li>
+<li>
+<p>Use shared ownership and free memory when the last object is destroyed (<code>std::shared_ptr</code>).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This guarantees that accessing a memory managed by such an object is not released as long as such an object is not modified or destroyed (some <em>RAII</em> types provide a stronger guarantee).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::vector&lt;int&gt; intArray(10); // manages an array of 10 integers, on the heap
+std::unique_ptr&lt;Class&gt; objPtr = std::make_unique&lt;Class&gt;(); // manages an object on the heap
+
+intArray[5]; // OK
+objPtr-&gt;foo(); // OK</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>However, any raw pointers or references to memory held by <em>RAII</em> object may still lead to a use after free:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int* p1 = &amp;intArray[0];    // becomes dangling when intArray is destroyed
+int* p2 = intArray.data(); // same as above
+Class* p3 = objPtr.get();  // becomes dangling, when objPtr releases the pointer</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/raii">RAII</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/unique_ptr">std::unique_ptr</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/shared_ptr">std::shared_ptr</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/416">CWE-416 - Use After Free</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/GdYxBQ">MEM30-C - Do not access freed memory</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/onw-BQ">MEM50-CPP - Do not access freed memory</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/OXw-BQ">EXP54-CPP - Do not access an object outside of its lifetime</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5025" class="rspec-auto-link">S5025</a> recommends avoiding manual memory management</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Review this memory access; the memory has already been released.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary: xxx</p>
+</li>
+<li>
+<p>Secondary: <code>free</code> call</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

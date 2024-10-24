@@ -1,0 +1,187 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using nullable typed expressions in a non-nullable input position (e.g., as the right-hand side of an assignment, a function call argument, or a return statement argument) can lead to a NullPointerException (NPE) at runtime. This occurs because the receiving code typically assumes the value is non-null and omits null checks.</p>
+</div>
+<div class="paragraph">
+<p>Formally, non-nullable and nullable versions of a type are distinct, with different domains.
+The domain of a non-nullable type is <em>D</em>, while the domain of a nullable type is <em>D &#8746; null</em>, a superset of <em>D</em>.
+Thus, a non-null value can be used wherever a nullable type is expected, but not vice versa.
+The only reason it&#8217;s allowed by the compiler is that null-safety is not a built-in Java language feature, and it&#8217;s therefore handled via nullability annotations by external tools bypassing the regular typing system.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Depending on the use-case, there are different strategies to fix this problem.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p><strong>1. Change the input position type from non-nullable to nullable, or the expression type from nullable to non-nullable:</strong> This resolves the issue at the reported location but may propagate it elsewhere. Note: you should avoid declaring everything nullable; only do so where it aligns with your data and state models. Otherwise, consider the other approaches.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@NonNull String title = createTitle();
+
+@Nullable static String createTitle() {
+    // ...
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Nullable String title = createTitle();
+
+@Nullable static String createTitle() {
+    // ...
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@NonNull String title = createTitle();
+
+@Nullable static String createTitle() {
+    // ...
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@NonNull String title = createTitle();
+
+@NonNull static String createTitle() {
+    // ...
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@NullMarked
+class Collector {
+  void collectData(List&lt;Entity&gt; entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List&lt;Entity&gt; entities) {
+  collector.collectData(entities);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">class Collector {
+  void collectData(@Nullable List&lt;Entity&gt; entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List&lt;Entity&gt; entities) {
+  collector.collectData(entities);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>2. Replace <code>null</code> case with a guard element:</strong> This is particularly effective for array and collection types, where <code>null</code> can easily be replaced with an empty array or collection instance.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@NullMarked
+class Collector {
+  void collectData(List&lt;Entity&gt; entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List&lt;Entity&gt; entities) {
+  collector.collectData(entities);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@NullMarked
+class Collector {
+  void collectData(List&lt;Entity&gt; entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List&lt;Entity&gt; entities) {
+  var nonNullEntities = entities != null? entities: List.of();
+  collector.collectData(nonNullEntities);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>3. Throw an Exception in <code>null</code> case:</strong> For unexpected or uninitialized values or unspecified behavior, throw an exception instead of returning <code>null</code>. This reports the issue at its origin, not somewhere else in the source code where the unexpected <code>null</code> value suddenly becomes a problem. This makes debugging easier.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_5">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Nullable Element getOrNull() {
+  // ...
+}
+
+@NonNull Element get() {
+  var element = getOrNull();
+  return element;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_5">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Nullable Element getOrNull() {
+  // ...
+}
+
+@NonNull Element get() {
+  var element = getOrNull();
+  if (element == null) throw new NoSuchElementException();
+  return element;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
