@@ -1,14 +1,14 @@
 == Why is this an issue?
 
-In C, and to some extend in C++, strings are arrays of characters terminated by a null character that is used as a sentinel denoting the end of the string.  Therefore, it is common to pass to a function a pointer to the start of a string and expect it to iterate on the content until it reaches the final null character.
+In C, and to some extend in {cpp}, strings are arrays of characters terminated by a null character that is used as a sentinel denoting the end of the string.  Therefore, it is common to pass to a function a pointer to the start of a string and expect it to iterate on the content until it reaches the final null character.
 
-`std::string_view` takes another approach: It stores a pointer to the start of the string and the length of the string. This allows, in perticuler, to have a string_view that refers to a substring of a string. In such situations, the string_view will not be null-terminated.
+`std::string_view` takes another approach: It stores a pointer to the start of the string and the length of the string. This allows, in particular, to have a `string_view` that refers to a substring of a string. In such situations, the `string_view` will not be null-terminated.
 
-This is usually not a problem when working with string_view, but can become one when the ôinter to the start of the string is extracted from a `string_view` by calling `std::string_view::data()`. This pointer points to a non null-terminated string, and if passed to a function that expects a null-terminated string, this function will not be able to determine the end of the string.
+This is usually not a problem when working with `string_view`, but can become one when a pointer to the start of the string is extracted from a `string_view` by calling `std::string_view::data()`. This pointer points to a non null-terminated string, and if passed to a function that expects a null-terminated string, this function will not be able to determine the end of the string.
 
-This kind of situation usually happens when partially modernizing code that used to work with C-sztyle strings or `std::string` to use `std::string_view` instead.
+This kind of situation usually happens when partially modernizing code that used to work with C-style strings or `std::string` to use `std::string_view` instead.
 
-This rules raises an issue when `std::string_view::data()` is passed to a one argument constructor of `std::string` or `std::string_view` or to any function from the C standard library that expects a null-terminated string.
+This rules raises an issue when `std::string_view::data()` is passed to a one-argument constructor of `std::string` or `std::string_view` or to any function from the C standard library that expects a null-terminated string.
 
 === What is the potential impact?
 
@@ -17,10 +17,12 @@ If the `string_view` refers to a part of a larger string that is itself null-ter
 [source,cpp]
 ----
 std::string credentials = getCredentials(); // Expects a string "user:password"
-auto user = std::string_view(credentials.data(), credentials.find(':'));
-
-printf("User: %s", user.data()); // This will print the user name, but will not stop at the end of the user name.
+auto user = std::string_view(credentials.c_str(), credentials.find(':'));
+// This will print the user name, but will not stop at the end of the user name,
+// it will also print the password.
+printf("User: %s", user.data()); 
 ----
+
 
 The discrepancy between `std::string_view::size()` and the number of characters read by a function considering the string to be null-terminated could also lead to buffer overflows.
 
@@ -34,13 +36,17 @@ In the general case, if the `string_view` does not refer to (part of) a null-ter
 
 == How to fix it
 
+=== When working with {cpp} types
+
 When constructing a `std::string` or another `std::string_view` from a `string_view`, you don't have to call `data`, specific constructors already exist for this purpose.
+
+==== Noncompliant code example
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
 void f(std::string_view sv) {
     std::string s(sv.data()); // Noncompliant
-    std::string_view sv2(s.data()); // Noncompliant
+    std::string_view sv2(sv.data()); // Noncompliant
 }
 ----
 
@@ -50,11 +56,15 @@ void f(std::string_view sv) {
 ----
 void f(std::string_view sv) {
     std::string s(sv); // Noncompliant
-    std::string_view sv2(s); // Noncompliant
+    std::string_view sv2(sv); // Noncompliant
 }
 ----
 
-When calling a function from the C library that expect a C-style string argument, the best is usually to use a replacement for that function that directly works with `string_views`.
+=== When working with the C library
+
+When calling a function from the C library that expect a C-style string argument, the best is usually to use a replacement for that function that directly works with `std::string_view`.
+
+==== Noncompliant code example
 
 [source,cpp,diff-id=2,diff-type=noncompliant]
 ----
@@ -74,33 +84,3 @@ void f(std::string_view sv1, std::string_view sv2) {
 }
 ----
 
-=== Code examples
-
-==== Noncompliant code example
-
-[source,cpp,diff-id=1,diff-type=noncompliant]
-----
-FIXME
-----
-
-==== Compliant solution
-
-[source,cpp,diff-id=1,diff-type=compliant]
-----
-FIXME
-----
-
-//=== How does this work?
-
-//=== Pitfalls
-
-//=== Going the extra mile
-
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
