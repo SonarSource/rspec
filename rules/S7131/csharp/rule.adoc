@@ -1,18 +1,20 @@
 
-When using https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock[ReaderWriterLock] and https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim[ReaderWriterLockSlim] for managing read and write locks, you should not exit a read lock while holding a write lock otherwise you might have unexpected behavior.
+When using https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock[ReaderWriterLock] and https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim[ReaderWriterLockSlim] for managing read and write locks, you should not release a read lock while holding a write lock and vice versa, otherwise you might have unexpected behavior.
 The locks should be always correctly paired so that the shared resource is accessed safely.
 
 This rule raises if:
 
 * you acquire https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock.acquirewriterlock[ReaderWriterLock.AcquireWriterLock] or https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock.upgradetowriterlock[ReaderWriterLock.UpgradeToWriterLock] and then use https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock.releasereaderlock[ReaderWriterLock.ReleaseReaderLock] before releasing the writerlock
-* or you acquire https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.enterwritelock[ReaderWriterLockSlim.EnterWriteLock] or https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.tryenterwritelock[ReaderWriterLockSlim.TryEnterWriteLock] and then use https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.exitreadlock[ReaderWriterLockSlim.ExitReadLock] before you release it.
+* you acquire https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.enterwritelock[ReaderWriterLockSlim.EnterWriteLock] or https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.tryenterwritelock[ReaderWriterLockSlim.TryEnterWriteLock] and then use https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.exitreadlock[ReaderWriterLockSlim.ExitReadLock] before you release it
+* you acquire https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock.acquirereaderlock[ReaderWriterLock.AcquireReaderLock] or https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock.downgradefromwriterlock[ReaderWriterLock.DowngradeFromWriterLock] and then use https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock.releasewriterlock[ReaderWriterLock.ReleaseWriterLock] before releasing the reader lock
+* or you acquire https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.enterreadlock[ReaderWriterLockSlim.EnterReadLock], https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.tryenterreadlock[ReaderWriterLockSlim.TryEnterReadLock], https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.enterupgradeablereadlock[ReaderWriterLockSlim.EnterUpgradeableReadLock] or https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.tryenterupgradeablereadlock[ReaderWriterLockSlim.TryEnterUpgradeableReadLock] and then use https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim.exitwritelock[ReaderWriterLockSlim.ExitWriteLock] before you release it.
 
 
 == Why is this an issue?
 
-When you acquire a write lock you indicate that you need exclusive access to the resource, meaning no other thread should be able to read or write to the resource. If you exit a read lock while holding a write lock, you might inadvertently allow other threads to acquire a read lock, leading to race conditions and data corruption.
-Additionally, it can lead to https://learn.microsoft.com/en-us/dotnet/core/diagnostics/debug-deadlock[deadlocks] (a situation where two or more threads are waiting indefinitely for each other to release locks) and runtime exceptions (unexpected errors that occur during the execution of a program), as the lock state becomes inconsistent.
-Finally, correctly matching lock acquisition and release calls makes the code more transparent and easier to maintain. It ensures that the locking logic is straightforward and less prone to errors.
+If you use the `ReaderWriterLockSlim` class, you will get a https://learn.microsoft.com/en-us/dotnet/api/system.threading.lockrecursionexception[lockrecursionexception].
+In the case of `ReaderWriterLock`, you'll get a runtime exception for trying to release a lock that is not owned by the calling thread.
+
 
 === Code examples
 
@@ -20,16 +22,37 @@ Finally, correctly matching lock acquisition and release calls makes the code mo
 
 [source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-var lock = new ReaderWriterLock();
+class Example
+{
+    private static ReaderWriterLock rwLock = new ReaderWriterLock();
+    private static int sharedResource = 0;
 
-lock.EnterWriteLock();
-try
-{
-    // Write resources
-}
-finally
-{
-    Lock.ExitReadLock(); // Noncompliant
+    static void Writer()
+    {
+        try
+        {
+            rwLock.AcquireWriterLock(2000);
+            sharedResource++;
+        }
+        finally
+        {
+            rwLock.ReleaseReaderLock(); // Noncompliant, will throw runtime exception
+            rwLock.ReleaseWriterLock();
+        }
+    }
+
+    static void Reader()
+    {
+        try
+        {
+            rwLock.AcquireReaderLock(2000);
+        }
+        finally
+        {
+            rwLock.ReleaseWriterLock(); // Noncompliant, will throw runtime exception
+            rwLock.ReleaseReaderLock();
+        }
+    }
 }
 ----
 
@@ -37,16 +60,35 @@ finally
 
 [source,csharp,diff-id=1,diff-type=compliant]
 ----
-var lock = new ReaderWriterLock();
+class Example
+{
+    private static ReaderWriterLock rwLock = new ReaderWriterLock();
+    private static int sharedResource = 0;
 
-lock.EnterWriteLock();
-try
-{
-    // Write resources
-}
-finally
-{
-    lock.ExitWriterLock();
+    static void Writer()
+    {
+        try
+        {
+            rwLock.AcquireWriterLock(2000);
+            sharedResource++;
+        }
+        finally
+        {
+            rwLock.ReleaseWriterLock();
+        }
+    }
+
+    static void Reader()
+    {
+        try
+        {
+            rwLock.AcquireReaderLock(2000);
+        }
+        finally
+        {
+            rwLock.ReleaseReaderLock();
+        }
+    }
 }
 ----
 
@@ -54,6 +96,7 @@ finally
 
 === Documentation
 
-* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock[The lock statement - ensure exclusive access to a shared resource]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock[ReaderWriterLock Class]
 * Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim[ReaderWriterLockSlim]
+
+include::../rspecator.adoc[]
