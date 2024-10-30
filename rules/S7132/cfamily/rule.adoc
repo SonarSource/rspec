@@ -2,13 +2,31 @@
 
 In C, and to some extend in {cpp}, strings are arrays of characters terminated by a null character that is used as a sentinel denoting the end of the string.  Therefore, it is common to pass to a function a pointer to the start of a string and expect it to iterate on the content until it reaches the final null character.
 
-`std::string_view` takes another approach: It stores a pointer to the start of the string and the length of the string. This allows, in particular, to have a `string_view` that refers to a substring of a string. In such situations, the `string_view` will not be null-terminated.
+`std::string_view` takes another approach: It stores a pointer to the start of the string and the length of the string. This allows, in particular, to have a `string_view` that refers to a substring of a string. In such situations, the last character of the `string_view` will not be followed by a null character.
 
-This is usually not a problem when working with `string_view`, but can become one when a pointer to the start of the string is extracted from a `string_view` by calling `std::string_view::data()`. This pointer points to a non null-terminated string, and if passed to a function that expects a null-terminated string, this function will not be able to determine the end of the string.
+This is usually not a problem when working with `string_view`, but can become one when a pointer to the start of the string is extracted from a `string_view` by calling `data()`. This pointer will usually not point to a string with a null character at the right place, and if passed to a function that expects a null-terminated string, this function will not be able to determine the end of the `string_view`.
 
 This kind of situation usually happens when partially modernizing code that used to work with C-style strings or `std::string` to use `std::string_view` instead.
 
-This rules raises an issue when `std::string_view::data()` is passed to a one-argument constructor of `std::string` or `std::string_view` or to any function from the C standard library that expects a null-terminated string.
+[source,cpp]
+----
+void v1(char *s) { // Initial, C-style code
+    doSomething(strlen(s));
+}
+
+void v2(std:::string const &s) { // Modernized code, not optimal, but correct with minimal changes
+    doSomething(strlen(s.data()));
+}
+
+void v3(std::string_view s) { // Second modernization step, becomes incorrect
+    doSomething(strlen(s.data())); // Noncompliant
+}
+----
+
+This rules raises an issue when the result of calling `data()` on a `string_view` (or any specialization of `std::basic_string_view`) is passed to:
+
+* a one-argument constructor of `std::string` or `std::basic_string_view` or wide-string variants of those classes,
+* any function from the C standard library that expects a null-terminated string.
 
 === What is the potential impact?
 
@@ -20,16 +38,16 @@ std::string credentials = getCredentials(); // Expects a string "user:password"
 auto user = std::string_view(credentials.c_str(), credentials.find(':'));
 // This will print the user name, but will not stop at the end of the user name,
 // it will also print the password.
-printf("User: %s", user.data()); 
+printf("User: %s", user.data()); // Noncompliant
 ----
 
 
-The discrepancy between `std::string_view::size()` and the number of characters read by a function considering the string to be null-terminated could also lead to buffer overflows.
+The discrepancy between the `size()` function of a `string_view` and the number of characters read by a function considering the string to be null-terminated could also lead to buffer overflows.
 
 [source,cpp]
 ----
 char *userBuffer = new char[user.size() + 1];
-strcpy(userBuffer, user.data()); // Buffer overflow
+strcpy(userBuffer, user.data()); // Noncompliant: buffer overflow
 ----
 
 In the general case, if the `string_view` does not refer to (part of) a null-terminated string, any function that expects a null-terminated string will lead to a buffer overflow.
@@ -71,6 +89,9 @@ When calling a function from the C library that expect a C-style string argument
 void f(std::string_view sv1, std::string_view sv2) {
     auto l = strlen(sv1.data()); // Noncompliant
     auto p = strstr(sv1.data(), sv2.data()); // Noncompliant
+    char *buffer = new char[sv1.size() + 1];
+    strcpy(buffer, sv1.data()); // Noncompliant
+    printf("Result: %s\n", sv1.data()); // Noncompliant
 }
 ----
 
@@ -81,6 +102,24 @@ void f(std::string_view sv1, std::string_view sv2) {
 void f(std::string_view sv1, std::string_view sv2) {
     auto l = sv1.size(); // Compliant
     auto i = sv1.find(sv2); // Compliant
+    char *buffer = new char[sv1.size() + 1];
+    std::copy(sv1.begin(), sv1.end(), buffer);
+    // In C++23, previous versions could use std::format or a stream
+    std::println("Result: {}", sv1); // Compliant
 }
 ----
 
+If there is no direct replacement for a specific call, it is always possible the create a temporary `string` from the `string_view` and pass the result of `c_str()` to the function, at the cost of an extra memory allocation and copy of the characters of the `string_view`.
+
+[source,cpp]
+----
+void f(std::string_view sv1, std::string_view sv2) {
+    std::string s1 {sv1};
+    std::string s2 {sv2};
+    auto l = strlen(s1.c_str()); // Noncompliant
+    auto p = strstr(s1.c_str(), s2.c_str()); // Noncompliant
+    char *buffer = new char[s1.size() + 1];
+    strcpy(buffer, s1.c_str()); // Noncompliant
+    printf("Result: %s\n", s1.c_str()); // Noncompliant
+}
+----
