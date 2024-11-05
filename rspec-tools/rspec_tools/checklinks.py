@@ -1,12 +1,14 @@
-import os,io
-import re
-import requests
-import json
-import random
 import datetime
-from bs4 import BeautifulSoup
-from socket import timeout
+import io
+import json
+import os
 import pathlib
+import random
+import re
+import socket
+
+import requests
+from bs4 import BeautifulSoup
 
 TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = './link_probes.history'
@@ -104,7 +106,7 @@ def live_url(url: str, timeout=5):
   except requests.Timeout as t:
     print(f"ERROR: timeout ", t)
     return False
-  except timeout as t:
+  except socket.timeout as t:
     print(f"ERROR: timeout ", t)
     return False
   except Exception as e:
@@ -158,6 +160,11 @@ def url_is_exception(url: str) -> bool:
     url.startswith(e) for e in EXCEPTION_PREFIXES
   )
 
+def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    return s.getsockname()[0]
+
 def probe_links(urls: dict) -> bool:
   errors = []
   link_cache_exception = 0
@@ -185,6 +192,9 @@ def probe_links(urls: dict) -> bool:
   confirmed_errors = confirm_errors(errors, urls)
 
   print(f"\n\n\n{'=' * 80}\n\n\n")
+  print('IP addr:')
+  print(get_ip_address())
+  print(f"{'-' * 80}")
   if confirmed_errors:
     report_errors(confirmed_errors, urls)
     print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files\n\n")
