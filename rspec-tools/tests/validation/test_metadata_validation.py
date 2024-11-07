@@ -82,7 +82,7 @@ def test_rule_with_invalid_impacts(invalid_rules: RulesRepository):
 
 def test_rule_with_invalid_impact_level(invalid_rules: RulesRepository):
   s506 = invalid_rules.get_rule('S506')
-  with pytest.raises(RuleValidationError, match=re.escape("Rule S506 failed validation for these reasons:\n - Rule scala:S506 has invalid metadata in MAINTAINABILITY: 'INVALID' is not one of ['LOW', 'MEDIUM', 'HIGH']")):
+  with pytest.raises(RuleValidationError, match=re.escape("Rule S506 failed validation for these reasons:\n - Rule scala:S506 has invalid metadata in MAINTAINABILITY: 'INVALID' is not one of ['INFO', 'LOW', 'MEDIUM', 'HIGH', 'BLOCKER']")):
     validate_rule_metadata(s506)
 
 

@@ -1,0 +1,508 @@
+This rule raises an issue if the initializer of a global variable `a`,
+refers to another global variable `b`, when there is no guarantee that `b` is initialized before `a`.
+
+== Why is this an issue?
+
+{cpp} allows global variables to have arbitrally complex initializers.
+
+Such variables are zero-initialized statically,
+and further initialization is performed at runtime,
+in the process referred to as dynamic initialization.
+
+The dynamic initialization of such variables is performed in the order of their definitions within a single source file.
+However, the order of initialization of variables defined in different source files is not specified.
+Therefore, when a global variable refers to a variable defined in a different source file,
+the behavior of the program is not guaranteed:
+
+[source,cpp]
+----
+extern int global1;
+// Defined in different source file as:
+// int global1 = 20;
+
+int const global2 = global1 + 10; // Noncompliant
+----
+
+Depending on the order of initialization of `global1` and `global2`, `global2` may be set to:
+
+* `30` if `global1` is initialized before `global2`
+* `10` if `global2` is initialized before `global1`, as `global1` will only be zero-initialized to `0`.
+
+This rule raises an issue if the initializer of a global variable `a`,
+directly refers to another global variable `b`, when there is no guarantee that `b` is initialized before `a`.
+
+This is a subset of the issues related to initialization of global variables,
+commonly referred to as a static initialization order fiasco.
+
+=== What is the potential impact?
+
+The behavior of any program that is prone to static initialization order fiasco issues,
+is very fragile.
+The order of initialization may change at any time, for instance, when performing unrelated changes to the source code, or even differ between the builds of the same source.
+Such issues are very hard to reproduce and debug.
+
+Furthermore, the impact is not only limited to observing fluctuating values of global variables, as presented in the previous example.
+
+For class types, invoking any member functions of an object that is only zero-initialized and 
+for which the constructor has not run, may cause undefined behavior and crash the program:
+
+[source,cpp]
+----
+extern std::string const string1;
+std::string const string2 = string1; // Noncompliant: undefined behavior
+----
+
+Even if, for a particular implementation, zero-initialized objects are equivalent to default-initialized objects,
+the program may still encounter undefined behavior:
+
+[source,cpp]
+----
+extern std::vector<std::string> const list;
+// Defined in different source file as:
+// std::vector<std::string> const list{"entry1", "entry2"};
+
+std::string const firstElem = list[0]; // Noncompliant: undefined behavior
+----
+
+=== Static class data members also use dynamic initialization
+
+Static data members of classes are dynamically initialized if their initializers are not constant expressions.
+Therefore, this rule will consider static data members of classes as if they were global variables.
+
+[source,cpp]
+----
+// Clazz.hpp
+extern int global;
+class Clazz {
+  static int staticMem;
+};
+
+// Clazz.cpp
+#include "Clazz.hpp"
+
+int Clazz::staticMem = global + 10; // Noncompliant: "global" may not yet be fully initialized
+
+// Source.cpp
+#include "Clazz.hpp"
+
+int global = 10;
+int otherGlobal = Clazz::staticMem; // Noncompliant: "Clazz::staticMem" may not yet be fully initialized
+----
+
+=== Initialization of instantiated variable is unordered
+
+If a global variable instantiated from a template requires a dynamic initialization (because its initialization is non-constant),
+the ordering of this initialization is unspecified.
+It may be performed before the initialization of a global variable declared before it.
+As a consequence, such variables should not refer to any dynamically initialized global variable in their initializers, 
+or be referred to from the initializer of any global variable with dynamic initialization.
+
+An instantiated variable may be produced directly from the instantiation of a variable template (introduced in {cpp}14):
+
+[source,cpp]
+----
+int global1 = runtimeFunc();
+
+template<typename T>
+T varTempl = global1; // Noncompliant: "global1" may be initialized later
+
+int global2 = varTempl<long>; // Noncompliant: "varTempl" may be initialized later
+----
+
+Similarly, static data members of class template instantiation behave as instantiated global variables:
+
+[source,cpp]
+----
+int global1 = runtimeFunc();
+
+template<typename T>
+struct Clazz {
+  static T staticMem;
+};
+
+template<typename T>
+T Clazz<T>::staticMem = global1; // Noncompliant: "global1" may be initialized later
+
+int global2 = Clazz<long>::staticMem; // Noncompliant: "Clazz<long>::staticMem" may be initialized later
+----
+
+
+== How to fix it
+
+This section presents a few general approaches to resolving issues related to the order of initialization,
+covering various scenarios and uses of the code.
+
+An important consideration is that if you are having trouble with the initialization order fiasco,
+this may be a sign that you are using too much global state in your code.
+
+=== Define related variables in a single source file.
+
+As the order of initialization is defined by the standard for variables defined in the same file,
+defining all dependent variables in a single source file addressed the issue.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+std::string s2 = s1 + " in other file"; // Compliant: "s1" is initialized before "s2"
+
+// source2.cpp
+#include "header.h"
+----
+
+=== Force constant initialization of a referred variable.
+
+Order of initialization issues are limited to variables that are initialized at runtime (via dynamic initialization),
+and do not affect variables that are initialized at compile time, via constant initialization.
+
+A variable, even dynamically initialized, can safely use in its initializer data available at compile-time: literals or variables with constant initialization.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+// header.h
+extern int const count;
+extern std::vector<int> entries;
+
+// source1.cpp
+#include "header.h"
+int const count = 20;
+
+// source2.cpp
+#include "header.h"
+std::vector<int> entries(count); // Noncompliant: "count" may not initialized before "entries"
+----
+
+==== Compliant solution
+
+If the project uses {cpp}11 or later standard, you may define the variable as `constexpr` to force constant initialization.
+In case when the initialization cannot be performed at compile time, the program will be ill-formed.
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+// header.h
+constexpr int count = 20;
+extern std::vector<int> entries;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::vector<int> entries(count); // Compliant: "count" is initialized at compile time to 20
+----
+
+If the project is limited to {cpp}98/{cpp}03, constant initialization is only supported for variables of integral types
+that are defined as `const` and only use literals or other constants in their initializers.
+
+[source,cpp]
+----
+// header.h
+int const count = 20;
+extern std::vector<int> entries;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::vector<int> entries(count); // Compliant: "count" is initialized at compile time to 20
+----
+
+==== Handling class static data members
+
+If a static data member is constant, its value may be defined in its class:
+[source,cpp]
+----
+struct Clazz {
+  static int const constMem = 10;
+  static constexpr int constexprMem = 10;
+};
+----
+
+However, in the case of `const` members and `constexpr` static data members before {cpp}17,
+the definition of the variable needs to be provided when its address is taken or a reference to it is created.
+
+Such a definition should not repeat the initializer, and can be placed in a source file (not in the header):
+[source,cpp]
+----
+int const Clazz::constMem;
+// separate "Clazz::constexprMem" definition is only required before C++17
+constexpr int Clazz::constexprMem;
+----
+
+Or when using {cpp}17 or later in the header file with `inline` keyword.
+[source,cpp]
+----
+inline int const Clazz::constMem;
+// separate "Clazz::constexprMem" definition is not required in C++17 or later
+----
+
+==== Using `inline` to avoid multiple definitions.
+
+In {cpp}, variables declared as `const`, which also includes `constexpr` variables, have internal linkage.
+This means that they are not visible outside of the translation unit.
+As a consequence, multiple files can define constants with the same name, and each such file will contain an independent occurrence of the variable.
+
+This also applies when the `const` variable is defined in a header file which is included from multiple files.
+In the following example, the translation units generated from `source1.cpp` and `source2.cpp` contain independent copies of the variable `count`.
+
+[source,cpp]
+----
+// header.h
+constexpr int count = 20;
+
+// source1.cpp
+#include "header.h"
+
+void print1() {
+  std::cout << &count << std::endl;
+}
+
+// source2.cpp
+#include "header.h"
+
+void print2() {
+  std::cout << &count << std::endl;
+}
+----
+
+As each copy of `count` is constantly initialized, the code is not susceptible to the initialization order fiasco.
+However, the address of such a variable is now different when observed from different files  (i.e., `print1` and `print2` will produce different outputs),
+and this solution may not be viable if the original code depends on `count` being unique.
+
+This limitation may be addressed when using {cpp}17 or later, by making the constant `inline`:
+
+[source,cpp]
+----
+// header.h
+inline constexpr int count = 20;
+----
+
+=== Replace global variable with static function variable
+
+A static variable defined in the function body is initialized when the function is called for the first time,
+so it is not possible to read its value before the initialization.
+In consequence, replacing a global variable with a function that declares a static variable and returns a reference to it eliminates the order of initialization issues.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+// header.h
+std::string& getS1();
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string& getS1() {
+  static std::string s1 = "Some string";
+  return s1;
+}
+
+// source2.cpp
+#include "header.h"
+
+std::string s2 = getS1() + " in other file"; // Compliant: "s1" is initialized as part of "getS1()" call
+----
+
+While the above is sufficient to fix the issue,
+replacing `s2` with a `getS2` function defined in a similar way would prevent future problems.
+
+This solution is also applicable to variable templates and static data members of class templates.
+
+[source,cpp]
+----
+template<typename CharT>
+std::basic_string<CharT> const basicBuildID = /* runtime initializer */;
+
+std::string const buildID = basicBuildID<char>(); // Noncompliant: "basicBuildID<char>" may not be initialized
+----
+
+==== Compliant solution
+
+[source,cpp]
+----
+template<typename CharT>
+std::basic_string<CharT> const& getBuildID() {
+  static std:basic_stirng<CharT> basicBuildID =  /* runtime initializer */;
+  return basicBuildID;
+}
+
+std::string const buildID = getBuildID<char>(); // Compliant: "basicBuildID" is initialized as part of "getBuildID<char>()" call
+----
+
+==== Constant initialization mitigates initialization overhead
+
+As the static local variable is initialized when the function is first called,
+the compiler uses, under the hood, an additional boolean flag to record if the variable is already initialized.
+Furthermore, if the function is called from multiple threads, the compiler also needs to insert synchronization code.
+
+As a consequence, dynamic initialization of static local variables comes with a performance cost that can be avoided if the variable can be initialized constantly, at compile-time.
+
+You can enforce constant initialization, by using:
+
+* `constexpr` (since {cpp}11) if the variable is not mutated and has a constant destructor,
+* `continit` (since {cpp}20) otherwise
+
+=== Define variables as inline in the header
+
+With the introduction of `inline` variables in {cpp}17, non-local variables can now be defined in the header without causing double-definition errors.
+Dynamic initialization of any such `inline` variables is performed before any variable that is defined consistently after it in all source files.
+This is generally true for variables defined in the same headers or in sources that always include a given header.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=5,diff-type=noncompliant]
+----
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+// header.h
+inline std::string s1 = "Some string";
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Compliant: "s1" may be initialized after "s2"
+----
+
+Again, declaring `s1` in the header file is sufficient to address the issue,
+however, changing `s2` to also be declared in the header file will prevent initialization order issues related to it.
+
+==== Use `constinit` for constant initilization
+
+As mentioned in the previous section, combining `inline` and `constexpr` will prevent the variable from being defined multiple times in different source files. 
+Furthermore, since {cpp}20 you can use `constinit` to enforce constant initialization of global variables
+that needs to be mutated.
+
+==== Templates are implicitly `inline`
+
+Even though instantiations of variable templates and static data members of class template instantiation are
+implicitly `inline`, their order of initialization is not specified, and explicitly marking them inline will have no impact.
+
+=== Updating code incrementally
+
+The options for addressing the order of initialization issues for non-`const` global variables are limited,
+especially when targeting old {cpp} standards.
+The most robust solution is to replace the global variable with a function returning a reference to a local static variable. This requires replacing all references to the global variable with a function call.
+
+For some projects and code bases, this may be too expensive or even infeasible.
+In such a case, you may consider replacing the global variable with a reference variable that is initialized with the result of the getter function.
+Such variable should be local (e.g. declared `static`) to avoid multiple definition errors:
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=6,diff-type=noncompliant]
+----
+// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=6,diff-type=compliant]
+----
+// header.h
+std::string& getS1();
+static std::string& s1 = getS1();
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string& getS1() {
+  static std::string var = "Some string";
+  return var;
+}
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Compliant: "s1" is a reference to "var", that is initialized as part of "getS1()" call
+----
+
+This solution is inspired by "Nifty Counter" idiom. 
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/siof[Static Initialization Order Fiasco]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/initialization#Non-local_variables[Initialization of non-local variables]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/zero_initialization[Zero-initialization]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/constant_initialization[Constant initialization]
+
+=== Articles & blog posts
+
+* WikiBooks - https://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Nifty_Counter[Nifty Counter]
+
+=== Related rules
+
+* S5421 detects non-const global variables.
