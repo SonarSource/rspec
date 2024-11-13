@@ -1,0 +1,136 @@
+== Why is this an issue?
+
+In C, and to some extend in {cpp}, strings are arrays of characters terminated by a null character that is used as a sentinel denoting the end of the string.  Therefore, it is common to pass to a function a pointer to the start of a string and expect it to iterate on the content until it reaches the final null character.
+
+`std::string_view` takes another approach: It stores a pointer to the start of the string and the length of the string. This allows, in particular, to have a `string_view` that refers to a substring of a string. In such situations, the last character of the `string_view` will not be followed by a null character.
+
+This is usually not a problem when working with `string_view`, but can become one when a pointer to the start of the string is extracted from a `string_view` by calling `data()`. This pointer will usually not point to a string with a null character at the right place, and if passed to a function that expects a null-terminated string, this function will not be able to determine the end of the `string_view`.
+
+This kind of situation usually happens when partially modernizing code that used to work with C-style strings or `std::string` to use `std::string_view` instead (S7121 and S7118 detect similar issues linked to partial string modernization).
+
+[source,cpp]
+----
+void v1(char *s) { // Initial, C-style code
+    doSomething(strlen(s));
+}
+
+void v2(std:::string const &s) { // Modernized code, not optimal, but correct with minimal changes
+    doSomething(strlen(s.data()));
+}
+
+void v3(std::string_view s) { // Second modernization step, becomes incorrect
+    doSomething(strlen(s.data())); // Noncompliant
+}
+----
+
+This rules raises an issue when the result of calling `data()` on a `string_view` (or any specialization of `std::basic_string_view`) is passed to:
+
+* a one-argument constructor of `std::string`, `std::string_view` (as well as wide or unicode variants of those classes),
+* any function from the C standard library that expects a null-terminated string.
+
+
+=== What is the potential impact?
+
+If the `string_view` refers to a part of a larger string that is itself null-terminated, the function will read past the end of the view, until the end of the underlying string. This could yield stange results, and potentially leak sensitive information. 
+
+[source,cpp]
+----
+std::string credentials = getCredentials(); // Expects a string "user:password"
+auto user = std::string_view(credentials.c_str(), credentials.find(':'));
+// This will print the user name, but will not stop at the end of the user name,
+// it will also print the password.
+printf("User: %s", user.data()); // Noncompliant
+----
+
+
+The discrepancy between the `size()` function of a `string_view` and the number of characters read by a function considering the string to be null-terminated could also lead to buffer overflows.
+
+[source,cpp]
+----
+char *userBuffer = new char[user.size() + 1];
+strcpy(userBuffer, user.data()); // Noncompliant: buffer overflow
+----
+
+In the general case, if the `string_view` does not refer to (part of) a null-terminated string, any function that expects a null-terminated string will lead to a buffer overflow.
+
+== How to fix it
+
+=== When working with {cpp} types
+
+When constructing a `std::string` or another `std::string_view` from a `string_view`, you don't have to call `data`, specific constructors already exist for this purpose.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+void f(std::string_view sv) {
+    std::string s(sv.data()); // Noncompliant
+    std::string_view sv2(sv.data()); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+void f(std::string_view sv) {
+    std::string s(sv); // Noncompliant
+    std::string_view sv2(sv); // Noncompliant
+}
+----
+
+=== When working with the C library
+
+When calling a function from the C library that expect a C-style string argument, the best is usually to use a replacement for that function that directly works with `std::string_view`.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+void f(std::string_view sv1, std::string_view sv2) {
+    auto l = strlen(sv1.data()); // Noncompliant
+    auto p = strstr(sv1.data(), sv2.data()); // Noncompliant
+    char *buffer = new char[sv1.size() + 1];
+    strcpy(buffer, sv1.data()); // Noncompliant
+    printf("Result: %s\n", sv1.data()); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void f(std::string_view sv1, std::string_view sv2) {
+    auto l = sv1.size(); // Compliant
+    auto i = sv1.find(sv2); // Compliant
+    char *buffer = new char[sv1.size() + 1];
+    std::copy(sv1.begin(), sv1.end(), buffer);
+    // In C++23, previous versions could use std::format or a stream
+    std::println("Result: {}", sv1); // Compliant
+}
+----
+
+If there is no direct replacement for a specific call, it is always possible the create a temporary `string` from the `string_view` and pass the result of `c_str()` to the function, at the cost of an extra memory allocation and copy of the characters of the `string_view`.
+
+[source,cpp]
+----
+void f(std::string_view sv1, std::string_view sv2) {
+    std::string s1 {sv1};
+    std::string s2 {sv2};
+    auto l = strlen(s1.c_str()); // Noncompliant
+    auto p = strstr(s1.c_str(), s2.c_str()); // Noncompliant
+    char *buffer = new char[s1.size() + 1];
+    strcpy(buffer, s1.c_str()); // Noncompliant
+    printf("Result: %s\n", s1.c_str()); // Noncompliant
+}
+----
+
+== Resources
+
+=== Related rules
+
+While calling `data()` (and `c_str()`) on a `std::string` is not as dangerous as on a `std::string_view`, because a `std::string` is always null-terminated, other rules focus on possible misuses of these functions:
+
+* S7121 triggers when the resulting character pointer is immediately converted back to a string, leading to bad performance.
+* S7118 proposes direct alternatives to calling a C library function on the internal buffer of the string.
+
