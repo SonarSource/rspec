@@ -101,10 +101,10 @@ def live_url(url: str, timeout=5):
     print(f"ERROR: Too many redirects: {rr}")
     return False
   except requests.Timeout as t:
-    print(f"ERROR: timeout {t}")
+    print(f"ERROR: Request timeout {t}")
     return False
   except socket.timeout as t:
-    print(f"ERROR: timeout {t}")
+    print(f"ERROR: Socket timeout {t}")
     return False
   except Exception as e:
     print(f"ERROR: {e}")
