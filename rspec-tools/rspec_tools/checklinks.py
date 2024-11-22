@@ -1,12 +1,11 @@
-import os,io
-import re
-import requests
-import json
-import random
 import datetime
-from bs4 import BeautifulSoup
-from socket import timeout
+import json
 import pathlib
+import random
+import socket
+
+import requests
+from bs4 import BeautifulSoup
 
 TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = './link_probes.history'
@@ -73,7 +72,7 @@ def live_url(url: str, timeout=5):
     req = requests.Request('GET', url, headers = {'sec-ch-ua': '" Not A;Brand";v="99", "Chromium";v="90"',
                                                   'sec-ch-ua-mobile': '?0',
                                                   'Upgrade-Insecure-Requests': '1',
-                                                  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36',
+                                                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 GLS/100.10.9939.100',
                                                   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
                                                   'Sec-Fetch-Site':'none',
                                                   'Sec-Fetch-Mode':'navigate',
@@ -102,13 +101,13 @@ def live_url(url: str, timeout=5):
     print(f"ERROR: Too many redirects: {rr}")
     return False
   except requests.Timeout as t:
-    print(f"ERROR: timeout ", t)
+    print(f"ERROR: Request timeout {t}")
     return False
-  except timeout as t:
-    print(f"ERROR: timeout ", t)
+  except socket.timeout as t:
+    print(f"ERROR: Socket timeout {t}")
     return False
   except Exception as e:
-    print(f"ERROR: ", e)
+    print(f"ERROR: {e}")
     return False
 
 def findurl_in_html(filename,urls):
