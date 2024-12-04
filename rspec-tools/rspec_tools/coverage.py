@@ -32,10 +32,9 @@ REPOS = [
   'sonar-rpg',
   'sonar-ruby',
   'sonar-scala',
-  'sonar-secrets',
   'sonar-security',
   'sonar-swift',
-  'sonar-text',
+  'sonar-text-enterprise',
   'sonar-tsql',
   'sonar-vb',
   'sonar-xml'
