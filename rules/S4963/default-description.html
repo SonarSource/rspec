@@ -1,0 +1,203 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Most classes should not directly handle resources, but instead, use members that perform resource handling for them:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For memory, it can be <code>std::unique_ptr</code>, <code>std::shared_ptr</code>, <code>std::vector</code>&#8230;&#8203;</p>
+</li>
+<li>
+<p>For files, it can be <code>std::ofstream</code>, <code>std::ifstream</code>&#8230;&#8203;</p>
+</li>
+<li>
+<p>&#8230;&#8203;</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Classes that avoid directly handling resources don&#8217;t need to define any of the special member functions required to properly handle resources: destructor, copy constructor, move constructor, copy-assignment operator, move-assignment operator. That&#8217;s because the versions of those functions provided by the compiler do the right thing automatically, which is especially useful because writing these functions correctly is typically tricky and error-prone.</p>
+</div>
+<div class="paragraph">
+<p>Omitting all of these functions from a class is known as the Rule of Zero because no special function should be defined.</p>
+</div>
+<div class="paragraph">
+<p>In some cases, this rule takes a slightly different shape, while respecting the fact that no definition of those functions will be provided:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For the base class of a polymorphic hierarchy, the destructor should be declared as <code>public</code> and <code>virtual</code>, and defaulted (<code>=default</code>). The copy-constructor and copy-assignment operator should be deleted. (If you want to copy classes in a polymorphic hierarchy, use the <code>clone</code> idiom.) The move operation will be automatically deleted by the compiler.</p>
+</li>
+<li>
+<p>For other kinds of base classes, the destructor should be <code>protected</code> and non-<code>virtual</code>, and defaulted (<code>=default</code>).</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class FooPointer { // Noncompliant. The code is correct (it follows the rule of 5), but unnecessarily complex
+  Foo* pFoo;
+public:
+  FooPointer(int initValue) {
+    pFoo = new Foo(initValue);
+  }
+  ~FooPointer() {
+    delete pFoo;
+  }
+  FooPointer(FooPointer const &amp;fp) = delete;
+  FooPointer const &amp; operator=(FooPointer const &amp;fp) = delete;
+  FooPointer(FooPointer &amp;&amp;fp) noexcept {
+    pFoo = fp.pFoo;
+    fp.pFoo = nullptr;
+  }
+  FooPointer const &amp; operator=(FooPointer &amp;&amp;fp) {
+    FooPointer temp(std::move(fp));
+    std::swap(temp.pFoo, pFoo);
+    return *this;
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class FooPointer { // Compliant, std::unique_ptr is use to handle memory management
+  unique_ptr&lt;Foo&gt; pFoo;
+public:
+  FooPointer(int initValue) : pFoo(std::make_unique&lt;Foo&gt;(initValue) {}
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A polymorphic base class can look like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Base { // Compliant, the virtual destructor is defaulted
+public:
+  virtual ~Base() = default;
+  Base(Base const &amp;) = delete;
+  Base &amp;operator=(Base const &amp;) = delete;
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Empty destructors are treated as though they were defaulted.</p>
+</li>
+<li>
+<p>There are several cases when this rule should not be followed. For instance, if your class is manually handling a resource, logging when being constructed/copied, maintaining some kind of counter, having non-transient data that should not be copied (like <code>capacity</code> for <code>std::vector</code>)&#8230;&#8203; In that case, it should still follow the rule of 5 (<a data-rspec-id="S3624" class="rspec-auto-link">S3624</a>). And you should consider if you can isolate this specific behavior in a base class or a dedicated member data, which would allow you to still follow the rule of 0.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S3624" class="rspec-auto-link">S3624</a></p>
+</li>
+<li>
+<p><a data-rspec-id="S1235" class="rspec-auto-link">S1235</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove this "[copy constructor|copy-assignment operator|destructor|move constructor|move-assignment operator]" so that the class follows the rule of Zero.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>class name</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s3624">is related to: <a data-rspec-id="S3624" class="rspec-auto-link">S3624</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_6_nov_2018_201510_ann_campbell_wrote">on 6 Nov 2018, 20:15:10 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Double-check my changes [~loic.joly]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_7_nov_2018_092019_loïc_joly_wrote">on 7 Nov 2018, 09:20:19 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I just replaced</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>though they were <code>=default</code>-ed.</p>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>By</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p>though they were defaulted.</p>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>Because a destructor can be defaulted in two ways :</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It&#8217;s not mentioned in the code</p>
+</li>
+<li>
+<p>It&#8217;s present, but with <code>=default</code></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
