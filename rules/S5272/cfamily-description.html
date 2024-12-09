@@ -1,0 +1,322 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Relying on an object that has been moved-from leads to undefined behavior in most cases.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>After a move took place, the object that has been moved-from is left in a valid <em>but</em> unspecified state.
+Even if in a valid state, the fact of an object being in an unspecified state may lead to undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>Move construction and its respective move semantics has been introduced in C&#43;&#43;11.
+Moving objects becomes interesting if one wishes to get an object into a different scope, while no longer requiring the original object.
+While one would previously need to make a potentially expensive copy to get an object into another scope and then destroy the original, move constructors allow one to <em>move</em> objects without performing a copy.
+Move constructors are typically implemented by "stealing" the resources held by another object specified as the move constructor&#8217;s parameter, rather than making a copy.
+"Stealing" resources (e.g. memory) from another object is oftentimes much more efficient than making a copy and destroying the original, and can frequently be implemented by reassigning a few pointer variables.</p>
+</div>
+<div class="paragraph">
+<p>Move-assignment operators behave analogously, except that they are used once the object that is moved-to has already been constructed.
+In contrast to copy-assignment operators, a move-assignment operator too "steals" the moved-from object&#8217;s resources without the need for making a potentially expensive copy.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using an object after it has been moved-from typically leads to <strong>undefined behavior</strong>.</p>
+</div>
+<div class="paragraph">
+<p>For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
+The application may crash or, even worse, the application may appear to execute correctly while losing data or producing incorrect results.</p>
+</div>
+<div class="paragraph">
+<p>Trying to access an object that has been moved-from frequently ends up in a null-pointer dereference, since any pointers to the resources that have been "stolen" are set to <code>nullptr</code> as part of the move construction or move assignment.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>There are some C&#43;&#43; standard template library types, such as <code>std::unique_ptr</code>, for which the moved-from state is fully specified.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exemplary_type_with_move_operations">Exemplary type with move operations</h3>
+<div class="paragraph">
+<p>The <code>DynamicIntArray</code> type defined in the following manages memory (i.e., a resource), and shall serve as an example that showcases how move operations "steal" another object&#8217;s resources and how they differ from making copies.</p>
+</div>
+<div class="paragraph">
+<p>While the copy constructor does make a full copy by allocating memory and then copying the <code>other</code> object&#8217;s array values into the freshly allocated memory, the move constructor only assigns the pointer to point to <code>other</code>'s dynamically allocated memory.
+It then sets the pointer of the <code>other</code> object to <code>nullptr</code> to allow its correct cleanup by the destructor of the <code>DynamicIntArray</code> type.</p>
+</div>
+<div class="paragraph">
+<p>The implementations for the copy- and move-assignment operators are similar with the main difference being that the objects have already been constructed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;algorithm&gt; // std::copy, std::fill
+#include &lt;memory&gt;    // std::move
+
+class DynamicIntArray {
+  size_t size;
+  int *data;
+
+public:
+  explicit DynamicIntArray(size_t size, int initial_value)
+      : size(size), data(new int[size]) {
+    std::fill(data, &amp;data[size], initial_value);
+  }
+  ~DynamicIntArray() {
+    delete[] data;
+    size = 0;
+  }
+  // Copy constructor (copies object)
+  DynamicIntArray(DynamicIntArray const &amp;other)
+      : size(other.size), data(new int[other.size]) {
+    std::copy(other.data, &amp;other.data[size], data);
+  }
+  // Move constructor ("steals" data, no allocation or copy necessary)
+  DynamicIntArray(DynamicIntArray &amp;&amp;other) noexcept
+      : size(other.size), data(other.data) {
+    // Ensure that the moved-from object `other` can be safely destroyed (using
+    // the destructor that calls to delete[]).
+    other.data = nullptr;
+    other.size = 0;
+  }
+  //
+  // Copy- and move-assignment operators are invoked, if _this_ object has
+  // already been constructed.
+  //
+  // Copy-assignment operator (copies object)
+  DynamicIntArray &amp;operator=(DynamicIntArray const &amp;other) {
+    // If the number of elements are equal, we can re-use the existing memory.
+    if (size == other.size) {
+      std::copy(other.data, &amp;other.data[other.size], data);
+      return *this;
+    }
+    // Otherwise, we need to clean-up and re-allocate the required amount of
+    // memory.
+    delete[] data;
+    data = new int[other.size];
+    size = other.size;
+    std::copy(other.data, &amp;other.data[size], data);
+    return *this;
+  }
+  // Move-assignment operator ("steals" data, no allocation or copy necessary)
+  DynamicIntArray &amp;operator=(DynamicIntArray &amp;&amp;other) noexcept {
+    delete[] data; // Clean-up our own data before we "steal" from `other`.
+    data = other.data;
+    size = other.size;
+    // Ensure that the moved-from object `other` can be safely destroyed (using
+    // the destructor that calls to delete[]).
+    other.data = nullptr;
+    other.size = 0;
+    return *this;
+  }
+
+  int &amp;getValueAt(size_t idx) { return data[idx]; }
+};
+
+int main() {
+  DynamicIntArray a{/*size=*/128, /*initial_value=*/42};
+  DynamicIntArray b = a;            // Copy constructor.
+  DynamicIntArray c = std::move(b); // Move constructor.
+  // Construct two more objects.
+  DynamicIntArray d{/*size=*/4, /*initial_value=*/0};
+  DynamicIntArray e{/*size=*/8, /*initial_value=*/9001};
+  // Use the assignment operators.
+  a = d;            // Copy-assignment operator.
+  c = std::move(e); // Move-assignment operator.
+  int i = b.getValueAt(0); // Noncompliant: `b` has been moved-from during construction of `c`.
+  int j = e.getValueAt(0); // Noncompliant: `e` has been moved-from during move-assignment to `c`.
+  return i + j;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are several potential ways to fix this issue, depending on the concrete situation.
+Potential fixes include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Use the object <em>only before</em> moving it</p>
+</li>
+<li>
+<p>Create a copy of the desired object and operate on the copy</p>
+</li>
+<li>
+<p>Completely remove the use of the object <em>after</em> is has been moved-from</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int foo() {
+  DynamicIntArray a{128, 0};
+
+  DynamicIntArray a2 = std::move(a);
+  int x = a.getValueAt(0); // Noncompliant: `a` is moved-from. This particular access will lead to a null pointer dereference.
+  return x;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int foo() {
+  DynamicIntArray a{128, 0};
+
+  DynamicIntArray a2 = std::move(a);
+  int x = a2.getValueAt(0); // Compliant: the correctly move-constructed variable `a2` can be used, of course.
+  return x;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int foo() {
+  DynamicIntArray a{128, 0};
+
+  int x = a.getValueAt(0); // Compliant: remove the move and use original object.
+  return x;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int foo() {
+  DynamicIntArray a{128, 0};
+
+  DynamicIntArray a2 = std::move(a);
+  // Compliant: use of `a` removed.
+  return 9001;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int foo() {
+  DynamicIntArray a{128, 0};
+
+  DynamicIntArray a2 = a;
+  int x = a.getValueAt(0); // Compliant: `a` has been copied to produce `a2`.
+  return x;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void array_user(DynamicIntArray &amp;&amp;array);
+
+int bar() {
+  DynamicIntArray a{512, 0};
+  array_user(std::move(a));
+  return a.getValueAt(42); // Noncompliant: `a` has been moved to `array_user()`.
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void array_user(DynamicIntArray &amp;&amp;array);
+
+int bar() {
+  DynamicIntArray a{512, 0};
+  array_user(DynamicIntArray{a});
+  return a.getValueAt(42); // Compliant: `a` has not been moved-from.
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/move_constructor">Move constructors</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_conference_presentations">Conference presentations</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CppCon 2019 - <a href="https://www.youtube.com/watch?v=St0MNEU5b0o&amp;ab_channel=CppCon">Back to Basics: Move Semantics (part 1 of 2)</a></p>
+</li>
+<li>
+<p>CppCon 2019 - <a href="https://www.youtube.com/watch?v=pIzaZbKUw2s&amp;ab_channel=CppCon">Back to Basics: Move Semantics (part 2 of 2)</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/cplusplus/EXP63-CPP.+Do+not+rely+on+the+value+of+a+moved-from+object">EXP63-CPP. Do not rely on the value of a moved-from object</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5415" class="rspec-auto-link">S5415</a> ensures that move operations are available when an object is moved using <code>std::move()</code></p>
+</li>
+<li>
+<p><a data-rspec-id="S5500" class="rspec-auto-link">S5500</a> ensures that rvalue reference arguments are moved and ownership is transferred</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5415">is related to: <a data-rspec-id="S5415" class="rspec-auto-link">S5415</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5500">is related to: <a data-rspec-id="S5500" class="rspec-auto-link">S5500</a></h3>
+
+</div>
+</div>
+</div>
