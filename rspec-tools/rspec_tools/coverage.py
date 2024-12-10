@@ -47,14 +47,14 @@ CANONICAL_NAMES = {
   'WEB': 'HTML'
 }
 
+
 RULES_FILENAME = 'covered_rules.json'
+
 
 def get_rule_id(filename):
   rule_id = filename[:-5]
-  if '_' in rule_id:
-    return rule_id[:rule_id.find('_')]
-  else:
-    return rule_id
+  return rule_id.removesuffix('_abap').removesuffix('_java')
+
 
 def compatible_languages(rule, languages_from_sonarpedia):
   '''
