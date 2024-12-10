@@ -73,7 +73,7 @@ def get_implemented_rules(path, languages_from_sonarpedia):
   for lang in languages_from_sonarpedia:
     implemented_rules[lang] = []
   for filename in os.listdir(path):
-    if filename.endswith(".json") and not filename.startswith("Sonar_way"):
+    if filename.endswith(".json") and 'profile' not in filename:
       rule = load_json(os.path.join(path, filename))
       rule_id = get_rule_id(filename)
       for language in compatible_languages(rule, languages_from_sonarpedia):
