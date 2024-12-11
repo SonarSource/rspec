@@ -1,12 +1,12 @@
-import os
-import sys
-import json
 import collections
-from git import Repo
-from git import Git
+import json
+import os
+import re
+import sys
 from pathlib import Path
 
-from rspec_tools.utils import (load_json, pushd)
+from git import Git, Repo
+from rspec_tools.utils import load_json, pushd
 
 REPOS = [
   'sonar-abap',
@@ -190,11 +190,16 @@ def checkout_repo(repo):
   else:
     return Repo(repo)
 
+
+VERSION_RE = re.compile(r'\d[\d\.]+')
+def is_version_tag(name):
+  return bool(re.fullmatch(VERSION_RE, name))
+
 def collect_coverage_for_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
   tags = git_repo.tags
   tags.sort(key = lambda t: t.commit.committed_date)
-  versions = [tag.name for tag in tags if '-' not in tag.name]
+  versions = [tag.name for tag in tags if is_version_tag(tag.name)]
   for version in versions:
     collect_coverage_for_version(repo, git_repo, version, coverage)
   collect_coverage_for_version(repo, git_repo, 'master', coverage)
