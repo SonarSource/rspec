@@ -14,7 +14,6 @@ REPOS = [
   'sonar-architecture',
   'sonar-cobol',
   'sonar-cpp',
-  'sonar-css',
   'sonar-dart',
   'sonar-dataflow-bug-detection',
   'sonar-dotnet-enterprise',
