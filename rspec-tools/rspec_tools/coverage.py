@@ -187,7 +187,9 @@ def checkout_repo(repo):
   if token:
     git_url=f"https://oauth2:{token}@github.com/SonarSource/{repo}"
   if not os.path.exists(repo):
-    return Repo.clone_from(git_url, repo)
+    repo = Repo.clone_from(git_url, repo, depth=1, single_branch=True)
+    repo.remote('origin').fetch('refs/tags/*:refs/tags/*', depth=1)
+    return repo
   else:
     return Repo(repo)
 
