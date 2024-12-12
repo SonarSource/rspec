@@ -7,9 +7,12 @@ import click
 import rspec_tools.create_rule
 import rspec_tools.modify_rule
 from rspec_tools.checklinks import check_html_links
-from rspec_tools.coverage import (update_coverage_for_all_repos,
-                                  update_coverage_for_repo,
-                                  update_coverage_for_repo_version)
+from rspec_tools.coverage import (
+    collect_coverage_per_product,
+    update_coverage_for_all_repos,
+    update_coverage_for_repo,
+    update_coverage_for_repo_version,
+)
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
@@ -147,6 +150,7 @@ def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[
       update_coverage_for_repo(repository, Path(rulesdir))
   else:
       update_coverage_for_repo_version(repository, version, Path(rulesdir))
+  collect_coverage_per_product(Path(rulesdir))
 
 @cli.command()
 @click.option('--message', required=True)
