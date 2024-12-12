@@ -195,11 +195,18 @@ VERSION_RE = re.compile(r'\d[\d\.]+')
 def is_version_tag(name):
   return bool(re.fullmatch(VERSION_RE, name))
 
+
+def comparable_version(key):
+  if not is_version_tag(key):
+    return [0]
+  return list(map(int, key.split('.')))
+
+
 def collect_coverage_for_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
   tags = git_repo.tags
-  tags.sort(key = lambda t: t.commit.committed_date)
   versions = [tag.name for tag in tags if is_version_tag(tag.name)]
+  versions.sort(key = comparable_version)
   for version in versions:
     collect_coverage_for_version(repo, git_repo, version, coverage)
   collect_coverage_for_version(repo, git_repo, 'master', coverage)
