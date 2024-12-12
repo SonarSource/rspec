@@ -181,17 +181,18 @@ def all_implemented_rules():
       continue
   return implemented_rules
 
-def checkout_repo(repo):
-  git_url=f"https://github.com/SonarSource/{repo}"
+def checkout_repo(repo_name: str) -> Repo:
+  git_url=f"https://github.com/SonarSource/{repo_name}"
   token=os.getenv('GITHUB_TOKEN')
   if token:
-    git_url=f"https://oauth2:{token}@github.com/SonarSource/{repo}"
-  if not os.path.exists(repo):
-    repo = Repo.clone_from(git_url, repo, depth=1, single_branch=True)
+    git_url=f"https://oauth2:{token}@github.com/SonarSource/{repo_name}"
+  worktree = f"worktrees/{repo_name}"
+  if not os.path.exists(worktree):
+    repo = Repo.clone_from(git_url, worktree, depth=1, single_branch=True)
     repo.remote('origin').fetch('refs/tags/*:refs/tags/*', depth=1)
     return repo
   else:
-    return Repo(repo)
+    return Repo(worktree)
 
 def collect_coverage_for_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
