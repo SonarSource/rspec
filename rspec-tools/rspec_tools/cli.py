@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional
 
 import click
-
 import rspec_tools.create_rule
 import rspec_tools.modify_rule
 from rspec_tools.checklinks import check_html_links
@@ -150,7 +149,7 @@ def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[
       update_coverage_for_repo(repository, Path(rulesdir))
   else:
       update_coverage_for_repo_version(repository, version, Path(rulesdir))
-  collect_coverage_per_product(Path(rulesdir))
+  collect_coverage_per_product()
 
 @cli.command()
 @click.option('--message', required=True)

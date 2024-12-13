@@ -1,12 +1,12 @@
 import collections
-import json
 import os
 import re
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 from git import Git, Repo
-from rspec_tools.utils import load_json, pushd
+from rspec_tools.utils import load_json, pushd, save_json
 
 REPOS = [
   'sonar-abap',
@@ -49,11 +49,11 @@ CANONICAL_NAMES = {
 
 RULES_FILENAME = 'covered_rules.json'
 
-DEPENDENCY_RE = re.compile(r'\s*dependency\s+\'(com|org)\.sonarsource\.([\w-]+):([\w-]+):(\d+(\.\d+)+)\'')
+DEPENDENCY_RE = re.compile(r'''\bdependency\s+['"](?:com|org)\.sonarsource\.[\w.-]+:(?P<plugin_name>[\w-]+):(?P<version>\d+(\.\d+)+)['"]''')
 
-BUNDLED_SIMPLE = r'[\'"](com|org)\.sonarsource\.([\w.-]+):([\w-]+)[\'"]'
-BUNDLED_MULTI = r'\(\s*group:\s*[\'"]([\w.-]+)[\'"],\s*name:\s*[\'"]([\w-]+)[\'"],\s*classifier:\s*[\'"][\w-]+\'\s*\)'
-BUNDLED_RE = re.compile(rf'\s*bundledPlugin\s+({BUNDLED_SIMPLE}|{BUNDLED_MULTI})')
+BUNDLED_SIMPLE = r'''['"](?:com|org)\.sonarsource\.(?:[\w.-]+):(?P<plugin_name>[\w-]+)['"]'''
+BUNDLED_MULTI = r'''\(\s*group:\s*['"]([\w.-]+)['"],\s*name:\s*['"](?P<plugin_name2>[\w-]+)['"],\s*classifier:\s*['"][\w-]+['"]\s*\)'''
+BUNDLED_RE = re.compile(rf'\bbundledPlugin\s+({BUNDLED_SIMPLE}|{BUNDLED_MULTI})')
 
 
 def get_rule_id(filename):
@@ -126,8 +126,7 @@ class Coverage:
       self.rules = load_json(filename)
 
   def save_to_file(self, filename):
-    with open(filename, 'w') as outfile:
-      json.dump(self.rules, outfile, indent=2, sort_keys=True)
+    save_json(self.rules, filename)
 
   def _rule_implemented_for_intermediate_version(self, rule_id, language, repo_and_version):
     if rule_id not in self.rules[language]:
@@ -260,93 +259,89 @@ def update_coverage_for_repo_version(repo, version, rules_dir):
 def get_plugin_versions(git_repo, version):
   g = Git(git_repo)
   repo_dir = git_repo.working_tree_dir
-  try:
-    with pushd(repo_dir):
-      content = g.show(f'{version}:build.gradle')
-      versions = {}
-      for m in re.findall(DEPENDENCY_RE, content):
-        versions[m[2]] = m[3]
-      return versions
-  except Exception as e:
-    print(f"Sonar Enterprise {version} checkout failed: {e}")
-    raise
+  with pushd(repo_dir):
+    content = g.show(f'{version}:build.gradle')
+    versions = {}
+    for m in re.finditer(DEPENDENCY_RE, content):
+      versions[m.groupdict()['plugin_name']] = m.groupdict()['version']
+    return versions
+
+
+BUNDLES= {'Community Build': 'sonar-application/bundled_plugins.gradle',
+          'Datacenter': 'private/edition-datacenter/bundled_plugins.gradle',
+          'Developer': 'private/edition-developer/bundled_plugins.gradle',
+          'Enterprise': 'private/edition-enterprise/bundled_plugins.gradle'}
+
 
 def get_packaged_plugins(git_repo):
   g = Git(git_repo)
   repo_dir = git_repo.working_tree_dir
   with pushd(repo_dir):
-    BUNDLES= {'Community Build': 'sonar-application/bundled_plugins.gradle',
-              'Datacenter': 'private/edition-datacenter/bundled_plugins.gradle',
-              'Developer': 'private/edition-developer/bundled_plugins.gradle',
-              'Enterprise': 'private/edition-enterprise/bundled_plugins.gradle'}
     bundle_map = {}
     for key, bundle in BUNDLES.items():
       bundle_map[key] = []
       content = g.show(f'master:{bundle}')
-      for m in re.findall(BUNDLED_RE, content):
-        if m[3] != '':
-          bundle_map[key].append(m[3])
+      for m in re.finditer(BUNDLED_RE, content):
+        if m.groupdict()['plugin_name'] != None:
+          bundle_map[key].append(m.groupdict()['plugin_name'])
         else:
-          bundle_map[key].append(m[5])
+          bundle_map[key].append(m.groupdict()['plugin_name2'])
     return bundle_map
 
-def lowest_cb(plugin_versions, plugin, version):
-  tags = list(filter(lambda k: not k.startswith('sqs-'), plugin_versions.keys()))
+
+def lowest_version(plugin_versions, plugin, version, skip_suffix):
+  tags = list(filter(lambda k: not k.startswith(skip_suffix), plugin_versions.keys()))
   tags.sort(key = comparable_version)
   for t in tags:
     if plugin in plugin_versions[t]:
       pvv = plugin_versions[t][plugin]
       if comparable_version(pvv) >= comparable_version(version):
         return t
-  return None
+  sys.exit(f'failed finding the oldest version of {plugin} containing {version} from {plugin_versions}')
 
 
-def lowest_server(plugin_versions, plugin, version):
-  tags = list(filter(lambda k: not k.startswith('sqcb-'), plugin_versions.keys()))
-  tags.sort(key = comparable_version)
-  for t in tags:
-    if plugin in plugin_versions[t]:
-      pvv = plugin_versions[t][plugin]
-      if comparable_version(pvv) >= comparable_version(version):
-        return t
-  return None
+def lowest_community_build_version(plugin_versions, plugin, version):
+  return lowest_version(plugin_versions, plugin, version, 'sqs-')
 
 
-def build_rule_per_product(rules_dir, bundle_map, plugin_versions):
-  coverage = Coverage(RULES_FILENAME, rules_dir)
-  rule_per_product = {}
-  repo_plugin_mapping = load_json(os.path.join(Path(__file__).parent, 'repo_plugin_mapping.json'))
-  for lang, rules in coverage.rules.items():
-    for rule, version in rules.items():
-      if isinstance(version, str):
-        if rule not in rule_per_product:
-          rule_per_product[rule] = {}
-        if lang not in rule_per_product[rule]:
-          rule_per_product[rule][lang] = {}
-        target_repo, v = version.split(' ')
-        if lang not in repo_plugin_mapping or target_repo not in repo_plugin_mapping[lang]:
-          print(f"Couldn't find the corresponding plugin name for {lang} - {target_repo}")
-          continue
-        plugin = repo_plugin_mapping[lang][target_repo]
-        if plugin in bundle_map['Community Build']:
-          rule_per_product[rule][lang]['SonarQube Community Build'] = lowest_cb(plugin_versions, plugin, v)
-          rule_per_product[rule][lang]['SonarQube Server'] = {
-            'Developer': lowest_server(plugin_versions, plugin, v)
-            }
-        elif plugin in bundle_map['Developer']:
-          rule_per_product[rule][lang]['SonarQube Server'] = {
-            'Developer': lowest_server(plugin_versions, plugin, v)}
-        elif plugin in bundle_map['Enterprise']:
-          rule_per_product[rule][lang]['SonarQube Server'] = {
-            'Enterprise': lowest_server(plugin_versions, plugin, v)}
-        elif plugin in bundle_map['Datacenter']:
-          rule_per_product[rule][lang]['SonarQube Server'] = {
-            'Datacenter': lowest_server(plugin_versions, plugin, v)
-          }
-        else:
-          print(f'Couldnt find plugin {plugin}')
-  with open('rule_product_mapping.json', 'w', encoding='utf-8') as outfile:
-    json.dump(rule_per_product, outfile, indent=2, sort_keys=True)
+def lowest_server_version(plugin_versions, plugin, version):
+  return lowest_version(plugin_versions, plugin, version, 'sqcb-')
+
+
+EDITIONS =['Developer', 'Enterprise', 'Datacenter']
+
+
+def fill_product_mapping(plugin: str, bundle_map: dict, version: str, plugin_versions: dict, product_per_rule_per_lang: dict):
+  if plugin in bundle_map['Community Build']:
+    product_per_rule_per_lang['SonarQube Community Build'] = lowest_community_build_version(plugin_versions, plugin, version)
+    product_per_rule_per_lang['SonarQube Server'] = {
+      'minimal-edition': EDITIONS[0],
+      'since-version': lowest_server_version(plugin_versions, plugin, version)
+      }
+    return
+  for edition in EDITIONS:
+    if plugin in bundle_map[edition]:
+      product_per_rule_per_lang['SonarQube Server'] = {
+        'minimal-edition': edition,
+        'since-version': lowest_server_version(plugin_versions, plugin, version)
+        }
+      return
+  sys.exit(f'Couldnt find plugin {plugin}')
+
+
+def build_rule_per_product(bundle_map, plugin_versions):
+  rules_coverage = load_json(RULES_FILENAME)
+  rule_per_product = defaultdict(lambda: defaultdict(lambda: {}))
+  repo_plugin_mapping = load_json(Path(__file__).parent / 'repo_plugin_mapping.json')
+  for lang, rules in rules_coverage.items():
+    for rule, since in rules.items():
+      if not isinstance(since, str):
+        continue
+      target_repo, version = since.split(' ')
+      if lang not in repo_plugin_mapping or target_repo not in repo_plugin_mapping[lang]:
+        sys.exit(f"Couldn't find the corresponding plugin name for {lang} - {target_repo}")
+      fill_product_mapping(repo_plugin_mapping[lang][target_repo], bundle_map, version, plugin_versions, rule_per_product[rule][lang])
+  save_json(rule_per_product, 'rule_product_mapping.json')
 
 
 def is_interesting_version(version):
@@ -366,13 +361,13 @@ def is_interesting_version(version):
     return False
   return major >= 8
 
-def collect_coverage_per_product(rules_dir):
+def collect_coverage_per_product():
   git_repo = checkout_repo('sonar-enterprise')
   bundle_map = get_packaged_plugins(git_repo)
   tags = git_repo.tags
-  tags.sort(key = lambda t: t.commit.committed_date)
   versions = [tag.name for tag in tags if is_interesting_version(tag.name)]
+  versions.sort(key = comparable_version)
   plugin_versions = {}
   for version in versions:
     plugin_versions[version] = get_plugin_versions(git_repo, version)
-  build_rule_per_product(rules_dir, bundle_map, plugin_versions)
+  build_rule_per_product(bundle_map, plugin_versions)

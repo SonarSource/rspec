@@ -1,11 +1,12 @@
-from pathlib import Path
-from typing import List
-from contextlib import contextmanager
-import shutil
-import re
-import tempfile
 import json
 import os
+import re
+import shutil
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
+from typing import List
+
 from rspec_tools.errors import InvalidArgumentError
 
 SUPPORTED_LANGUAGES_FILENAME = '../supported_languages.adoc'
@@ -161,6 +162,10 @@ def resolve_rule(rule_id: str) -> int:
 def load_json(file):
   with open(file, encoding='utf8') as json_file:
     return json.load(json_file)
+
+def save_json(content, filename):
+  with open(filename, 'w', encoding='utf8') as outfile:
+    json.dump(content, outfile, indent=2, sort_keys=True)
 
 @contextmanager
 def pushd(new_dir):
