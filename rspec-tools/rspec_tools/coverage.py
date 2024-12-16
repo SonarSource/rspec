@@ -51,8 +51,8 @@ RULES_FILENAME = 'covered_rules.json'
 
 DEPENDENCY_RE = re.compile(r'''\bdependency\s+['"](?:com|org)\.sonarsource\.[\w.-]+:(?P<plugin_name>[\w-]+):(?P<version>\d+(\.\d+)+)['"]''')
 
-BUNDLED_SIMPLE = r'''['"](?:com|org)\.sonarsource\.(?:[\w.-]+):(?P<plugin_name>[\w-]+)['"]'''
-BUNDLED_MULTI = r'''\(\s*group:\s*['"]([\w.-]+)['"],\s*name:\s*['"](?P<plugin_name2>[\w-]+)['"],\s*classifier:\s*['"][\w-]+['"]\s*\)'''
+BUNDLED_SIMPLE = r'''['"](?:com|org)\.sonarsource\.[\w.-]+:(?P<plugin_name>[\w-]+)['"]'''
+BUNDLED_MULTI = r'''\(\s*group:\s*['"][\w.-]+['"],\s*name:\s*['"](?P<plugin_name2>[\w-]+)['"],\s*classifier:\s*['"][\w-]+['"]\s*\)'''
 BUNDLED_RE = re.compile(rf'\bbundledPlugin\s+({BUNDLED_SIMPLE}|{BUNDLED_MULTI})')
 
 
