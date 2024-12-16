@@ -203,12 +203,11 @@ def is_version_tag(name):
 
 def comparable_version(key):
   v = key.removeprefix('sqcb-').removeprefix('sqs-')
-  if not is_version_tag(v):
-    if v == 'master':
-      return [0]
-    else:
-      sys.exit(f'Unexpected version {key}')
-  return list(map(int, v.split('.')))
+  if is_version_tag(v):
+    return list(map(int, v.split('.')))
+  if v == 'master':
+    return [0]
+  sys.exit(f'Unexpected version {key}')
 
 
 def collect_coverage_for_all_versions(repo, coverage):
