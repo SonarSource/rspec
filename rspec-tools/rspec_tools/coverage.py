@@ -49,10 +49,10 @@ CANONICAL_NAMES = {
 
 RULES_FILENAME = 'covered_rules.json'
 
-DEPENDENCY_RE = re.compile(r'''\bdependency\s+['"](?:com|org)\.sonarsource\.[\w.-]+:(?P<plugin_name>[\w-]+):(?P<version>\d+(\.\d+)+)['"]''')
+DEPENDENCY_RE = re.compile(r'''\bdependency\s+['"](?:com|org)\.sonarsource\.[\w.-]+:(?P<plugin_name>[\w-]+):(?P<version>\d+(\.\d+)+)?''')
 
-BUNDLED_SIMPLE = r'''['"](?:com|org)\.sonarsource\.(?:[\w.-]+):(?P<plugin_name>[\w-]+)['"]'''
-BUNDLED_MULTI = r'''\(\s*group:\s*['"]([\w.-]+)['"],\s*name:\s*['"](?P<plugin_name2>[\w-]+)['"],\s*classifier:\s*['"][\w-]+['"]\s*\)'''
+BUNDLED_SIMPLE = r'''['"](?:com|org)\.sonarsource\.[\w.-]+:(?P<plugin_name>[\w-]+)['"]'''
+BUNDLED_MULTI = r'''\(\s*group:\s*['"][\w.-]+['"],\s*name:\s*['"](?P<plugin_name2>[\w-]+)['"],\s*classifier:\s*['"][\w-]+['"]\s*\)'''
 BUNDLED_RE = re.compile(rf'\bbundledPlugin\s+({BUNDLED_SIMPLE}|{BUNDLED_MULTI})')
 
 
@@ -203,12 +203,11 @@ def is_version_tag(name):
 
 def comparable_version(key):
   v = key.removeprefix('sqcb-').removeprefix('sqs-')
-  if not is_version_tag(v):
-    if v == 'master':
-      return [0]
-    else:
-      sys.exit(f'Unexpected version {key}')
-  return list(map(int, v.split('.')))
+  if is_version_tag(v):
+    return list(map(int, v.split('.')))
+  if v == 'master':
+    return [0]
+  sys.exit(f'Unexpected version {key}')
 
 
 def collect_coverage_for_all_versions(repo, coverage):
@@ -263,7 +262,11 @@ def get_plugin_versions(git_repo, version):
     content = g.show(f'{version}:build.gradle')
     versions = {}
     for m in re.finditer(DEPENDENCY_RE, content):
-      versions[m.groupdict()['plugin_name']] = m.groupdict()['version']
+      if m['plugin_name'] in ['sonar-plugin-api', 'sonar-plugin-api-test-fixtures']:
+        # Ignore these "plugins". They may not have a numerical version.
+        continue
+      assert m['version'], f'Failed to find version from dependency {m[0]}'
+      versions[m['plugin_name']] = m['version']
     return versions
 
 
@@ -282,10 +285,10 @@ def get_packaged_plugins(git_repo):
       bundle_map[key] = []
       content = g.show(f'master:{bundle}')
       for m in re.finditer(BUNDLED_RE, content):
-        if m.groupdict()['plugin_name'] != None:
-          bundle_map[key].append(m.groupdict()['plugin_name'])
+        if m['plugin_name'] != None:
+          bundle_map[key].append(m['plugin_name'])
         else:
-          bundle_map[key].append(m.groupdict()['plugin_name2'])
+          bundle_map[key].append(m['plugin_name2'])
     return bundle_map
 
 
@@ -336,6 +339,8 @@ def build_rule_per_product(bundle_map, plugin_versions):
   for lang, rules in rules_coverage.items():
     for rule, since in rules.items():
       if not isinstance(since, str):
+        # The rule has an "until", therefore it does not exist anymore
+        # and should not appear in the product mapping.
         continue
       target_repo, version = since.split(' ')
       if lang not in repo_plugin_mapping or target_repo not in repo_plugin_mapping[lang]:
@@ -359,7 +364,7 @@ def is_interesting_version(version):
     major = int(version[:version.find('.')])
   except ValueError:
     return False
-  return major >= 8
+  return major >= 9
 
 def collect_coverage_per_product():
   git_repo = checkout_repo('sonar-enterprise')
