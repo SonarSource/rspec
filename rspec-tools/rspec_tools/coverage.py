@@ -262,7 +262,7 @@ def get_plugin_versions(git_repo, version):
     content = g.show(f'{version}:build.gradle')
     versions = {}
     for m in re.finditer(DEPENDENCY_RE, content):
-      versions[m.groupdict()['plugin_name']] = m.groupdict()['version']
+      versions[m['plugin_name']] = m['version']
     return versions
 
 
@@ -281,10 +281,10 @@ def get_packaged_plugins(git_repo):
       bundle_map[key] = []
       content = g.show(f'master:{bundle}')
       for m in re.finditer(BUNDLED_RE, content):
-        if m.groupdict()['plugin_name'] != None:
-          bundle_map[key].append(m.groupdict()['plugin_name'])
+        if m['plugin_name'] != None:
+          bundle_map[key].append(m['plugin_name'])
         else:
-          bundle_map[key].append(m.groupdict()['plugin_name2'])
+          bundle_map[key].append(m['plugin_name2'])
     return bundle_map
 
 
