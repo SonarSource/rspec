@@ -336,6 +336,8 @@ def build_rule_per_product(bundle_map, plugin_versions):
   for lang, rules in rules_coverage.items():
     for rule, since in rules.items():
       if not isinstance(since, str):
+        # The rule has an "until", therefore it does not exist anymore
+        # and should not appear in the product mapping.
         continue
       target_repo, version = since.split(' ')
       if lang not in repo_plugin_mapping or target_repo not in repo_plugin_mapping[lang]:
