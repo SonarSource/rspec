@@ -206,7 +206,7 @@ def comparable_version(key):
   if is_version_tag(v):
     return list(map(int, v.split('.')))
   if v == 'master':
-    return [0]
+    return [sys.maxsize]
   sys.exit(f'Unexpected version {key}')
 
 
@@ -300,7 +300,7 @@ def lowest_version(plugin_versions, plugin, version, skip_suffix):
       pvv = plugin_versions[t][plugin]
       if comparable_version(pvv) >= comparable_version(version):
         return t
-  sys.exit(f'failed finding the oldest version of {plugin} containing {version} from {plugin_versions}')
+  return "Coming soon"
 
 
 def lowest_community_build_version(plugin_versions, plugin, version):
