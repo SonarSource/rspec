@@ -165,7 +165,7 @@ const languageToJiraProject = new Map(Object.entries({
   'KOTLIN': 'SONARKT',
   'SCALA': 'SONARSCALA',
   'GO': 'SONARGO',
-  'SECRETS': 'SECRETS',
+  'SECRETS': 'SONARTEXT',
   'SWIFT': 'SONARSWIFT',
   'TSQL': 'SONARTSQL',
   'VB6': 'SONARVBSIX',
@@ -210,7 +210,7 @@ const languageToGithubProject = new Map(Object.entries({
   'CLOUDFORMATION': 'sonar-iac',
   'TERRAFORM': 'sonar-iac',
   'KUBERNETES': 'sonar-iac',
-  'SECRETS': 'sonar-secrets',
+  'SECRETS': 'sonar-text',
   'TEXT': 'sonar-text',
   'ANSIBLE': 'sonar-iac-enterprise',
 }));

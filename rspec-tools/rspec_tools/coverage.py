@@ -1,12 +1,12 @@
-import os
-import sys
-import json
 import collections
-from git import Repo
-from git import Git
+import json
+import os
+import re
+import sys
 from pathlib import Path
 
-from rspec_tools.utils import (load_json, pushd)
+from git import Git, Repo
+from rspec_tools.utils import load_json, pushd
 
 REPOS = [
   'sonar-abap',
@@ -14,7 +14,6 @@ REPOS = [
   'sonar-architecture',
   'sonar-cobol',
   'sonar-cpp',
-  'sonar-css',
   'sonar-dart',
   'sonar-dataflow-bug-detection',
   'sonar-dotnet-enterprise',
@@ -32,10 +31,9 @@ REPOS = [
   'sonar-rpg',
   'sonar-ruby',
   'sonar-scala',
-  'sonar-secrets',
   'sonar-security',
   'sonar-swift',
-  'sonar-text',
+  'sonar-text-enterprise',
   'sonar-tsql',
   'sonar-vb',
   'sonar-xml'
@@ -48,14 +46,14 @@ CANONICAL_NAMES = {
   'WEB': 'HTML'
 }
 
+
 RULES_FILENAME = 'covered_rules.json'
+
 
 def get_rule_id(filename):
   rule_id = filename[:-5]
-  if '_' in rule_id:
-    return rule_id[:rule_id.find('_')]
-  else:
-    return rule_id
+  return rule_id.removesuffix('_abap').removesuffix('_java')
+
 
 def compatible_languages(rule, languages_from_sonarpedia):
   '''
@@ -74,7 +72,7 @@ def get_implemented_rules(path, languages_from_sonarpedia):
   for lang in languages_from_sonarpedia:
     implemented_rules[lang] = []
   for filename in os.listdir(path):
-    if filename.endswith(".json") and not filename.startswith("Sonar_way"):
+    if filename.endswith(".json") and 'profile' not in filename:
       rule = load_json(os.path.join(path, filename))
       rule_id = get_rule_id(filename)
       for language in compatible_languages(rule, languages_from_sonarpedia):
@@ -192,11 +190,23 @@ def checkout_repo(repo):
   else:
     return Repo(repo)
 
+
+VERSION_RE = re.compile(r'\d[\d\.]+')
+def is_version_tag(name):
+  return bool(re.fullmatch(VERSION_RE, name))
+
+
+def comparable_version(key):
+  if not is_version_tag(key):
+    return [0]
+  return list(map(int, key.split('.')))
+
+
 def collect_coverage_for_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
   tags = git_repo.tags
-  tags.sort(key = lambda t: t.commit.committed_date)
-  versions = [tag.name for tag in tags if '-' not in tag.name]
+  versions = [tag.name for tag in tags if is_version_tag(tag.name)]
+  versions.sort(key = comparable_version)
   for version in versions:
     collect_coverage_for_version(repo, git_repo, version, coverage)
   collect_coverage_for_version(repo, git_repo, 'master', coverage)
