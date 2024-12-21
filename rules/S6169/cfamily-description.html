@@ -1,0 +1,606 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>std::is_constant_evaluated()</code> or <code>if consteval</code> are used in a context where they always produce the same result, i.e. are always <code>true</code> or always <code>false</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>std::is_constant_evaluated</code> function (introduced in C&#43;&#43;20) and the <code>if consteval</code> language construct (introduced in C&#43;&#43;23) are used to determine whether the evaluation is performed at compile-time or runtime.
+This can be useful when, for example, two different implementations are provided for an algorithm:
+one that does not perform any IO operations and is compatible with compile-time evaluation, and the other one that also emits log entries at runtime.</p>
+</div>
+<div class="paragraph">
+<p>These constructs should be used inside functions that are <code>constexpr</code>, and thus can be evaluated both at compile-time and at runtime.</p>
+</div>
+<div class="paragraph">
+<p>When used inside a context that is either always evaluated at compile-time or always evaluated at runtime,
+a call to <code>std::is_constant_evaluated</code> always returns the same result, similarly <code>if consteval</code> always evaluates the same branch,
+making their use redundant.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises issues for contexts where expressions are always evaluated at compile-time or always evaluated at runtime.</p>
+</div>
+<div class="paragraph">
+<p>In contexts that are always evaluated at compile-time:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>std::is_constant_evaluated()</code> always returns <code>true</code>.</p>
+</li>
+<li>
+<p><code>if consteval { /* then-branch */ }</code> always evaluates the <code>then-branch</code>.</p>
+</li>
+<li>
+<p><code>if !consteval { /* then-branch */ } else { /* else-branch */}</code> always evaluates the <code>else-branch</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>These include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The conditions of an <code>if constexpr</code> or a <code>static_assert</code>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr double power(double b, int x) {
+  if constexpr (std::is_constant_evaluated()) {  // Noncompliant: always true
+    // compile-time implementation
+  } else {
+    // runtime implementation
+  }
+}
+
+static_assert(std::is_constant_evaluated()); // Noncompliant: always true</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>The initialization of a variable declared <code>constexpr</code> or <code>constinit</code>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr int size = std::is_constant_evaluated() ? 10 : 20; // Noncompliant: always returns true
+constinit int val = std::is_constant_evaluated() ? 20 : 30; // Noncompliant: always returns true</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>All expressions inside an <em>immediate context</em>. For instance bodies of <code>consteval</code> function, <code>then</code> branches of <code>if consteval</code>, and <code>else</code> branches of <code>if not consteval</code>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">consteval bool onlyCompileTimeFunc() {
+  if consteval {  // Noncompliant: always true
+    /* Branch is always taken */
+  } else {
+    /* Branch is never taken */
+  }
+
+  if not consteval { // Noncompliant: always false
+    /* Branch is never taken */
+  } else {
+    /* Branch is always taken */
+  }
+
+  bool ce = std::is_constant_evaluated(); // Noncompliant: always true
+  return std::is_constant_evaluated(); // Noncompliant: always returns true
+}
+
+constexpr bool possiblyCompileTimeFunc() {
+  if consteval { // Compliant: depends on the call site
+    if consteval { // Noncompliant: always true
+      /* .... */
+    }
+    if not consteval { // Noncompliant: always false
+      /* .... */
+    }
+    return std::is_constant_evaluated(); // Noncompliant: always returns true
+  }
+
+  if ! consteval { // Compliant: depends on the call site
+    /* Runtime branch */
+  } else {
+    return std::is_constant_evaluated(); // Noncompliant: always returns true
+  }
+
+  return std::is_constant_evaluated(); // Compliant: depends on call site
+}</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In contexts that are always evaluated at runtime:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>std::is_constant_evaluated()</code> always returns <code>false</code>.</p>
+</li>
+<li>
+<p><code>if consteval { /* then-branch */ } else { /* else-branch */}</code> always evaluates <code>else-branch</code>.</p>
+</li>
+<li>
+<p><code>if !consteval { /* then-branch */ }</code> always evaluates <code>then-branch</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>They include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The body of functions that are neither <code>constexpr</code> nor <code>consteval</code>.</p>
+</li>
+<li>
+<p><code>else</code> branches of <code>if consteval</code>.</p>
+</li>
+<li>
+<p><code>then</code> branches of <code>if not consteval</code>.</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool onlyRuntimeFunc() {
+  if consteval { // Noncompliant: always false
+    /* Never taken branch */
+  } else {
+    /* Always taken branch */
+  }
+
+  if not consteval {  // Noncompliant: always true
+    /* Always taken branch */
+  } else {
+    /* Never taken branch */
+  }
+
+  bool ce = std::is_constant_evaluated(); // Noncompliant: always false
+  return std::is_constant_evaluated(); // Noncompliant: always returns false
+}
+
+constexpr bool possiblyCompileTimeFunc() {
+  if not consteval { // Compliant: depends on the call site
+    if consteval { // Noncompliant: always false
+      /* ... */
+    }
+    if not consteval { // Noncompliant: always true
+      /* .... */
+    }
+    return std::is_constant_evaluated(); // Noncompliant: always returns false
+  }
+
+  if consteval { // Compliant: depends on the call site
+    /* Compile-time branch */
+  } else {
+    return std::is_constant_evaluated(); // Noncompliant: always returns false
+  }
+
+  return std::is_constant_evaluated(); // Compliant: depends on call site
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It is possible to nest a compile-time-only context inside otherwise runtime context,
+in such case expressions are still evaluated at compile-time, and this rule will raise issues:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void constexprInRuntime() {
+  // Initializer of constexpr variable is always constant-expresion
+  constexpr int x = std::is_constant_evaluated(); // Noncompliant: always returns true
+}
+
+constexpr void constexprInNotConsteval() {
+  if not consteval {
+    // Initializer of constexpr variable is always constant-expresion
+    constexpr int x = std::is_constant_evaluated(); // Noncompliant: always return true
+  }
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_when_is_the_issue_raised_for_variables_that_are_neither_constexpr_nor_constinit">When is the issue raised for variables that are neither <code>constexpr</code> nor <code>constinit</code>?</h3>
+<div class="paragraph">
+<p>For some variables, the compiler tries to initialize them at compile-time.
+They are initialized at runtime only if such initialization is not possible.</p>
+</div>
+<div class="paragraph">
+<p>This happens for:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Variables with static and thread storage duration, like global, static, and thread-local variables.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int x = 10;           // Evaluated at compile-time
+int const y = init(); // Evaluated at compile-time if `init()` is constant-expression
+std::mutex m;         // Evaluated at compile-time because the selected constructor is constexpr
+
+void runtime() {
+  static int s = 20; // Evaluted at compile-time.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Evaluating such variables at compile-time avoids order of initialization issues.
+It is recommended to mark these variables as <code>constexpr</code> (if they can be made <code>const</code>) or <code>constinit</code>.</p>
+</div>
+</li>
+<li>
+<p>Local variables that are declared <code>const</code> and have integral and enumeration types.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void cpp03Code() {
+  int const size = 5; // Evaluated at compile-time
+  int arr[size] = {}; // OK, size is constant
+  for (int i = 0; i &lt; size; ++i) {
+    /* .... */
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Evaluating such variables at compile-time was already possible before <code>constexpr</code> was introduced to allow patterns like the above.
+It is recommended to mark these variables as <code>constexpr</code>.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Due to the above special rules, <code>std::is_constant_evaluated()</code> and <code>if consteval</code> are always <code>true</code> within such implicit constant initialization.
+This may lead to surprising and unintuitive results, thus this rule raises issues in the following cases:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void onlyRuntime() {
+  bool const ce = std::is_constant_evaluated(); // Noncompliant: always true, due to implicit constant evaluation
+  bool e = std::is_constant_evaluated();        // Noncompliant: always false, not an implicit constant evaluation
+}
+
+constexpr void possiblyCompileTimeFunc() {
+  bool const ce = std::is_constant_evaluated(); // Noncompliant: always true, due to implicit constant evaluation
+  bool e = std::is_constant_evaluated();        // Compliant: depends on the call site
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_when_are_issues_raised_for_lambdas">When are issues raised for lambdas?</h3>
+<div class="paragraph">
+<p>The call operator of a lambda can be explicitly marked <code>consteval</code>. In such cases, it can only be invoked at compile-time, and the rule raises an issue:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">[] () consteval {
+  if consteval {  // Noncompliant: always true
+    /* .... */
+  }
+  return std::is_constant_evaluated(); // Noncompliant: always returns true
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Otherwise, the lambda call operator is implicitly considered to be <code>constexpr</code>,
+regardless if it is marked so.
+This means that the lambda can be invoked at compile-time,
+and uses of <code>std::is_constant_evaluated()</code> and <code>if consteval</code> are not redundant.</p>
+</div>
+<div class="paragraph">
+<p>However, when a lambda is invoked locally only in compile-time or runtime context,
+checking the evaluation context is still redundant.
+In particular, this is obvious when the lambda is immediately invoked. The rule raises issues in that case:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// The lambda is provably invoked only at compile-time:
+constexpr bool ce = [] () {
+  if consteval {  // Noncompliant: always true
+    return true;
+  }
+  return false;
+}();</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_when_do_constexpr_functions_become_immediate_compile_time_only">When do <code>constexpr</code> functions become immediate (compile-time only)?</h3>
+<div class="paragraph">
+<p>An immediate function (including one marked <code>consteval</code>) can only be invoked at compile-time,
+and thus requires that all arguments are known at compile-time,
+i.e. either they are constants or the function is invoked in an <em>immediate context</em>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">consteval void handle(int);
+
+constexpr void foo(int x) {
+  handle(x); // ill-formed, the process cannot be called at compile-time,
+             // because `x` may have runtime value
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the case of non-template functions, this can be fixed by putting the call
+to immediate function inside an <code>if consteval</code> block.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr void foo(int x) {
+  if consteval {
+    handle(x); // OK, the handle is evaluated only at compile-time
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>However, in the case of templates, it is possible that depending on the template parameters,
+an immediate or runtime function will be called.
+In such case, the compiler automatically changes the enclosing function to an immediate function,
+in a process referred to as <em>immediate escalation</em>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">consteval int process(int);
+float process(float);
+
+template&lt;typename T&gt;
+constexpr T foo(T x) {
+  // Calls `consteval` process if T = int, and runtimne for T = float.
+  // foo&lt;int&gt; is promoted to immediate function.
+  return process(x);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The same behavior is applied to lambdas, both generic and non-generic,
+if they contain an immediate invocation.</p>
+</div>
+<div class="paragraph">
+<p>As a consequence, uses of <code>std::is_constant_evaluated()</code> and <code>if consteval</code> are also redundant when used in an <em>immediate escalated</em> lambda or function template instantiations.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises issues if such uses are redundant for all possible specializations
+of lambda or template:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">consteval int process(int);
+float process(float);
+
+template&lt;typename T&gt;
+constexpr bool conditionallyImmediate(T x) {
+  process(x); // Calls consteval function depending on the argument type
+  return std::is_constant_evaluated(); // Compliant: not all specializations are immediate
+}
+
+template&lt;typename T&gt;
+constexpr bool alwaysImmediate(T x, int t) {
+  process(t); // Always calls consteval function
+  return std::is_constant_evaluated(); // Noncompliant: all specializations are immediate
+}
+
+constexpr auto nonGenericLambda = [](int x) {
+  process(x); // Always calls consteval function
+  return std::is_constant_evaluated(); // Noncompliant: lambda is immediate
+};
+
+template&lt;typename T&gt;
+constexpr auto conditionallyImmediateGenericLambda = [] (auto x) {
+  process(x); // Calls consteval function depending on the argument type
+  return std::is_constant_evaluated(); // Compliant: not all specializations are immediate
+};
+
+template&lt;typename T&gt;
+constexpr auto alwaysImmediateGenericLambda = [](T x, int t) {
+  process(t); // Always calls consteval function
+  return std::is_constant_evaluated(); // Noncompliant: all specializations are immediate
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Depending on the context, the issue may be fixed by:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>changing the context of invocation: replacing an <code>if constexpr</code> with a simple <code>if</code> or changing a function from <code>consteval</code> to <code>constexpr</code>.</p>
+</li>
+<li>
+<p>removing dead code: replacing <code>std::is_constant_evaluated()</code> with the produced value, removing <code>if consteval</code> and dead branches.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_inside_if_constexpr_condition">Inside <code>if constexpr</code> condition</h3>
+<div class="paragraph">
+<p>Changing <code>if constexpr</code> into <code>if</code> leads to the condition no longer being always evaluated at compile-time.
+The result of <code>std::is_constant_evaluated()</code> now depends on the call site.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr double power(double b, int x) {
+  if constexpr (std::is_constant_evaluated()) {  // Noncompliant: always true
+    // compile-time implementation
+  } else {
+    // runtime implementation
+  }
+}</code></pre>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_compliant_solution">Compliant solution</h5>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr double power(double b, int x) {
+  if (std::is_constant_evaluated()) {
+    // compile-time implementation
+  } else {
+    // runtime implementation
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Alternatively, since C&#43;&#43;23 you can use <code>if consteval</code> (see <a data-rspec-id="S7033" class="rspec-auto-link">S7033</a>).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr double power(double b, int x) {
+  if consteval {
+    // compile-time implementation
+  } else {
+    // runtime implementation
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_removing_unnecessary_checks">Removing unnecessary checks</h3>
+<div class="paragraph">
+<p>Inside <code>if consteval</code> code is always evaluated at compile-time,
+so nested <code>if consteval</code> branches and calls to <code>std::is_constant_evaluated()</code> are always <code>true</code>.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr bool possiblyCompileTimeFunc() {
+  if consteval {
+    if consteval { // Noncompliant: always true
+      /* Code A */
+    }
+    if not consteval { // Noncompliant: always false
+      /* Code B */
+    }
+    return std::is_constant_evaluated(); // Noncompliant: always returns true
+  }
+
+  if ! consteval {
+    /* Code C */
+  }
+
+  return std::is_constant_evaluated(); // Compliant: result depends on evaluation
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr bool possiblyCompileTimeFunc() {
+  if consteval {
+    /* Code A */
+    return true;
+  }
+
+  if ! consteval {
+    /* Code C */
+  }
+
+  return std::is_constant_evaluated(); // Compliant: result depends on evaluation
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_making_function_callable_at_runtime">Making function callable at runtime</h3>
+<div class="paragraph">
+<p>Changing the function to be declared as <code>constexpr</code> allows it to be called at runtime,
+and makes <code>if consteval</code> meaningful.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">consteval bool compileTimeOnlyFunc() {
+  if consteval {  // Noncompliant: always true
+    /* Code A */
+  } else {
+    /* Code B */
+  }
+
+  return std::is_constant_evaluated(); // Noncompliant: always returns true
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">constexpr bool compileTimeOrRuntimeFunc() {
+  if consteval { // Compliant: result depends on evaluation
+    /* Code A */
+  } else {
+    /* Code B */
+  }
+
+  return std::is_constant_evaluated(); // Compliant: result depends on evaluation
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/consteval">consteval specifier</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/if#Consteval_if">Consteval if</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Open Standards - <a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2564r3.html">P2564R3</a> <code>consteval</code> needs to propagate up</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S7033" class="rspec-auto-link">S7033</a> - "if consteval" should be used instead of "if (std::is_constant_evaluated())"</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
