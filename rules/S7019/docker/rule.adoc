@@ -10,6 +10,15 @@ This can cause problems when trying to gracefully stop containers because the ma
 Moreover, the exec form provides more control and predictability over the execution of the command.
 It does not invoke a command shell, which means it does not have the potential side effects of shell processing.
 
+Although, the exec form does not allow shell features such as variable expansion, piping (`|`) and command chaining (`&&`, `||`, `;`).
+In case you need to use these features, there is few alternatives:
+- create a wrapper script
+- explicitly specify the shell with the `SHELL` instruction before the `CMD` or `ENTRYPOINT` instruction
+
+=== Exceptions
+
+As mentioned above, this rule will not raise an issue if the `SHELL` instruction is used before the `CMD` or `ENTRYPOINT` instruction, as we consider this is a conscious decision.
+
 == How to fix it
 
 === Code examples
@@ -22,6 +31,22 @@ FROM scratch
 ENTRYPOINT echo "Welcome!"
 ----
 
+[source,docker,diff-id=2,diff-type=noncompliant]
+----
+FROM scratch
+ENTRYPOINT echo "Long script with chaining commands" \
+  && echo "Welcome!" \
+  && echo "Goodbye"
+----
+
+[source,docker,diff-id=3,diff-type=noncompliant]
+----
+FROM scratch
+ENTRYPOINT echo "Long script with chaining commands" \
+  && echo "Welcome!" \
+  && echo "Goodbye"
+----
+
 ==== Compliant solution
 
 [source,docker,diff-id=1,diff-type=compliant]
@@ -29,6 +54,28 @@ ENTRYPOINT echo "Welcome!"
 FROM scratch
 ENTRYPOINT ["echo", "Welcome!"]
 ----
+
+[source,docker,diff-id=1,diff-type=compliant]
+----
+FROM scratch
+SHELL ["/bin/bash", "-c"]
+ENTRYPOINT echo "Long script with chaining commands" \
+  && echo "Welcome!" \
+  && echo "Goodbye"
+----
+
+[source,docker,diff-id=3,diff-type=compliant]
+----
+FROM scratch
+ENTRYPOINT ["/entrypoint.sh"]
+----
+
+With entrypoint.sh containing:
+```
+echo "Long script with chaining commands"
+&& echo "Welcome!"
+&& echo "Goodbye"
+```
 
 == Resources
 === Documentation
