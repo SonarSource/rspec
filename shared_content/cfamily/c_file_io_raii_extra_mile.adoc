@@ -1,0 +1,65 @@
+Following this idiom, one would create a class that manages the underlying file by opening it when the object is constructed and closing it when the object is destroyed, effectively using a constructor-destructor pair as a "do-undo"-mechanism.
+
+An exemplary class that manages a pointer to a file is shown in what follows.
+
+[source,cpp]
+----
+#include <cstdio>
+#include <fstream>
+#include <string>
+#include <utility>
+
+// Although `std::fstream` should be preferred, if available, a file stream
+// managed by this `File` class cannot suffer from "double-close" issues.
+class File {
+  FILE *f;
+
+public:
+  // Opens file stream on construction.
+  File(std::string const &path, std::string const &modes)
+      : f(fopen(path.c_str(), modes.c_str())) {
+    if (!f) {
+      throw std::ios_base::failure("fopen() failed");
+    }
+  }
+  // Will close the file stream upon destruction.
+  ~File() {
+    // Here we are fine with `std::terminate` being called here in case `close`
+    // throws and exception.
+    close();
+  }
+  // Allow only one owner of a file, disallow copy operations.
+  File(const File &other) = delete;
+  File &operator=(const File &other) = delete;
+  // Moving a file to a different scope shall be allowed.
+  File(File &&other) : f(std::exchange(other.f, nullptr)) {}
+  File &operator=(File &&other) {
+    if (this != &other) {
+      // In case of non-self-assignment, close the currently managed file and
+      // "steal" the other's file.
+      close();
+      f = std::exchange(other.f, nullptr);
+    }
+    return *this;
+  }
+  // Allow file to be closed explicitly.
+  void close() {
+    if (f != nullptr && fclose(std::exchange(f, nullptr)) == EOF) {
+      throw std::ios_base::failure("fclose() failed");
+    }
+  }
+  // Allow access to underlying file via `f`.
+  FILE *handle() { return f; }
+  // Release `f`, i.e., stop managing it.
+  FILE *release() { return std::exchange(f, nullptr); }
+};
+
+void file_user() {
+  File fh{"example.txt", "r"};
+  FILE *f = fh.handle();
+  // Use `f` for the desired file operation(s).
+  //
+  // The file stream managed by `fh` will be automatically closed when `fh` goes
+  // out of scope at the end of this function.
+}
+----

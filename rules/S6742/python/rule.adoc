@@ -1,0 +1,63 @@
+This rule raises an issue when 7 or more commands are applied on a data frame.
+
+== Why is this an issue?
+
+The pandas library provides many ways to filter, select, reshape and modify a data frame.
+Pandas supports as well method chaining, which means that many ``++DataFrame++`` methods return a modified ``++DataFrame++``. 
+This allows the user to chain multiple operations together, making it effortless perform several of them in one line of code:
+
+[source,python]
+----
+import pandas as pd
+
+schema = {'name':str, 'domain': str, 'revenue': 'Int64'}
+joe = pd.read_csv("data.csv", dtype=schema).set_index('name').filter(like='joe', axis=0).groupby('domain').mean().round().sample()
+----
+
+While this code is correct and concise, 
+it can be challenging to follow its logic and flow, making it harder to debug or modify in the future.
+
+To improve code readability, debugging, and maintainability, it is recommended to break down long chains of pandas instructions into smaller, more modular steps. 
+This can be done with the help of the pandas ``++pipe++`` method, which takes a function as a parameter. 
+This function takes the data frame as a parameter, operates on it and returns it for further processing.
+Grouping complex transformations of a data frame inside a function with a meaningful name can further enhance the readability and maintainability of the code.
+
+== How to fix it
+
+To fix this issue refactor chains of instruction into a function that can be consumed by the ``++pandas.pipe++`` method.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import pandas as pd
+
+def foo(df: pd.DataFrame):
+  return df.set_index('name').filter(like='joe', axis=0).groupby('team').mean().round().sort_values('salary').take([0]) # Noncompliant: too many operations happen on this data frame.
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import pandas as pd
+
+def select_joes(df):
+  return df.set_index('name').filter(like='joe', axis=0)
+
+def compute_mean_salary_per_team(df):
+  return df.groupby('team').mean().round()
+
+def foo(df: pd.DataFrame):
+  return df.pipe(select_joes).pipe(compute_mean_salary_per_team).sort_values('salary').take([0]) # Compliant
+----
+
+
+== Resources
+
+=== Documentation
+
+* Pandas Documentation - https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.pipe.html#pandas-dataframe-pipe[pandas.DataFrame.pipe]
+

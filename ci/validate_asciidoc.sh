@@ -43,6 +43,7 @@ fi
 #  * Only valid languages can be used as subdirectories in rule directories,
 #    with the exception of ALLOWED_RULE_SUB_FOLDERS.
 #  * Asciidoc files are free or errors and warnings.
+#  * ifdef/endif are used appropriatedly.
 #
 # [properties validated always on all rules]
 #  * Rule descriptions can include other asciidoc files from the same rule
@@ -71,19 +72,8 @@ do
       exit_code=1
     fi
   else
-    # Make sure include:: clauses are always more than one line away from the previous content
-    # Detect includes stuck to the line before
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "\S[ \t]*\ninclude::" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; > stuck
-    # Detect includes stuck to the line after
-    find "$dir" -name "*.adoc" -execdir sh -c 'grep -Pzl "include::[^\[]+\[\]\n[ \t]*[^\n]" $1  | xargs -r -I@ realpath "$PWD/@"' shell {} \; >> stuck
-    if [ -s stuck ]; then
-      echo "ERROR: These adoc files contain an include that is stuck to other content."
-      echo "This may result in broken tags and other display issues."
-      echo "Make sure there is an empty line before and after each include:"
-      cat stuck
-      exit_code=1
-    fi
-    rm -f stuck
+    # Add the full path of all adoc files that were affected for sanitization
+    find ~+/"${dir}" -name '*.adoc' >> all_asciidocs
 
     for language in "${dir}"/*/
     do
@@ -113,6 +103,18 @@ do
   fi
 done
 
+cd rspec-tools
+cat ../all_asciidocs | xargs pipenv run rspec-tools check-asciidoc >validate_asciidoc 2>&1
+if [ -s validate_asciidoc ]; then
+  echo "ERROR: Invalid asciidoc description:"
+  cat validate_asciidoc
+  exit_code=1
+fi
+rm -f validate_asciidoc ../all_asciidocs
+cd ..
+
+
+
 # Run asciidoctor and fail if a warning is emitted.
 # Use the tmp_SXYZ_language.adoc files (see note above).
 ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
@@ -133,47 +135,11 @@ else
 fi
 find rules -name "tmp*.adoc" -delete
 
-# Cover file inclusion and crossreferences.
+# Validate file inclusion, cross-references, and other properties.
 #
-# This needs to be done on all rule descriptions, including the default,
-# language-agnostic description, with rspecator-view. Otherwise, a rule
-# could drop an include of a shared_content asciidoc and that file could
-# become unused.
-#
-# We use a custom asciidoctor with extra logging for this purpose.
-# The format for the interesting log entries are:
-#   asciidoctor: INFO: ASCIIDOC LOGGER MAIN FILE: $PATH
-#   asciidoctor: INFO: ASCIIDOC LOGGER INCLUDED: $PATH
-#   asciidoctor: INFO: ASCIIDOC LOGGER CROSSREFERENCE: $RULEID crossreferences $PATH
-outdir="$(mktemp -d)"
-find rules -name 'rule.adoc' \
-  | xargs ./ci/custom-asciidoctor -a rspecator-view --verbose -R rules -D "${outdir}" 2>&1 \
-  | grep -e 'ASCIIDOC LOGGER' \
-  > asciidoc_introspection
-
-grep -ve 'CROSSREFERENCE' asciidoc_introspection \
-  | cut -d ':' -f 4 \
-  | sort -u \
-  > used_asciidoc_files
-
-git ls-files --cached -- 'rules/**.adoc' 'shared_content/**.adoc' \
-  | xargs realpath \
-  > all_asciidoc_files
-
-cross_references=$(grep -e 'CROSSREFERENCE' asciidoc_introspection | cut -d ':' -f 4 | sort -u)
-if [[ -n "$cross_references" ]]; then
-  echo 'ERROR: Some rules try to include content from unallowed directories.'
-  echo 'To share content between rules, you should use the "shared_content" folder at the root of the repository.'
-  echo 'List of errors:'
-  echo "${cross_references}"
-  exit_code=1
-fi
-
-orphans=$(comm -1 -3 <(sort -u used_asciidoc_files) <(sort -u all_asciidoc_files))
-if [[ -n "$orphans" ]]; then
-  printf 'ERROR: These adoc files are not included anywhere:\n-----\n%s\n-----\n' "$orphans"
-  exit_code=1
-fi
+# This part of the validation is extracted in a separate script,
+# which is covered by tests unlike what is above this line.
+TOPLEVEL=. ./ci/asciidoc_validation/validate.sh || exit_code=1
 
 if (( exit_code == 0 )); then
   echo "Success"

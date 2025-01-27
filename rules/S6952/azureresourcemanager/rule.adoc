@@ -1,0 +1,165 @@
+In Azure Resource Manager (ARM) templates, dependencies between resources can be defined in two ways: implicitly or explicitly.
+We recommend not adding explicit dependencies when they are already defined implicitly to avoid redundancy and make the template more straightforward to read.
+
+== Why is this an issue?
+
+In Azure Resource Manager (ARM) templates, dependencies between resources can be defined in two ways: implicitly or explicitly.
+An implicit dependency is set when you use the `reference` function and pass in the resource name.
+An explicit dependency is defined when you add a `dependsOn` element.
+However, a code smell arises when these dependencies are used simultaneously for the same resources.
+This redundancy is unnecessary and can lead to confusion.
+Therefore, to maintain clarity and efficiency in your code, it is best to omit explicit dependencies when they are already defined implicitly.
+
+== How to fix it in JSON templates
+
+If a resource references another with a `reference` function, remove the `dependsOn` element if it points to the same resource.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,json,diff-id=1,diff-type=noncompliant]
+----
+{
+  "apiVersion": "2019-04-01",
+  "type": "Microsoft.Network/networkInterfaces",
+  "name": "exampleNic",
+  "location": "[resourceGroup().location]",
+  "dependsOn": [
+    "[resourceId('Microsoft.Network/virtualNetworks', 'exampleVNet')]"
+  ],
+  "properties": {
+    "ipConfigurations": [
+      {
+        "name": "ipconfig1",
+        "properties": {
+          "subnet": {
+            "id": "[reference('Microsoft.Network/virtualNetworks/exampleVNet/subnets/exampleSubnet').id]"
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+==== Compliant solution
+
+[source,json,diff-id=1,diff-type=compliant]
+----
+{
+  "apiVersion": "2019-04-01",
+  "type": "Microsoft.Network/networkInterfaces",
+  "name": "exampleNic",
+  "location": "[resourceGroup().location]",
+  "properties": {
+    "ipConfigurations": [
+      {
+        "name": "ipconfig1",
+        "properties": {
+          "subnet": {
+            "id": "[reference('Microsoft.Network/virtualNetworks/exampleVNet/subnets/exampleSubnet').id]"
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+== How to fix it in Bicep
+
+If a resource references another resource by a symbolic name or with a `reference` function, remove the `dependsOn` element if it points to the same resource.
+Note: Bicep provides the reference function, but in most cases, the symbolic name should be preferred over it.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,bicep,diff-id=2,diff-type=noncompliant]
+----
+resource exampleVNet 'Microsoft.Network/virtualNetworks@2020-06-01' existing = {
+  name: 'exampleVNet'
+}
+
+resource exampleSubnet 'Microsoft.Network/virtualNetworks/subnets@2020-06-01' existing = {
+  parent: exampleVNet
+  name: 'exampleSubnet'
+}
+
+resource exampleNic 'Microsoft.Network/networkInterfaces@2020-06-01' = {
+  name: 'exampleNic'
+  location: resourceGroup().location
+  dependsOn: [
+    exampleSubnet  // Noncompliant
+  ]
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'ipconfig1'
+        properties: {
+          subnet: {
+            id: exampleSubnet.id
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+==== Compilant solution
+
+[source,bicep,diff-id=2,diff-type=compliant]
+----
+resource exampleVNet 'Microsoft.Network/virtualNetworks@2020-06-01' existing = {
+  name: 'exampleVNet'
+}
+
+resource exampleSubnet 'Microsoft.Network/virtualNetworks/subnets@2020-06-01' existing = {
+  parent: exampleVNet
+  name: 'exampleSubnet'
+}
+
+resource exampleNic 'Microsoft.Network/networkInterfaces@2020-06-01' = {
+  name: 'exampleNic'
+  location: resourceGroup().location
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'ipconfig1'
+        properties: {
+          subnet: {
+            id: exampleSubnet.id
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Azure Resource Manager - https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/best-practices#resource-dependencies[Best practices for resource dependencies in ARM templates]
+* Azure Resource Manager - https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/resource-dependency#reference-and-list-functions[Reference and list functions in ARM templates]
+* Azure Resource Manager - https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/best-practices#resource-definitions[Best practices for resource definitions in Bicep]
+* Azure Resource Manager - https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/bicep-functions-resource#reference[Reference function in Bicep]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+Remove this explicit dependency as it is already defined implicitly.
+
+Secondary location message: Implicit dependency is created via the "reference" function.
+
+=== Highlighting
+Highlight the redundant `dependsOn` element.
+
+endif::env-github,rspecator-view[]

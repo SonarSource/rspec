@@ -1,0 +1,99 @@
+== How to fix it in Flask
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=204,diff-type=noncompliant]
+----
+from flask import Flask, request
+from flask_bcrypt import Bcrypt
+
+app = Flask(__name__)
+bcrypt = Bcrypt(app)
+
+@app.get("/")
+def hash():
+    password = request.args.get('password', '')
+    hashed_password = bcrypt.generate_password_hash(password, rounds=2) # Noncompliant
+
+    return f"<p>{hashed_password.decode('utf-8')}</p>"
+----
+
+==== Compliant solution
+
+[source,python,diff-id=204,diff-type=compliant]
+----
+from flask import Flask, request
+from flask_bcrypt import Bcrypt
+
+app = Flask(__name__)
+bcrypt = Bcrypt(app)
+
+@app.get("/")
+def hash():
+    password = request.args.get('password', '')
+    hashed_password = bcrypt.generate_password_hash(password)
+
+    return f"<p>{hashed_password.Decode('utf-8')}</p>"
+----
+
+=== How does this work?
+
+include::../../common/fix/password-hashing.adoc[]
+
+include::../../common/fix/bcrypt-parameters.adoc[]
+
+include::../../common/fix/argon-parameters.adoc[]
+
+To use values recommended by the Argon2 authors, you can use the two following objects:
+
+* https://argon2-cffi.readthedocs.io/en/stable/api.html#argon2.profiles.RFC_9106_HIGH_MEMORY[argon2.profiles.RFC_9106_HIGH_MEMORY]
+* https://argon2-cffi.readthedocs.io/en/stable/api.html#argon2.profiles.RFC_9106_LOW_MEMORY[argon2.profiles.RFC_9106_LOW_MEMORY]
+
+To use values recommended by the OWASP, you can craft objects as follows:
+
+[source, python]
+----
+import argon2
+from argon2.low_level import ARGON2_VERSION, Type
+
+OWASP_1 = argon2.Parameters(
+        type=Type.ID,
+        version=ARGON2_VERSION,
+        salt_len=16,
+        hash_len=32,
+        time_cost=1,
+        memory_cost=47104, # 46 MiB
+        parallelism=1)
+
+# To apply the parameters to the Flask app:
+def set_flask_argon2_parameters(app, parameters: argon2.Parameters):
+    app.config['ARGON2_SALT_LENGTH'] = parameters.salt_len
+    app.config['ARGON2_HASH_LENGTH'] = parameters.hash_len
+    app.config['ARGON2_TIME_COST']   = parameters.time_cost
+    app.config['ARGON2_MEMORY_COST'] = parameters.memory_cost
+    app.config['ARGON2_PARALLELISM'] = parameters.parallelism
+    
+# ----
+# Or the unofficial way:
+from flask import Flask
+from flask_argon2 import Argon2
+
+app = Flask(__name__)
+argon2 = Argon2(app)
+argon2.ph = OWASP_1
+
+set_flask_argon2_parameters(app, OWASP_1)
+----
+
+=== Pitfalls
+
+include::../../common/pitfalls/pre-hashing.adoc[]
+
+=== Going the extra mile
+
+include::../../common/extra-mile/argon-cli.adoc[]
+
+include::../../common/extra-mile/peppering.adoc[]
+

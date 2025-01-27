@@ -1,0 +1,105 @@
+== How to fix it
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+using System.Xml;
+
+public class ExampleController : Controller
+{
+    public async void Example(string username)
+    {
+        XmlWriter writer = XmlWriter.Create("data.xml");
+        await writer.WriteRawAsync(
+            $@"<user>
+                <username>{username}</username> <!-- Noncompliant -->
+                <role>user</role>
+            </user>"
+        );
+        await writer.DisposeAsync();
+    }
+}
+----
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+using System.Xml;
+
+public class ExampleController : Controller
+{
+    public async void Example(string username)
+    {
+        XmlDocument doc = new XmlDocument();
+        XmlElement user = doc.CreateElement("user");
+        doc.AppendChild(user);
+
+        user.InnerXml = $@"
+            <username>{username}</username> <!-- Noncompliant -->
+            <role>user</role>";
+        doc.Save("data.xml");
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+using System.Xml;
+using System.Security;
+
+public class ExampleController : Controller
+{
+    public async void Example(string username)
+    {
+        XmlWriter writer = XmlWriter.Create("data.xml");
+        await writer.WriteRawAsync(
+            $@"<user>
+                <username>{SecurityElement.Escape(username)}</username>
+                <role>user</role>
+            </user>"
+        );
+        await writer.DisposeAsync();
+    }
+}
+----
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+using System.Xml;
+
+public class ExampleController : Controller
+{
+    public async void Example(string username)
+    {
+        XmlDocument doc = new XmlDocument();
+        XmlElement user = doc.CreateElement("user");
+        doc.AppendChild(user);
+
+        XmlElement username_element = d.CreateElement("username");
+        user.AppendChild(username_element);
+        username_element.InnerText = username;
+
+        XmlElement role = d.CreateElement("role");
+        user.AppendChild(role);
+        role.InnerText = "user";
+        doc.Save("data.xml");
+    }
+}
+----
+
+=== How does this work?
+
+In most cases, building XML strings with a direct concatenation of user input
+is discouraged. While not always possible, a strong pattern-based validation can
+help sanitize tainted inputs. Likewise, converting to a harmless type can
+sometimes be a solution.
+
+include::../../common/fix/object.adoc[]
+
+include::../../common/fix/casting.adoc[]

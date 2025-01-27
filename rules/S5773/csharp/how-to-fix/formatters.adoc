@@ -1,0 +1,73 @@
+=== Code examples
+
+:BinaryFormatter: https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter
+
+:NetDataContractSerializer: https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer
+
+:SoapFormatter: https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter
+
+:JavaScriptSerializer: https://learn.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer
+
+==== Noncompliant code example
+
+With {BinaryFormatter}[``BinaryFormatter``], {NetDataContractSerializer}[``NetDataContractSerializer``] or {SoapFormatter}[``SoapFormatter``]:
+
+[source,csharp,diff-id=101,diff-type=noncompliant]
+----
+var myBinaryFormatter = new BinaryFormatter();
+myBinaryFormatter.Deserialize(stream); // Noncompliant
+----
+
+With {JavaScriptSerializer}[``JavaScriptSerializer``]:
+
+[source,csharp,diff-id=102,diff-type=noncompliant]
+----
+JavaScriptSerializer serializer1 = new JavaScriptSerializer(new SimpleTypeResolver()); // Noncompliant
+serializer1.Deserialize<ExpectedType>(json);
+----
+
+==== Compliant solution
+
+With {BinaryFormatter}[``BinaryFormatter``], {NetDataContractSerializer}[``NetDataContractSerializer``] or {SoapFormatter}[``SoapFormatter``]:
+
+[source,csharp,diff-id=101,diff-type=compliant]
+----
+sealed class CustomBinder : SerializationBinder
+{
+   public override Type BindToType(string assemblyName, string typeName)
+   {
+       if (!(typeName == "type1" || typeName == "type2" || typeName == "type3"))
+       {
+          throw new SerializationException("Only type1, type2 and type3 are allowed");
+       }
+       return Assembly.Load(assemblyName).GetType(typeName);
+   }
+}
+
+var myBinaryFormatter = new BinaryFormatter();
+myBinaryFormatter.Binder = new CustomBinder();
+myBinaryFormatter.Deserialize(stream);
+----
+
+With {JavaScriptSerializer}[``JavaScriptSerializer``]:
+
+[source,csharp,diff-id=102,diff-type=compliant]
+----
+public class CustomSafeTypeResolver : JavaScriptTypeResolver
+{
+   public override Type ResolveType(string id)
+   {
+      if(id != "ExpectedType") {
+         throw new ArgumentNullException("Only ExpectedType is allowed during deserialization");
+      }
+      return Type.GetType(id);
+   }
+}
+
+JavaScriptSerializer serializer = new JavaScriptSerializer(new CustomSafeTypeResolver());
+serializer.Deserialize<ExpectedType>(json);
+----
+
+=== Going the extra mile
+
+include::../../common/extra-mile/formatters.adoc[]
