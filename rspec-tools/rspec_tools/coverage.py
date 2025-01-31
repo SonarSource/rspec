@@ -18,7 +18,7 @@ REPOS = [
   'sonar-dataflow-bug-detection',
   'sonar-dotnet-enterprise',
   'sonar-flex',
-  'sonar-go',
+  'sonar-go-enterprise',
   'sonar-html',
   'sonar-iac-enterprise',
   'sonar-java',
