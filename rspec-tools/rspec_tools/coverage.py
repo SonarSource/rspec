@@ -1,13 +1,43 @@
-import os
-import sys
+import collections
 import json
-from git import Repo
-from git import Git
+import os
+import re
+import sys
 from pathlib import Path
 
-from rspec_tools.utils import (load_json, pushd)
+from git import Git, Repo
+from rspec_tools.utils import load_json, pushd
 
-REPOS = ['sonar-abap','sonar-cpp','sonar-cobol','sonar-dotnet','sonar-css','sonar-flex','slang-enterprise','sonar-java','SonarJS','sonar-php','sonar-pli','sonar-plsql','sonar-python','sonar-rpg','sonar-swift','sonar-text','sonar-tsql','sonar-vb','sonar-html','sonar-xml','sonar-kotlin', 'sonar-secrets', 'sonar-security', 'sonar-iac']
+REPOS = [
+  'sonar-abap',
+  'sonar-apex',
+  'sonar-architecture',
+  'sonar-cobol',
+  'sonar-cpp',
+  'sonar-dart',
+  'sonar-dataflow-bug-detection',
+  'sonar-dotnet-enterprise',
+  'sonar-flex',
+  'sonar-go-enterprise',
+  'sonar-html',
+  'sonar-iac-enterprise',
+  'sonar-java',
+  'SonarJS',
+  'sonar-kotlin',
+  'sonar-php',
+  'sonar-pli',
+  'sonar-plsql',
+  'sonar-python',
+  'sonar-rpg',
+  'sonar-ruby',
+  'sonar-scala',
+  'sonar-security',
+  'sonar-swift',
+  'sonar-text-enterprise',
+  'sonar-tsql',
+  'sonar-vb',
+  'sonar-xml'
+]
 
 CANONICAL_NAMES = {
   'CLOUD_FORMATION': 'CLOUDFORMATION',
@@ -16,14 +46,14 @@ CANONICAL_NAMES = {
   'WEB': 'HTML'
 }
 
+
 RULES_FILENAME = 'covered_rules.json'
+
 
 def get_rule_id(filename):
   rule_id = filename[:-5]
-  if '_' in rule_id:
-    return rule_id[:rule_id.find('_')]
-  else:
-    return rule_id
+  return rule_id.removesuffix('_abap').removesuffix('_java')
+
 
 def compatible_languages(rule, languages_from_sonarpedia):
   '''
@@ -42,7 +72,7 @@ def get_implemented_rules(path, languages_from_sonarpedia):
   for lang in languages_from_sonarpedia:
     implemented_rules[lang] = []
   for filename in os.listdir(path):
-    if filename.endswith(".json") and not filename.startswith("Sonar_way"):
+    if filename.endswith(".json") and 'profile' not in filename:
       rule = load_json(os.path.join(path, filename))
       rule_id = get_rule_id(filename)
       for language in compatible_languages(rule, languages_from_sonarpedia):
@@ -133,7 +163,7 @@ class Coverage:
         self.rule_implemented(rule_id, language, analyzer, version)
 
 def all_implemented_rules():
-  implemented_rules = {}
+  implemented_rules = collections.defaultdict(list)
   for sp_file in Path('.').rglob('sonarpedia.json'):
     print(sp_file)
     sonarpedia_path=sp_file.parents[0]
@@ -141,7 +171,10 @@ def all_implemented_rules():
       sonarpedia = load_json(sp_file)
       path = str(sonarpedia_path) + '/' + sonarpedia['rules-metadata-path'].replace('\\', '/')
       languages = sonarpedia['languages']
-      implemented_rules.update(get_implemented_rules(path, languages))
+
+      implemented_rules_in_path = get_implemented_rules(path, languages)
+      for lang, rules in implemented_rules_in_path.items():
+        implemented_rules[lang] += rules
     except Exception as e:
       print(f"failed to collect implemented rules for {sp_file}: {e}")
       continue
@@ -151,17 +184,29 @@ def checkout_repo(repo):
   git_url=f"https://github.com/SonarSource/{repo}"
   token=os.getenv('GITHUB_TOKEN')
   if token:
-    git_url=f"https://{token}@github.com/SonarSource/{repo}"
+    git_url=f"https://oauth2:{token}@github.com/SonarSource/{repo}"
   if not os.path.exists(repo):
     return Repo.clone_from(git_url, repo)
   else:
     return Repo(repo)
 
+
+VERSION_RE = re.compile(r'\d[\d\.]+')
+def is_version_tag(name):
+  return bool(re.fullmatch(VERSION_RE, name))
+
+
+def comparable_version(key):
+  if not is_version_tag(key):
+    return [0]
+  return list(map(int, key.split('.')))
+
+
 def collect_coverage_for_all_versions(repo, coverage):
   git_repo = checkout_repo(repo)
   tags = git_repo.tags
-  tags.sort(key = lambda t: t.commit.committed_date)
-  versions = [tag.name for tag in tags if '-' not in tag.name]
+  versions = [tag.name for tag in tags if is_version_tag(tag.name)]
+  versions.sort(key = comparable_version)
   for version in versions:
     collect_coverage_for_version(repo, git_repo, version, coverage)
   collect_coverage_for_version(repo, git_repo, 'master', coverage)

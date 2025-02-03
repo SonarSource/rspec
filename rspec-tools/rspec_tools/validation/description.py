@@ -1,12 +1,12 @@
-from bs4 import BeautifulSoup
+import re
 from pathlib import Path
-from typing import Final
+from typing import Dict, Final, List, Union
 
+from bs4 import BeautifulSoup
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.rules import LanguageSpecificRule
 from rspec_tools.utils import LANG_TO_SOURCE
 
-import re
 
 def read_file(path):
   section_names_path = Path(__file__).parent.parent.parent.parent.joinpath(path)
@@ -16,8 +16,35 @@ def parse_names(path):
   section_names_path = read_file(path)
   return [s.replace('* ', '').strip() for s in section_names_path if s.strip()]
 
+def parse_security_standard_links(descr):
+  link_nodes = descr.find_all('a')
+  security_standards_links: Dict[str, List] = {}
+  for node in link_nodes:
+    href = node.attrs['href']
+    for standard_key in SECURITY_STANDARD_URL:
+      standard = SECURITY_STANDARD_URL[standard_key]
+      url_pattern = standard["url_pattern"]
+      result = re.match(url_pattern, href)
+      if result is not None:
+        convert = standard["convert_id"]
+        category = convert(result[1])
+        if standard_key not in security_standards_links.keys():
+          security_standards_links[standard_key] = []
+        security_standards_links[standard_key].append(category)
+  return security_standards_links
+
 HOW_TO_FIX_IT = 'How to fix it'
 HOW_TO_FIX_IT_REGEX = re.compile(HOW_TO_FIX_IT)
+SECURITY_STANDARD_URL = {
+  "OWASP": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/www-project-top-ten/2017/A(10|[1-9])_2017-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
+  "OWASP Top 10 2021": {
+    "url_pattern": r"https://(?:www\.)?owasp\.org/Top10/A(10|0[1-9])_2021-",
+    "convert_id": lambda value: f"A{value.lstrip('0')}",
+  },
+}
 
 # The list of all the sections currently accepted by the script.
 # The list includes multiple variants for each title because they all occur
@@ -33,7 +60,7 @@ MANDATORY_SECTIONS = ['Why is this an issue?']
 CODE_EXAMPLES='Code examples'
 OPTIONAL_SECTIONS = {
   # Also covers 'How to fix it in {Framework Display Name}'
-  'How to fix it': [CODE_EXAMPLES, 'How does this work?', 'Pitfalls', 'Going the extra mile'],
+  HOW_TO_FIX_IT: [], # Empty list because we now accept anything as sub-section
   'Resources': ['Documentation', 'Articles & blog posts', 'Conference presentations', 'Standards', 'External coding guidelines', 'Benchmarks', 'Related rules']
 }
 SUBSECTIONS = {
@@ -51,15 +78,26 @@ def intersection(list1, list2):
 def difference(list1, list2):
   return list(set(list1) - set(list2))
 
+def validate_titles_are_not_misclassified_as_subtitles(rule_language: LanguageSpecificRule, subtitles: list[str], allowed_h2_sections: list[str]):
+  # TODO This does not validate "How to fix it" section for frameworks as the section names are a bit special.
+  misclassified = intersection(subtitles, allowed_h2_sections)
+  if misclassified:
+    misclassified.sort()
+    misclassified_str = ', '.join(misclassified)
+    raise RuleValidationError(f'Rule {rule_language.id} has some sections misclassified. Ensure there are not too many `=` in the asciidoc file for: {misclassified_str}')
+
 def validate_section_names(rule_language: LanguageSpecificRule):
   """Validates all h2-level section names"""
+  def get_titles(level: Union[str, list[str]]) -> list[str]:
+    return list(map(lambda x: x.text.strip(), rule_language.description.find_all(level)))
 
-  descr = rule_language.description
-  h2_titles = list(map(lambda x: x.text.strip(), descr.find_all('h2')))
-
+  h2_titles = get_titles('h2')
+  subtitles = get_titles(['h3', 'h4', 'h5', 'h6'])
+  allowed_h2_sections = list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys())
+  validate_titles_are_not_misclassified_as_subtitles(rule_language, subtitles, allowed_h2_sections)
   validate_duplications(h2_titles, rule_language)
 
-  education_titles = intersection(h2_titles, list(MANDATORY_SECTIONS) + list(OPTIONAL_SECTIONS.keys()))
+  education_titles = intersection(h2_titles, allowed_h2_sections)
   if education_titles:
     # Using the education format.
     validate_how_to_fix_it_sections_names(rule_language, h2_titles)
@@ -192,8 +230,32 @@ def validate_subsections_for_section(rule_language: LanguageSpecificRule, sectio
     subsections_seen = set()
     for title in titles:
       name = title.text.strip()
-      if name not in allowed_subsections:
+      if allowed_subsections and name not in allowed_subsections:
         raise RuleValidationError(f'Rule {rule_language.id} has a "{section_name}" subsection with an unallowed name: "{name}"')
       if name in subsections_seen and not is_duplicate_allowed:
         raise RuleValidationError(f'Rule {rule_language.id} has duplicate "{section_name}" subsections. There are 2 occurences of "{name}"')
       subsections_seen.add(name)
+
+
+def validate_security_standard_links(rule_language: LanguageSpecificRule):
+  descr = rule_language.description
+  security_standards_links = parse_security_standard_links(descr)
+  metadata = rule_language.metadata
+
+  # Avoid raising mismatch issues on deprecated or closed rules
+  if metadata.get('status') != 'ready':
+    return
+
+  security_standards_metadata = metadata.get('securityStandards', {})
+  for standard in SECURITY_STANDARD_URL.keys():
+
+    metadata_mapping = security_standards_metadata[standard] if standard in security_standards_metadata.keys() else []
+    links_mapping = security_standards_links[standard] if standard in security_standards_links.keys() else []
+
+    extra_links = difference(links_mapping, metadata_mapping)
+    if len(extra_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Remove links from the Resources/See section ({extra_links}) or fix the rule metadata')
+
+    missing_links = difference(metadata_mapping, links_mapping)
+    if len(missing_links) > 0:
+      raise RuleValidationError(f'Rule {rule_language.id} has a mismatch for the {standard} security standards. Add links to the Resources/See section ({missing_links}) or fix the rule metadata')

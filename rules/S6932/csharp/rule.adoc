@@ -1,0 +1,228 @@
+The `HttpRequest` class provides access to the raw request data through the `QueryString`, `Headers`, and `Forms` properties. However, whenever possible it is recommended to use model binding instead of directly accessing the input data.
+
+== Why is this an issue?
+
+Both ASP.Net MVC implementations - https://learn.microsoft.com/en-us/aspnet/core[Core] and https://learn.microsoft.com/en-us/aspnet/overview[Framework] - support model binding in a comparable fashion. Model binding streamlines the process by automatically aligning data from HTTP requests with action method parameters, providing numerous benefits compared to manually parsing raw incoming request data:
+
+Simplicity:: Model binding simplifies the code by automatically mapping data from HTTP requests to action method parameters. You don't need to write any code to manually extract values from the request.
+Type Safety:: Model binding provides type safety by automatically converting the incoming data into the appropriate .NET types. If the conversion fails, the model state becomes invalid, which you can easily check using `ModelState.IsValid`.
+Validation:: With model binding, you can easily apply validation rules to your models using data annotations. If the incoming data doesn't comply with these rules, the model state becomes invalid.
+Security:: Model binding helps protect against over-posting attacks by only including properties in the model that you explicitly bind using the `[Bind]` attribute or by using view models that only contain the properties you want to update.
+Maintainability:: By using model binding, your code becomes cleaner, easier to read, and maintain. It promotes the use of strongly typed views, which can provide compile-time checking of your views.
+
+== How to fix it in ASP.NET Core
+
+https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.form[`Request.Form`], https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iformcollection.files[`Request.Form.Files`], https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.headers[`Request.Headers`], https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.query[`Request.Query`] and https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.routeValues[`Request.RouteValues`] are keyed collections that expose data from the incoming HTTP request:
+
+* `Request.Form` -  https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#:~:text=%3Cbutton%3E%20elements%3A-,application/x%2Dwww%2Dform%2Durlencoded,-%3A%20the%20keys%20and[`application/x-www-form-urlencoded`] form data from the HTTP request body
+* `Request.Form.Files` - https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#:~:text=form%2Ddata%20instead)-,multipart/form%2Ddata,-%3A%20each%20value%20is[`multipart/form-data`] file data from the HTTP request body
+* `Request.Headers` - https://developer.mozilla.org/en-US/docs/Glossary/Request_header[HTTP Header values]
+* `Request.Query` - https://developer.mozilla.org/en-US/docs/Learn/Common_questions/Web_mechanics/What_is_a_URL#parameters[URL parameter values]
+* `Request.RouteValues` - Values extracted from the https://developer.mozilla.org/en-US/docs/Learn/Common_questions/Web_mechanics/What_is_a_URL#path_to_resource[path portion of the URL]
+
+Model binding can bind these keyed collections to
+
+* action method parameters by matching the key to the parameter name or
+* the property of a complex type by matching the key to the property name.
+
+To replace the keyed collection access, you can:
+
+[options="header"]
+|===
+|Replace | with parameter binding | or complex type binding | or route binding
+|`https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.form[Request.Form]["id"]`
+|optional https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromformattribute[`++[FromForm]++`] attribute on the parameter or a https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.formcollection[`FormCollection`] parameter
+|optional https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromformattribute[`++[FromForm]++`] attribute on the property
+|
+
+|https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iformcollection.files[`Request.Form.Files`]
+|https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iformfile[`IFormFile`], https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iformfilecollection[`IFormFileCollection`], or   `IEnumerable<IFormFile>` parameter
+|
+|
+
+|`https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.headers[Request.Headers]["id"]`
+|https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromheaderattribute[`++[FromHeader]++`] attribute on the parameter
+|https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromheaderattribute[`++[FromHeader]++`] attribute on the property
+|
+
+|`https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.query[Request.Query]["id"]`
+|optional https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromqueryattribute[`++[FromQuery]++`] attribute on the parameter
+|optional https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromqueryattribute[`++[FromQuery]++`] attribute on the property
+|
+
+|`https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.routevalues[Request.RouteValues]["id"]`
+|optional https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromrouteattribute[`++[FromRoute]++`] attribute on the parameter
+|
+|optional https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromrouteattribute[`++[Route("{id}")]++`]attribute on the action method/controller or via conventional routing
+|===
+
+The https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding[Model Binding in ASP.NET Core] article describes the mechanisms, conventions, and customization options for model binding in more detail. Route-based binding is described in the https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing[Routing to controller actions in ASP.NET Core] document.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public IActionResult Post()
+{
+    var name = Request.Form["name"];                           // Noncompliant: Request.Form
+    var birthdate = DateTime.Parse(Request.Form["Birthdate"]); // Noncompliant: Request.Form
+
+    var locale = Request.Query.TryGetValue("locale", out var locales) 
+        ? locales.ToString()
+        : "en-US";                                             // Noncompliant: Request.Query
+    // ..
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+public record User
+{
+    [Required, StringLength(100)]
+    public required string Name { get; init; }
+    [DataType(DataType.Date)]
+    public DateTime? Birthdate { get; init; }
+}
+
+public IActionResult Post(User user, [FromHeader] string origin, [FromQuery] string locale = "en-US")
+{
+    if (ModelState.IsValid)
+    {
+        // ...
+    }
+}
+----
+
+include::../how-does-this-work.adoc[]
+
+== How to fix it in ASP.NET MVC 4.x
+
+https://learn.microsoft.com/en-us/dotnet/api/system.web.httprequestbase.form[`Request.Form`] and https://learn.microsoft.com/en-us/dotnet/api/system.web.httprequestbase.querystring[`Request.QueryString`] are keyed collections that expose data from the incoming HTTP request:
+
+* `Request.Form` -  https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#:~:text=%3Cbutton%3E%20elements%3A-,application/x%2Dwww%2Dform%2Durlencoded,-%3A%20the%20keys%20and[`application/x-www-form-urlencoded`] form data from the HTTP request body
+* `Request.QueryString` - https://developer.mozilla.org/en-US/docs/Learn/Common_questions/Web_mechanics/What_is_a_URL#parameters[URL parameter values]
+
+Model binding can bind these keyed collections to
+
+* action method parameters by matching the key to the parameter name or
+* the property of a complex type by matching the key to the property name.
+
+To replace the keyed collection access, you can:
+
+[options="header"]
+|===
+|Replace | with parameter binding | or complex type binding
+|`https://learn.microsoft.com/en-us/dotnet/api/system.web.httprequestbase.form[Request.Form]["id"]`
+|optional https://learn.microsoft.com/en-us/dotnet/api/system.web.mvc.bindattribute[`++[Bind]++`] attribute on the parameter or a https://learn.microsoft.com/en-us/dotnet/api/system.web.mvc.formcollection[`FormCollection`] parameter
+|optional https://learn.microsoft.com/en-us/dotnet/api/system.web.mvc.bindattribute[`++[Bind]++`] attribute on the parameter or type
+
+|`https://learn.microsoft.com/en-us/dotnet/api/system.web.httprequestbase.querystring[Request.QueryString]["id"]`
+|optional https://learn.microsoft.com/en-us/dotnet/api/system.web.mvc.bindattribute[`++[Bind]++`] attribute on the parameter
+|property name must match query parameter key
+|===
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+public ActionResult Post()
+{
+    var name = Request.Form["name"];                            // Noncompliant: Request.Form
+    Debug.WriteLine(Request.Form[0]);                           // Compliant: Binding by index is not supported.
+    var birthdate = DateTime.Parse(Request.Form["Birthdate"]);  // Noncompliant: Request.Form
+
+    var cultureName = Request.QueryString["locale"] ?? "en-US"; // Noncompliant: Request.QueryString
+    // ..
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+public class User
+{
+    [Required, StringLength(100)]
+    public string Name { get; set; }
+    [DataType(DataType.Date)]
+    public DateTime? Birthdate { get; set; }
+}
+
+public ActionResult Post(User user, [Bind(Prefix = "locale")] string cultureName = "en-US")
+{
+    if (ModelState.IsValid)
+    {
+        // ...
+    }
+}
+
+public IActionResult Post()
+{
+    var origin = Request.Headers[HeaderNames.Origin];          // Compliant: Access via non-constant field
+    var nameField = "name";
+    var name = Request.Form[nameField];                        // Compliant: Access via local
+    var birthdate = DateTime.Parse(Request.Form["Birthdate"]); // Compliant: Access via constant and variable keys is mixed.
+                                                               // Model binding would only work partially in the method, so we do not raise here.
+    return Ok();
+    // ..
+}
+----
+
+include::../how-does-this-work.adoc[]
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding[Model Binding in ASP.NET Core]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/aspnet/core/mvc/models/validation[Model validation in ASP.NET Core MVC and Razor Pages]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/aspnet/core/mvc/advanced/custom-model-binding[Custom Model Binding in ASP.NET Core]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.form[HttpRequest.Form Property]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iformcollection.files[IFormCollection.Files Property]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.headers[HttpRequest.Headers Property]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.query[HttpRequest.Query Property]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httprequest.routevalues[HttpRequest.RouteValues Property]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.formcollection[FormCollection Class]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iformfile[IFormFile Interface]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iformfilecollection[IFormFileCollection Interface]
+* Microsoft Learn - Asp.Net Core - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.bindattribute[BindAttribute Class]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/parameter-binding-in-aspnet-web-api[Parameter Binding in ASP.NET Web API]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/aspnet/mvc/overview/getting-started/introduction/adding-a-controller[Adding a New Controller]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/aspnet/mvc/overview/getting-started/introduction/adding-a-model[Adding a New Model]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/aspnet/mvc/overview/getting-started/introduction/adding-validation[Adding Validation]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/model-validation-in-aspnet-web-api[Model Validation in ASP.NET Web API]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/dotnet/api/system.web.httprequest.form[HttpRequest.Form Property]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/dotnet/api/system.web.httprequest.querystring[HttpRequest.QueryString Property]
+* Microsoft Learn - ASP.NET MVC 4.x - https://learn.microsoft.com/en-us/dotnet/api/system.web.mvc.bindattribute[BindAttribute Class]
+* MDN - https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST[HTTP request methods >
+POST]
+* MDN - https://developer.mozilla.org/en-US/docs/Glossary/Request_header[Request header]
+* MDN - https://developer.mozilla.org/en-US/docs/Learn/Common_questions/Web_mechanics/What_is_a_URL[What is a URL?]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* Use model binding instead of accessing the raw request data.
+* Use IFormFile or IFormFileCollection binding instead.
+
+=== Highlighting
+
+The property of `HttpRequest` that caused the issues, e.g. `Form`, `Headers`, or `Query`.
+
+'''
+== Comments And Links
+(visible only on this page)
+
+endif::env-github,rspecator-view[]

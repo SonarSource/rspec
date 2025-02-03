@@ -1,21 +1,28 @@
-import os,io
-import re
-import requests
-import json
-import random
 import datetime
-from bs4 import BeautifulSoup
-from socket import timeout
+import json
 import pathlib
+import random
+import socket
+
+import requests
+from bs4 import BeautifulSoup
 
 TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
 LINK_PROBES_HISTORY_FILE = './link_probes.history'
-PROBING_COOLDOWN = datetime.timedelta(days=1)
-PROBING_SPREAD = 100 # minutes
+PROBING_COOLDOWN = datetime.timedelta(days=2)
+PROBING_SPREAD = 60 * 24 # in minutes, 1 day
 link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
-EXCEPTIONS = [
+EXCEPTION_PREFIXES = [
+  # It seems the server certificate was renewed on 2nd of August 2024.
+  # The server is sending only its certificate, without including the
+  # Intermediate certificate used to issue the server cert. Because of that
+  # some application are not able to verify the complete chain of trust.
+  "https://wiki.sei.cmu.edu/",
+  # The CI reports 403 on drupal.org while it works locally.
+  # Maybe the CI's IP is blocklisted...
+  "https://www.drupal.org/",
 ]
 
 def show_files(filenames):
@@ -65,7 +72,7 @@ def live_url(url: str, timeout=5):
     req = requests.Request('GET', url, headers = {'sec-ch-ua': '" Not A;Brand";v="99", "Chromium";v="90"',
                                                   'sec-ch-ua-mobile': '?0',
                                                   'Upgrade-Insecure-Requests': '1',
-                                                  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36',
+                                                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 GLS/100.10.9939.100',
                                                   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
                                                   'Sec-Fetch-Site':'none',
                                                   'Sec-Fetch-Mode':'navigate',
@@ -94,13 +101,13 @@ def live_url(url: str, timeout=5):
     print(f"ERROR: Too many redirects: {rr}")
     return False
   except requests.Timeout as t:
-    print(f"ERROR: timeout ", t)
+    print(f"ERROR: Request timeout {t}")
     return False
-  except timeout as t:
-    print(f"ERROR: timeout ", t)
+  except socket.timeout as t:
+    print(f"ERROR: Socket timeout {t}")
     return False
   except Exception as e:
-    print(f"ERROR: ", e)
+    print(f"ERROR: {e}")
     return False
 
 def findurl_in_html(filename,urls):
@@ -145,20 +152,51 @@ def get_all_links_from_htmls(dir):
   print("All html files crawled")
   return urls
 
-def probe_links(urls):
+def url_is_exception(url: str) -> bool:
+  return any(
+    url.startswith(e) for e in EXCEPTION_PREFIXES
+  )
+
+def probe_links(urls: dict) -> bool:
   errors = []
+  link_cache_exception = 0
+  link_cache_hit = 0
+  link_cache_miss = 0
   print("Testing links")
-  for url in urls:
-    print(f"{url} in {len(urls[url])} files")
-    if url in EXCEPTIONS:
+  link_count = len(urls)
+  for idx, url in enumerate(urls):
+    print(f"[{idx+1}/{link_count}] {url} in {len(urls[url])} files")
+    if url_is_exception(url):
+      link_cache_exception += 1
       print("skip as an exception")
     elif url_was_reached_recently(url):
+      link_cache_hit += 1
       print("skip probing because it was reached recently")
     elif live_url(url, timeout=5):
+      link_cache_miss += 1
       rejuvenate_url(url)
     elif url_is_long_dead(url):
+      link_cache_miss += 1
       errors.append(url)
-  return errors
+    else:
+      link_cache_miss += 1
+
+  confirmed_errors = confirm_errors(errors, urls)
+
+  print(f"\n\n\n{'=' * 80}\n\n\n")
+  if confirmed_errors:
+    report_errors(confirmed_errors, urls)
+    print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files\n\n")
+  print("Cache statistics:")
+  print(f"\t{link_cache_hit=}")
+  print(f"\t{link_cache_miss=}")
+  link_cache_hit_ratio = (link_cache_hit) / (link_cache_hit + link_cache_miss)
+  print(f"\t{link_cache_hit_ratio:03.2%} hits")
+  print(f"\t{link_cache_exception=}")
+  print(f"\n\n\n{'=' * 80}\n\n\n")
+
+  success = len(confirmed_errors) == 0
+  return success
 
 def confirm_errors(presumed_errors, urls):
   confirmed_errors = []
@@ -180,16 +218,9 @@ def report_errors(errors, urls):
 def check_html_links(dir):
   load_url_probing_history()
   urls = get_all_links_from_htmls(dir)
-  errors = probe_links(urls)
-  exit_code = 0
-  if errors:
-    confirmed_errors = confirm_errors(errors, urls)
-    if confirmed_errors:
-      report_errors(confirmed_errors, urls)
-      print(f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files")
-      exit_code = 1
-  if exit_code == 0:
+  success = probe_links(urls)
+  if success:
     print(f"All {len(urls)} links are good")
   save_url_probing_history()
-  exit(exit_code)
+  exit(0 if success else 1)
 

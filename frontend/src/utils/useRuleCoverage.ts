@@ -6,10 +6,11 @@ type RuleCoverage = Record<string, Record<string, Version>>;
 const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'abap': ['ABAP'],
   'apex': ['APEX'],
-  'azureresourcemanager': ['AZURERESOURCEMANAGER'],
+  'azureresourcemanager': ['AZURE_RESOURCE_MANAGER'],
   'cfamily': ['CPP', 'C', 'OBJC'],
   'cobol': ['COBOL'],
   'csharp': ['CSH'],
+  'dart': ['DART'],
   'docker': ['DOCKER'],
   'vbnet': ['VBNET'],
   'css': ['CSS'],
@@ -20,6 +21,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'go': ['GO'],
   'java': ['JAVA'],
   'javascript': ['JAVASCRIPT', 'JS', 'TYPESCRIPT'],
+  'jcl': ['JCL'],
   'php': ['PHP'],
   'pli': ['PLI'],
   'plsql': ['PLSQL'],
@@ -35,7 +37,8 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'cloudformation': ['CLOUDFORMATION'],
   'terraform': ['TERRAFORM'],
   'kubernetes': ['KUBERNETES'],
-  'text': ['TEXT']
+  'text': ['TEXT'],
+  'ansible': ['ANSIBLE']
 }));
 
 export function useRuleCoverage() {

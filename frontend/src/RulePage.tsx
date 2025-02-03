@@ -6,6 +6,7 @@ import Typography from '@material-ui/core/Typography';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Box from '@material-ui/core/Box';
+import Tooltip from '@material-ui/core/Tooltip';
 import { createTheme, Link, ThemeProvider } from '@material-ui/core';
 import Highlight from 'react-highlight';
 import { Link as RouterLink, useHistory } from 'react-router-dom';
@@ -13,6 +14,7 @@ import { RULE_STATE, useRuleCoverage } from './utils/useRuleCoverage';
 import { useFetch } from './utils/useFetch';
 import RuleMetadata, { Version, Coverage } from './types/RuleMetadata';
 import parse, { attributesToProps, domToReact, DOMNode, Element } from 'html-react-parser';
+import VisibilityOffOutlinedIcon from '@material-ui/icons/VisibilityOffOutlined';
 
 import './hljs-humanoid-light.css';
 
@@ -145,10 +147,12 @@ type UsedStyles = ReturnType<typeof useStyles>;
 const languageToJiraProject = new Map(Object.entries({
   'PYTHON': 'SONARPY',
   'ABAP': 'SONARABAP',
-  'AZURERESOURCEMANAGER': 'SONARIAC',
+  'AZURE_RESOURCE_MANAGER': 'SONARIAC',
   'CFAMILY': 'CPP',
+  'DART': 'DART',
   'DOCKER': 'SONARIAC',
   'JAVA': 'SONARJAVA',
+  'JCL': 'SONARJCL',
   'COBOL': 'SONARCOBOL',
   'FLEX': 'SONARFLEX',
   'HTML': 'SONARHTML',
@@ -156,12 +160,12 @@ const languageToJiraProject = new Map(Object.entries({
   'PLI': 'SONARPLI',
   'PLSQL': 'SONARPLSQL',
   'RPG': 'SONARRPG',
-  'APEX': 'SONARSLANG',
-  'RUBY': 'SONARSLANG',
+  'APEX': 'SONARAPEX',
+  'RUBY': 'SONARRUBY',
   'KOTLIN': 'SONARKT',
-  'SCALA': 'SONARSLANG',
-  'GO': 'SONARSLANG',
-  'SECRETS': 'SECRETS',
+  'SCALA': 'SONARSCALA',
+  'GO': 'SONARGO',
+  'SECRETS': 'SONARTEXT',
   'SWIFT': 'SONARSWIFT',
   'TSQL': 'SONARTSQL',
   'VB6': 'SONARVBSIX',
@@ -170,26 +174,29 @@ const languageToJiraProject = new Map(Object.entries({
   'TERRAFORM': 'SONARIAC',
   'KUBERNETES': 'SONARIAC',
   'TEXT': 'SONARTEXT',
+  'ANSIBLE': 'SONARIAC',
 }));
 
 const languageToGithubProject = new Map(Object.entries({
   'ABAP': 'sonar-abap',
-  'AZURERESOURCEMANAGER': 'sonar-iac',
+  'AZURE_RESOURCE_MANAGER': 'sonar-iac',
   'CSHARP': 'sonar-dotnet',
+  'DART': 'sonar-dart',
   'DOCKER': 'sonar-iac',
   'VBNET': 'sonar-dotnet',
   'JAVASCRIPT': 'SonarJS',
   'TYPESCRIPT': 'SonarJS',
   'SWIFT': 'sonar-swift',
   'KOTLIN': 'sonar-kotlin',
-  'GO': 'slang-enterprise',
-  'SCALA': 'slang-enterprise',
-  'RUBY': 'slang-enterprise',
-  'APEX': 'slang-enterprise',
+  'GO': 'sonar-go',
+  'SCALA': 'sonar-scala',
+  'RUBY': 'sonar-ruby',
+  'APEX': 'sonar-apex',
   'HTML': 'sonar-html',
   'COBOL': 'sonar-cobol',
   'VB6': 'sonar-vb',
   'JAVA': 'sonar-java',
+  'JCL': 'sonar-jcl',
   'PLI': 'sonar-pli',
   'CFAMILY': 'sonar-cpp',
   'CSS': 'sonar-css',
@@ -203,8 +210,9 @@ const languageToGithubProject = new Map(Object.entries({
   'CLOUDFORMATION': 'sonar-iac',
   'TERRAFORM': 'sonar-iac',
   'KUBERNETES': 'sonar-iac',
-  'SECRETS': 'sonar-secrets',
+  'SECRETS': 'sonar-text',
   'TEXT': 'sonar-text',
+  'ANSIBLE': 'sonar-iac-enterprise',
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
@@ -254,6 +262,7 @@ interface PageMetadata {
   prUrl: string | undefined;
   branch: string;
   coverage: Coverage;
+  isInQualityProfile: boolean;
   jsonString: string | undefined;
 }
 
@@ -264,6 +273,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
   let coverage: Coverage = 'Loading...';
   let title = 'Loading...';
   let avoid = false;
+  let isInQualityProfile = false;
   let metadataJSONString;
   let languagesTabs = null;
   let prUrl: string | undefined = undefined;
@@ -303,6 +313,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
     } else {
       coverage = allLangsRuleCoverage(metadataJSON.allKeys, coverageMapper);
     }
+    isInQualityProfile = metadataJSON.defaultQualityProfiles.length > 0;
   }
 
   if (coverage !== 'Not Covered') {
@@ -317,6 +328,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
     prUrl,
     branch,
     coverage,
+    isInQualityProfile,
     jsonString: metadataJSONString
   };
 }
@@ -330,14 +342,14 @@ function useDescription(metadata: PageMetadata, ruleid: string, language?: strin
     `https://github.com/SonarSource/rspec/blob/${metadata.branch}/rules/${ruleid}${language ? '/' + language : ''}`;
 
   function htmlReplacement(domNode: Element) {
-    if (domNode.name === 'a' && domNode.attribs && domNode.attribs['data-rspec-id']) {
+    if (domNode.name === 'a' && domNode.attribs?.['data-rspec-id']) {
       const props = attributesToProps(domNode.attribs);
       return <a href={getRspecPath(domNode.attribs['data-rspec-id'], language)} {...props}>
         {domToReact(domNode.children)}
       </a>;
     }
 
-    if (domNode.name === 'code' && domNode.attribs && domNode.attribs['data-lang']) {
+    if (domNode.name === 'code' && domNode.attribs?.['data-lang']) {
       return <Highlight className={domNode.attribs['data-lang']}>
         {domToReact(domNode.children)}
       </Highlight>;
@@ -419,7 +431,10 @@ export function RulePage(props: any) {
 
       <RuleThemeProvider>
         <Container maxWidth="md">
-          <h1>{metadata.title}</h1>
+          <h1>
+            {metadata.isInQualityProfile ? <></> : <><Tooltip title="Not in any Quality Profile"><VisibilityOffOutlinedIcon /></Tooltip> </>}
+            {metadata.title}
+          </h1>
           <hr />
           <Box className={classes.coverage}>
             <h2>Covered Since</h2>

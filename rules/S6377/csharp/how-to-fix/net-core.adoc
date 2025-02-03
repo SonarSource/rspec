@@ -1,0 +1,64 @@
+== How to fix it in ASP.NET Core
+
+=== Code examples
+
+The following noncompliant code example verifies an XML signature without
+providing a trusted public key. This code will validate the signature against
+the embedded public key, accepting any forged signature.
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+XmlDocument xmlDoc = new()
+{
+    PreserveWhitespace = true
+};
+xmlDoc.Load("/data/login.xml");
+SignedXml signedXml = new(xmlDoc);
+XmlNodeList nodeList = xmlDoc.GetElementsByTagName("Signature");
+signedXml.LoadXml((XmlElement?)nodeList[0]);
+if (signedXml.CheckSignature()) {
+    // Process the XML content
+} else {
+    // Raise an error
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+CspParameters cspParams = new()
+{
+    KeyContainerName = "MY_RSA_KEY"
+};
+RSACryptoServiceProvider rsaKey = new(cspParams);
+
+XmlDocument xmlDoc = new()
+{
+    PreserveWhitespace = true
+};
+xmlDoc.Load("/data/login.xml");
+SignedXml signedXml = new(xmlDoc);
+XmlNodeList nodeList = xmlDoc.GetElementsByTagName("Signature");
+signedXml.LoadXml((XmlElement?)nodeList[0]);
+if (signedXml.CheckSignature(rsaKey)) {
+    // Process the XML content
+} else {
+    // Raise an error
+}
+----
+
+=== How does this work?
+
+Here, the compliant solution provides an RSA public key to the signature
+validation function. This will ensure only signatures computed with the
+associated private key will be accepted, preventing signature forgery attacks.
+
+Using the `CheckSignature` method without providing a key can be risky because
+it may search the `AddressBook` store for certificates, which includes all
+trusted root CA certificates on the machine. This broad trust base can be
+exploited by attackers. Additionally, if the document is not signed with an
+X.509 signature, the method will use the key embedded in the signature element,
+which can lead to accepting signatures from untrusted sources.

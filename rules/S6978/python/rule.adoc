@@ -1,0 +1,82 @@
+This rule raises an issue when a class is a Pytorch module and does not call the `++super().__init__()++` method in its constructor.
+
+== Why is this an issue?
+
+To provide the AutoGrad functionality, the Pytorch library needs to set up the necessary data structures in the base class. If the `++super().__init__()++` method is not called, the module will not be able to keep track of its parameters and other attributes.
+
+For example, when trying to instantiate a module like `nn.Linear` without calling the `++super().__init__()++` method, the instantiation will fail when it tries to register it as a submodule of the parent module.
+
+[source, python]
+----
+import torch.nn as nn
+
+class MyCustomModule(nn.Module):
+    def __init__(self, input_size, output_size):
+        self.fc = nn.Linear(input_size, output_size) 
+
+model = MyCustomModule(10, 5) # AttributeError: cannot assign module before Module.__init__() call
+----
+
+
+== How to fix it
+Add a call to `++super().__init__()++` at the beginning of the constructor of the class.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch.nn as nn
+
+class MyCustomModule(nn.Module):
+    def __init__(self, input_size, output_size):
+        self.fc = nn.Linear(input_size, output_size) # Noncompliant: creating an nn.Linear without calling super().__init__()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch.nn as nn
+
+class MyCustomModule(nn.Module):
+    def __init__(self, input_size, output_size):
+        super().__init__()
+        self.fc = nn.Linear(input_size, output_size)
+----
+
+== Resources
+=== Documentation
+
+* Pytorch documentation - https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module[torch.nn.Module]
+
+
+ifdef::env-github,rspecator-view[]
+
+(visible only on this page)
+
+== Implementation specification 
+
+Verify that subclasses of `torch.nn.Module` call the `++super().__init__()++` method in their constructor.
+It also applies to classes that inherit from a class that inherits from `torch.nn.Module`.
+
+=== Message 
+
+Primary : Add a call to `++super().__init__()++`
+
+Secondary : Inheritance happens here
+
+=== Issue location
+
+Primary : First line of the constructor
+
+Secondary : (The inheritance position of the class)
+
+=== Quickfix
+
+Add a call to `++super().__init__()++` at the beginning of the constructor.
+If direct child of `torch.nn.Module`, easy, no need to try to add parameters.
+If indirect, try to find the parameters and match them with the same name ? Or abort if too complicatted.
+
+endif::env-github,rspecator-view[]

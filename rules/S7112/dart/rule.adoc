@@ -1,0 +1,122 @@
+The `const` keyword should be used every time a constructor declared as `const` is invoked in a non-constant context and with constant arguments.
+
+== Why is this an issue?
+
+Dart supports a particular type of constructor named https://dart.dev/language/constructors#constant-constructors[constant constructors], denoted by the word `const` in front of the constructor name. 
+
+`const` constructors are used to create objects that are immutable, i.e. their instance variables cannot be changed after the object is created. In order to achieve that, all instance variables of the class must be `final`, and initialized either inline, or in the `const` constructor:
+
+[source,dart]
+----
+class PointOnYAxis {
+  final int x = 0;
+  final int y;
+  const PointOnYAxis(this.y);
+}
+----
+
+When a class defines a `const` constructor, the Dart compiler has the ability to perform object creation at compile time, creating compile-time constant of non-primitive types, with a process called *canonicalization*. 
+
+This process later allows the compiler to recognize that two constant objects of the same type are equivalent, and to reuse the same object in memory, resulting in a more efficient memory usage. This optimization, that happens in other languages on immutable primitive types such as `int`, is extended by Dart to all types that define a `const` constructor. 
+
+For that to happen, however, it's not enough to just define a `const` constructor: the intent of creating a compile-time constant needs to be made explicit by using the `const` keyword:
+
+[source,dart]
+----
+var x = const PointOnYAxis(42); // The const keyword makes x a compile-time constant
+----
+
+=== What is the potential impact?
+
+Without the `const` keyword, the object creation is deferred to runtime, and the canonicalization optimization is not performed, resulting in a new object being created every time the constructor is called.
+
+That results in more memory being used and potentially slower execution, especially in scenarios where the object is created multiple times, as in a loop.
+
+=== Exceptions
+
+There are scenarios where the `const` keyword is implicitly assumed, and doesn't have to be made explicit. Namely, when the object instantiation happens in a *const context*, there is no need to use the `const` keyword (see S3689 for further details). That is because the Dart compiler is already building a compile-time constant for a larger expression including the object, and a compile-time constant can only be built of other compile-time constants.
+
+[source,dart]
+----
+const x1 = PointOnYAxis(42); // The const constraint is auto-inferred here
+const x2 = [
+  PointOnYAxis(42), // The const constraint is auto-inferred here
+  PointOnYAxis(43), // The const constraint is auto-inferred here
+];
+var x3 = const {
+  'a': PointOnYAxis(42), // The const constraint is auto-inferred here
+  'b': PointOnYAxis(43), // The const constraint is auto-inferred here
+};
+----
+
+Moreover, a constant constructor can be used as such only when all expressions used in the constructor are also constant expressions. If any of the expressions is not constant, the rule does not apply. For example:
+
+[source,dart]
+----
+void aFunction(int i1) {
+    var x = PointOnYAxis(i1); // x cannot be const because i1 is not a const expression
+}
+----
+
+== How to fix it
+
+Use the `const` keyword in front of the constructor invocation, or make the context constant.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+var x = PointOnYAxis(42); // Non compliant
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+var x = const PointOnYAxis(42); // Explicit const constructor invocation
+----
+
+==== Noncompliant code example
+
+[source,dart,diff-id=2,diff-type=noncompliant]
+----
+var x = PointOnYAxis(42); // Non compliant
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=2,diff-type=compliant]
+----
+const x = PointOnYAxis(42); // Const context
+----
+
+== Resources
+
+=== Documentation
+
+* Dart Docs - https://dart.dev/tools/linter-rules/prefer_const_constructors[Dart Linter rule - prefer_const_constructors]
+* Dart Docs - https://dart.dev/language/constructors#constant-constructors[Language - Constant constructors]
+
+=== Related rules
+
+* S3689 - "const" modifier should not be redundant
+* S7113 - @immutable classes should only have const constructors
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Use 'const' with the constructor to improve performance.
+
+=== Highlighting
+
+The entire constructor invocation expression: e.g. `PointOnYAxis(42)` in `var x = PointOnYAxis(42);`.
+
+endif::env-github,rspecator-view[]

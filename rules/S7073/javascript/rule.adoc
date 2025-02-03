@@ -1,0 +1,113 @@
+== Why is this an issue?
+
+Inter-Process Communication (IPC) in Electron applications 
+enables communication between the main process and renderer 
+processes. The main process typically has higher privileges 
+and greater access to system resources. Since any Web Frame
+has the potential to make IPC calls, not securing IPC calls
+opens up vulnerabilities that can be exploited by malicious
+actors to compromise the main process.
+
+=== What is the potential impact?
+
+Failing to validate the senders of IPC messages in Electron applications 
+can have severe consequences, including:
+
+==== Arbitrary Code Execution
+Unvalidated IPC messages can be exploited by attackers to execute arbitrary 
+code, potentially leading to full system compromise.
+
+==== Data Leakage
+Sensitive information can be intercepted or exfiltrated by 
+unauthorized entities, resulting in data breaches and loss of confidentiality.
+
+==== Privilege Escalation
+Malicious actors can leverage unvalidated IPC messages 
+to gain elevated privileges within the application, allowing them to perform 
+actions beyond their intended permissions.
+
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,javascript,diff-id=1,diff-type=noncompliant]
+----
+ipcMain.handle('get-sensitive-data', (event) => { // Noncompliant
+  return getSensitiveData()
+})
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+ipcMain.handle('get-sensitive-data', (event) => {
+  if (validateSenderFrame(event.senderFrame)) {
+    return getSensitiveData()
+  } else {
+    throw new Error('Unauthorized access')
+  }
+})
+
+function validateSenderFrame(senderFrame) {
+  const senderUrl = new URL(senderFrame.url)
+  return (senderUrl.hostname === 'safe.example.org'
+        && senderUrl.protocol === 'https:'
+        && senderUrl.port === '')
+}
+----
+
+=== How does this work?
+
+In the given example, the compliant code verifies that the URL
+of the sender frame is pointing to a trusted resource.
+The verification takes into account the protocol to make sure
+that only securely obtained web content can obtain sensitive data.
+Additionally, the host name and port are checked (in the given example 
+it is checked, that the URL does not specify a port, so that 
+443, the default port for HTTPS will be used).
+
+If you're app is loading files using the `file` protocol, than the path
+of the loaded file should be validated to make sure that only the intended
+files can successful make IPC calls. The following code shows how the path
+of a sender can be verified:
+
+[source,javascript]
+----
+const url = require('url')
+
+function validateSenderFrame(senderFrame) {
+  const senderUrl = new URL(senderFrame.url)
+  return senderUrl.protocol === 'file:'
+        && url.fileUrlToPath(senderUrl).startsWith('/trusted/folder')
+}
+----
+
+
+=== Pitfalls
+
+Instead of using `event.senderFrame.url` it might be tempting to use 
+`event.sender.getUrl()` for validation. However, if an iframe on a page
+makes an IPC call, the `event.sender` property will contain the properties
+of the parent. So if an iframe is embedded in the web page obtained from 
+`https://example.org`, and this iframe makes an IPC call, `event.sender.getUrl()`
+will return `https://example.org` regardless of which URL was used to obtain the
+resource loaded in the iframe.
+
+
+//=== Going the extra mile
+
+
+== Resources
+=== Documentation
+* Electron Documentation - https://www.electronjs.org/docs/latest/tutorial/security#17-validate-the-sender-of-all-ipc-messages[Security - Validate the sender of all IPC messages]
+
+
+//=== Articles & blog posts
+//=== Conference presentations
+//=== Standards
+//=== External coding guidelines
+//=== Benchmarks

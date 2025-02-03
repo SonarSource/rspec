@@ -4,50 +4,58 @@ Checks are:
 * "ifdef"/"endif" blocks should be well-formed for RSPEC
 * Inline code with backquotes is correctly escaped and balanced
 * Include commands are not appended to other code
+* "C++" is referred to using the {cpp} attribute
+* rules.sonarsource.com is not linked directly
 """
-from pathlib import Path
-import re
 
+import re
+from pathlib import Path
 
 VALID_IFDEF = "ifdef::env-github,rspecator-view[]"
 VALID_ENDIF = "endif::env-github,rspecator-view[]"
 
-VARIABLE_DECL = re.compile(r':\w+: ')
+VARIABLE_DECL = re.compile(r":\w+: ")
 
-INCLUDE = re.compile(r'include::')
+INCLUDE = re.compile(r"include::")
 
-FORMATTING_CHARS = ['_', r'\*', r'\#']
-WORD_FORMATTING_CHARS = [r'\~', r'\^']
+FORMATTING_CHARS = ["_", r"\*", r"\#"]
+WORD_FORMATTING_CHARS = [r"\~", r"\^"]
 
 # If the formatting char is repeated twice, it can go anywhere
-UNCONSTRAINED_FORMATTING = '|'.join(x + x for x in FORMATTING_CHARS)
+UNCONSTRAINED_FORMATTING = "|".join(x + x for x in FORMATTING_CHARS)
 # Single formatting char are dangerous at the beginning of a word
-FORMATTING_OPENING = '|'.join(r'(\W|^)' + x + r'\w' for x in FORMATTING_CHARS)
+FORMATTING_OPENING = "|".join(r"(\W|^)" + x + r"\w" for x in FORMATTING_CHARS)
 # Single formatting char are dangerous at the end of a word
-FORMATTING_CLOSING = '|'.join(r'\w' + x + r'(\W|$)' for x in FORMATTING_CHARS)
+FORMATTING_CLOSING = "|".join(r"\w" + x + r"(\W|$)" for x in FORMATTING_CHARS)
 # Word formatting is broken by spaces so we look for things like `#word#`
-WORD_FORMATTING = "|".join(x + r'\S+' + x for x in WORD_FORMATTING_CHARS)
+WORD_FORMATTING = "|".join(x + r"\S+" + x for x in WORD_FORMATTING_CHARS)
 
 # We combine all the matchers
-NEED_PROTECTION = re.compile('('
-                             f'{UNCONSTRAINED_FORMATTING}|'
-                             f'{FORMATTING_OPENING}|'
-                             f'{FORMATTING_CLOSING}|'
-                             f'{WORD_FORMATTING}'
-                             ')')
+NEED_PROTECTION = re.compile(
+    "("
+    f"{UNCONSTRAINED_FORMATTING}|"
+    f"{FORMATTING_OPENING}|"
+    f"{FORMATTING_CLOSING}|"
+    f"{WORD_FORMATTING}"
+    ")"
+)
 
 # There is a regex trick here:
 # We want to stop the search if there is a backquote
 # We do that by matching backquote OR the closing passthrough
 # Then we'll ignore any match of backquote
-CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r'`|((?<!\s)\+(?=`))')
+CLOSE_CONSTRAINED_PASSTHROUGH = re.compile(r"`|((?<!\s)\+(?=`))")
 
-CLOSE_CONSTRAINED_BACKQUOTE = re.compile(r'`(?!\w)')
-CLOSE_UNCONSTRAINED_BACKQUOTE = re.compile('``')
+CLOSE_CONSTRAINED_BACKQUOTE = re.compile(r"`(?!\w)")
+CLOSE_UNCONSTRAINED_BACKQUOTE = re.compile("``")
 
-PASSTHROUGH_MACRO_TEXT = r'pass:\w*\[(\\\]|[^\]])*\]'
+PASSTHROUGH_MACRO_TEXT = r"pass:\w*\[(\\\]|[^\]])*\]"
 
 PASSTHROUGH_MACRO = re.compile(PASSTHROUGH_MACRO_TEXT)
+
+CPP = re.compile(r"\b[Cc]\+\+")
+
+RULES_SONARSOURCE = re.compile(r"https?:\/\/rules\.sonarsource\.com\/(.*)\/RSPEC-\d+")
 
 # There is a regex trick here:
 # We want to skip passthrough macros, to not find pass:[``whatever``]
@@ -55,20 +63,23 @@ PASSTHROUGH_MACRO = re.compile(PASSTHROUGH_MACRO_TEXT)
 # * EITHER passthrough macros including their ignored backquotes
 # * OR backquotes
 # Then we'll ignore any match of PASSTHROUGH_MACRO
-BACKQUOTE = re.compile(PASSTHROUGH_MACRO_TEXT + r'|(?P<backquote>(``+)|(?<![\\\w])(`)(?!\s))')
+BACKQUOTE = re.compile(
+    PASSTHROUGH_MACRO_TEXT + r"|(?P<backquote>(``+)|(?<![\\\w])(`)(?!\s))"
+)
+
 
 def close_passthrough(count, pos, line):
     """Find the end of a passthrough block marked by *count* plus signs"""
     while count > 0:
         # `+++a++` will display '+a' in case of inbalance, we try to find the biggest closing block
         if count == 1:
-            if not line[pos + count].isspace() and line[pos - 1] == '`':
-                #constrained '+'. It is a passthrough only if it is directly around text and surrounded by backquotes: `+Some Content+`
+            if not line[pos + count].isspace() and line[pos - 1] == "`":
+                # constrained '+'. It is a passthrough only if it is directly around text and surrounded by backquotes: `+Some Content+`
                 close_pattern = CLOSE_CONSTRAINED_PASSTHROUGH
             else:
                 return pos
         else:
-            close_pattern = re.compile('(' + r'\+' * count + ')')
+            close_pattern = re.compile("(" + r"\+" * count + ")")
         end = close_pattern.search(line, pos + count)
         if end and end.group(1):
             return end.end()
@@ -77,8 +88,8 @@ def close_passthrough(count, pos, line):
 
 
 def skip_passthrough_macro(line, pos):
-    '''If this is a passthrough macro, skip to the end'''
-    if line[pos] == 'p':
+    """If this is a passthrough macro, skip to the end"""
+    if line[pos] == "p":
         pm = PASSTHROUGH_MACRO.match(line, pos)
         if pm:
             return pm.end()
@@ -86,10 +97,10 @@ def skip_passthrough_macro(line, pos):
 
 
 def skip_passthrough_plus(line, pos):
-    '''If this is a passthrough +, skip to the end'''
-    if line[pos] == '+':
+    """If this is a passthrough +, skip to the end"""
+    if line[pos] == "+":
         count = 1
-        while pos + count < len(line) and line[pos + count] == '+':
+        while pos + count < len(line) and line[pos + count] == "+":
             count += 1
         return close_passthrough(count, pos, line)
     return pos
@@ -126,10 +137,10 @@ class Sanitizer:
         lines = content.splitlines(keepends=False)
         for line_index, line in enumerate(lines):
             if self._is_inside_code:
-                if line == '----':
+                if line == "----":
                     self._is_inside_code = False
                 continue
-            if line == '----':
+            if line == "----":
                 self._is_inside_code = True
                 continue
             line_number = line_index + 1
@@ -185,33 +196,65 @@ class Sanitizer:
                 f'Incorrect endif command. "{VALID_ENDIF}" should be used instead.',
             )
 
+    def _advance_to_next_backquote(self, line: str, pos: int, line_number: int):
+        next_pos = BACKQUOTE.search(line, pos)
+        if next_pos:
+            cpp = CPP.search(line, pos, endpos=next_pos.pos)
+        else:
+            cpp = CPP.search(line, pos)
+        if cpp:
+            self._on_error(
+                line_number,
+                'To avoid rendering issues, always use the "{cpp}" attribute to refer to the language C++.',
+            )
+        return next_pos
+
     def _process_description(self, line_number: int, line: str):
         if VARIABLE_DECL.match(line):
             return
         if self._previous_line_was_include and not self._empty_line:
-            self._on_error(line_number - 1, '''An empty line is missing after the include.
+            self._on_error(
+                line_number - 1,
+                """An empty line is missing after the include.
 This may result in broken tags and other display issues.
-Make sure there are always empty lines before and after each include''')
+Make sure there are always empty lines before and after each include.""",
+            )
         if INCLUDE.match(line):
             self._previous_line_was_include = True
             if not self._empty_line:
-                self._on_error(line_number, '''An empty line is missing before the include.
+                self._on_error(
+                    line_number,
+                    """An empty line is missing before the include.
 This may result in broken tags and other display issues.
-Make sure there are always empty lines before and after each include''')
+Make sure there are always empty lines before and after each include.""",
+                )
             return
         else:
             self._previous_line_was_include = False
+        if RULES_SONARSOURCE.search(line) and not self._is_env_open:
+            self._on_error(
+                line_number,
+                """Do not put direct links to https://rules.sonarsource.com/.
+Just use the rule ID and let cross-reference substitution do its job.""",
+            )
         pos = 0
-        res = BACKQUOTE.search(line, pos)
+        res = self._advance_to_next_backquote(line, pos, line_number)
         # We filter out matches for passthrough. See comment near the BACKQUOTE declaration
-        while res and res.group('backquote'):
-            pos = self._check_inlined_code(line_number, res.end(), line, res.group('backquote'))
-            res = BACKQUOTE.search(line, pos)
+        while res and res.group("backquote"):
+            pos = self._check_inlined_code(
+                line_number, res.end(), line, res.group("backquote")
+            )
+            res = self._advance_to_next_backquote(line, pos, line_number)
 
-    def _check_inlined_code(self, line_number: int, pos: int, line: str, opening_pattern: str):
+    def _check_inlined_code(
+        self, line_number: int, pos: int, line: str, opening_pattern: str
+    ):
         if len(opening_pattern) > 2:
             # Part of the backquotes are displayed as backquotes.
-            self._on_error(line_number, 'Use "++" to isolate the backquotes you want to display from the ones that should be interpreted by AsciiDoc.')
+            self._on_error(
+                line_number,
+                'Use "++" to isolate the backquotes you want to display from the ones that should be interpreted by AsciiDoc.',
+            )
             return pos
         elif len(opening_pattern) == 2:
             closing_pattern = CLOSE_UNCONSTRAINED_BACKQUOTE
@@ -220,27 +263,30 @@ Make sure there are always empty lines before and after each include''')
 
         content_end, content = close_inline_block(line, pos, closing_pattern)
         if content_end < 0:
-            message='Unbalanced code inlining tags.'
+            message = "Unbalanced code inlining tags."
             if len(opening_pattern) == 1:
-                message += '''
+                message += """
 If you are trying to write inline code that is glued to text without a space,
 you need to use double backquotes:
 > Replace all `reference`s.
 Will not display correctly. You need to write:
 > Replace all ``reference``s.
-'''
+"""
             self._on_error(line_number, message)
             return len(line)
         pos = content_end + len(opening_pattern)
         if NEED_PROTECTION.search(content):
-            self._on_error (line_number, f'''
+            self._on_error(
+                line_number,
+                f"""
 Using backquotes does not protect against asciidoc interpretation. Starting or
 ending a word with '*', '#', '_' or having two of them consecutively will
 trigger unintended behavior with the rest of the text.
 Use ``++{content}++`` to avoid that.
 If you really want to have formatting inside your code, you can write
 ``pass:n[{content}]``
-''')
+""",
+            )
             return pos
         return pos
 

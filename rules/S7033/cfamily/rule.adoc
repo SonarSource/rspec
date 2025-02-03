@@ -1,0 +1,91 @@
+== Why is this an issue?
+
+Since {cpp}20, a call to `std::is_constant_evaluated()` can be used to determine whether the call occurs within a constant-evaluated context.
+
+Typically, this function is called in the condition of an `if` statement to optimize code:
+It allows different actions to be performed depending on whether an expression is evaluated at compile-time or runtime.
+However, writing `if (std::is_constant_evaluated())` comes with a few caveats.
+
+. It can be error-prone:
+One may be tempted to write `if constexpr` instead of `if` but doing this always results in the condition being `true`.
+S6169 explains this and other similar problems in greater depth.
+
+. Because it looks like any regular `if` statement with a function call, it does not stand out as something semantically different and important.
+
+. Immediate functions (see again S6169) cannot be invoked from such `if` statements, which is counterintuitive and overly restrictive.
+
+For these reasons, {cpp}23 introduced the `if consteval` control-flow statement.
+There is also a negated form: `if not consteval` (or `if ! consteval`).
+These versions should be preferred since they are not error-prone, stand out with their different and concise syntax, and do not require including `<type_traits>`.
+
+This rule raises an issue when `if (std::is_constant_evaluated())` or `if (!std::is_constant_evaluated())` are used.
+
+//=== Exceptions
+//
+// The implementation ignores "complex" conditions such as
+// if (std::is_constant_evaluated() && n > 0)
+//
+// However, this is not exposed here because such uses are really rare
+// and it would not benefit most readers.
+//
+// See https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1938r3.html#conditioned-form
+
+== How to fix it
+
+Fixing the issue is fairly simple: the {cpp}23 syntax is an almost direct replacement of the older one.
+The only caveat is that since `if consteval` does not have parentheses to separate the condition from the action, the braces `{ }` are not optional to delimit the body of the "then" and "else" branches.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+constexpr double power(double b, int x) {
+  if (std::is_constant_evaluated()) { // Noncompliant
+    // Compile-time implementation
+  } else {
+    // Runtime implementation
+  }
+}
+
+constexpr void action(int parameter) {
+  if (!std::is_constant_evaluated()) // Noncompliant
+    std::cout << "Run action at runtime for " << parameter << std::endl;
+
+  // Some code...
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+constexpr double power(double b, int x) {
+  if consteval {
+    // Compile-time implementation
+  } else {
+    // Runtime implementation
+  }
+}
+
+constexpr void action(int parameter) {
+  if not consteval { // The {} are required here
+    std::cout << "Run action at runtime for " << parameter << std::endl;
+  }
+
+  // Some code...
+}
+----
+
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/types/is_constant_evaluated[`std::is_constant_evaluated`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/if[`if` statement]
+
+=== Related rules
+
+* S6169 - "std::is_constant_evaluated" and "if consteval" should only be used when necessary
