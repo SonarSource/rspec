@@ -1,0 +1,463 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Deallocating a memory location more than once leads to undefined behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using <code>delete</code> or <code>free</code> releases the reservation on a memory location, making it immediately available for another purpose.
+Releasing the exact memory location twice leads to undefined behavior and can often crash the program.</p>
+</div>
+<div class="paragraph">
+<p>The C standard defines as <em>undefined behavior</em> a call to <code>free</code> with a pointer to a memory area that has already been released.</p>
+</div>
+<div class="paragraph">
+<p>The C&#43;&#43; standard defines the first <code>delete</code> call as the end of the lifetime for dynamically allocated memory.
+Access to memory past its lifetime end, including another <code>delete</code>, is undefined behavior.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact</h3>
+<div class="paragraph">
+<p>The danger of a "double-free" comes directly from the fact that it is undefined behavior (in both C and C&#43;&#43;).
+Note that there is no guarantee that a crash will happen on a "double-free" when the resource is released or at all until the end of the program&#8217;s execution.</p>
+</div>
+<div class="paragraph">
+<p>The effects of a "double-free" depend entirely on the program&#8217;s memory management implementation.
+In the case of such an event, one of the following can be observed:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The program&#8217;s memory-management data structures can become corrupted.
+This will usually cause a crash.</p>
+</li>
+<li>
+<p>Demonstrative Example 2 on <a href="https://cwe.mitre.org/data/definitions/415">CWE-415</a> presents a set of circumstances where a crash does not occur.
+In these circumstances, the corruption of the mentioned data structures causes two later calls to <code>malloc</code> to return the same pointer.
+This can lead to a sensitive-data-exposure vulnerability or a buffer-overflow vulnerability.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To ensure that every release happens once, you can follow these best practices:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Release any allocated memory in the function it was acquired in.
+The release should be independent of any additional conditions.</p>
+</li>
+<li>
+<p>After a <code>delete</code> or <code>free</code>, set the pointer&#8217;s value to <code>nullptr</code> or <code>NULL</code>.
+<code>delete</code> of <code>nullptr</code> and <code>free</code> of <code>NULL</code> are defined as having no effect.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>Example for C:</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void doSomething(int size) {
+  char* cp = (char*) malloc(sizeof(char) * size);
+
+  // ...
+  if (condition) {
+    // ...
+    free(cp);
+  }
+
+  free(cp);  // Noncompliant: potential call to free in the above branch
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Remove the unnecessary call to <code>free</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void doSomething(int size) {
+  char* cp = (char*) malloc(sizeof(char) * size);
+
+  // ...
+  if (condition) {
+    // ...
+  }
+
+  free(cp); // Compliant: no previous call to free in the above branch
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Set the pointer to <code>NULL</code> after any call to <code>free</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void doSomething(int size) {
+  char* cp = (char*) malloc(sizeof(char) * size);
+
+  // ...
+  if (condition) {
+    // ...
+    free(cp);
+    cp = NULL; // This will prevent freeing the same memory again
+  }
+
+  free(cp); // Compliant: if the memory was freed in the if-block above, free(NULL) is a no-op
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Example for C&#43;&#43;:</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    // ...
+    delete p;
+  }
+
+  delete p;  // Noncompliant: potential invocation of delete in the above branch
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>Remove the unnecessary invocation of <code>delete</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    // ...
+  }
+
+  delete p; // Compliant: no previous call to free in the above branch
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Set the pointer to <code>nullptr</code> after invoking <code>delete</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(int size) {
+  std::string* p = new std::string;
+
+  // ...
+  if (condition) {
+    // ...
+    delete p;
+    p = nullptr; // This will prevent freeing the same memory again
+  }
+
+  delete p; // Compliant: if the memory was freed in the if-block above, operator delete of nullptr is a no-op
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>In C&#43;&#43;, manually allocating and deallocating memory is considered a code smell.</p>
+</div>
+<div class="paragraph">
+<p>It is recommended to follow the <em>RAII</em> idiom and create a class that manages the memory by allocating it when the object is constructed and freeing it when it is destroyed.
+Furthermore, copy and move operations on such objects are designed such that this object can be passed by value between functions (either as an argument or by being returned)
+in place of raw pointers.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the type, passing an <em>RAII</em> object operations may either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Allocate a new block of memory and copy the elements (<code>std::vector</code>).</p>
+</li>
+<li>
+<p>Transfer ownership of the memory to constructed object (<code>std::unique_ptr</code>).</p>
+</li>
+<li>
+<p>Use shared ownership and free memory when the last object is destroyed (<code>std::shared_ptr</code>).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Using <em>RAII</em> objects instead of manual memory management can mitigate most dynamic memory management issues, including "double-free".</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(int size) {
+  auto p = std::make_unique&lt;std::string&gt;();
+
+  // ...
+  if (condition) {
+    p.reset(); // Delete happens here.
+  }
+
+  // delete not called by std::unique_ptr destructor if the branch above was taken.
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>However, keeping a raw pointer or a reference to memory held by <em>RAII</em> objects may still lead to a "double-free".
+Care must be taken to avoid the following pitfalls:</p>
+</div>
+<div class="sect3">
+<h4 id="_initialization_of_stdshared_ptr">Initialization of <code>std::shared_ptr</code></h4>
+<div class="paragraph">
+<p><code>std::shared_ptr</code> relies on an internal counter of owners inside a "control block".
+This control block is either created when the object is constructed with a raw pointer or inherited when constructed from another <code>std::shared_ptr</code>.</p>
+</div>
+<div class="paragraph">
+<p>Misunderstanding this can lead to a "double-free", as the following example demonstrates.</p>
+</div>
+<div class="paragraph">
+<p>Noncompliant code example</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(char const* data) {
+  std::shared_ptr&lt;std::string&gt; p1(new std::string(data));
+  std::shared_ptr&lt;std::string&gt; p2(p1.get()); // Noncompliant: Intended: std::shared_ptr&lt;string&gt; p2(p1);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Both objects are created from the raw pointer, leading them to have independent control blocks. Both will attempt to release the original memory area.</p>
+</div>
+<div class="paragraph">
+<p>To avoid this, only use copy/move construction for sharing ownership or the <code>std::make_shared</code> for initialization.</p>
+</div>
+<div class="paragraph">
+<p>Compliant solution</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(char const* data) {
+  auto p1 = std::make_shared&lt;std::string&gt;(data);
+  auto p2 = p1; // Compliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_initialization_of_stdunique_ptr">Initialization of <code>std::unique_ptr</code></h4>
+<div class="paragraph">
+<p>Similar to <code>std::shared_ptr</code>, a "double-free" can occur from an erroneous initialization.
+This also comes from confusion raised by the constructor overloads of this class.</p>
+</div>
+<div class="paragraph">
+<p>Noncompliant code example</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(char const* data) {
+  // Creating another unique_ptr
+  std::unique_ptr&lt;std::string&gt; p1(new std::string(data));
+  // ...
+  std::unique_ptr&lt;std::string&gt; p2(p1.get()); // Noncompliant: both p1 and p2 own the pointer now.
+
+  // Transfering ownership
+  std::unqiue_ptr&lt;std::string&gt; p3(new std::string(data));
+  // ...
+  std::unique_ptr&lt;std::string&gt; p4(p3.get()); // Noncompliant: both p3 and p4 own the pointer now.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As with <code>std::shared_ptr</code>, using <code>std::make_unique</code> avoids this pitfall.
+It does not accept a pointer to an existing object but only creates a new one.</p>
+</div>
+<div class="paragraph">
+<p>Compliant solution</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void doSomething(char const* data) {
+  // Creating another unique_ptr
+  auto p1 = std::make_unique&lt;std::string&gt;(data);
+  // ...
+  auto p2 = std::make_unique&lt;std::string&gt;(*p1); // Compliant: Creates a copy.
+
+  // Transfering ownership
+  auto p3 = std::make_unique&lt;std::string&gt;(data);
+  auto p4 = std::move(p3); // Compliant: Will invoke move constructor, which is present in std::unique_ptr.
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_out_of_scope_access">Out-of-scope access</h4>
+<div class="paragraph">
+<p>Extra care must be taken when passing the memory address contained in an RAII object.</p>
+</div>
+<div class="paragraph">
+<p>Both <code>std::shared_ptr</code> and <code>std::unique_ptr</code> provide the <code>get</code> method to obtain a raw pointer to the contained memory.
+This should only be used to read the data.
+Passing this pointer to a function that might release it can lead to a "double-free" and "use-after-free".</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/unique_ptr">std::unique_ptr</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/unique_ptr/make_unique">std::make_unique</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/shared_ptr">std::shared_ptr</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/shared_ptr/make_shared">std::make_shared</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/415">CWE-415 Double Free</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/GdYxBQ">MEM30-C - Do not access freed memory</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/Gns-BQ">MEM51-CPP - Properly deallocate dynamically allocated resources</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/Zns-BQ">MEM56-CPP - Do not store an already-owned pointer value in an unrelated smart pointer</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-community/vulnerabilities/Doubly_freeing_memory">Doubly freeing memory</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5025" class="rspec-auto-link">S5025</a> recommends avoiding manual memory management</p>
+</li>
+<li>
+<p><a data-rspec-id="S3529" class="rspec-auto-link">S3529</a> refers to "use-after-free", an issue with similar causes.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove this redundant "free" call.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary: <code>free(xxx)</code>| <code>delete xxx</code></p>
+</li>
+<li>
+<p>Secondary: previous <code>free</code>|<code>delete</code> call(s)</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_3_feb_2016_195836_ann_campbell_wrote">on 3 Feb 2016, 19:58:36 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~freddy.mallet], what you&#8217;ve edited the description to say was my initial understanding of this problem, but every reference I could find said that a double free would <a href="https://cwe.mitre.org/data/definitions/415.html">corrupt the program&#8217;s memory management data structures</a>. None of them said that it "only" made the memory available for reallocation.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_3_feb_2016_220306_freddy_mallet_wrote">on 3 Feb 2016, 22:03:06 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] the program&#8217;s memory management data structures becomes corrupted because just after the first call to the free() statement this part of the heap memory can immediately be reused/reorganised for any other purpose. So by releasing twice the same memory location, you end up with a memory location used concurrently for two fully different purposes &#8594; crash.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_30_mar_2016_145205_ann_campbell_wrote">on 30 Mar 2016, 14:52:05 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Eventually this rule should cover both double <code>free</code> <em>and</em> double <code>delete</code> but the initial implementation will just be for C.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_jul_2016_133223_freddy_mallet_wrote">on 27 Jul 2016, 13:32:23 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>Euh for me [~ann.campbell.2], there is no doubt about the fact that this is a blocker BUG and not a blocker Code Smell.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_jul_2016_142451_ann_campbell_wrote">on 27 Jul 2016, 14:24:51 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>You&#8217;re right, of course [~freddy.mallet]. I struggle a little with the UI.</p>
+</div>
+</div>
+</div>
+</div>

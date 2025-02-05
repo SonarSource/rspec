@@ -1,0 +1,134 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><em>Type-constraints</em> provide a concise way to express constraints on the type deduced for a given template parameter or auto placeholder.
+In a situation when a type-constraint is applied to a forwarding reference parameter (<code>T&amp;&amp;</code>), the corresponding concept will be checked
+against the <em>lvalue reference</em> (if the argument is an <em>lvalue</em>) or the plain type (if the argument is an <em>rvalue</em>):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template &lt;SomeConcept T&gt; void func(T&amp;&amp; x);
+void f() {
+  func(SomeType{});  // Argument is an rvalue -&gt; T is deduced as 'SomeType'
+  SomeType obj;
+  func(obj);  //  Argument is lvalue -&gt; T is deduced as 'SomeType&amp;'
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Even if it is possible to write <code>SomeConcept</code> in a way that works for both plain types and references, it is not straightforward and
+requires a dedicated effort.</p>
+</div>
+<div class="paragraph">
+<p>Many standard-provided constraints change their behavior when the type is a reference. For instance, a <code>std::copyable</code> constraint is never
+satisfied for references, regardless of the referenced type, while a <code>std::copy_constructible</code> constraint always is. The following example
+illustrates this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template &lt;std::copyable T&gt; void func(T&amp;&amp; t);  // Overload #1.
+template &lt;typename T&gt; void func(T&amp;&amp; t);  // Overload #2 (unconstrained).
+
+void f() {
+    // Call with an rvalue argument:
+    func(std::string{""});  // Calls #1: T is 'std::string', which satisfies 'std::copyable'.
+
+    // Call with an lvalue argument:
+    std::string s{""};
+    func(s);  // Calls #2: T is a reference type ('std::string&amp;') and therefore does not satisfy 'std::copyable'.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The rule raises an issue when a forwarding reference parameter is constrained by a standard-provided concept using <em>type-constraint</em> syntax.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>The rule does not raise an issue for the concepts <code>std::convertible_to</code> and <code>std::ranges::range</code> with its refinements (like <code>std::ranges::forward_range</code>, <code>std::ranges::bidirectional_range</code>),
+that handle forwarding reference parameters correctly.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To apply a constraint to a forwarding reference parameter, consider the following options:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Either wrap the deduced type in <code>std::remove_cvref_t</code> and use the standard-provided constraint on the result in a <code>requires</code> clause.</p>
+</li>
+<li>
+<p>Or design a custom constraint that works for both reference and non-reference types, which is useful if you frequently encounter this
+issue with a specific constraint.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">auto func(std::copy_constructible auto&amp;&amp; arg) // Noncompliant
+{ /* … */ }
+
+template&lt;std::copyable T&gt;
+auto func2(T&amp;&amp; arg) //  Noncompliant
+{ /* … */ }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">auto func(auto&amp;&amp; arg)
+  requires std::copy_constructible&lt;std::remove_cvref_t&lt;decltype(arg)&gt;&gt;
+{ /* … */ }
+
+template&lt;typename T&gt;
+  requires std::copyable&lt;std::remove_cvref_t&lt;T&gt;&gt;
+auto func2(T&amp;&amp; arg)
+{ /* … */ }</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/reference#Forwarding_references">Forwarding references</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/constraints">Constraints and concepts</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/concepts/copy_constructible"><code>std::copy_constructible</code> concept</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/concepts/copyable"><code>std::copyable</code> concept</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
