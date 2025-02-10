@@ -1,0 +1,66 @@
+This rule raises an issue when multiple indexing operations are chained on a Pandas DataFrame.
+
+== Why is this an issue?
+
+Whenever accessing data from a Pandas DataFrame through indexing, one might either retrieve a view or a copy of the DataFrame. A view (shallow copy) references data from the original DataFrame, while a copy is a separate instance of the same data (deep copy).
+
+While chained indexing will correctly retrieve the requested data, it is difficult to predict whether a view or a copy will be returned. Therefore, any modification or assignment made on the data returned from chained indexing may not actually affect the original DataFrame.
+
+In the following example:
+
+[source,python]
+----
+df = pd.DataFrame({'name': ['John', 'Jane', 'Peter'], 'age': [25, 20, 30]})
+df['name'][2] = "Jack"
+----
+
+The indexing operation will return a view of the DataFrame and the original DataFrame will be modified to be `{'name': ['John', 'Jane', 'Jack'], 'age': [25, 20, 30]}`. This is due to the fact that indexing a label or a list of labels returns a view.
+
+However, in this next snippet:
+
+[source,python]
+----
+df = pd.DataFrame({'name': ['John', 'Jane', 'Peter'], 'age': [25, 20, 30]})
+df[df['name'] == 'John']['age'] = 42
+# SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame.
+----
+
+The intention might be to set the values in 'age' to 42 for rows where 'name' is 'John'. However, this code will not modify the original DataFrame as expected. Instead, it creates a temporary copy of the subset and modifies that copy, leaving the original DataFrame unchanged.
+
+Chained indexing can also have a negative impact on performance. Since each indexing operation may create a new DataFrame or Series object, this results in unnecessary memory allocation and increased computational overhead. This can be particularly problematic when working with large datasets, leading to slower execution times and inefficient memory usage.
+
+Considering these issues, chained indexing is generally regarded as a bad practice. Instead, one should opt for a more explicit indexing approach, for example by using the accessors `.loc` and `.iloc`, which are used for label-based and integer-based indexing respectively.
+
+
+== How to fix it
+
+To avoid the issues associated with chained indexing in Pandas data frames, it is recommended to use alternative approaches that provide clearer, more reliable, and efficient data manipulation. One possibility is to use the `.loc` and `.iloc` accessors.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import pandas as pd
+df = pd.DataFrame({'name': ['John', 'Jane', 'Peter'], 'age': [25, 20, 30]})
+df[df['name'] == 'John']['age'] = 42  # Noncompliant: the value will be modified on a copy
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import pandas as pd
+df = pd.DataFrame({'name': ['John', 'Jane', 'Peter'], 'age': [25, 20, 30]})
+df.loc[df['name'] == 'John', 'age'] = 42 # Compliant: the value will be modified on the original dataframe
+
+----
+
+== Resources
+=== Documentation
+
+* Pandas Documentation - https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy[Returning a view versus a copy]
+* Pandas Documentation - https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.loc.html[pandas.DataFrame.loc]
+* Pandas Documentation - https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.iloc.html[pandas.DataFrame.iloc]
+
