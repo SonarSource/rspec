@@ -5,7 +5,8 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { IndexedRule, IndexStore, Severity, Type, IndexAggregates } from '../types/IndexStore';
+import { Severity, maxSeverity } from '../types/Severities';
+import { IndexedRule, IndexStore, Type, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
 import { LanguageSupport } from '../types/RuleMetadata';
 
@@ -52,8 +53,12 @@ function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: 
     metadata.extra?.legacyKeys?.forEach((legacyKey: string) => allKeys.add(legacyKey));
     titles.add(metadata.title);
     types.add(metadata.type);
-    severities.add(metadata.defaultSeverity as Severity);
-    supportedLanguages.push({name: lang, status: metadata.status});
+    if (!metadata.hasOwnProperty('code')) {
+      severities.add(Severity.INFO);
+    } else {
+      severities.add(maxSeverity(metadata.code.impacts));
+    }
+    supportedLanguages.push({ name: lang, status: metadata.status });
     if (metadata.tags) {
       for (const tag of metadata.tags) {
         tags.add(tag);
@@ -105,7 +110,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
     id: ruleDir,
     supportedLanguages: Array.from(record.supportedLanguages).sort((a, b) => a.name.localeCompare(b.name)),
     types: Array.from(record.types).sort((a, b) => a.localeCompare(b)),
-    severities: Array.from(record.severities).sort((a, b) => a.localeCompare(b)),
+    severities: Array.from(record.severities).sort((a, b) => b - a),
     all_keys: Array.from(record.allKeys).sort((a, b) => a.localeCompare(b)),
     titles: Array.from(record.titles).sort((a, b) => a.localeCompare(b)),
     tags: Array.from(record.tags).sort((a, b) => a.localeCompare(b)),
@@ -192,7 +197,7 @@ export function buildSearchIndex(ruleIndexStore: IndexStore) {
     this.field('titles', { extractor: (doc) => (doc as IndexedRule).titles.join('\n') });
     this.field('types');
     this.field('languages', { extractor: (doc) => (doc as IndexedRule).supportedLanguages.map(lang => lang.name) });
-    this.field('defaultSeverity');
+    this.field('severity');
     this.field('tags');
     this.field('qualityProfiles');
     this.field('descriptions');
