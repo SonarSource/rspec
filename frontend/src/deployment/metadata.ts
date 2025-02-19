@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
+import { maxSeverity } from '../types/Severities';
 import { LanguageSupport } from '../types/RuleMetadata';
 import { getRulesDirectories, listSupportedLanguages } from './utils';
 
@@ -135,5 +136,9 @@ function getRuleMetadata(srcDir: string, language?: string) {
   })();
   const genericFile = path.join(srcDir, 'metadata.json');
   const genericJson = fs.existsSync(genericFile) ? JSON.parse(fs.readFileSync(genericFile, 'utf8')) : {};
-  return { ...genericJson, ...languageSpecificJson };
+  const merged = { ...genericJson, ...languageSpecificJson };
+  if (merged.hasOwnProperty('code') && merged.code.hasOwnProperty('impacts')) {
+    merged['severity'] = maxSeverity(merged.code.impacts);
+  }
+  return merged;
 }

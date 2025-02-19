@@ -1,6 +1,5 @@
 import {LanguageSupport} from './RuleMetadata';
-
-export type Severity = 'Blocker'|'Critical'|'Major'|'Minor'|'Info';
+import { Severity } from './Severities';
 export type Type = 'BUG'|'CODE_SMELL'|'VULNERABILITY'|'SECURITY_HOTSPOT';
 
 export interface IndexedRule {
