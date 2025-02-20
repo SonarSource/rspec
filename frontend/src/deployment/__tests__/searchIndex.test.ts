@@ -26,7 +26,7 @@ describe('index store generation', () => {
         { "name": "python", "status": "deprecated", }
       ],
       tags: ['cert', 'clumsy', 'confusing'],
-      severities: ['Major', 'Minor'],
+      severities: ['MEDIUM'],
       qualityProfiles: ['Sonar way'],
     });
   });

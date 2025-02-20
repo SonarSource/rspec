@@ -7,7 +7,7 @@ export interface IndexedRule {
     supportedLanguages: LanguageSupport[];
     // FIXME: type, defaultSeverity should never be null but the index generation has a bug
     types: Type[];
-    severities: Severity[];
+    severities: string[];
     all_keys: string[];
     titles: string[];
     tags: string[];

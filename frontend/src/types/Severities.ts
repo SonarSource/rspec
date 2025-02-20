@@ -18,3 +18,9 @@ export function maxSeverity(impacts: any): Severity {
     }
     return maxSeverity;
 }
+
+export function compareSeverities(a: string, b:string): number {
+    const seva: Severity = Severity[a as keyof typeof Severity];
+    const sevb: Severity = Severity[b as keyof typeof Severity];
+    return seva - sevb;
+}

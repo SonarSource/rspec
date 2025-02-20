@@ -5,7 +5,7 @@ import path from 'path';
 import { stripHtml } from 'string-strip-html';
 import lunr, { Token } from 'lunr';
 
-import { Severity, maxSeverity } from '../types/Severities';
+import { Severity, compareSeverities, maxSeverity } from '../types/Severities';
 import { IndexedRule, IndexStore, Type, IndexAggregates } from '../types/IndexStore';
 import { logger as rootLogger } from './deploymentLogger';
 import { LanguageSupport } from '../types/RuleMetadata';
@@ -22,7 +22,7 @@ export interface IndexedRuleWithDescription extends IndexedRule {
 function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: string) {
 
   const types = new Set<Type>();
-  const severities = new Set<Severity>();
+  const severities = new Set<string>();
   const allKeys = new Set<string>([ruleDir]);
   const titles = new Set<string>();
   const tags = new Set<string>();
@@ -54,9 +54,9 @@ function buildOneRuleRecord(allLanguages: string[], rulesPath: string, ruleDir: 
     titles.add(metadata.title);
     types.add(metadata.type);
     if (!metadata.hasOwnProperty('code')) {
-      severities.add(Severity.INFO);
+      severities.add(Severity[Severity.INFO]);
     } else {
-      severities.add(maxSeverity(metadata.code.impacts));
+      severities.add(Severity[maxSeverity(metadata.code.impacts)]);
     }
     supportedLanguages.push({ name: lang, status: metadata.status });
     if (metadata.tags) {
@@ -110,7 +110,7 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
     id: ruleDir,
     supportedLanguages: Array.from(record.supportedLanguages).sort((a, b) => a.name.localeCompare(b.name)),
     types: Array.from(record.types).sort((a, b) => a.localeCompare(b)),
-    severities: Array.from(record.severities).sort((a, b) => b - a),
+    severities: Array.from(record.severities).sort((a, b) => compareSeverities(b, a)),
     all_keys: Array.from(record.allKeys).sort((a, b) => a.localeCompare(b)),
     titles: Array.from(record.titles).sort((a, b) => a.localeCompare(b)),
     tags: Array.from(record.tags).sort((a, b) => a.localeCompare(b)),
