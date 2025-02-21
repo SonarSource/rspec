@@ -1,44 +1,79 @@
-FIXME: add a description
+include::../description.adoc[]
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+include::../ask-yourself.adoc[]
 
-== Why is this an issue?
+include::../recommended.adoc[]
 
-FIXME: remove the unused optional headers (that are commented out)
+== Sensitive Code Example
 
-//=== What is the potential impact?
-
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,kotlin,diff-id=1,diff-type=noncompliant]
+[source,kotlin]
 ----
-FIXME
-----
-
-==== Compliant solution
-
-[source,kotlin,diff-id=1,diff-type=compliant]
-----
-FIXME
+AndroidView(
+    factory = { context ->
+        WebView(context).apply {
+            webViewClient = WebViewClient()
+            settings.apply {
+                allowFileAccess = true  # Sensitive
+                allowFileAccessFromFileURLs = true  # Sensitive
+                allowUniversalAccessFromFileURLs = true  # Sensitive
+            }
+            loadUrl("file:///android_asset/example.html")
+        }
+   }
+)
 ----
 
-//=== How does this work?
+== Compliant Solution
 
-//=== Pitfalls
+[source,kotlin]
+----
+AndroidView(
+    factory = { context ->
+        val webView = WebView(context)
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
+            .build()
 
-//=== Going the extra mile
+        webView.webViewClient = object : WebViewClient() {
+            @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url)
+            }
 
+            @Suppress("deprecation")
+            override fun shouldInterceptRequest(view: WebView?, url: String?): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(Uri.parse(url))
+            }
+        }
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+        webView.settings.apply {
+            allowFileAccess = false
+            allowFileAccessFromFileURLs = false
+            allowUniversalAccessFromFileURLs = false
+            allowContentAccess = false
+        }
+
+        webView.loadUrl("https://appassets.androidplatform.net/assets/example.html")
+        webView
+    }
+)
+----
+
+The compliant solution uses `WebViewAssetLoader` to load local files instead of directly accessing them via `file://`
+URLs. This approach serves assets over a secure `https://appassets.androidplatform.net` URL, effectively isolating the
+WebView from the local file system.
+
+The file access settings are disabled by default in modern Android versions. To prevent possible security issues in
+`Build.VERSION_CODES.Q` and earlier, it is still recommended to explicitly set those values to false.
+
+include::../see.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+endif::env-github,rspecator-view[]
