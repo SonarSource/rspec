@@ -1,0 +1,192 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Spring Framework, and, more precisely, the Spring Security component, allows
+setting up access control checks at the URI level. This is done by adding
+request matchers to the security configuration, each authorizing access to some
+resources depending on the incoming request entitlement.</p>
+</div>
+<div class="paragraph">
+<p>Similarly to firewall filtering rules, the order in which those matchers are
+defined is security relevant.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Configured URL matchers are considered in the order they are declared.
+Especially, for a given resource, if a looser filter is defined before a
+stricter one, only the less secure configuration will apply. No request will
+ever reach the stricter rule.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A URL pattern ending with <code>**</code> precedes another one having the same prefix. E.g. <code>/admin/**</code> is defined before <code>/admin/example/**</code></p>
+</li>
+<li>
+<p>A pattern without wildcard characters is preceded by another one that matches it. E.g.: <code>/page-index/db</code> is defined after <code>/page*/**</code></p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Access control rules that have been defined but cannot be applied generally
+indicate an error in the filtering process. In most cases, this will have
+consequences on the application&#8217;s authorization and authentication mechanisms.</p>
+</div>
+<div class="sect3">
+<h4 id="_authentication_bypass">Authentication bypass</h4>
+<div class="paragraph">
+<p>When the ignored access control rule is supposed to enforce the authentication
+on a resource, the consequence is a bypass of the authentication for that
+resource. Depending on the scope of the ignored rule, a single feature or whole
+sections of the application can be left unprotected.</p>
+</div>
+<div class="paragraph">
+<p>Attackers could take advantage of such an issue to access the affected features
+without prior authentication, which may impact the confidentiality or integrity
+of sensitive, business, or personal data.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_privilege_escalation">Privilege escalation</h4>
+<div class="paragraph">
+<p>When the ignored access control rule is supposed to verify the role of an
+authenticated user, the consequence is a privilege escalation or authorization
+bypass. An authenticated user with low privileges on the application will be
+able to access more critical features or sections of the application.</p>
+</div>
+<div class="paragraph">
+<p>This could have financial consequences if the accessed features are normally
+accessed by paying users. It could also impact the confidentiality or integrity
+of sensitive, business, or personal data, depending on the features.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_spring">How to fix it in Spring</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable because it defines access control configuration
+in the wrong order.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">protected void configure(HttpSecurity http) throws Exception {
+    http.authorizeRequests()
+      .antMatchers("/resources/**", "/signup", "/about").permitAll()
+      .antMatchers("/admin/**").hasRole("ADMIN")
+      .antMatchers("/admin/login").permitAll() // Noncompliant
+      .antMatchers("/**", "/home").permitAll()
+      .antMatchers("/db/**").access("hasRole('ADMIN') and hasRole('DBA')") // Noncompliant
+      .and().formLogin().loginPage("/login").permitAll().and().logout().permitAll();
+  }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">  protected void configure(HttpSecurity http) throws Exception {
+    http.authorizeRequests()
+      .antMatchers("/resources/**", "/signup", "/about").permitAll()
+      .antMatchers("/admin/login").permitAll()
+      .antMatchers("/admin/**").hasRole("ADMIN")
+      .antMatchers("/db/**").access("hasRole('ADMIN') and hasRole('DBA')")
+      .antMatchers("/**", "/home").permitAll()
+      .and().formLogin().loginPage("/login").permitAll().and().logout().permitAll();
+  }</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Spring Documentation - <a href="https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html">Authorize HttpServletRequests</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 - Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 - Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/285">CWE-285 - Improper Authorization</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/287">CWE-287 - Improper Authentication</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Reorder the URL patterns from most to less specific, the pattern "XXX" should occur before "YYY".</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary: The antMatchers pattern that is useless.</p>
+</div>
+<div class="paragraph">
+<p>Secondary:  The previous antMatchers pattern that matches a super set of the useless one.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_19_apr_2018_155457_ann_campbell_wrote">on 19 Apr 2018, 15:54:57 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~alexandre.gigleux] you&#8217;re only going to raise an issue if <code>**/</code> is already included in the list, right? Current wording leaves it open to raising an issue when <code>**/</code> is not in the  list at all.</p>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,91 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When you are using lambdas in a member function, you can capture <code>this</code> implicitly through <code>[=]</code> or <code>[&amp;]</code> or explicitly through <code>[this]</code>. It will capture the current object pointer by reference or value, but the underlying object will always be captured by reference (see <a data-rspec-id="S5019" class="rspec-auto-link">S5019</a>).</p>
+</div>
+<div class="paragraph">
+<p>This will become a problem:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When the lifetime of the lambda exceeds the one of the current object.</p>
+</li>
+<li>
+<p>When you want to capture the current state of the object.</p>
+</li>
+<li>
+<p>When you want to pass a copy of the object to avoid any concurrency issue.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;14 provides a solution to this problem. You can copy the underlying object by using the following pattern:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">auto lam = [copyOfThis = *this] { std::cout &lt;&lt; copyOfThis.field; };</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This is verbose and error-prone, as you might implicitly not use the copied object:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">auto lam = [&amp; , copyOfThis = *this] {
+  std::cout &lt;&lt; field; // implicitly calling “this” captured by reference
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;17 solves this problem by introducing an explicit, consistent way to capture <code>this</code> by copy:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">auto lam = [&amp;, *this] {
+  std::cout &lt;&lt; field // implicitly calling “this” captured by copy
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This rule will flag the C&#43;&#43;14 way of capturing the current object by copy and suggest replacing it with the C&#43;&#43;17 way.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct A {
+  int field = 0;
+  void memfn() const {
+    auto lam = [copyOfThis = *this] { // Noncompliant
+      std::cout &lt;&lt; copyOfThis.field;
+    };
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct A {
+  int field = 0;
+  void memfn() const {
+    auto lam = [*this] { // Compliant
+      std::cout &lt;&lt; field;
+    };
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>

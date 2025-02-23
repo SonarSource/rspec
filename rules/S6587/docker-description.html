@@ -1,0 +1,248 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Docker, when packages are installed via a package manager, an index is cached locally by default.
+This index should either be cleaned up or stored in a dedicated cache mount.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Docker images should only contain the necessary data.
+The package index is redundant for the correct operation of the installed software.
+Storing an index also increases the size of the Docker image.
+It should be reduced to speed up deployments and reduce storage and bandwidth.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>In multi-stage builds, the rule only scans instructions that are part of the final image.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>For apk:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apk add nginx</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For apt-get:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apt-get update \
+  &amp;&amp; apt-get install nginx</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For aptitude:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN aptitude update \
+  &amp;&amp; aptitude install nginx</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For apt:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apt update \
+  &amp;&amp; apt install nginx</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For apt-get, without a cache mount:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apt-get update \
+  &amp;&amp; apt-get install nginx</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>For apk:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apk --no-cache add nginx
+
+RUN apk add nginx \
+  &amp;&amp; apk cache clean
+
+RUN apk add nginx \
+  &amp;&amp; rm -rf /var/cache/apk/*
+
+# This cache location is only used in specific distributions / configurations
+RUN apk add nginx \
+  &amp;&amp; rm -rf /etc/apk/cache/*</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For apt-get:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apt-get update \
+  &amp;&amp; apt-get install nginx \
+  &amp;&amp; apt-get clean
+
+RUN apt-get update \
+  &amp;&amp; apt-get install nginx \
+  &amp;&amp; rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For aptitude:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN aptitude update \
+  &amp;&amp; aptitude install nginx \
+  &amp;&amp; aptitude clean
+
+RUN aptitude update \
+  &amp;&amp; aptitude install nginx \
+  &amp;&amp; rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For apt:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apt update \
+  &amp;&amp; apt install nginx \
+  &amp;&amp; apt clean
+
+RUN apt update \
+  &amp;&amp; apt install nginx \
+  &amp;&amp; rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For apt-get, with a cache mount:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN \
+  --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  apt-get update \
+  &amp;&amp; apt-get install nginx</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>When installing packages using <code>apt-get</code>, <code>aptitude</code> or <code>apt</code> these package managers store an index in the Docker image layer in <code>/var/lib/apt/lists</code>.
+Using <code>apk</code>, it will store an index in <code>/var/cache/apk/</code>.
+In some distributions and configurations, the cache will be created in <code>/etc/apk/cache</code>.</p>
+</div>
+<div class="paragraph">
+<p>This index is not needed after installation, so it can be removed.
+To do that, execute the <code>clean</code> command, or run <code>rm -rf &lt;location&gt;</code> for the cache location of you package manager tool.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, for <code>apt-get</code>, <code>aptitude</code> and <code>apt</code> some lock files are stored in <code>/var/cache/apt/archives</code>, which can also be removed safely.
+They are not removed by the <code>clean</code> command, so they need to be removed manually.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, store the cache in a dedicated cache mount. A cache mount can be created by adding a flag <code>--mount type=cache</code> to the <code>RUN</code> command.<br>
+This will store the cache in a Docker volume, which will be persisted between builds making the build faster.</p>
+</div>
+<div class="paragraph">
+<p>Also, each <code>RUN</code> instruction creates a new layer, and any changes made in one layer are not visible in the next. Thus, the cache should be removed in the same layer (i.e., the same <code>RUN</code> instruction) as the installation.</p>
+</div>
+<div class="paragraph">
+<p>The following code incorrectly cleans the cache:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apt-get install nginx
+RUN apt-get clean</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It should be written as:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">RUN apt-get install nginx &amp;&amp; apt-get clean</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Dockefile Best Practices - <a href="https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#run">RUN - Best practices for writing Dockerfiles</a></p>
+</li>
+<li>
+<p><a href="https://man.archlinux.org/man/apk.8.en">apk man</a></p>
+</li>
+<li>
+<p><a href="https://manpages.debian.org/bookworm/apt/apt-get.8.en.html">apt-get man</a></p>
+</li>
+<li>
+<p><a href="https://manpages.debian.org/testing/aptitude/aptitude.8.en.html">aptitude man</a></p>
+</li>
+<li>
+<p>Ask Ubuntu - <a href="https://askubuntu.com/questions/1050800/how-do-i-remove-the-apt-package-index">How do I remove the apt package index?</a></p>
+</li>
+<li>
+<p>Docker Build Cache - <a href="https://docs.docker.com/build/cache/#use-the-dedicated-run-cache">Use the dedicated <code>RUN</code> cache</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove the cache after installing packages.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Highlight the entire <code>install</code> command.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
