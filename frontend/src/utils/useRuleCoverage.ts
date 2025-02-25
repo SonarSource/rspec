@@ -27,6 +27,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'plsql': ['PLSQL'],
   'python': ['PY'],
   'rpg': ['RPG'],
+  'rust': ['RUST'],
   'secrets': ['SECRETS'],
   'swift': ['SWIFT'],
   'tsql': ['TSQL'],
