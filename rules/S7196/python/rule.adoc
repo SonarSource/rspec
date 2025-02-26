@@ -1,0 +1,53 @@
+This rule raises an issue when complex expressions are directly passed to `withColumn`, `filter` or `when` functions.
+
+== Why is this an issue?
+
+`withColumn`, `filter` and `when` methods are commonly used to add, modify, or filter columns in a DataFrame. When long or complex expressions are directly passed to those functions, it can lead to code that is difficult to read, understand, and maintain. Refactoring such expressions into functions or variables will help with readability. Also, it will become easier to write unit tests for these functions, ensuring that the logic is correct and behaves as expected. This leads to more robust and reliable code. 
+
+== How to fix it
+
+To fix this issue, complex logic within `withColumn`, `filter` and `when` calls should be refactored into separate functions or variables to improve code clarity and maintainability,
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from pyspark.sql.functions import *
+df = df.withColumn('Revenue', col('fare_amount').substr(0, 10).cast("float") + col('extra').substr(0, 5).cast("float") + col('tax').substr(0, 3).cast("float")) # Noncompliant
+df = df.withColumn('High revenue', when(col('fare_amount').substr(0, 10).cast("float") > 100. and col('extra').substr(0, 5).cast("float") > 100. and col('tax').substr(0, 3).cast("float") < 50.)) # Noncompliant
+df = df.filter(col('fare_amount').substr(0, 10).cast("float") > 100. and col('extra').substr(0, 5).cast("float") > 100. and col('tax').substr(0, 3).cast("float") < 50.) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pyspark.sql.functions import *
+
+def get_revenue_inputs():
+        fare_amount = col('fare_amount').substr(0, 15).cast("float")
+        extra = col('extra').substr(0, 5).cast("float")
+        tax = col('tax').substr(0, 3).cast("float")
+        return fare_amount, extra, tax 
+
+def compute_revenue():
+        fare_amount, extra, tax = get_revenue_inputs()
+        return fare_amount + extra + tax
+
+def is_high_revenue():
+    fare_amount, extra, tax = get_revenue_inputs()
+    return when( (fare_amount > 100.) & (extra > 100.) & (tax < 50), True).otherwise(False)
+        
+df = df.withColumn("Revenue", compute_revenue()) # Compliant
+df = df.withColumn('High revenue', is_high_revenue()) # Compliant
+df = df.filter( is_high_revenue() ) # Compliant
+----
+
+== Resources
+=== Documentation
+
+ * PySpark withColumn documentation - https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.withColumn.html[pyspark.sql.DataFrame.withColumn]
+ * PySpark filter documentation - https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.filter.html[pyspark.sql.DataFrame.filter]
+ * PySpark when documentation - https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.when.html[pyspark.sql.functions.when]
