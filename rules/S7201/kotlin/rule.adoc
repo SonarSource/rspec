@@ -1,0 +1,80 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+[source,kotlin]
+----
+AndroidView(
+    factory = { context ->
+        WebView(context).apply {
+            webViewClient = WebViewClient()
+            settings.apply {
+                allowFileAccess = true  // Sensitive
+                allowFileAccessFromFileURLs = true  // Sensitive
+                allowUniversalAccessFromFileURLs = true  // Sensitive
+                allowContentAccess = true  // Sensitive
+            }
+            loadUrl("file:///android_asset/example.html")
+        }
+   }
+)
+----
+
+== Compliant Solution
+
+[source,kotlin]
+----
+AndroidView(
+    factory = { context ->
+        val webView = WebView(context)
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
+            .build()
+
+        webView.webViewClient = object : WebViewClient() {
+            @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url)
+            }
+
+            @Suppress("deprecation")
+            override fun shouldInterceptRequest(view: WebView?, url: String?): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(Uri.parse(url))
+            }
+        }
+
+        webView.settings.apply {
+            allowFileAccess = false
+            allowFileAccessFromFileURLs = false
+            allowUniversalAccessFromFileURLs = false
+            allowContentAccess = false
+        }
+
+        webView.loadUrl("https://appassets.androidplatform.net/assets/example.html")
+        webView
+    }
+)
+----
+
+The compliant solution uses `WebViewAssetLoader` to load local files instead of directly accessing them via `file://`
+URLs. This approach serves assets over a secure `https://appassets.androidplatform.net` URL, effectively isolating the
+WebView from the local file system.
+
+The file access settings are disabled by default in modern Android versions. To prevent possible security issues in
+`Build.VERSION_CODES.Q` and earlier, it is still recommended to explicitly set those values to false.
+
+include::../see.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+endif::env-github,rspecator-view[]
