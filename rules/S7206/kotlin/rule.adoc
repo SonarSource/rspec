@@ -1,0 +1,107 @@
+Mutable implicit ``PendingIntent``s should be avoided, as they allow malicious applications to modify the underlying intent and redirect
+it to their own components, potentially gaining unauthorized access to the sender app's permissions. This vulnerability enables
+privilege escalation attacks, where an attacker can perform operations using the victim app's identity.
+
+== Why is this an issue?
+
+Mutable implicit ``PendingIntent``s create a serious security vulnerability by essentially lending the Android app's identity and permissions
+to other applications. Because such a ``PendingIntent`` does not have an exact component specified to receive it (implicit) and can be altered,
+other apps that are able to receive this ``PendingIntent`` can modify its destination and contents. Since ``PendingIntent``s lend permissions to
+other apps, an attacker could abuse this to execute actions the user never gave permission for.
+
+The real-world impact for users can be severe. An attacker exploiting this vulnerability could access sensitive data that the app has permission
+to use (contacts, location, photos, etc.) For example, if the app has the ``READ_CONTACTS`` permission and creates a mutable implicit ``PendingIntent``,
+a malicious app could redirect that intent to steal all the user's contacts. This completely bypasses Android's permission system and violates user
+trust, potentially leading to privacy breaches, data theft, or even financial fraud depending on what permissions the app holds.
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+On Android 12 and higher, ``PendingIntent``s are only mutable if ``PendingIntent.FLAG_MUTABLE`` is set.
+
+[source,kotlin,diff-id=1,diff-type=noncompliant]
+----
+val intent = Intent("com.example.ACTION_VIEW")
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_MUTABLE  // Noncompliant
+)
+----
+
+On Android versions 11 and below, ``PendingIntent``s are mutable by default. So even if ``PendingIntent.FLAG_MUTABLE`` is not set,
+the Android app might be using mutable ``PendingIntent``s on some end user devices.
+
+[source,kotlin,diff-id=2,diff-type=noncompliant]
+----
+val intent = Intent("com.example.ACTION_VIEW")
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_UPDATE_CURRENT  // Noncompliant
+)
+----
+
+==== Compliant solution
+
+Explicitly marking the ``PendingIntent`` using ``PendingIntent.FLAG_IMMUTABLE`` resolves this issue.
+
+[source,kotlin,diff-id=1,diff-type=compliant]
+----
+val intent = Intent("com.example.ACTION_VIEW")
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_IMMUTABLE
+)
+----
+
+In addition, it is recommended for the ``Intent`` within to be explicit instead of implicit.
+
+[source,kotlin,diff-id=2,diff-type=compliant]
+----
+val intent = Intent("com.example.ACTION_VIEW")
+intent.setClass(context, MyActivity::class.java)
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_IMMUTABLE
+)
+----
+
+=== How does this work?
+
+There are two ways to prevent mutable implicit ``PendingIntent``s from being abused: making the ``PendingIntent`` immutable and making the ``Intent`` explicit.
+
+By making the ``PendingIntent`` immutable, an attacker is not able to alter it to redirect to their own components. This is done by setting the ``PendingIntent.FLAG_IMMUTABLE``
+flag when creating the ``PendingIntent``. This flag is available on Android 6.0 and higher. If a lower version of Android is targeted, it is recommended to make the wrapped
+``Intent`` explicit.
+
+An ``Intent`` can be made explicit by setting the component that should receive the ``Intent``. This way, the ``Intent`` can only be received by the specified component and
+cannot be received by an attacker. This is done by calling ``Intent.setClass()`` or ``Intent.setComponent()`` with the target component.
+
+Note that mutable implicit ``PendingIntent``s are explicitly blocked when an application is targeting Android 14 or higher.
+
+== Resources
+=== Documentation
+
+* Android Documentation - https://developer.android.com/privacy-and-security/risks/implicit-intent-hijacking[Implicit intent hijacking]
+* Android Documentation - https://developer.android.com/reference/android/app/PendingIntent[``PendingIntent`` API reference]
+
+=== Articles & blog posts
+
+* Google - https://support.google.com/faqs/answer/10437428[Remediation for Implicit PendingIntent Vulnerability]
+* Dimitrios Valsamaras - https://valsamaras.medium.com/pending-intents-a-pentesters-view-92f305960f03[PendingIntents: A Pentester's View]
+
+=== Standards
+
+* OWASP Mobile Application Security Testing Guide - https://mas.owasp.org/MASTG/0x05h-Testing-Platform-Interaction/#pending-intents[Android Platform APIs]
+* OWASP Mobile Application Security Testing Guide - https://mas.owasp.org/MASTG/tests/android/MASVS-PLATFORM/MASTG-TEST-0030/[MASTG-TEST-0030: Testing for Vulnerable Implementation of PendingIntent]
+* CWE - https://cwe.mitre.org/data/definitions/927[CWE-927 - Use of Implicit Intent for Sensitive Communication]
