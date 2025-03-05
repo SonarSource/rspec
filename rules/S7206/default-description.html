@@ -1,0 +1,164 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Mutable implicit <code>PendingIntent</code>s should be avoided, as they allow malicious applications to modify the underlying intent and redirect
+it to their own components, potentially gaining unauthorized access to the sender app&#8217;s permissions. This vulnerability enables
+privilege escalation attacks, where an attacker can perform operations using the victim app&#8217;s identity.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Mutable implicit <code>PendingIntent</code>s create a serious security vulnerability by essentially lending the Android app&#8217;s identity and permissions
+to other applications. Because such a <code>PendingIntent</code> does not have an exact component specified to receive it (implicit) and can be altered,
+other apps that are able to receive this <code>PendingIntent</code> can modify its destination and contents. Since <code>PendingIntent</code>s lend permissions to
+other apps, an attacker could abuse this to execute actions the user never gave permission for.</p>
+</div>
+<div class="paragraph">
+<p>The real-world impact for users can be severe. An attacker exploiting this vulnerability could access sensitive data that the app has permission
+to use (contacts, location, photos, etc.) For example, if the app has the <code>READ_CONTACTS</code> permission and creates a mutable implicit <code>PendingIntent</code>,
+a malicious app could redirect that intent to steal all the user&#8217;s contacts. This completely bypasses Android&#8217;s permission system and violates user
+trust, potentially leading to privacy breaches, data theft, or even financial fraud depending on what permissions the app holds.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>On Android 12 and higher, <code>PendingIntent</code>s are only mutable if <code>PendingIntent.FLAG_MUTABLE</code> is set.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">val intent = Intent("com.example.ACTION_VIEW")
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_MUTABLE  // Noncompliant
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>On Android versions 11 and below, <code>PendingIntent</code>s are mutable by default. So even if <code>PendingIntent.FLAG_MUTABLE</code> is not set,
+the Android app might be using mutable <code>PendingIntent</code>s on some end user devices.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">val intent = Intent("com.example.ACTION_VIEW")
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_UPDATE_CURRENT  // Noncompliant
+)</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Explicitly marking the <code>PendingIntent</code> using <code>PendingIntent.FLAG_IMMUTABLE</code> resolves this issue.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">val intent = Intent("com.example.ACTION_VIEW")
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_IMMUTABLE
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In addition, it is recommended for the <code>Intent</code> within to be explicit instead of implicit.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">val intent = Intent("com.example.ACTION_VIEW")
+intent.setClass(context, MyActivity::class.java)
+val pendingIntent = PendingIntent.getActivity(
+    context,
+    0,
+    intent,
+    PendingIntent.FLAG_IMMUTABLE
+)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>There are two ways to prevent mutable implicit <code>PendingIntent</code>s from being abused: making the <code>PendingIntent</code> immutable and making the <code>Intent</code> explicit.</p>
+</div>
+<div class="paragraph">
+<p>By making the <code>PendingIntent</code> immutable, an attacker is not able to alter it to redirect to their own components. This is done by setting the <code>PendingIntent.FLAG_IMMUTABLE</code>
+flag when creating the <code>PendingIntent</code>. This flag is available on Android 6.0 and higher. If a lower version of Android is targeted, it is recommended to make the wrapped
+<code>Intent</code> explicit.</p>
+</div>
+<div class="paragraph">
+<p>An <code>Intent</code> can be made explicit by setting the component that should receive the <code>Intent</code>. This way, the <code>Intent</code> can only be received by the specified component and
+cannot be received by an attacker. This is done by calling <code>Intent.setClass()</code> or <code>Intent.setComponent()</code> with the target component.</p>
+</div>
+<div class="paragraph">
+<p>Note that mutable implicit <code>PendingIntent</code>s are explicitly blocked when an application is targeting Android 14 or higher.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Android Documentation - <a href="https://developer.android.com/privacy-and-security/risks/implicit-intent-hijacking">Implicit intent hijacking</a></p>
+</li>
+<li>
+<p>Android Documentation - <a href="https://developer.android.com/reference/android/app/PendingIntent"><code>PendingIntent</code> API reference</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Google - <a href="https://support.google.com/faqs/answer/10437428">Remediation for Implicit PendingIntent Vulnerability</a></p>
+</li>
+<li>
+<p>Dimitrios Valsamaras - <a href="https://valsamaras.medium.com/pending-intents-a-pentesters-view-92f305960f03">PendingIntents: A Pentester&#8217;s View</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP Mobile Application Security Testing Guide - <a href="https://mas.owasp.org/MASTG/0x05h-Testing-Platform-Interaction/#pending-intents">Android Platform APIs</a></p>
+</li>
+<li>
+<p>OWASP Mobile Application Security Testing Guide - <a href="https://mas.owasp.org/MASTG/tests/android/MASVS-PLATFORM/MASTG-TEST-0030/">MASTG-TEST-0030: Testing for Vulnerable Implementation of PendingIntent</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/927">CWE-927 - Use of Implicit Intent for Sensitive Communication</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

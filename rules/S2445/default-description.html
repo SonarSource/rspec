@@ -1,0 +1,193 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock">Locking</a> on a class field synchronizes not on the field itself, but on the object assigned to it. Thus, there are some good practices to follow to avoid problems related to <a href="https://learn.microsoft.com/en-us/dotnet/standard/threading/threads-and-threading">thread</a> synchronization.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Locking on a non-<code>readonly</code> field makes it possible for the field&#8217;s value to change while a thread is in the code block, locked on the old value. This allows another thread to lock on the new value and access the same block concurrently.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">private Color color = new Color("red");
+private void DoSomething()
+{
+  // Synchronizing access via "color"
+  lock (color) // Noncompliant: lock is actually on object instance "red" referred to by the "color" field
+  {
+    //...
+    color = new Color("green"); // other threads now allowed into this block
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Locking on a new instance of an object undermines synchronization because two different threads running the same method in parallel will lock on different instances of the same object, allowing them to access the synchronized block at the same time.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">private void DoSomething()
+{
+  lock (new object()) // Noncompliant: every thread locks on a different new instance
+  {
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Locking on a string literal is also dangerous since, depending on whether the string is interned or not, different threads may or may not synchronize on the same object instance.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">private readonly string colorString = "red";
+private void DoSomething()
+{
+  lock (colorString)  // Noncompliant: strings can be interned
+  {
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">private Color color = new Color("red");
+private void DoSomething()
+{
+  // Synchronizing access via "color"
+  lock (color) // Noncompliant: lock is actually on object instance "red" referred to by the "color" field
+  {
+    //...
+    color = new Color("green"); // other threads now allowed into this block
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">private Color color = new Color("red");
+private readonly object lockObj = new object();
+
+private void DoSomething()
+{
+  lock (lockObj)
+  {
+    //...
+    color = new Color("green");
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock">Lock Statement</a> - lock statement - ensure exclusive access to a shared resource</p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.string.intern">String.Intern</a> - <code>String.Intern(String)</code> Method</p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/412">CWE-412 - Unrestricted Externally Accessible Lock</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/413">CWE-413 - Improper Resource Locking</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/standard/threading/threads-and-threading">Threads and threading</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Do not lock on writable field "xxx", use a readonly field instead.</p>
+</div>
+<div class="paragraph">
+<p>Do not lock on a new instance because is a no-op, use a readonly field instead.</p>
+</div>
+<div class="paragraph">
+<p>Do not lock on strings as they can be interned, use a readonly field instead.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>locked object in <code>lock (xxx)</code> statement</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s1860">is related to: <a data-rspec-id="S1860" class="rspec-auto-link">S1860</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s6507">is related to: <a data-rspec-id="S6507" class="rspec-auto-link">S6507</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_5_feb_2016_175444_ann_campbell_wrote">on 5 Feb 2016, 17:54:44 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Scope expanded &amp; may now apply to C# [~tamas.vajk]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_feb_2016_084942_tamas_vajk_wrote">on 8 Feb 2016, 08:49:42 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] yes, we can target C# too.</p>
+</div>
+<div class="paragraph">
+<p>BTW shouldn&#8217;t the compliant solution be <code>private final Object lockObj = new Object();</code> (I modified the code, you should roll back if it&#8217;s incorrect)</p>
+</div>
+</div>
+</div>
+</div>
