@@ -1,0 +1,192 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Most of the regular expression engines use backtracking to try all possible execution paths of the regular expression when evaluating an input, in some cases it can cause performance issues, called <strong>catastrophic backtracking</strong> situations. In the worst case, the complexity of the regular expression is exponential in the size of the input, this means that a small carefully-crafted input (like 20 chars) can trigger catastrophic backtracking and cause a denial of service of the application. Super-linear regex complexity can lead to the same impact too with, in this case, a large carefully-crafted input (thousands chars).</p>
+</div>
+<div class="paragraph">
+<p>This rule determines the runtime complexity of a regular expression and informs you if it is not linear.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>The input is user-controlled.</p>
+</li>
+<li>
+<p>The input size is not restricted to a small number of characters.</p>
+</li>
+<li>
+<p>There is no timeout in place to limit the regex evaluation time.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To avoid catastrophic backtracking situations, make sure that none of the following conditions apply to your regular expression.</p>
+</div>
+<div class="paragraph">
+<p>In all of the following cases, catastrophic backtracking can only happen if the problematic part of the regex is followed by a pattern that can fail, causing the backtracking to actually happen.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If you have a repetition <code>r*</code> or <code>r*?</code>, such that the regex <code>r</code> could produce different possible matches (of possibly different lengths) on the same input, the worst case matching time can be exponential. This can be the case if <code>r</code> contains optional parts, alternations or additional repetitions (but not if the repetition is written in such a way that there&#8217;s only one way to match it).</p>
+</li>
+<li>
+<p>If you have multiple repetitions that can match the same contents and are consecutive or are only separated by an optional separator or a separator that can be matched by both of the repetitions, the worst case matching time can be polynomial (O(n^c) where c is the number of problematic repetitions). For example <code>a*b*</code> is not a problem because <code>a*</code> and <code>b*</code> match different things and <code>a*_a*</code> is not a problem because the repetitions are separated by a <code>'_'</code> and can&#8217;t match that <code>'_'</code>. However, <code>a*a*</code> and <code>.*_.*</code> have quadratic runtime.</p>
+</li>
+<li>
+<p>If the regex is not anchored to the beginning of the string, quadratic runtime is especially hard to avoid because whenever a match fails, the regex engine will try again starting at the next index. This means that any unbounded repetition, if it&#8217;s followed by a pattern that can fail, can cause quadratic runtime on some inputs. For example <code>str.split(/\s*,/)</code> will run in quadratic time on strings that consist entirely of spaces (or at least contain large sequences of spaces, not followed by a comma).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In order to rewrite your regular expression without these patterns, consider the following strategies:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If applicable, define a maximum number of expected repetitions using the bounded quantifiers, like <code>{1,5}</code> instead of <code>+</code> for instance.</p>
+</li>
+<li>
+<p>Refactor nested quantifiers to limit the number of way the inner group can be matched by the outer quantifier, for instance this nested quantifier situation <code>(ba+)+</code> doesn&#8217;t cause performance issues, indeed, the inner group can be matched only if there exists exactly one <code>b</code> char per repetition of the group.</p>
+</li>
+<li>
+<p>Optimize regular expressions by emulating <em>possessive quantifiers</em> and <em>atomic grouping</em>.</p>
+</li>
+<li>
+<p>Use negated character classes instead of <code>.</code> to exclude separators where applicable. For example the quadratic regex <code>.*_.*</code> can be made linear by changing it to <code>[^_]*_.*</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Sometimes it&#8217;s not possible to rewrite the regex to be linear while still matching what you want it to match. Especially when the regex is not anchored to the beginning of the string, for which it is quite hard to avoid quadratic runtimes. In those cases consider the following approaches:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Solve the problem without regular expressions</p>
+</li>
+<li>
+<p>Use an alternative non-backtracking regex implementations such as Google&#8217;s <a href="https://github.com/google/re2">RE2</a> or <a href="https://github.com/uhop/node-re2/">node-re2</a>.</p>
+</li>
+<li>
+<p>Use multiple passes. This could mean pre- and/or post-processing the string manually before/after applying the regular expression to it or using multiple regular expressions. One example of this would be to replace <code>str.split(/\s*,\s*/)</code> with <code>str.split(",")</code> and then trimming the spaces from the strings as a second step.</p>
+</li>
+<li>
+<p>It is often possible to make the regex infallible by making all the parts that could fail optional, which will prevent backtracking. Of course this means that you&#8217;ll accept more strings than intended, but this can be handled by using capturing groups to check whether the optional parts were matched or not and then ignoring the match if they weren&#8217;t. For example the regex <code>x*y</code> could be replaced with <code>x*(y)?</code> and then the call to <code>str.match(regex)</code> could be replaced with <code>matched = str.match(regex)</code> and  <code>matched[1] !== undefined</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The regex evaluation will never end:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>/(a+)+$/.test(
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaa!"
+); // Sensitive</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Possessive quantifiers do not keep backtracking positions, thus can be used, if possible, to avoid performance issues. Unfortunately, they are not supported in JavaScript, but one can still mimick them using lookahead assertions and backreferences:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">/((?=(a+))\2)+$/.test(
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"+
+"aaaaaaaaaaaaaaa!"
+); // Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/400">CWE-400 - Uncontrolled Resource Consumption</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/1333">CWE-1333 - Inefficient Regular Expression Complexity</a></p>
+</li>
+<li>
+<p><a href="https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS">owasp.org</a> - OWASP Regular expression Denial of Service - ReDoS</p>
+</li>
+<li>
+<p><a href="https://web.archive.org/web/20220506215733/https://stackstatus.net/post/147710624694/outage-postmortem-july-20-2016">stackstatus.net(archived)</a> -  Outage Postmortem - July 20, 2016</p>
+</li>
+<li>
+<p><a href="https://www.regular-expressions.info/catastrophic.html">regular-expressions.info</a> - Runaway Regular Expressions: Catastrophic Backtracking</p>
+</li>
+<li>
+<p><a href="https://docs.microsoft.com/en-us/dotnet/standard/base-types/backtracking-in-regular-expressions#backtracking-with-nested-optional-quantifiers">docs.microsoft.com</a> - Backtracking with Nested Optional Quantifiers</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure the regex used here, which is vulnerable to $RUNTIME runtime due to backtracking, cannot lead to denial of service [or make sure the code is only run using Java 9 or later].</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4837">deprecates: <a data-rspec-id="S4837" class="rspec-auto-link">S4837</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4784">deprecates: <a data-rspec-id="S4784" class="rspec-auto-link">S4784</a></h3>
+
+</div>
+</div>
+</div>
