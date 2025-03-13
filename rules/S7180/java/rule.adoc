@@ -1,7 +1,15 @@
 == Why is this an issue?
 
-Annotating interfaces or interface methods with ``++@Cache*++`` annotations is not recommended by the official Spring documentation.
+Annotating interfaces or interface methods with ``++@Cache*++`` annotations is not recommended by the official Spring documentation:
+```text
+Spring recommends that you only annotate concrete classes (and methods of concrete classes) with the @Cache* annotations, as opposed to annotating interfaces.
+You certainly can place an @Cache* annotation on an interface (or an interface method), but this works only if you use the proxy mode (mode="proxy").
+If you use the weaving-based aspect (mode="aspectj"), the caching settings are not recognized on interface-level declarations by the weaving infrastructure.
+```
 If you use the weaving-based aspect (mode="aspectj"), the ``++@Cache*++`` annotations will be ignored, and no caching proxy will be created.
+
+Also, when a method is annotated as cacheable inside an interface, if two different implementations of that method exist, the first one to be invoked will populate the cache.
+Subsequent calls will always return the cached value, even if it's the other implementation being called.
 
 === What is the potential impact?
 
@@ -26,6 +34,32 @@ public interface ExampleService {
 }
 ----
 
+In the following example, if our application has two different rest APIs to query the most popular animal in two different zoos, the first zoo to be queried will populate the cache.
+
+Calls to a different API to query the other zoo will produce the same cached output, invalidating our application's business logic.
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+public interface Zoo {
+    @Cacheable("popAnimal") //non compliant, interface method is annotated with @Cacheable
+    Animal getMostPopularAnimal();
+}
+
+public class SanDiegoZoo implements Zoo {
+    @Override
+    public Animal getMostPopularAnimal() {
+        return new Lion();
+    }
+}
+
+public class RomeBioparc implements Zoo {
+    @Override
+    public Animal getMostPopularAnimal() {
+        return new Pantegana();
+    }
+}
+----
+
 ==== Compliant solution
 
 [source,java,diff-id=1,diff-type=compliant]
@@ -37,6 +71,31 @@ public class ExampleServiceImpl implements ExampleService {
     @Override
     public String getData(String id) {
         // Implementation here
+    }
+}
+----
+
+With the following solution, we are granted that the two implementations will have separate caches.
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+public interface Zoo {
+    Animal getMostPopularAnimal();
+}
+
+public class SanDiegoZoo implements Zoo {
+    @Override
+    @Cacheable("sanDiegoPopAnimal")
+    public Animal getMostPopularAnimal() {
+        return new Lion();
+    }
+}
+
+public class RomeBioparc implements Zoo {
+    @Override
+    @Cacheable("romePopAnimal")
+    public Animal getMostPopularAnimal() {
+        return new Pantegana();
     }
 }
 ----
