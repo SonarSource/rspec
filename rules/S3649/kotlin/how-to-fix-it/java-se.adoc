@@ -1,4 +1,4 @@
-== How to fix it in Java SE
+== How to fix it in Java JDBC API
 
 === Code examples
 
@@ -9,11 +9,9 @@ include::../../common/fix/code-rationale.adoc[]
 [source,kotlin,diff-id=11,diff-type=noncompliant]
 ----
 @RestController
-public class ApiController {
-
-    @Autowired
-    var connection: Connection? = null
-
+public class ApiController(
+    private val connection: Connection
+) {
     @GetMapping(value = ["/authenticate"])
     @ResponseBody
     @Throws(SQLException::class)
@@ -23,16 +21,13 @@ public class ApiController {
     ): ResponseEntity<String> {
         val query = "SELECT * FROM users WHERE user = $user AND pass = $pass"
 
-        connection?.prepareStatement(query)?.use { statement ->
-
-            val resultSet: ResultSet = statement.executeQuery(query)
-            return if (!resultSet.next()) {
+        connection.prepareStatement(query).executeQuery(query).use { resultSet ->
+            return if (resultSet == null || !resultSet.next()) {
                 ResponseEntity("Unauthorized", HttpStatus.UNAUTHORIZED)
             } else {
                 ResponseEntity("Authentication Success", HttpStatus.OK)
             }
         }
-        return ResponseEntity("Unauthorized", HttpStatus.UNAUTHORIZED)
     }
 }
 ----
@@ -42,11 +37,9 @@ public class ApiController {
 [source,kotlin,diff-id=11,diff-type=compliant]
 ----
 @RestController
-public class ApiController {
-
-    @Autowired
-    var connection: Connection? = null
-
+public class ApiController(
+    private val connection: Connection
+) {
     @GetMapping(value = ["/authenticate"])
     @ResponseBody
     @Throws(SQLException::class)
@@ -56,18 +49,17 @@ public class ApiController {
     ): ResponseEntity<String> {
         val query = "SELECT * FROM users WHERE user = ? AND pass = ?"
 
-        connection?.prepareStatement(query)?.use { statement ->
+        connection.prepareStatement(query).use {  statement ->
             statement.setString(1, user)
             statement.setString(2, pass)
-
-            val resultSet: ResultSet = statement.executeQuery(query)
-            return if (!resultSet.next()) {
-                ResponseEntity("Unauthorized", HttpStatus.UNAUTHORIZED)
-            } else {
-                ResponseEntity("Authentication Success", HttpStatus.OK)
+            statement.executeQuery(query).use { resultSet ->
+                return if (resultSet == null || !resultSet.next()) {
+                    ResponseEntity("Unauthorized", HttpStatus.UNAUTHORIZED)
+                } else {
+                    ResponseEntity("Authentication Success", HttpStatus.OK)
+                }
             }
         }
-        return ResponseEntity("Unauthorized", HttpStatus.UNAUTHORIZED)
     }
 }
 ----
