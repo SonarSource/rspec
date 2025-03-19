@@ -1,0 +1,111 @@
+include::../summary.adoc[]
+
+== Why is this an issue?
+
+include::../rationale.adoc[]
+
+include::../impact.adoc[]
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following example uses the `SigningMethodNone` method to sign a token. This method does not sign the token, which means that the token is not protected against tampering.
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+
+func signToken() {
+	token := jwt.NewWithClaims(jwt.SigningMethodNone,
+		jwt.MapClaims{
+			"foo": "bar",
+		})
+	token.SignedString(jwt.UnsafeAllowNoneSignatureType) // Noncompliant
+}
+----
+
+The following example uses the `UnsafeAllowNoneSignatureType` method to verify a token. This method does not verify the token, which means that the token is not protected against tampering.
+
+[source,go,diff-id=2,diff-type=noncompliant]
+----
+import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+
+func verifyToken(string tokenString) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return jwt.UnsafeAllowNoneSignatureType, nil // Noncompliant
+	})
+}
+----
+
+==== Compliant solution
+
+The following example uses the `HS256` method to sign a token. This method signs the token using the HMAC algorithm with the secret key.
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+var hmacSecret = ...
+
+func signToken() {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, 
+		jwt.MapClaims{
+			"foo": "bar",
+		})
+	token.SignedString(hmacSecret)
+}
+----
+
+The following example first checks that the signing method is HMAC and then returns the secret key to verify the token.
+
+[source,go,diff-id=2,diff-type=compliant]
+----
+import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+var hmacSecret = ...
+
+func verifyToken(string tokenString) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Check the signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return hmacSecret, nil
+	})
+}
+----
+
+=== How does this work?
+
+include::../common/fix/decode.adoc[]
+
+=== Going the extra mile
+
+include::../common/extra-mile/key-storage.adoc[]
+
+include::../common/extra-mile/key-rotation.adoc[]
+
+
+
+== Resources
+
+include::../common/resources/standards.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+endif::env-github,rspecator-view[]
