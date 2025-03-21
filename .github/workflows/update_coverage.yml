@@ -10,7 +10,6 @@ jobs:
     permissions:
       id-token: write # required by SonarSource/vault-action-wrapper
       contents: write
-      checks: read # required by fountainhead/action-wait-for-check
       actions: write # required by andymckay/cancel-action
     env:
       TMP_BRANCH: temporary/coverage_update
@@ -44,47 +43,35 @@ jobs:
       run: |
         pipenv --python python3.9 install
 
-    # - name: 'Regenerate coverage information'
-    #   env:
-    #     GITHUB_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
-    #   id: gen-coverage
-    #   working-directory: 'rspec/rspec-tools'
-    #   run: |
-    #     pipenv run rspec-tools update-coverage --rulesdir ../rules
-    #     mv ./covered_rules.json ../frontend/public/covered_rules.json
-    #     if git diff --exit-code ../frontend/public/covered_rules.json; then
-    #       echo "new_coverage=false" >> "$GITHUB_OUTPUT"
-    #     else
-    #       echo "new_coverage=true" >> "$GITHUB_OUTPUT"
-    #     fi
+    - name: 'Regenerate coverage information'
+      env:
+        GITHUB_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
+      id: gen-coverage
+      working-directory: 'rspec/rspec-tools'
+      run: |
+        pipenv run rspec-tools update-coverage --rulesdir ../rules
+        mv ./covered_rules.json ../frontend/public/covered_rules.json
+        if git diff --exit-code ../frontend/public/covered_rules.json; then
+          echo "new_coverage=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "new_coverage=true" >> "$GITHUB_OUTPUT"
+        fi
 
-    # - name: 'Cancel if coverage did not change'
-    #   if: steps.gen-coverage.outputs.new_coverage != 'true'
-    #   uses: andymckay/cancel-action@0.2
+    - name: 'Cancel if coverage did not change'
+      if: steps.gen-coverage.outputs.new_coverage != 'true'
+      uses: andymckay/cancel-action@0.2
 
     - name: 'Push the updated coverage file to a new branch'
       id: create-temp-branch
-      # if: steps.gen-coverage.outputs.new_coverage == 'true'
+      if: steps.gen-coverage.outputs.new_coverage == 'true'
       working-directory: 'rspec'
       run: |
         git config --global user.name "SonarTech"
         git config --global user.email "sonartech@sonarsource.com"
         git checkout -b $TMP_BRANCH
-        echo "" >> frontend/public/covered_rules.json # TODO remove this line
         git add frontend/public/covered_rules.json
         git commit -m "update coverage information"
         git push --force-with-lease origin $TMP_BRANCH
-
-    # - name: 'Wait for CI to succeed'
-    #   if: steps.gen-coverage.outputs.new_coverage == 'true'
-    #   uses: fountainhead/action-wait-for-check@v1.0.0
-    #   id: wait-for-build
-    #   with:
-    #     token: ${{ secrets.GITHUB_TOKEN }}
-    #     checkName: all_required_checks
-    #     ref: ${{ env.TMP_BRANCH }}
-    #     timeoutSeconds: 2400
-    #     intervalSeconds: 30
 
     - name: 'Create a PR'
       id: crate-github-pr
@@ -101,9 +88,7 @@ jobs:
         GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
       working-directory: 'rspec'
       run: |
-        # bash ./ci/wait-until-merged.sh
-
-        set -uexo pipefail
+        set -ueo pipefail
 
         # Implicitly referring to the PR corresponding to current branch
 
@@ -131,33 +116,17 @@ jobs:
             exit 1
           fi
 
-          # Wait for 30 seconds before checking again
-          sleep 30
+          # Wait for 10 seconds before checking again
+          sleep 10
         done
 
-    # - name: 'Push the updated coverage to master'
-    #   if: |
-    #     steps.gen-coverage.outputs.new_coverage == 'true' &&
-    #     steps.wait-for-build.outputs.conclusion == 'success' &&
-    #     (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
-    #   working-directory: 'rspec'
-    #   run: |
-    #     git checkout master
-    #     git merge $TMP_BRANCH
-    #     git push origin master
-
-    # - name: 'Delete the temporary branch'
-    #   if: always() && steps.create-temp-branch.conclusion == 'success'
-    #   uses: dawidd6/action-delete-branch@v3
-    #   with:
-    #     github_token: ${{ secrets.GITHUB_TOKEN }}
-    #     branches: ${{ env.TMP_BRANCH}}
-
-    # - name: 'Fail if the change breaks CI'
-    #   if: |
-    #     steps.gen-coverage.outputs.new_coverage == 'true' &&
-    #     steps.wait-for-build.outputs.conclusion != 'success'
-    #   run: exit 1
+    - name: 'Close PR and delete branch upon failure to merge'
+      if: ${{ failure() }}
+      env:
+        GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
+      working-directory: 'rspec'
+      run: |
+        gh pr close --delete-branch
 
     - name: 'Notify on slack about the failure'
       if: ${{ failure() }}
