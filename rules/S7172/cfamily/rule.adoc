@@ -1,0 +1,141 @@
+This rule raises an issue when `std::optional`, `boost::optional`, or `std::expected` wrap a basic type, and a conversion from the wrapper type to `bool` is used to test the presence of a contained value.
+
+== Why is this an issue?
+
+`std::optional`, `boost::optional`, and `std::expected` are types that allow to represent a contained value of a certain type, and additional data that denote the absence of a value (`nullopt` for `optional`, and error values for `expected`). To check if the wrapper contains a value, it is possible to call its member function `has_value()`. Alternatively, it can also be converted to `bool`, which is more concise, especially when used in a place that allows _contextual conversion to bool_ (for instance, the condition of an `if`). It means that the following syntax is valid:
+
+[source,cpp]
+----
+std::optional<bool> flag;
+if(flag) { ... }
+// Equivalent to 
+if(flag.has_value()) { ... }
+----
+
+When the contained type is also convertible to `bool`, using this concise syntax can be confusing. What is tested: The wrapper, or the contained value?
+
+This rule raises an issue when `std::optional`, `boost::optional`, or `std::expected` wrap a basic type, and the conversion to `bool` is used to test the presence of the value.
+
+=== What is the potential impact?
+
+There are two possibilities, depending on the initial intent of the autor of the code:
+
+- If the intent was actually to test the presence of the value, the code is correct, but it is not clear. When reading it, people might think that the contained value is tested, and not the presence of the value.
+
+- If the intent was to test the contained value, the code is incorrect. This situation can especially happen when evolving code that worked directly with values to work with optional or expected values, and forgetting to update the test. This will lead to code that does not behave in the intended way, but still works in a plausible way, and the lack of clear clue on what is tested makes finding the issue difficult.
+
+=== Exceptions
+
+If, in a single expression, the presence of the value is tested and the value is accessed, the risk of confusion is reduced, and no violation is raised.
+
+[source,cpp]
+----
+std::optional<bool> flag;
+if(flag && *flag) { ... } // Compliant
+----
+
+== How to fix it
+
+The most direct way to fix this issue is to replace the concise syntax with a more verbose call to `has_value()`. However, both syntaxes leads to a code that is full of `if`/`else` and becomes difficult to read, especially if the program works with many `optional` or `expected` values.
+
+In many circumstances, it is possible to write code in a more direct way, using member functions such as `value_or()` or, starting with {cpp}23, the monadic interface of `optional` and `expected` (`and_then()`, `transform()` and `or_else()`), which are especially convenient when chaining operations on those types.
+
+
+//== How to fix it in FRAMEWORK NAME
+
+=== Code examples
+
+[source,cpp,diff-id=2,diff-type=compliant]
+
+==== Noncompliant code example
+
+[source,cpp]
+----
+void perform(Node node, optional<bool> recursive, Action action) {
+  action(node);
+  bool recurse;
+  if (recursive) {
+    recurse = *recursive;
+  } else {
+    recurse = getDefaultRecurseMode();
+  }
+  if (recurse) {
+     // perform recursion...
+  }
+}
+----
+
+==== Compliant solution
+
+The most direct solution is to replace the concise syntax by the more explicit one.
+
+[source,cpp]
+----
+void perform(Node node, optional<bool> recursive, Action action) {
+  action(node);
+  bool recurse;
+  if (recursive.has_value()) {
+    recurse = recursive.value();
+  } else {
+    recurse = getDefaultRecurseMode();
+  }
+  if (recurse) {
+     // perform recursion...
+  }
+}
+----
+
+Since the rule will not trigger if the value is accessed in the same expression where its presence is tested, another possibility if the following:
+
+[source,cpp]
+----
+void perform(Node node, optional<bool> recursive, Action action) {
+  action(node);
+  bool recurse = recursive ? *recursive : getDefaultRecurseMode();
+  if (recurse) {
+     // perform recursion...
+  }
+}
+----
+
+In this simple case, the use of both `recursive` and `++*recursive++` hints that recursive is more than a simple `bool`. However, it is possible to write the code with a higher level semantic (see S6023):
+
+[source,cpp]
+----
+void perform(Node node, optional<bool> recursive, Action action) {
+  action(node);
+  bool recurse = recursive.value_or(getDefaultRecurseMode());
+  if (recurse) {
+     // perform recursion...
+  }
+}
+----
+The downside of this version is that `getDefaultRecurseMode()` is called even if `recursive` contains a value. If `getDefaultRecurseMode()` is a complex function, it can be a performance issue. In this case, it is possible to use the monadic interface of `optional`, at the cost of a more complex syntax:
+
+[source,cpp]
+----
+void perform(optional<bool> recursive) {
+  bool recurse = recursive.or_else([]() { return optional {getDefaultRecurseMode()};}).value();
+  if (recurse) {
+     // perform recursion...
+  }
+}
+----
+
+This syntax is more complex, but it is also more flexible, especially when chaining operations on `optional` or `expected` values.
+
+== Resources
+
+=== Related rules
+
+* S6023 - "std::optional" member function "value_or" should be used
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/optional[`std::optional`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/expected[`std::expected`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/optional[`std::optional`]
+
+=== Articles & blog posts
+
+* Microsoft Developper Blog - * https://devblogs.microsoft.com/oldnewthing/20211004-00/?p=105754[Some lesser-known powers of std::optional]
