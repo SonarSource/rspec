@@ -1,0 +1,112 @@
+This rule raises an issue if the Scikit-learn `fit` or `partial_fit` methods are not called prior to a method yielding results.
+
+== Why is this an issue?
+
+When using the Scikit-learn library it is crucial to train the estimator or transformer before
+attempting to get results. Failing to do so can lead to incorrect results or runtime errors. 
+The training is done with the help of the `fit` or `partial_fit` methods and retrieving results can be done for example with the `predict` method.
+
+If the `predict` method is called without a prior call to the `fit` method, a `NotFittedError` exception will be raised.
+In this case the error is unambiguous but in some other cases the error raised could be less explicit.
+
+[source,python]
+----
+from sklearn.datasets import load_iris 
+from sklearn.neighbors import KNeighborsClassifier 
+
+iris = load_iris() 
+knn = KNeighborsClassifier(1) 
+knn.n_samples_fit_ # raises an AttributeError
+----
+
+In the example above, failing to train the model on the iris dataset with the
+`fit` method results in a more cryptic error where ``++n_samples_fit_++`` is not an
+attribute of `KNeighborsClassifier`, this is because this attribute is only set after the method `fit`
+is called. 
+
+This rule will raise an issue when the following methods are called without a prior call to `fit` or `partial_fit`:
+
+* `predict`
+* `predict_proba`
+* `predict_log_proba`
+* `score`
+* `score_samples`
+* `decision_function`
+* `transform`
+* `inverse_transform`
+
+as well as any attributes of an estimator ending with a single underscore (denoting that this attribute is set during `fit` or `partial_fit`).
+
+== How to fix it
+
+To fix the issue, call the `fit` or `partial_fit` method before retrieving results.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from sklearn import datasets
+from sklearn.cluster import KMeans
+
+iris = datasets.load_iris()
+X = iris.data
+
+kmeans = KMeans(n_clusters=3, random_state=42)
+kmeans.predict(X) # Noncompliant: raises a NotFittedError
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from sklearn import datasets
+from sklearn.cluster import KMeans
+
+iris = datasets.load_iris()
+X = iris.data
+
+kmeans = KMeans(n_clusters=3, random_state=42)
+kmeans.fit(X)
+kmeans.predict(X) # Compliant
+----
+
+== Resources
+=== Documentation
+
+* Scikit-learn Documentation - https://scikit-learn.org/stable/glossary.html#term-fit[Glossary fit reference]
+* Scikit-learn Documentation - https://scikit-learn.org/stable/modules/generated/sklearn.exceptions.NotFittedError.html#sklearn.exceptions.NotFittedError[NotFittedError reference]
+
+ifdef::env-github,rspecator-view[]
+
+Implementation details: 
+
+* predict
+
+* predict_proba
+
+* predict_log_proba
+
+* score
+
+* score_samples
+
+* decision_function
+
+* transform
+
+* inverse_transform
+
+If the list of methods above are called, we should check for the `fit` or `partial_fit` methods called on the same object. 
+Or if an argument of an estimator is called and the name of the argument ends with an underscore we should check for the fit or partial_fit methods call.
+
+An estimator can be detected if the object inherits from `BaseEstimator`.
+
+Issue location: the name of the method or attribute (from the list above) 
+
+Message: Call the fit method on this estimator before retrieving the results. 
+
+Quickfix: Not applicable (could be too tricky as the parameters of fit and predict could be different)
+
+endif::env-github,rspecator-view[]
