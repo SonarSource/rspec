@@ -193,7 +193,7 @@ def known_highlight(language):
 
 def validate_source_language(rule_language: LanguageSpecificRule):
   descr = rule_language.description
-  for h2 in descr.findAll('h2'):
+  for h2 in descr.find_all('h2'):
     name = h2.text.strip()
     if name.startswith('Compliant') or name.startswith('Noncompliant'):
       for pre in h2.parent.find_all('pre'):

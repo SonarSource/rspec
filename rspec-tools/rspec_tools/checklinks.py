@@ -115,7 +115,7 @@ def live_url(url: str, timeout=5):
 def findurl_in_html(filename,urls):
   with open(filename, 'r', encoding="utf8") as file:
     soup = BeautifulSoup(file,features="html.parser")
-    for link in soup.findAll('a'):
+    for link in soup.find_all('a'):
       key=link.get('href')
       if key in urls:
         urls[key].append(filename)
