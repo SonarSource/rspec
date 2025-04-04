@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-pip install Cmake
+pip install wheel
 cd rspec-tools
 pipenv install --dev
 pipenv run pip install pytest pytest-cov
