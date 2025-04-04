@@ -1,16 +1,26 @@
-FIXME: add a description
+This rule raises an issue when `RDD.groupByKey` is used in conjuction with `RDD.mapValues`
+and a commutative and associative function instead of `RDD.reduceByKey`.
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+The PySpark API offers multiple ways of performing aggregation. 
+When performing aggregations, data is usually shuffled between partitions of course, 
+this shuffling and its associated cost are needed to compute the result correctly.
 
-//=== What is the potential impact?
+There are however cases where some aggregation methods could be more efficient than others.
+For example when using `RDD.groupByKey` in conjunction with `RDD.mapValues` if the function passed to `RDD.mapValues`
+is commutative and associative, it is preferable to use `RDD.reduceByKey` instead.
+The performance gain from `RDD.reduceByKey` comes from the amount of data that needs to be moved between PySpark tasks.
+`RDD.reduceByKey` will effectively reduce the number of rows in a partition before sending the data over the network for further reduction.
+On the other hand, when using `RDD.groupByKey` with `RDD.mapValues` the reduction is only done 
+after the data has been moved around the cluster, effectively slowing down 
+the computation process by transferring a higher amount of data over the network.
+
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+To fix this issue replace the call `RDD.groupByKey` and `RDD.mapValues`  with `RDD.reduceByKey`.
 
 === Code examples
 
@@ -18,27 +28,51 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from pyspark import SparkContext
+
+sc = SparkContext("local", "Example")
+rdd = sc.parallelize([("a", 1), ("b", 1), ("a", 2), ("b", 3)])
+result = rdd.groupByKey().mapValues(lambda values: sum(values)).collect() # Noncompliant: an associative and commutative operation is used with `groupByKey` and `mapValues`
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from pyspark import SparkContext
+
+sc = SparkContext("local", "Example")
+rdd = sc.parallelize([("a", 1), ("b", 1), ("a", 2), ("b", 3)])
+result = rdd.reduceByKey(lambda x, y: x + y).collect() # Compliant
 ----
 
-//=== How does this work?
+== Resources
+=== Documentation
 
-//=== Pitfalls
+* PySpark Documentation - https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.reduceByKey.html#pyspark.RDD.reduceByKey[pyspark.RDD.reduceByKey]
+* PySpark Documentation - https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.groupByKey.html#pyspark.RDD.groupByKey[pyspark.RDD.groupByKey]
+* PySpark Documentation - https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.mapValues.html#pyspark.RDD.mapValues[pyspark.RDD.mapValues]
 
-//=== Going the extra mile
+=== Articles & blog posts
 
+* Spark By Example - https://sparkbyexamples.com/spark/spark-groupbykey-vs-reducebykey/[Spark groupByKey() vs reduceByKey()]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ifdef::env-github,rspecator-view[]
+=== Implementation Specification
+
+As a first implementation we should focus on simple operations: sum and math.prod
+
+=== Message
+
+Replace the usage of "RDD.groupByKey" and "RDD.mapValues" with "RDD.reduceByKey"
+
+=== Highlighting
+
+The main location is the method `groupByKey` and the secondary location is the `mapValues` call.
+
+=== Quickfix
+
+N/A as we cannot easily convert the function passed to mapValues to a function passed to reduceByKey
+
+endif::env-github,rspecator-view[]
+
