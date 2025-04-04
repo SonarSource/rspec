@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3.9-slim-buster
+FROM public.ecr.aws/docker/library/python:3.11-slim-buster
 
 # Also install NodeJS 16 to run Sonar analysis
 
