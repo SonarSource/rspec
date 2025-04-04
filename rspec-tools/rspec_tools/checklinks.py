@@ -23,6 +23,10 @@ EXCEPTION_PREFIXES = [
   # The CI reports 403 on drupal.org while it works locally.
   # Maybe the CI's IP is blocklisted...
   "https://www.drupal.org/",
+  # This host implements bot protection: it manages to differentiate between
+  # the request performed by the link-probing bot and a genuin website and
+  # sends a js challenge.
+  "https://www.baeldung.com/",
 ]
 
 def show_files(filenames):
