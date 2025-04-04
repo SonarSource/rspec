@@ -7,4 +7,4 @@ python --version
 cd rspec-tools
 pipenv run python --version
 pipenv install --dev
-pipenv run pip install pytest pytest-cov
+#pipenv run pip install pytest pytest-cov
