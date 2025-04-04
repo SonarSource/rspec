@@ -129,11 +129,11 @@ def test_update_coverage_for_repo_version(tmpdir, rules_dir: Path, mock_git_anal
     coverage = tmpdir.join('covered_rules.json')
     assert coverage.exists()
     cov = load_json(coverage)
-    assert 'JAVASCRIPT' in cov
-    assert 'S100' in cov['JAVASCRIPT']
-    assert 'MethodName' not in cov['JAVASCRIPT'] # MethodName is a legacy key for S100
-    assert 'S200' not in cov['JAVASCRIPT'] # S200.json is not in the rules directory in mock
-    assert cov['JAVASCRIPT']['S100'] == {'since': REPO + ' ' + VER, 'until': REPO + ' ' + VER}
+    assert 'js' in cov
+    assert 'S100' in cov['js']
+    assert 'MethodName' not in cov['js'] # MethodName is a legacy key for S100
+    assert 'S200' not in cov['js'] # S200.json is not in the rules directory in mock
+    assert cov['js']['S100'] == {'since': REPO + ' ' + VER, 'until': REPO + ' ' + VER}
 
     # Running it again changes nothing
     update_coverage_for_repo_version(REPO, VER, rules_dir)
@@ -143,11 +143,11 @@ def test_update_coverage_for_repo_version(tmpdir, rules_dir: Path, mock_git_anal
     VER2 = '5.0.0.6962'
     update_coverage_for_repo_version(REPO, VER2, rules_dir)
     cov_new = load_json(coverage)
-    assert set(cov['JAVASCRIPT'].keys()).issubset(set(cov_new['JAVASCRIPT'].keys()))
-    assert cov_new['JAVASCRIPT']['S100']['since'] == REPO + ' ' + VER
-    assert cov_new['JAVASCRIPT']['S100']['until'] == REPO + ' ' + VER2
-    assert cov_new['JAVASCRIPT']['S1192']['since'] == REPO + ' ' + VER2
-    assert cov_new['JAVASCRIPT']['S1192']['until'] == REPO + ' ' + VER2
+    assert set(cov['js'].keys()).issubset(set(cov_new['JAVASCRIPT'].keys()))
+    assert cov_new['js']['S100']['since'] == REPO + ' ' + VER
+    assert cov_new['js']['S100']['until'] == REPO + ' ' + VER2
+    assert cov_new['js']['S1192']['since'] == REPO + ' ' + VER2
+    assert cov_new['js']['S1192']['until'] == REPO + ' ' + VER2
 
     # For rules supported on master only the 'since' part is kept
     update_coverage_for_repo_version(REPO, 'master', rules_dir)
@@ -161,13 +161,13 @@ def test_update_coverage_for_repo(tmpdir, rules_dir: Path, mock_git_analyzer_rep
     coverage = tmpdir.join('covered_rules.json')
     assert coverage.exists()
     cov = load_json(coverage)
-    assert 'JAVASCRIPT' in cov
-    assert 'TYPESCRIPT' in cov
-    assert 'S100' in cov['JAVASCRIPT']
-    assert 'MethodName' not in cov['JAVASCRIPT'] # MethodName is a legacy key for S100
-    assert cov['JAVASCRIPT']['S100'] == REPO + ' 3.3.0.5702'
-    assert 'S1145' in cov['JAVASCRIPT']
-    assert cov['JAVASCRIPT']['S1145'] == {'since': REPO + ' 3.3.0.5702', 'until': REPO + ' 6.7.0.14237'}
+    assert 'js' in cov
+    assert 'ts' in cov
+    assert 'S100' in cov['js']
+    assert 'MethodName' not in cov['js'] # MethodName is a legacy key for S100
+    assert cov['js']['S100'] == REPO + ' 3.3.0.5702'
+    assert 'S1145' in cov['js']
+    assert cov['js']['S1145'] == {'since': REPO + ' 3.3.0.5702', 'until': REPO + ' 6.7.0.14237'}
 
 
 @patch('rspec_tools.coverage.REPOS', ['SonarJS', 'sonar-xml', 'sonar-java'])
@@ -177,9 +177,9 @@ def test_update_coverage_for_all_repos(tmpdir, rules_dir: Path, mock_git_analyze
     coverage = tmpdir.join('covered_rules.json')
     assert coverage.exists()
     cov = load_json(coverage)
-    assert {'JAVASCRIPT', 'TYPESCRIPT', 'XML', 'CSS', 'JAVA'} == set(cov.keys())
-    assert 'S100' in cov['JAVASCRIPT']
-    assert 'MethodName' not in cov['JAVASCRIPT'] # MethodName is a legacy key for S100
+    assert {'js', 'ts', 'XML', 'CSS', 'JAVA'} == set(cov.keys())
+    assert 'S100' in cov['js']
+    assert 'MethodName' not in cov['js'] # MethodName is a legacy key for S100
     assert {'S100'} == set(cov['CSS'].keys())
     assert {'S103', 'S1000'} == set(cov['XML'].keys())
     assert cov['XML']['S1000'] == 'SonarJS 7.0.0.14528'
