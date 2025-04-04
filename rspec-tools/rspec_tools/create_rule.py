@@ -48,7 +48,7 @@ class RuleCreator:
   def add_language_branch(self, rule_number: int, language: str) -> str:
     '''Create and move files to add a new language to an existing rule.'''
     branch_name = f'rule/S{rule_number}-add-{language}'
-    with self.rspec_repo.checkout_branch(self.rspec_repo.MASTER_BRANCH, branch_name):
+    with self.rspec_repo.checkout_branch(self.rspec_repo.master_branch, branch_name):
       rule_dir = self.repo_dir / 'rules' / f'S{rule_number}'
       if not rule_dir.is_dir():
         raise InvalidArgumentError(f"Rule \"S{rule_number}\" does not exist.")
@@ -71,7 +71,7 @@ class RuleCreator:
   def create_new_rule_branch(self, rule_number: int, languages: Iterable[str]) -> str:
     '''Create all the files required for a new rule.'''
     branch_name = f'rule/add-RSPEC-S{rule_number}'
-    with self.rspec_repo.checkout_branch(self.rspec_repo.MASTER_BRANCH, branch_name):
+    with self.rspec_repo.checkout_branch(self.rspec_repo.master_branch, branch_name):
       rule_dir = self.repo_dir / 'rules' / f'S{rule_number}'
       rule_dir.mkdir()
       lang_count = sum(1 for _ in languages)

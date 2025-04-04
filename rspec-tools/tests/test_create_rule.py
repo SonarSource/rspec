@@ -8,7 +8,7 @@ from rspec_tools.create_rule import (RuleCreator, add_language_to_rule,
                                      create_new_rule)
 from rspec_tools.errors import InvalidArgumentError
 from rspec_tools.repo import RspecRepo
-from rspec_tools.utils import LANG_TO_SOURCE, is_empty_metadata
+from rspec_tools.utils import LANG_TO_SOURCE, is_empty_metadata, get_default_branch
 
 from tests.conftest import mock_github
 
@@ -122,7 +122,7 @@ def test_add_lang_singlelang_nonconventional_rule_create_branch(rule_creator: Ru
   rule_number = 4727
   language = 'php'
 
-  mock_git_rspec_repo.git.checkout('master')
+  mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
   orig_rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
   assert(not is_empty_metadata(orig_rule_dir)) # nonconventional: singlelang rule with metadata on the upper level
   assert(is_empty_metadata(orig_rule_dir.joinpath('cobol')))
@@ -158,7 +158,7 @@ def test_add_lang_singlelang_conventional_rule_create_branch(rule_creator: RuleC
   rule_number = 1033
   language = 'php'
 
-  mock_git_rspec_repo.git.checkout('master')
+  mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
   orig_rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath('rules', f'S{rule_number}')
   assert(is_empty_metadata(orig_rule_dir)) # conventional: singlelang rule with metadata on the lang-specific level
   assert(not is_empty_metadata(orig_rule_dir.joinpath('cfamily')))

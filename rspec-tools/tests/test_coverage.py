@@ -9,7 +9,8 @@ from contextlib import contextmanager
 
 from rspec_tools.coverage import (update_coverage_for_all_repos,
                                   update_coverage_for_repo,
-                                  update_coverage_for_repo_version)
+                                  update_coverage_for_repo_version,
+                                  update_coverage_for_repo_default_version)
 from rspec_tools.utils import (load_json, pushd)
 
 def clear_working_dir(repo_dir):
@@ -150,7 +151,7 @@ def test_update_coverage_for_repo_version(tmpdir, rules_dir: Path, mock_git_anal
     assert cov_new['JAVASCRIPT']['S1192']['until'] == REPO + ' ' + VER2
 
     # For rules supported on master only the 'since' part is kept
-    update_coverage_for_repo_version(REPO, 'master', rules_dir)
+    update_coverage_for_repo_default_version(REPO, rules_dir)
     assert load_json(coverage)['JAVASCRIPT']['S100'] == REPO + ' ' + VER
 
 

@@ -33,7 +33,7 @@ class RuleEditor:
   def update_quickfix_status_branch(self, title: str, rule_number: int, language: str, status: str) -> str:
     '''Update the given rule/language quick fix metadata field.'''
     branch_name = f'rule/S{rule_number}-{language}-quickfix'
-    with self.rspec_repo.checkout_branch(self.rspec_repo.MASTER_BRANCH, branch_name):
+    with self.rspec_repo.checkout_branch(self.rspec_repo.master_branch, branch_name):
       self._update_quickfix_status(rule_number, language, status)
       self.rspec_repo.commit_all_and_push(title)
 

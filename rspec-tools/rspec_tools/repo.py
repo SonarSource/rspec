@@ -3,6 +3,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Final, Iterable, Optional
+from rspec_tools.utils import get_default_branch
 
 import click
 from git import Repo
@@ -20,19 +21,20 @@ def _auto_github(token: str) -> Callable[[Optional[str]], Github]:
 
 class RspecRepo:
   '''Provide operations on a git repository for rule specifications.'''
-  MASTER_BRANCH: Final[str] = 'master'
   ID_COUNTER_BRANCH: Final[str] = 'rspec-id-counter'
   ID_COUNTER_FILENAME: Final[str] = 'next_rspec_id.txt'
 
+  master_branch: Final[str]
   repository: Final[Repo]
   origin_url: Final[str]
 
   def __init__(self, origin_url: str, clone_directory: str, configuration: dict[str, str]):
     self.repository = Repo.clone_from(origin_url, clone_directory)
     self.origin_url = origin_url
+    self.master_branch = get_default_branch(self.repository)
 
     # Create local branches tracking remote ones
-    for branch in [self.MASTER_BRANCH, self.ID_COUNTER_BRANCH]:
+    for branch in [self.master_branch, self.ID_COUNTER_BRANCH]:
       self.repository.remote().fetch(branch)
       self.repository.git.checkout('-B', branch, f'origin/{branch}')
 
@@ -74,7 +76,7 @@ class RspecRepo:
     pull_request = github_repo.create_pull(
       title=title,
       body=body,
-      head=branch_name, base=self.MASTER_BRANCH,
+      head=branch_name, base=self.master_branch,
       draft=True, maintainer_can_modify=True
     )
     click.echo(f'Created rule Pull Request {pull_request.html_url}')
