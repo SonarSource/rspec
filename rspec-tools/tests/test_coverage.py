@@ -143,7 +143,7 @@ def test_update_coverage_for_repo_version(tmpdir, rules_dir: Path, mock_git_anal
     VER2 = '5.0.0.6962'
     update_coverage_for_repo_version(REPO, VER2, rules_dir)
     cov_new = load_json(coverage)
-    assert set(cov['js'].keys()).issubset(set(cov_new['JAVASCRIPT'].keys()))
+    assert set(cov['js'].keys()).issubset(set(cov_new['js'].keys()))
     assert cov_new['js']['S100']['since'] == REPO + ' ' + VER
     assert cov_new['js']['S100']['until'] == REPO + ' ' + VER2
     assert cov_new['js']['S1192']['since'] == REPO + ' ' + VER2
@@ -151,7 +151,7 @@ def test_update_coverage_for_repo_version(tmpdir, rules_dir: Path, mock_git_anal
 
     # For rules supported on master only the 'since' part is kept
     update_coverage_for_repo_version(REPO, 'master', rules_dir)
-    assert load_json(coverage)['JAVASCRIPT']['S100'] == REPO + ' ' + VER
+    assert load_json(coverage)['js']['S100'] == REPO + ' ' + VER
 
 
 def test_update_coverage_for_repo(tmpdir, rules_dir: Path, mock_git_analyzer_repos):
