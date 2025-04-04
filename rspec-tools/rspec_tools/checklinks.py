@@ -218,6 +218,7 @@ def report_errors(errors, urls):
   for key in errors:
     print(f"{key} in:")
     show_files(urls[key])
+    print("")
 
 def check_html_links(dir):
   load_url_probing_history()
