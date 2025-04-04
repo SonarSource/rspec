@@ -1,0 +1,58 @@
+== How to fix it in Java I/O API
+
+=== Code examples
+
+The following code is vulnerable to deserialization attacks because it
+deserializes HTTP data without validating it first.
+
+==== Noncompliant code example
+
+[source,kotlin,diff-id=1,diff-type=noncompliant]
+----
+class RequestProcessor {
+    fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+        val servletIS = request.inputStream
+        val objectIS = ObjectInputStream(servletIS)
+        val input = objectIS.readObject()
+    }
+}
+----
+
+==== Compliant solution
+
+[source,kotlin,diff-id=1,diff-type=compliant]
+----
+class SecureObjectInputStream(input: InputStream) : ObjectInputStream(input) {
+    companion object {
+        val APPROVED_CLASSES = arrayOf(AllowedClass1::class.simpleName, AllowedClass2::class.simpleName)
+    }
+    override fun resolveClass(osc: ObjectStreamClass): Class<*> {
+        if (osc.name !in APPROVED_CLASSES) {
+            throw InvalidClassException("Unauthorized deserialization", osc.name)
+        }
+        return super.resolveClass(osc)
+    }
+}
+
+class RequestProcessor {
+    fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+        val servletIS = request.inputStream
+        val objectIS: ObjectInputStream = SecureObjectInputStream(servletIS)
+        val input = objectIS.readObject()
+    }
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+include::../../common/fix/safer-serialization.adoc[]
+
+include::../../common/fix/integrity-check.adoc[]
+
+include::../../common/fix/pre-approved-list.adoc[]
+
+In the previous example, the pre-approved list uses class names to validate the
+deserialized class.
+
