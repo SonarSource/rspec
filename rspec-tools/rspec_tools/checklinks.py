@@ -15,14 +15,18 @@ link_probes_history = {}
 
 # These links consistently fail in CI, but work-on-my-machine
 EXCEPTION_PREFIXES = [
-    # It seems the server certificate was renewed on 2nd of August 2024.
-    # The server is sending only its certificate, without including the
-    # Intermediate certificate used to issue the server cert. Because of that
-    # some application are not able to verify the complete chain of trust.
-    "https://wiki.sei.cmu.edu/",
-    # The CI reports 403 on drupal.org while it works locally.
-    # Maybe the CI's IP is blocklisted...
-    "https://www.drupal.org/",
+  # It seems the server certificate was renewed on 2nd of August 2024.
+  # The server is sending only its certificate, without including the
+  # Intermediate certificate used to issue the server cert. Because of that
+  # some application are not able to verify the complete chain of trust.
+  "https://wiki.sei.cmu.edu/",
+  # The CI reports 403 on drupal.org while it works locally.
+  # Maybe the CI's IP is blocklisted...
+  "https://www.drupal.org/",
+  # This host implements bot protection: it manages to differentiate between
+  # the request performed by the link-probing bot and a genuin website and
+  # sends a js challenge.
+  "https://www.baeldung.com/",
 ]
 
 
