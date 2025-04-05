@@ -324,8 +324,6 @@ def test_replace_string_in_file_function(mock_rule_editor, mock_tmp_rspec_repo):
 
     # Call the function
     replace_string_in_file(
-        rule="S1234",
-        language="java",
         file_path="rules/S1234/java/rule.adoc",
         search_text="old text",
         replace_text="new text",
@@ -338,12 +336,9 @@ def test_replace_string_in_file_function(mock_rule_editor, mock_tmp_rspec_repo):
     # Verify the call
     pr_mock.assert_called_once()
     assert pr_mock.call_args.args[0] == "fake-token"
-    assert pr_mock.call_args.args[1] == 1234
-    assert pr_mock.call_args.args[2] == "java"
-    assert pr_mock.call_args.args[3] == "rules/S1234/java/rule.adoc"
-    assert pr_mock.call_args.args[4] == "old text"
-    assert pr_mock.call_args.args[5] == "new text"
-    assert pr_mock.call_args.args[6] == "java"  # label from language
-    assert pr_mock.call_args.args[7] == "testuser"
-    assert pr_mock.call_args.args[8] == "Custom title"
-    assert pr_mock.call_args.args[9] == "Custom description"
+    assert pr_mock.call_args.args[1] == "rules/S1234/java/rule.adoc"
+    assert pr_mock.call_args.args[2] == "old text"
+    assert pr_mock.call_args.args[3] == "new text"
+    assert pr_mock.call_args.args[4] == "testuser"
+    assert pr_mock.call_args.args[5] == "Custom title"
+    assert pr_mock.call_args.args[6] == "Custom description"
