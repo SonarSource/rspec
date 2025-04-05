@@ -174,6 +174,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             if not rules_dir.exists() or not rules_dir.is_dir():
                 raise InvalidArgumentError("Rules directory not found")
 
+            # AI! factor out this loop into a dedicated function
             # Iterate through each rule directory
             for rule_path in rules_dir.iterdir():
                 if not rule_path.is_dir() or not rule_path.name.startswith("S"):
