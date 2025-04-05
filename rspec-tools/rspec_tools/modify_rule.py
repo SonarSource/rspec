@@ -67,7 +67,8 @@ def replace_string_in_all_rules(
         )
 
 
-def archive_broken_links(
+# AI! move this function to rspec_tools.checklinks
+def replace_broken_links(
     output_dir: str,
     rules_dir: Optional[str] = None,
     token: Optional[str] = None,
