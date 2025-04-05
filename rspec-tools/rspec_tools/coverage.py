@@ -234,7 +234,7 @@ def collect_coverage_for_all_versions(repo, coverage):
     versions.sort(key=comparable_version)
     for version in versions:
         collect_coverage_for_version(repo, git_repo, version, coverage)
-    collect_coverage_for_version(repo, git_repo, 'master', coverage)
+    collect_coverage_for_version(repo, git_repo, "master", coverage)
 
 
 def collect_coverage_for_version(repo_name, git_repo, version, coverage):
@@ -280,7 +280,7 @@ def update_coverage_for_repo_default_version(repo, rules_dir):
     print(f"checking {repo} default version")
     coverage = Coverage(RULES_FILENAME, rules_dir)
     git_repo = checkout_repo(repo)
-    default_version = 'master'
+    default_version = "master"
     print(f"Default version is {default_version}")
     collect_coverage_for_version(repo, git_repo, default_version, coverage)
     coverage.save_to_file(RULES_FILENAME)

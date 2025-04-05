@@ -35,7 +35,7 @@ class RspecRepo:
     ):
         self.repository = Repo.clone_from(origin_url, clone_directory)
         self.origin_url = origin_url
-        self.master_branch = 'master'
+        self.master_branch = "master"
 
         # Create local branches tracking remote ones
         for branch in [self.master_branch, self.ID_COUNTER_BRANCH]:

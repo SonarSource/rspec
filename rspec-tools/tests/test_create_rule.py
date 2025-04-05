@@ -153,7 +153,7 @@ def test_add_lang_singlelang_nonconventional_rule_create_branch(
     rule_number = 4727
     language = "php"
 
-    mock_git_rspec_repo.git.checkout('master')
+    mock_git_rspec_repo.git.checkout("master")
     orig_rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath(
         "rules", f"S{rule_number}"
     )
@@ -203,7 +203,7 @@ def test_add_lang_singlelang_conventional_rule_create_branch(
     rule_number = 1033
     language = "php"
 
-    mock_git_rspec_repo.git.checkout('master')
+    mock_git_rspec_repo.git.checkout("master")
     orig_rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath(
         "rules", f"S{rule_number}"
     )
