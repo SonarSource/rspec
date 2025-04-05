@@ -177,7 +177,10 @@ def notify_failure_on_slack(message: str, channel: str):
     "--rules-dir", default="rules", help="Source directory containing rule files"
 )
 @click.option(
-    "--batch-size", default=400, type=int, help="Number of files to process in each batch"
+    "--batch-size",
+    default=400,
+    type=int,
+    help="Number of files to process in each batch",
 )
 def generate_html(output_dir: str, rules_dir: str, batch_size: int):
     """Generate HTML documentation from rule AsciiDoc files."""
