@@ -174,22 +174,14 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             if not rules_dir.exists() or not rules_dir.is_dir():
                 raise InvalidArgumentError("Rules directory not found")
 
-            # AI! factor out this loop into a dedicated function
-            # Iterate through each rule directory
-            for rule_path in rules_dir.iterdir():
-                if not rule_path.is_dir() or not rule_path.name.startswith("S"):
-                    continue
-
-                # Extract rule ID
-                rule_id = rule_path.name
-
-                # Process files in this rule directory
-                rule_modified_files = self._replace_string_in_rule_directory(
-                    rule_path, search_text, replace_text
-                )
-                if rule_modified_files:
-                    modified_files.extend(rule_modified_files)
-                    affected_rule_ids.add(rule_id)
+            # Process all rule directories
+            self._process_all_rule_directories(
+                rules_dir, 
+                search_text, 
+                replace_text, 
+                modified_files, 
+                affected_rule_ids
+            )
 
             # If no user was provided, try to find the last modifier of one of the changed files
             assignee = self._find_assignee_from_file_history(
@@ -241,6 +233,40 @@ The rules won't be updated until this PR is merged."""
             labels,
             assignee,
         )
+
+    def _process_all_rule_directories(
+        self,
+        rules_dir: Path,
+        search_text: str,
+        replace_text: str,
+        modified_files: List[str],
+        affected_rule_ids: Set[str],
+    ) -> None:
+        """
+        Process all rule directories, finding and replacing text in files.
+
+        Args:
+            rules_dir: Path to the rules directory
+            search_text: Text to search for
+            replace_text: Text to replace with
+            modified_files: List to append modified file paths to
+            affected_rule_ids: Set to add affected rule IDs to
+        """
+        # Iterate through each rule directory
+        for rule_path in rules_dir.iterdir():
+            if not rule_path.is_dir() or not rule_path.name.startswith("S"):
+                continue
+
+            # Extract rule ID
+            rule_id = rule_path.name
+
+            # Process files in this rule directory
+            rule_modified_files = self._replace_string_in_rule_directory(
+                rule_path, search_text, replace_text
+            )
+            if rule_modified_files:
+                modified_files.extend(rule_modified_files)
+                affected_rule_ids.add(rule_id)
 
     def _replace_string_in_rule_directory(
         self, rule_path: Path, search_text: str, replace_text: str
