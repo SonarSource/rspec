@@ -11,7 +11,7 @@ ls -al $CACHE_PATH
 # Generate HTML using the Python implementation
 cd rspec-tools
 pipenv install
-pipenv run rspec-tools generate-html --rules-dir=../rules --output-dir=../out
+pipenv run rspec-tools generate-html --rules-dir=../rules --output-dir=../out --batch-size 1000
 cd ..
 
 # validate the links in asciidoc
