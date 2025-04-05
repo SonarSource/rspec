@@ -10,7 +10,7 @@ import click
 
 from rspec_tools.errors import InvalidArgumentError, RuleNotFoundError
 
-from rspec_tools.repo import RspecRepo, tmp_rspec_repo
+from rspec_tools.repo import RspecRepo, tmp_rspec_repo, get_last_file_modifier
 from rspec_tools.utils import get_label_for_language, resolve_rule
 
 
@@ -252,7 +252,7 @@ The rule won't be updated until this PR is merged."""
             title,
             description,
             labels,
-            user,
+            assignee,
         )
 
     def replace_string_in_all_rules_pull_request(
@@ -389,7 +389,22 @@ The rules won't be updated until this PR is merged."""
 
         labels = list(all_labels)
 
-        # AI! if `user` is None, iterate over the files that were modified in this replacement and find the first file that has known user who modified that file last as per `get_last_file_modifier`
+        # If no user was provided, try to find the last modifier of one of the changed files
+        assignee = user
+        if user is None and modified_files:
+            repo_name = self.rspec_repo.get_repository_name()
+            # Try to find a contributor from the modified files
+            for file_path in modified_files:
+                try:
+                    file_info = get_last_file_modifier(token, repo_name, file_path)
+                    if file_info and "login" in file_info and file_info["login"] != "Unknown":
+                        assignee = file_info["login"]
+                        click.echo(f"Auto-assigning PR to {assignee} (last modifier of {file_path})")
+                        break
+                except Exception as e:
+                    click.echo(f"Error finding last modifier for {file_path}: {str(e)}")
+                    continue
+
         return self.rspec_repo.create_pull_request(
             token,
             branch_name,
