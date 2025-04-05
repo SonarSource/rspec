@@ -3,7 +3,7 @@ import json
 import pathlib
 import random
 import socket
-from typing import Optional, List
+from typing import List, Optional
 
 import click
 import requests
@@ -380,6 +380,7 @@ Files containing this link:
 
         try:
             from rspec_tools.modify_rule import replace_string_in_all_rules
+
             replace_string_in_all_rules(
                 broken_link,
                 archived_link,
