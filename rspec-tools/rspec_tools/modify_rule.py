@@ -348,8 +348,18 @@ The rule won't be updated until this PR is merged."""
                     f"No files were modified. Text '{search_text}' not found in any rule files."
                 )
 
+        # Check if any rules were modified
+        if not affected_rule_ids:
+            raise InvalidArgumentError(
+                f"No files were modified. Text '{search_text}' not found in any rule files."
+            )
+
         # Create PR title and description
-        title = f"Modify rules {','.join(sorted(affected_rule_ids))}: global text replacement" #AI! use singular "Modify rule" here if only one rule is modified. raise an error if no rules were modified
+        affected_rules_str = ','.join(sorted(affected_rule_ids))
+        if len(affected_rule_ids) == 1:
+            title = f"Modify rule {affected_rules_str}: global text replacement"
+        else:
+            title = f"Modify rules {affected_rules_str}: global text replacement"
 
         description = custom_description or (
             f"""Global text replacement across rule files:
