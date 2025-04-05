@@ -81,11 +81,6 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 
 
 @cli.command()
-@click.option(
-    "--file",
-    required=False,
-    help="Path to the file to modify (must follow pattern 'rules/S{rule_number}/{language}/...')",
-)
 @click.option("--search", required=True, help="Text to search for")
 @click.option("--replace", required=True, help="Text to replace with")
 @click.option("--title", help="Custom PR title")
@@ -95,43 +90,22 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
     required=False,
     help="Github username (if not provided will use the token associated user)",
 )
-@click.option(
-    "--all-rules",
-    is_flag=True,
-    help="Replace in all rule files instead of a specific file",
-)
-def replace_text(
-    file: Optional[str], # AI! remove this file parameter. the function should always replace the "search" string with "replace" string in all fiels under the "rules/" directory. Also rename it into "replace_text_in_rules"
+def replace_text_in_rules(
     search: str,
     replace: str,
     title: Optional[str],
     description: Optional[str],
     user: Optional[str],
-    all_rules: bool,
 ):
-    """Replace text in rule files and create a pull request"""
+    """Replace text in all rule files and create a pull request"""
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         raise click.Abort()
 
-    if all_rules:
-        if file:
-            click.echo(
-                "Warning: --file is ignored when --all-rules is specified", err=True
-            )
-
-        rspec_tools.modify_rule.replace_string_in_all_rules(
-            search, replace, token, user, description
-        )
-    else:
-        if not file:
-            click.echo("Error: --file is required when not using --all-rules", err=True)
-            raise click.Abort()
-
-        rspec_tools.modify_rule.replace_string_in_file(
-            file, search, replace, token, user, title, description
-        )
+    rspec_tools.modify_rule.replace_string_in_all_rules(
+        search, replace, token, user, description
+    )
 
 
 @cli.command()

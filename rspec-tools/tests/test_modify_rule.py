@@ -9,7 +9,6 @@ from git import Repo
 from rspec_tools.errors import InvalidArgumentError, RuleNotFoundError
 from rspec_tools.modify_rule import (
     replace_string_in_all_rules,
-    replace_string_in_file,
     RuleEditor,
     update_rule_quickfix_status,
 )
@@ -448,33 +447,6 @@ def test_replace_string_in_all_rules_pull_request(mock_echo, setup_rule_editor):
     assert "jsts" in labels  # JavaScript uses this label
 
 
-@patch("rspec_tools.modify_rule.tmp_rspec_repo")
-@patch("rspec_tools.modify_rule.RuleEditor")
-def test_replace_string_in_file_function(mock_rule_editor, mock_tmp_rspec_repo):
-    """Test replace_string_in_file properly calls the underlying implementation."""
-    # Setup mock
-    pr_mock = mock_rule_editor.return_value.replace_string_in_file_pull_request
-
-    # Call the function
-    replace_string_in_file(
-        file_path="rules/S1234/java/rule.adoc",
-        search_text="old text",
-        replace_text="new text",
-        token="fake-token",
-        user="testuser",
-        title="Custom title",
-        description="Custom description",
-    )
-
-    # Verify the call
-    pr_mock.assert_called_once()
-    assert pr_mock.call_args.args[0] == "fake-token"
-    assert pr_mock.call_args.args[1] == "rules/S1234/java/rule.adoc"
-    assert pr_mock.call_args.args[2] == "old text"
-    assert pr_mock.call_args.args[3] == "new text"
-    assert pr_mock.call_args.args[4] == "testuser"
-    assert pr_mock.call_args.args[5] == "Custom title"
-    assert pr_mock.call_args.args[6] == "Custom description"
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
