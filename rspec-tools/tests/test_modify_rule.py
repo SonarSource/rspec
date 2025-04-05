@@ -375,6 +375,7 @@ def test_replace_string_in_all_rules_function(mock_rule_editor, mock_tmp_rspec_r
         token="fake-token",
         user="testuser",
         description="Custom description",
+        title_suffix="custom suffix",
     )
 
     # Verify the call
@@ -384,3 +385,4 @@ def test_replace_string_in_all_rules_function(mock_rule_editor, mock_tmp_rspec_r
     assert pr_mock.call_args.args[2] == "new text"
     assert pr_mock.call_args.args[3] == "testuser"
     assert pr_mock.call_args.args[4] == "Custom description"
+    assert pr_mock.call_args.args[5] == "custom suffix"

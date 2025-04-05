@@ -85,6 +85,11 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 @click.option("--replace", required=True, help="Text to replace with")
 @click.option("--description", help="Custom PR description")
 @click.option(
+    "--title-suffix",
+    default="global text replacement",
+    help="Text to add after the colon in the PR title",
+)
+@click.option(
     "--user",
     required=False,
     help="Github username (if not provided will use the token associated user)",
@@ -93,6 +98,7 @@ def replace_text_in_rules(
     search: str,
     replace: str,
     description: Optional[str],
+    title_suffix: str,
     user: Optional[str],
 ):
     """Replace text in all rule files and create a pull request"""
@@ -102,7 +108,7 @@ def replace_text_in_rules(
         raise click.Abort()
 
     rspec_tools.modify_rule.replace_string_in_all_rules(
-        search, replace, token, user, description
+        search, replace, token, user, description, title_suffix
     )
 
 

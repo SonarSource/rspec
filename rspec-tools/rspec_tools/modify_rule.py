@@ -37,6 +37,7 @@ def replace_string_in_all_rules(
     token: str,
     user: Optional[str],
     description: Optional[str] = None,
+    title_suffix: str = "global text replacement",
 ):
     """
     Create a pull request to replace a string in all rule files.
@@ -47,6 +48,7 @@ def replace_string_in_all_rules(
         token: GitHub token
         user: GitHub username (optional)
         description: Custom PR description (optional)
+        title_suffix: Text to add after the colon in the PR title (optional)
     """
     with _rule_editor(token, user) as editor:
         editor.replace_string_in_all_rules_pull_request(
@@ -55,6 +57,7 @@ def replace_string_in_all_rules(
             replace_text,
             user,
             description,
+            title_suffix,
         )
 
 
@@ -141,6 +144,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         replace_text: str,
         user: Optional[str],
         custom_description: Optional[str] = None,
+        title_suffix: str = "global text replacement",
     ):
         """
         Create a pull request that replaces text in all rule files.
@@ -151,6 +155,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             replace_text: Text to replace with
             user: GitHub username to assign the PR to
             custom_description: Optional custom PR description
+            title_suffix: Text to add after the colon in the PR title
         """
         # Create a unique branch name for this operation
         branch_name = (
@@ -211,9 +216,9 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         # Create PR title and description
         affected_rules_str = ",".join(sorted(affected_rule_ids))
         if len(affected_rule_ids) == 1:
-            title = f"Modify rule {affected_rules_str}: global text replacement" # AI! make the text after ":" in the PR title a parameter that you could set from cli
+            title = f"Modify rule {affected_rules_str}: {title_suffix}"
         else:
-            title = f"Modify rules {affected_rules_str}: global text replacement"
+            title = f"Modify rules {affected_rules_str}: {title_suffix}"
 
         description = custom_description or (
             f"""Global text replacement across rule files:
