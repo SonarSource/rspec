@@ -556,3 +556,88 @@ def test_same_broken_link_in_multiple_files():
 
                 # Verify output shows correct count of broken links
                 assert "1/1 links are dead" in result.output
+
+
+def test_same_live_link_checked_once():
+    """Test that if the same live link appears in two rules, it is only checked once."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create history file
+        history_file = create_history_file(temp_dir)
+
+        # The same live link that will appear in both files
+        live_link = "https://example.com/live-link-in-multiple-files"
+
+        # Create first rule with the live link
+        rule1_dir = pathlib.Path(temp_dir) / "S301" / "java"
+        os.makedirs(rule1_dir, exist_ok=True)
+
+        # Create metadata files for rule 1
+        with open(pathlib.Path(temp_dir) / "S301" / "metadata.json", "w") as f:
+            f.write('{"status": "ready"}')
+        with open(rule1_dir / "metadata.json", "w") as f:
+            f.write('{"status": "ready"}')
+
+        # Create HTML file for rule 1 with the live link
+        with open(rule1_dir / "rule.html", "w") as f:
+            f.write(
+                f"""<!DOCTYPE html>
+<html>
+<head><title>Test Rule 1</title></head>
+<body>
+<p>This rule has a <a href="{live_link}">live link</a>.</p>
+</body>
+</html>
+"""
+            )
+
+        # Create second rule with the same live link
+        rule2_dir = pathlib.Path(temp_dir) / "S302" / "python"
+        os.makedirs(rule2_dir, exist_ok=True)
+
+        # Create metadata files for rule 2
+        with open(pathlib.Path(temp_dir) / "S302" / "metadata.json", "w") as f:
+            f.write('{"status": "ready"}')
+        with open(rule2_dir / "metadata.json", "w") as f:
+            f.write('{"status": "ready"}')
+
+        # Create HTML file for rule 2 with the same live link
+        with open(rule2_dir / "rule.html", "w") as f:
+            f.write(
+                f"""<!DOCTYPE html>
+<html>
+<head><title>Test Rule 2</title></head>
+<body>
+<p>This rule also has the <a href="{live_link}">same live link</a>.</p>
+</body>
+</html>
+"""
+            )
+
+        # Run test in isolated filesystem
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            # Create symlink to history file
+            os.symlink(history_file, "./link_probes.history")
+
+            # Track how many times the URL was checked
+            check_counts = {}
+
+            def mock_live_url(url, timeout=5):
+                check_counts[url] = check_counts.get(url, 0) + 1
+                return True  # All links are live
+
+            with mock.patch(
+                "rspec_tools.checklinks.live_url", side_effect=mock_live_url
+            ):
+                result = runner.invoke(cli, ["check-links", f"--d={temp_dir}"])
+                print(result.output)
+
+                # Test should pass because all links are live
+                assert result.exit_code == 0
+
+                # Verify the link was checked exactly once despite appearing in two files
+                assert live_link in check_counts
+                assert check_counts[live_link] == 1
+
+                # Verify output shows correct count of links
+                assert "All 1 links are good" in result.output
