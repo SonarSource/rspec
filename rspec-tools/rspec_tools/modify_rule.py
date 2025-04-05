@@ -232,22 +232,8 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                     f"No files were modified. Text '{search_text}' not found in any rule files."
                 )
 
-            # AI! factor out this search for labels into a separate function
             # Get all relevant labels based on affected rules
-            all_labels = set()
-            for rule_id in affected_rule_ids:
-                rule_path = rules_dir / rule_id
-                # Add labels for language-specific rule folders
-                for item in rule_path.iterdir():
-                    if item.is_dir():
-                        try:
-                            label = get_label_for_language(item.name)
-                            all_labels.add(label)
-                        except InvalidArgumentError:
-                            # Not a language folder, skip
-                            pass
-
-            labels = list(all_labels)
+            labels = self._get_labels_for_affected_rules(rules_dir, affected_rule_ids)
 
         # Create PR title and description
         affected_rules_str = ",".join(sorted(affected_rule_ids))
@@ -277,6 +263,34 @@ The rules won't be updated until this PR is merged."""
             assignee,
         )
 
+    def _get_labels_for_affected_rules(
+        self, rules_dir: Path, affected_rule_ids: Set[str]
+    ) -> List[str]:
+        """
+        Get all relevant labels based on affected rules.
+
+        Args:
+            rules_dir: Path to the rules directory
+            affected_rule_ids: Set of affected rule IDs (e.g., 'S1234')
+
+        Returns:
+            List of GitHub labels to add to the PR
+        """
+        all_labels = set()
+        for rule_id in affected_rule_ids:
+            rule_path = rules_dir / rule_id
+            # Add labels for language-specific rule folders
+            for item in rule_path.iterdir():
+                if item.is_dir():
+                    try:
+                        label = get_label_for_language(item.name)
+                        all_labels.add(label)
+                    except InvalidArgumentError:
+                        # Not a language folder, skip
+                        pass
+                        
+        return list(all_labels)
+        
     def _find_assignee_from_file_history(
         self, token: str, user: Optional[str], modified_files: List[str]
     ) -> Optional[str]:
