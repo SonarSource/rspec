@@ -101,7 +101,7 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
     help="Replace in all rule files instead of a specific file",
 )
 def replace_text(
-    file: Optional[str],
+    file: Optional[str], # AI! remove this file parameter. the function should always replace the "search" string with "replace" string in all fiels under the "rules/" directory. Also rename it into "replace_text_in_rules"
     search: str,
     replace: str,
     title: Optional[str],
