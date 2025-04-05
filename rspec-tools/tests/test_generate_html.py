@@ -91,49 +91,55 @@ This is a sample rule with a [link](https://example.com).
             original_metadata = json.load(f)
 
         assert copied_metadata == original_metadata, "Metadata files don't match"
-    
+
     def test_generate_html_multiple_rules(self):
         """Test that generate_html processes multiple rules with multiple language specializations."""
         # Create a second rule for python
         rule2_dir = self.rules_dir / "S456" / "python"
         rule2_dir.mkdir(parents=True)
-        
+
         with open(rule2_dir / "rule.adoc", "w") as f:
-            f.write("= Second Rule Python\n\n== Description\n\nSecond rule python description.")
-        
+            f.write(
+                "= Second Rule Python\n\n== Description\n\nSecond rule python description."
+            )
+
         with open(rule2_dir / "metadata.json", "w") as f:
             json.dump({"title": "Second Rule Python", "status": "ready"}, f)
-        
+
         # Add cfamily specialization for first rule
         cfamily1_dir = self.rules_dir / "S123" / "cfamily"
         cfamily1_dir.mkdir(parents=True)
-        
+
         with open(cfamily1_dir / "rule.adoc", "w") as f:
-            f.write("= First Rule CFamily\n\n== Description\n\nFirst rule cfamily description.")
-        
+            f.write(
+                "= First Rule CFamily\n\n== Description\n\nFirst rule cfamily description."
+            )
+
         with open(cfamily1_dir / "metadata.json", "w") as f:
             json.dump({"title": "First Rule CFamily", "status": "ready"}, f)
-        
+
         # Add cfamily specialization for second rule
         cfamily2_dir = self.rules_dir / "S456" / "cfamily"
         cfamily2_dir.mkdir(parents=True)
-        
+
         with open(cfamily2_dir / "rule.adoc", "w") as f:
-            f.write("= Second Rule CFamily\n\n== Description\n\nSecond rule cfamily description.")
-        
+            f.write(
+                "= Second Rule CFamily\n\n== Description\n\nSecond rule cfamily description."
+            )
+
         with open(cfamily2_dir / "metadata.json", "w") as f:
             json.dump({"title": "Second Rule CFamily", "status": "ready"}, f)
-        
+
         # Run generate_html
         runner = CliRunner()
         result = runner.invoke(
             generate_html,
             ["--rules-dir", str(self.rules_dir), "--output-dir", str(self.output_dir)],
         )
-        
+
         # Check command execution was successful
         assert result.exit_code == 0
-        
+
         # Check all 4 HTML files were created
         expected_files = [
             self.output_dir / "S123" / "python" / "rule.html",
@@ -141,10 +147,10 @@ This is a sample rule with a [link](https://example.com).
             self.output_dir / "S456" / "python" / "rule.html",
             self.output_dir / "S456" / "cfamily" / "rule.html",
         ]
-        
+
         for file_path in expected_files:
             assert file_path.exists(), f"Expected HTML file not found: {file_path}"
-        
+
         # Check all 4 metadata files were copied
         expected_metadata_files = [
             self.output_dir / "S123" / "python" / "metadata.json",
@@ -152,19 +158,19 @@ This is a sample rule with a [link](https://example.com).
             self.output_dir / "S456" / "python" / "metadata.json",
             self.output_dir / "S456" / "cfamily" / "metadata.json",
         ]
-        
+
         for file_path in expected_metadata_files:
             assert file_path.exists(), f"Expected metadata file not found: {file_path}"
-        
+
         # Check content of HTML files
         with open(expected_files[0], "r") as f:
             assert "Sample Rule Title" in f.read()
-        
+
         with open(expected_files[1], "r") as f:
             assert "First Rule CFamily" in f.read()
-            
+
         with open(expected_files[2], "r") as f:
             assert "Second Rule Python" in f.read()
-            
+
         with open(expected_files[3], "r") as f:
             assert "Second Rule CFamily" in f.read()
