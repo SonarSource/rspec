@@ -349,7 +349,7 @@ The rule won't be updated until this PR is merged."""
                 )
 
         # Create PR title and description
-        title = f"Modify rules {','.join(sorted(affected_rule_ids))}: global text replacement"
+        title = f"Modify rules {','.join(sorted(affected_rule_ids))}: global text replacement" #AI! use singular "Modify rule" here if only one rule is modified. raise an error if no rules were modified
 
         description = custom_description or (
             f"""Global text replacement across rule files:
