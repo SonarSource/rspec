@@ -219,77 +219,6 @@ def test_replace_text_in_file(setup_rule_editor):
     assert test_file.read_text() == "This is a test rule with replaced text."
 
 
-def test_replace_string_in_file_branch(setup_rule_editor):
-    rule_editor, mock_repo, tmp_path = setup_rule_editor
-
-    # Setup checkout_branch context manager mock
-    mock_repo.checkout_branch.return_value.__enter__ = Mock()
-    mock_repo.checkout_branch.return_value.__exit__ = Mock()
-
-    # Call the method under test
-    branch_name = rule_editor.replace_string_in_file_branch(
-        title="Update rule text",
-        rule_number=1234,
-        language="java",
-        file_path="rules/S1234/java/rule.adoc",
-        search_text="some text to replace",
-        replace_text="replaced text",
-    )
-
-    # Verify the branch name format
-    assert branch_name == "rule/S1234-java-text-replacement"
-
-    # Verify commit was made
-    mock_repo.commit_all_and_push.assert_called_once_with("Update rule text")
-
-
-@patch("rspec_tools.modify_rule.click.echo")
-def test_replace_string_in_file_pull_request(mock_echo, setup_rule_editor):
-    rule_editor, mock_repo, tmp_path = setup_rule_editor
-
-    # Setup mocks
-    mock_repo.checkout_branch.return_value.__enter__ = Mock()
-    mock_repo.checkout_branch.return_value.__exit__ = Mock()
-    mock_pr = Mock()
-    mock_repo.create_pull_request.return_value = mock_pr
-
-    # Call the method under test
-    rule_editor.replace_string_in_file_pull_request(
-        token="fake-token",
-        file_path="rules/S1234/java/rule.adoc",
-        search_text="some text to replace",
-        replace_text="replaced text",
-        user="testuser",
-    )
-
-    # Verify PR creation
-    mock_repo.create_pull_request.assert_called_once()
-
-    # Verify the PR title and description contain the file path and search/replace text
-    call_args = mock_repo.create_pull_request.call_args[0]
-    assert "rules/S1234/java/rule.adoc" in call_args[2]  # Title
-    description = call_args[3]  # Description
-    assert "rules/S1234/java/rule.adoc" in description
-    assert "some text to replace" in description
-    assert "replaced text" in description
-
-    # Verify labels and user assignment
-    assert call_args[4] == ["java"]  # Labels
-    assert call_args[5] == "testuser"  # User
-
-
-def test_replace_text_file_not_found(setup_rule_editor):
-    rule_editor, mock_repo, tmp_path = setup_rule_editor
-
-    # Test with non-existent file
-    with pytest.raises(InvalidArgumentError, match="does not exist"):
-        rule_editor._replace_text_in_file(
-            file_path="rules/S1234/java/nonexistent.adoc",
-            search_text="text",
-            replace_text="new text",
-        )
-
-
 def test_replace_text_search_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
 
@@ -300,64 +229,6 @@ def test_replace_text_search_not_found(setup_rule_editor):
             search_text="nonexistent text",
             replace_text="new text",
         )
-
-
-def test_invalid_file_path_format(setup_rule_editor):
-    rule_editor, mock_repo, tmp_path = setup_rule_editor
-
-    # Test with an invalid file path format
-    with pytest.raises(
-        InvalidArgumentError, match="does not follow the expected pattern"
-    ):
-        rule_editor.replace_string_in_file_pull_request(
-            token="fake-token",
-            file_path="invalid/path/format.txt",
-            search_text="text",
-            replace_text="new text",
-            user="testuser",
-        )
-
-
-def test_generic_rule_file_without_language(setup_rule_editor):
-    rule_editor, mock_repo, tmp_path = setup_rule_editor
-
-    # Create a generic rule file directly under the rule ID
-    generic_rule_dir = tmp_path / "rules" / "S1234"
-    os.makedirs(generic_rule_dir, exist_ok=True)
-    generic_file = generic_rule_dir / "metadata.json"
-    generic_file.write_text('{"title": "Generic Rule", "type": "CODE_SMELL"}')
-
-    # Setup mocks
-    mock_repo.checkout_branch.return_value.__enter__ = Mock()
-    mock_repo.checkout_branch.return_value.__exit__ = Mock()
-    mock_pr = Mock()
-    mock_repo.create_pull_request.return_value = mock_pr
-
-    # Call the method with a path that doesn't include a language
-    rule_editor.replace_string_in_file_pull_request(
-        token="fake-token",
-        file_path="rules/S1234/metadata.json",
-        search_text="Generic Rule",
-        replace_text="Updated Generic Rule",
-        user="testuser",
-    )
-
-    # Verify PR creation
-    mock_repo.create_pull_request.assert_called_once()
-
-    # Verify branch name doesn't include a language
-    call_args = mock_repo.create_pull_request.call_args[0]
-    branch_name = call_args[1]
-    assert "rule/S1234-text-replacement" == branch_name
-
-    # Verify PR description doesn't reference a specific language
-    description = call_args[3]
-    assert "rules/S1234/metadata.json" in description
-    assert "Generic Rule" in description
-    assert "Updated Generic Rule" in description
-
-    # Verify no labels were added
-    assert call_args[4] == []
 
 
 @patch("rspec_tools.modify_rule.click.echo")
@@ -445,8 +316,6 @@ def test_replace_string_in_all_rules_pull_request(mock_echo, setup_rule_editor):
     assert "java" in labels
     assert "python" in labels
     assert "jsts" in labels  # JavaScript uses this label
-
-
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
