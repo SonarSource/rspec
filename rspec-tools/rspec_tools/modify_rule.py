@@ -142,7 +142,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         self,
         title: str,
         rule_number: int,
-        language: str,
+        language: Optional[str],
         file_path: str,
         search_text: str,
         replace_text: str,
@@ -153,7 +153,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         Args:
             title: Commit message
             rule_number: Rule number (e.g., 1234 for S1234)
-            language: Language identifier (e.g., "java")
+            language: Language identifier (e.g., "java") or None for generic files
             file_path: Path to the file relative to the repository root
             search_text: Text to search for
             replace_text: Text to replace with
@@ -161,7 +161,8 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         Returns:
             Name of the created branch
         """
-        branch_name = f"rule/S{rule_number}-{language}-text-replacement"
+        branch_suffix = f"{language}-" if language else ""
+        branch_name = f"rule/S{rule_number}-{branch_suffix}text-replacement"
         with self.rspec_repo.checkout_branch(
             self.rspec_repo.master_branch, branch_name
         ):
@@ -170,7 +171,6 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
         return branch_name
 
-    #AI! file_path does not have to include {language}. if no folder follows the rule id, set language to none, add a test for this, and adjust replace_string_in_file_branch to accapt optional language parameter
     def replace_string_in_file_pull_request(
         self,
         token: str,
@@ -186,7 +186,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
         Args:
             token: GitHub token
-            file_path: Path to the file relative to the repository root (must follow pattern 'rules/S{rule_number}/{language}/...')
+            file_path: Path to the file relative to the repository root (must follow pattern 'rules/S{rule_number}/...')
             search_text: Text to search for
             replace_text: Text to replace with
             user: GitHub username to assign the PR to
@@ -195,19 +195,25 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         """
         # Extract rule number and language from file path
         path_parts = Path(file_path).parts
-        if (
-            len(path_parts) < 3
-            or path_parts[0] != "rules"
-            or not path_parts[1].startswith("S")
-        ):
+        if len(path_parts) < 2 or path_parts[0] != "rules" or not path_parts[1].startswith("S"):
             raise InvalidArgumentError(
-                f"File path '{file_path}' does not follow the expected pattern 'rules/S{{rule_number}}/{{language}}/...'"
+                f"File path '{file_path}' does not follow the expected pattern 'rules/S{{rule_number}}/...'"
             )
 
         rule_id = path_parts[1]
-        language = path_parts[2]
         rule_number = resolve_rule(rule_id)
-        label = get_label_for_language(language)
+        
+        # Check if there's a language component
+        language = None
+        label = None
+        if len(path_parts) >= 3:
+            language = path_parts[2]
+            try:
+                label = get_label_for_language(language)
+            except InvalidArgumentError:
+                # If not a valid language, assume it's just a subfolder
+                language = None
+                label = None
         title = (
             custom_title or f"Modify rule S{rule_number}: update text in {file_path}"
         )
@@ -216,22 +222,36 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         )
         click.echo(f"Created rule branch {branch_name}")
 
-        description = custom_description or (
-            f"""See the original rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}).
+        # Create description with or without language reference
+        if language:
+            description = custom_description or (
+                f"""See the original rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}).
 
 Text replacement in file `{file_path}`:
 - Search: `{search_text}`
 - Replace: `{replace_text}`
 
 The rule won't be updated until this PR is merged."""
-        )
+            )
+        else:
+            description = custom_description or (
+                f"""See the rule S{rule_number} [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}).
 
+Text replacement in file `{file_path}`:
+- Search: `{search_text}`
+- Replace: `{replace_text}`
+
+The rule won't be updated until this PR is merged."""
+            )
+
+        # Create PR with or without label
+        labels = [label] if label else []
         return self.rspec_repo.create_pull_request(
             token,
             branch_name,
             title,
             description,
-            [label],
+            labels,
             user,
         )
 

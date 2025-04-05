@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -315,6 +316,48 @@ def test_invalid_file_path_format(setup_rule_editor):
             replace_text="new text",
             user="testuser",
         )
+
+
+def test_generic_rule_file_without_language(setup_rule_editor):
+    rule_editor, mock_repo, tmp_path = setup_rule_editor
+
+    # Create a generic rule file directly under the rule ID
+    generic_rule_dir = tmp_path / "rules" / "S1234"
+    os.makedirs(generic_rule_dir, exist_ok=True)
+    generic_file = generic_rule_dir / "metadata.json"
+    generic_file.write_text('{"title": "Generic Rule", "type": "CODE_SMELL"}')
+
+    # Setup mocks
+    mock_repo.checkout_branch.return_value.__enter__ = Mock()
+    mock_repo.checkout_branch.return_value.__exit__ = Mock()
+    mock_pr = Mock()
+    mock_repo.create_pull_request.return_value = mock_pr
+
+    # Call the method with a path that doesn't include a language
+    rule_editor.replace_string_in_file_pull_request(
+        token="fake-token",
+        file_path="rules/S1234/metadata.json",
+        search_text="Generic Rule",
+        replace_text="Updated Generic Rule",
+        user="testuser",
+    )
+
+    # Verify PR creation
+    mock_repo.create_pull_request.assert_called_once()
+
+    # Verify branch name doesn't include a language
+    call_args = mock_repo.create_pull_request.call_args[0]
+    branch_name = call_args[1]
+    assert "rule/S1234-text-replacement" == branch_name
+    
+    # Verify PR description doesn't reference a specific language
+    description = call_args[3]
+    assert "rules/S1234/metadata.json" in description
+    assert "Generic Rule" in description
+    assert "Updated Generic Rule" in description
+    
+    # Verify no labels were added
+    assert call_args[4] == []
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
