@@ -43,8 +43,8 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
     batches = [
         rule_files[i : i + batch_size] for i in range(0, len(rule_files), batch_size)
     ]
-    
-    # Prepare arguments for each batch 
+
+    # Prepare arguments for each batch
     batch_args = [(batch, rules_dir, out_dir) for batch in batches]
 
     try:
