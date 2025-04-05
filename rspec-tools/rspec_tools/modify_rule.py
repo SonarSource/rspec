@@ -259,6 +259,7 @@ The rule won't be updated until this PR is merged."""
         if not rule_path.exists() or not rule_path.is_dir():
             raise RuleNotFoundError(f"Rule S{rule_number} not found")
 
+        #AI! there is no need to check for language and the rule_number. remove these two checks and the rule_number and language parameters
         # Check if language directory exists
         lang_path = rule_path / language
         if not lang_path.exists() or not lang_path.is_dir():
