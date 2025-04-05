@@ -206,7 +206,9 @@ def notify_failure_on_slack(message: str, channel: str):
 
 
 @cli.command()
-@click.option("--repo", required=True, help="Repository name in the format 'owner/repo'")
+@click.option(
+    "--repo", required=True, help="Repository name in the format 'owner/repo'"
+)
 @click.option("--file", required=True, help="Path to the file within the repository")
 @click.option("--user", required=False, help="GitHub username for authentication")
 def get_file_modifier(repo: str, file: str, user: Optional[str]):
@@ -215,9 +217,9 @@ def get_file_modifier(repo: str, file: str, user: Optional[str]):
     if not token:
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         raise click.Abort()
-    
+
     from rspec_tools.repo import get_last_file_modifier
-    
+
     result = get_last_file_modifier(token, repo, file, user)
     if result:
         click.echo(f"Last modified by: {result.get('login', 'Unknown')}")
