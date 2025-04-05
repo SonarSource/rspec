@@ -363,14 +363,26 @@ def replace_broken_links(
         archived_link = f"https://web.archive.org/web/{broken_link}"
         click.echo(f"Creating PR to replace {broken_link} with {archived_link}")
 
-        description = f"""Replace broken link with archived version
+        description = f"""Please find an appropriate replacement for {broken_link}.
+
+This automated PR was created because the link was no longer accessible.
+
+Note, you are assigned to this PR only because you've been the last person to modify one of the affected rules.
+Feel free to reassign to someone more appropriate.
+
+Additionally, our link checker is sometimes blocked by bot-protection, so if you can reliably access the url in question, instead of replacing the link, add it to the exceptions.
+To add a link to the exceptions, add an entry in `EXCEPTION_PREFIXES` in the rspec-tools/rspec_tools/checklinks.py file.
+Don't forget to revert the changes proposed in this PR or merge your exception separately and close this PR without merging.
 
 Original link: {broken_link}
 Archived link: {archived_link}
 
-This automated PR was created because the link was no longer accessible. Using the Internet Archive's Wayback Machine ensures that readers can still access the referenced content.
+The proposed replacement is very naive and relies on the Wayback Machine, which ideally should not be used for this purpose.
+In the worst case, using the Internet Archive's Wayback Machine ensures that readers can still access the referenced content.
+Please try to find the appropriate replacement link.
 
-Files containing this link:
+
+Files containing the broken link:
 """
         for file_entry in urls[broken_link]:
             if "adoc" in file_entry:
@@ -387,7 +399,7 @@ Files containing this link:
                 token,
                 user,
                 description,
-                "fix broken link with archive.org version",
+                "Fix an inaccessible link",
             )
             click.echo(f"Successfully created PR for {broken_link}")
         except Exception as e:
