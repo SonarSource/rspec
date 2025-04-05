@@ -179,26 +179,28 @@ def generate_html(output_dir: str):
 
     out_dir = Path(output_dir)
     out_dir.mkdir(exist_ok=True)
-    
+
     # Run asciidoctor to generate HTML files
     rules_dir = Path("rules")
     if not rules_dir.exists():
         _fatal_error(f"Rules directory not found: {rules_dir}")
-        
+
     try:
         subprocess.run(
             [
                 "asciidoctor",
-                "-R", str(rules_dir),
-                "-D", str(out_dir),
+                "-R",
+                str(rules_dir),
+                "-D",
+                str(out_dir),
                 "rules/*/*/rule.adoc",
-                "-q"
+                "-q",
             ],
             check=True,
         )
     except subprocess.CalledProcessError as e:
         _fatal_error(f"Error running asciidoctor: {e}")
-    
+
     # Copy metadata.json files to output directory
     for metadata_file in rules_dir.glob("**/metadata.json"):
         # Create relative path to preserve directory structure
@@ -206,7 +208,7 @@ def generate_html(output_dir: str):
         dest_path = out_dir / rel_path
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(metadata_file, dest_path)
-    
+
     click.echo(f"HTML documentation generated in {out_dir}")
 
 
