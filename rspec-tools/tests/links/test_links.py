@@ -113,7 +113,7 @@ This rule contains a <a href="https://example.com/nonexistent">dead link</a>.
         runner = CliRunner()
         with runner.isolated_filesystem():
             result = runner.invoke(
-                cli.cli, ["check-links", f"--d={output_dir}", f"--r={rules_dir}"]
+                cli, ["check-links", f"--d={output_dir}", f"--r={rules_dir}"]
             )
 
             print(result.output)
