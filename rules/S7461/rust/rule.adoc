@@ -1,0 +1,41 @@
+
+== Why is this an issue?
+
+When a type implements `Borrow<T>`, it should provide consistent behavior between the borrowed and owned values, especially regarding `Eq`, `Ord`, and `Hash`. However, `str` and `[u8]` have different Hash implementations, leading to inconsistent hash values for the same underlying data when accessed through different Borrow implementations. This violates the principle that `hash(x) == hash((x as Borrow<[u8]>).borrow()) == hash((x as Borrow<str>).borrow())` must hold, and can cause issues with hash-based collections and comparisons.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,rust]
+----
+use std::borrow::Borrow;
+use std::hash::{Hash, Hasher};
+
+struct ExampleType {
+    data: String,
+}
+
+impl Hash for ExampleType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.data.hash(state); // Noncompliant: Inconsistent Hash
+    }
+}
+
+impl Borrow<str> for ExampleType {
+    fn borrow(&self) -> &str {
+        &self.data
+    }
+}
+
+impl Borrow<[u8]> for ExampleType {
+    fn borrow(&self) -> &[u8] {
+        self.data.as_bytes()
+    }
+}
+----
+
+== Resources
+=== Documentation
+
+* Clippy Lints - https://rust-lang.github.io/rust-clippy/master/index.html#impl_hash_borrow_with_str_and_bytes
