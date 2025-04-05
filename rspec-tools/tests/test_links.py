@@ -411,20 +411,21 @@ def test_multiple_links_in_file():
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create history file
         history_file = create_history_file(temp_dir)
-        
+
         # Create rule path
         rule_dir = pathlib.Path(temp_dir) / "S200" / "java"
         os.makedirs(rule_dir, exist_ok=True)
-        
+
         # Create metadata files
         with open(pathlib.Path(temp_dir) / "S200" / "metadata.json", "w") as f:
             f.write('{"status": "ready"}')
         with open(rule_dir / "metadata.json", "w") as f:
             f.write('{"status": "ready"}')
-        
+
         # Create HTML file with TWO links
         with open(rule_dir / "rule.html", "w") as f:
-            f.write("""<!DOCTYPE html>
+            f.write(
+                """<!DOCTYPE html>
 <html>
 <head><title>Test Multiple Links</title></head>
 <body>
@@ -432,31 +433,34 @@ def test_multiple_links_in_file():
 <a href="https://example.com/link2">link two</a>.</p>
 </body>
 </html>
-""")
-        
+"""
+            )
+
         # Run test in isolated filesystem
         runner = CliRunner()
         with runner.isolated_filesystem():
             # Create symlink to history file
             os.symlink(history_file, "./link_probes.history")
-            
+
             # Track which URLs were checked
             checked_urls = []
-            
+
             def mock_live_url(url, timeout=5):
                 checked_urls.append(url)
                 return True
-            
-            with mock.patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
+
+            with mock.patch(
+                "rspec_tools.checklinks.live_url", side_effect=mock_live_url
+            ):
                 result = runner.invoke(cli, ["check-links", f"--d={temp_dir}"])
                 print(result.output)
-                
+
                 # Test should pass because both links are valid
                 assert result.exit_code == 0
-                
+
                 # Verify both links were checked
                 assert "https://example.com/link1" in checked_urls
                 assert "https://example.com/link2" in checked_urls
-                
+
                 # Verify output shows correct number of links
                 assert "All 2 links are good" in result.output
