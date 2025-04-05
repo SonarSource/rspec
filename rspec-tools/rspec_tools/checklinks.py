@@ -26,9 +26,13 @@ EXCEPTION_PREFIXES = [
 ]
 
 
-def show_files(filenames):
-    for filename in filenames:
-        print(filename)
+def show_files(file_entries):
+    for entry in file_entries:
+        # Prefer showing the original .adoc file if available
+        if "adoc" in entry:
+            print(entry["adoc"])
+        else:
+            print(entry["html"])
 
 
 def load_url_probing_history():
@@ -129,15 +133,28 @@ def live_url(url: str, timeout=5):
         return False
 
 
-def findurl_in_html(filename, urls):
+def findurl_in_html(filename, urls, rules_dir=None, output_dir=None):
     with open(filename, "r", encoding="utf8") as file:
         soup = BeautifulSoup(file, features="html.parser")
         for link in soup.find_all("a"):
             key = link.get("href")
+            
+            # Track both HTML file and the original adoc file if possible
+            file_entry = {"html": filename}
+            
+            # If rules_dir and output_dir are provided, calculate the original adoc file
+            if rules_dir and output_dir:
+                # Convert output/S123/java/rule.html -> rules/S123/java/rule.adoc
+                rel_path = pathlib.Path(filename).relative_to(output_dir)
+                rel_path = rel_path.with_suffix('.adoc')
+                original_file = pathlib.Path(rules_dir) / rel_path
+                if original_file.exists():
+                    file_entry["adoc"] = str(original_file)
+            
             if key in urls:
-                urls[key].append(filename)
+                urls[key].append(file_entry)
             else:
-                urls[key] = [filename]
+                urls[key] = [file_entry]
 
 
 def is_active(metadata_fname, generic_metadata_fname):
@@ -155,10 +172,10 @@ def is_active(metadata_fname, generic_metadata_fname):
     return True
 
 
-def get_all_links_from_htmls(dir):
+def get_all_links_from_htmls(output_dir, rules_dir=None):
     print("Finding links in html files")
     urls = {}
-    for rulepath in pathlib.Path(dir).iterdir():
+    for rulepath in pathlib.Path(output_dir).iterdir():
         if not rulepath.is_dir():
             continue
         generic_metadata = rulepath.joinpath("metadata.json")
@@ -169,7 +186,7 @@ def get_all_links_from_htmls(dir):
             filepath = langpath.joinpath("rule.html")
             filename = str(filepath.absolute())
             if filepath.exists() and is_active(metadata, generic_metadata):
-                findurl_in_html(filename, urls)
+                findurl_in_html(filename, urls, rules_dir, output_dir)
     print("All html files crawled")
     return urls
 
@@ -238,12 +255,17 @@ def report_errors(errors, urls):
     print("There were errors")
     for key in errors:
         print(f"{key} in:")
-        show_files(urls[key])
+        for file_entry in urls[key]:
+            # Use the original .adoc file if available, otherwise use the HTML file
+            if "adoc" in file_entry:
+                print(file_entry["adoc"])
+            else:
+                print(file_entry["html"])
 
 
-def check_html_links(dir):
+def check_html_links(output_dir, rules_dir=None):
     load_url_probing_history()
-    urls = get_all_links_from_htmls(dir)
+    urls = get_all_links_from_htmls(output_dir, rules_dir)
     success = probe_links(urls)
     if success:
         print(f"All {len(urls)} links are good")

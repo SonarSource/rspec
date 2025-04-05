@@ -39,10 +39,11 @@ def cli(debug):
 
 
 @cli.command()
-@click.option("--d", required=True)
-def check_links(d):
-    """Check links in html."""
-    check_html_links(d)
+@click.option("--d", required=True, help="Directory containing generated HTML files")
+@click.option("--r", required=False, help="Original rules directory containing adoc files")
+def check_links(d, r=None):
+    """Check links in html and report original adoc files."""
+    check_html_links(d, r)
 
 
 @cli.command()

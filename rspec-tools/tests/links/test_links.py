@@ -6,7 +6,7 @@ def test_find_urls():
     urls = {}
     checklinks.findurl_in_html("tests/links/404/S100/java/rule.html", urls)
     assert urls == {
-        "https://www.google.com/404": ["tests/links/404/S100/java/rule.html"]
+        "https://www.google.com/404": [{"html": "tests/links/404/S100/java/rule.html"}]
     }
     assert len(urls) == 1
 
