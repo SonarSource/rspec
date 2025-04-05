@@ -30,8 +30,6 @@ def update_rule_quickfix_status(
 
 
 def replace_string_in_file(
-    rule: str,
-    language: str,
     file_path: str,
     search_text: str,
     replace_text: str,
@@ -44,8 +42,6 @@ def replace_string_in_file(
     Create a pull request to replace a string in a specific file.
 
     Args:
-        rule: Rule ID (e.g., "S1234")
-        language: Language name (e.g., "java")
         file_path: Path to the file relative to the repository root
         search_text: Text to search for
         replace_text: Text to replace with
@@ -54,17 +50,12 @@ def replace_string_in_file(
         title: Custom PR title (optional)
         description: Custom PR description (optional)
     """
-    label = get_label_for_language(language)
-    rule_number = resolve_rule(rule)
     with _rule_editor(token, user) as editor:
         editor.replace_string_in_file_pull_request(
             token,
-            rule_number,
-            language,
             file_path,
             search_text,
             replace_text,
-            label,
             user,
             title,
             description,
@@ -182,12 +173,9 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
     def replace_string_in_file_pull_request(
         self,
         token: str,
-        rule_number: int, #AI! instead of accepting this parameter, infer it from file_path
-        language: str, #AI! instead of accepting this parameter, infer it from file path; adjust callers and cli so that they don't need to provide rule_number and language; Instead if file_path does not follow the structure "rules/<language>/<rule-id>/..." raise an error
         file_path: str,
         search_text: str,
         replace_text: str,
-        label: str,
         user: Optional[str],
         custom_title: Optional[str] = None,
         custom_description: Optional[str] = None,
@@ -197,16 +185,24 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
         Args:
             token: GitHub token
-            rule_number: Rule number (e.g., 1234 for S1234)
-            language: Language identifier (e.g., "java")
-            file_path: Path to the file relative to the repository root
+            file_path: Path to the file relative to the repository root (must follow pattern 'rules/S{rule_number}/{language}/...')
             search_text: Text to search for
             replace_text: Text to replace with
-            label: GitHub label to add to the PR
             user: GitHub username to assign the PR to
             custom_title: Optional custom PR title
             custom_description: Optional custom PR description
         """
+        # Extract rule number and language from file path
+        path_parts = Path(file_path).parts
+        if len(path_parts) < 3 or path_parts[0] != "rules" or not path_parts[1].startswith("S"):
+            raise InvalidArgumentError(
+                f"File path '{file_path}' does not follow the expected pattern 'rules/S{{rule_number}}/{{language}}/...'"
+            )
+            
+        rule_id = path_parts[1]
+        language = path_parts[2]
+        rule_number = resolve_rule(rule_id)
+        label = get_label_for_language(language)
         title = (
             custom_title or f"Modify rule S{rule_number}: update text in {file_path}"
         )
