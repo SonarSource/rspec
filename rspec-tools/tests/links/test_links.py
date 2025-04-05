@@ -170,26 +170,47 @@ def test_deprecated():
         # Create history file
         history_file = create_history_file(temp_dir)
 
-        # Create paths for rule structure
-        rule_dir = pathlib.Path(temp_dir) / "S103" / "java"
-        os.makedirs(rule_dir, exist_ok=True)
+        # 1. Create a deprecated rule with a bad link
+        deprecated_rule_dir = pathlib.Path(temp_dir) / "S103" / "java"
+        os.makedirs(deprecated_rule_dir, exist_ok=True)
 
         # Create generic metadata.json with deprecated status
         with open(pathlib.Path(temp_dir) / "S103" / "metadata.json", "w") as f:
             f.write('{"status": "deprecated"}')
 
-        # Create language-specific metadata.json
-        with open(rule_dir / "metadata.json", "w") as f:
+        # Create language-specific metadata.json for deprecated rule
+        with open(deprecated_rule_dir / "metadata.json", "w") as f:
             f.write('{"status": "deprecated"}')
 
         # Create HTML file with a link that would fail if checked
-        with open(rule_dir / "rule.html", "w") as f:
+        with open(deprecated_rule_dir / "rule.html", "w") as f:
             f.write(
                 """<!DOCTYPE html>
 <html>
 <head><title>Test Deprecated Rule</title></head>
 <body>
 <p>This is a deprecated rule with a <a href="https://example.org/bad-link">bad link</a>.</p>
+</body>
+</html>
+"""
+            )
+            
+        # 2. Create a ready language variant of the same rule
+        ready_rule_dir = pathlib.Path(temp_dir) / "S103" / "python"
+        os.makedirs(ready_rule_dir, exist_ok=True)
+        
+        # Create language-specific metadata.json for ready variant
+        with open(ready_rule_dir / "metadata.json", "w") as f:
+            f.write('{"status": "ready"}')
+            
+        # Create HTML file with a link that would pass when checked
+        with open(ready_rule_dir / "rule.html", "w") as f:
+            f.write(
+                """<!DOCTYPE html>
+<html>
+<head><title>Test Ready Rule Variant</title></head>
+<body>
+<p>This is a ready variant of the rule with a <a href="https://www.google.com">good link</a>.</p>
 </body>
 </html>
 """
@@ -201,15 +222,23 @@ def test_deprecated():
             # Create symlink to history file
             os.symlink(history_file, "./link_probes.history")
 
-            # Even with a mock that returns False for our test URL
-            # the test should pass because deprecated rules are skipped
-            with mock.patch("rspec_tools.checklinks.live_url", return_value=False):
+            # Use a mock to handle different URLs differently:
+            # - Return False for the bad link in the deprecated rule
+            # - Return True for the good link in the ready rule variant
+            def mock_live_url(url, timeout=5):
+                if "example.org/bad-link" in url:
+                    return False
+                return True
+
+            with mock.patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
                 result = runner.invoke(cli, ["check-links", f"--d={temp_dir}"])
                 print(result.output)
 
-                # Should pass because deprecated rules are skipped
+                # Should pass because:
+                # 1. Deprecated rule links are skipped
+                # 2. The ready rule variant has a valid link
                 assert result.exit_code == 0
-                assert "All 0 links are good" in result.output
+                assert "All 1 links are good" in result.output
 
 
 def create_rule_with_adoc(
