@@ -15,19 +15,28 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
     if not rules_dir.exists():
         raise click.ClickException(f"Rules directory not found: {rules_dir}")
 
+    # Get all rule.adoc files
+    rule_files = list(rules_dir.glob("/*/*/rule.adoc"))
+    
+    # Process files in batches of 20
+    batch_size = 20
+    batches = [rule_files[i:i + batch_size] for i in range(0, len(rule_files), batch_size)]
+    
     try:
-        subprocess.run(
-            [
-                "asciidoctor",
-                "-R",
-                str(rules_dir),
-                "-D",
-                str(out_dir),
-                f"{rules_dir}/*/*/rule.adoc",
-                "-q",
-            ],
-            check=True,
-        )
+        for batch_num, batch in enumerate(batches, 1):
+            # Convert files in this batch
+            subprocess.run(
+                [
+                    "asciidoctor",
+                    "-R",
+                    str(rules_dir),
+                    "-D",
+                    str(out_dir),
+                    *[str(file) for file in batch],
+                    "-q",
+                ],
+                check=True,
+            )
     except subprocess.CalledProcessError as e:
         raise click.ClickException(f"Error running asciidoctor: {e}")
 
