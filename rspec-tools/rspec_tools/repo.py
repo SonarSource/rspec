@@ -9,8 +9,6 @@ from git import Repo
 from github import Github
 from github.GithubException import GithubException
 
-from rspec_tools.utils import get_default_branch
-
 
 def _auto_github(token: str) -> Callable[[Optional[str]], Github]:
     def ret(user: Optional[str]):
@@ -37,7 +35,7 @@ class RspecRepo:
     ):
         self.repository = Repo.clone_from(origin_url, clone_directory)
         self.origin_url = origin_url
-        self.master_branch = get_default_branch(self.repository)
+        self.master_branch = 'master'
 
         # Create local branches tracking remote ones
         for branch in [self.master_branch, self.ID_COUNTER_BRANCH]:

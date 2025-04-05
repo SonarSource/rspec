@@ -13,7 +13,6 @@ from rspec_tools.modify_rule import (
     update_rule_quickfix_status,
 )
 from rspec_tools.repo import RspecRepo
-from rspec_tools.utils import get_default_branch
 
 from tests.conftest import mock_github
 
@@ -33,7 +32,7 @@ def test_update_quickfix_status_branch1(
     sub_path = Path("rules", f"S{rule_number}", language, "metadata.json")
     metadata_path = Path(mock_git_rspec_repo.working_dir) / sub_path
 
-    mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
+    mock_git_rspec_repo.git.checkout('master')
     initial_metadata = json.loads(metadata_path.read_text())
     assert "quickfix" not in initial_metadata  # It is in the parent metadata.json file.
 
@@ -51,9 +50,7 @@ def test_update_quickfix_status_branch1(
         assert initial_metadata[key] == new_metadata[key]
 
     # Ensure only one file is modified.
-    modified_files = mock_git_rspec_repo.git.diff(
-        get_default_branch(mock_git_rspec_repo), "--name-only"
-    ).strip()
+    modified_files = mock_git_rspec_repo.git.diff('master', "--name-only").strip()
     assert Path(modified_files) == sub_path
 
 
@@ -66,7 +63,7 @@ def test_update_quickfix_status_branch2(
 
     sub_path = Path("rules", f"S{rule_number}", language, "metadata.json")
     metadata_path = Path(mock_git_rspec_repo.working_dir) / sub_path
-    mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
+    mock_git_rspec_repo.git.checkout('master')
     initial_metadata = json.loads(metadata_path.read_text())
     assert "quickfix" in initial_metadata
     assert initial_metadata["quickfix"] == "targeted"
@@ -86,9 +83,7 @@ def test_update_quickfix_status_branch2(
             assert initial_metadata[key] == new_metadata[key]
 
     # Ensure only one file is modified.
-    modified_files = mock_git_rspec_repo.git.diff(
-        get_default_branch(mock_git_rspec_repo), "--name-only"
-    ).strip()
+    modified_files = mock_git_rspec_repo.git.diff('master', "--name-only").strip()
     assert Path(modified_files) == sub_path
 
 
@@ -106,7 +101,7 @@ def test_update_quickfix_status_branch3(
         language,
         "metadata.json",
     )
-    mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
+    mock_git_rspec_repo.git.checkout('master')
     initial_metadata = json.loads(metadata_path.read_text())
     assert "quickfix" in initial_metadata
     assert initial_metadata["quickfix"] == "targeted"
@@ -131,7 +126,7 @@ def test_update_quickfix_status_branch4(
         language,
         "metadata.json",
     )
-    mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
+    mock_git_rspec_repo.git.checkout('master')
     assert not metadata_path.exists()
 
     with pytest.raises(InvalidArgumentError):

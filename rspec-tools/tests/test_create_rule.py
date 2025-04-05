@@ -7,7 +7,7 @@ from git import Repo
 from rspec_tools.create_rule import add_language_to_rule, create_new_rule, RuleCreator
 from rspec_tools.errors import InvalidArgumentError
 from rspec_tools.repo import RspecRepo
-from rspec_tools.utils import get_default_branch, is_empty_metadata, LANG_TO_SOURCE
+from rspec_tools.utils import is_empty_metadata, LANG_TO_SOURCE
 
 from tests.conftest import mock_github
 
@@ -153,7 +153,7 @@ def test_add_lang_singlelang_nonconventional_rule_create_branch(
     rule_number = 4727
     language = "php"
 
-    mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
+    mock_git_rspec_repo.git.checkout('master')
     orig_rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath(
         "rules", f"S{rule_number}"
     )
@@ -203,7 +203,7 @@ def test_add_lang_singlelang_conventional_rule_create_branch(
     rule_number = 1033
     language = "php"
 
-    mock_git_rspec_repo.git.checkout(get_default_branch(mock_git_rspec_repo))
+    mock_git_rspec_repo.git.checkout('master')
     orig_rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath(
         "rules", f"S{rule_number}"
     )
