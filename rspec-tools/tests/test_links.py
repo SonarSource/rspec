@@ -779,3 +779,31 @@ def test_recheck_old_links():
 
                 # Verify the link was updated in the history file by checking the cache miss statistics
                 assert "link_cache_miss=1" in result.output
+
+
+def test_get_file_modifier_command():
+    """Test the get_file_modifier CLI command."""
+    runner = CliRunner()
+    
+    # Mock the get_last_file_modifier function
+    mock_result = {
+        "login": "test-user",
+        "name": "Test User",
+        "email": "test@example.com",
+        "date": "2023-01-01T00:00:00Z",
+        "message": "Test commit message"
+    }
+    
+    with mock.patch("rspec_tools.repo.get_last_file_modifier", return_value=mock_result):
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"}):
+            result = runner.invoke(
+                cli, ["get-file-modifier", "--repo=owner/repo", "--file=path/to/file"]
+            )
+            
+            # Check command output
+            assert result.exit_code == 0
+            assert "Last modified by: test-user" in result.output
+            assert "Name: Test User" in result.output
+            assert "Email: test@example.com" in result.output
+            assert "Date: 2023-01-01T00:00:00Z" in result.output
+            assert "Commit message: Test commit message" in result.output

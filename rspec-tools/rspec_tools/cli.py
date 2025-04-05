@@ -206,6 +206,30 @@ def notify_failure_on_slack(message: str, channel: str):
 
 
 @cli.command()
+@click.option("--repo", required=True, help="Repository name in the format 'owner/repo'")
+@click.option("--file", required=True, help="Path to the file within the repository")
+@click.option("--user", required=False, help="GitHub username for authentication")
+def get_file_modifier(repo: str, file: str, user: Optional[str]):
+    """Get information about the last user who modified a file in a GitHub repository."""
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        click.echo("GITHUB_TOKEN environment variable is not set", err=True)
+        raise click.Abort()
+    
+    from rspec_tools.repo import get_last_file_modifier
+    
+    result = get_last_file_modifier(token, repo, file, user)
+    if result:
+        click.echo(f"Last modified by: {result.get('login', 'Unknown')}")
+        click.echo(f"Name: {result.get('name', 'Unknown')}")
+        click.echo(f"Email: {result.get('email', 'Unknown')}")
+        click.echo(f"Date: {result.get('date', 'Unknown')}")
+        click.echo(f"Commit message: {result.get('message', 'Unknown')}")
+    else:
+        click.echo("Could not find information about the last modifier", err=True)
+
+
+@cli.command()
 @click.option("--d", required=True, help="Directory containing generated HTML files")
 @click.option(
     "--r", required=False, help="Original rules directory containing adoc files"
