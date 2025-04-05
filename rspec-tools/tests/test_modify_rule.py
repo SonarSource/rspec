@@ -9,6 +9,7 @@ from git import Repo
 from rspec_tools.errors import InvalidArgumentError, RuleNotFoundError
 from rspec_tools.modify_rule import (
     replace_string_in_file,
+    replace_string_in_all_rules,
     RuleEditor,
     update_rule_quickfix_status,
 )
@@ -358,6 +359,93 @@ def test_generic_rule_file_without_language(setup_rule_editor):
 
     # Verify no labels were added
     assert call_args[4] == []
+    
+
+@patch("rspec_tools.modify_rule.click.echo")
+def test_replace_string_in_all_rules_pull_request(mock_echo, setup_rule_editor):
+    rule_editor, mock_repo, tmp_path = setup_rule_editor
+
+    # Create multiple rule directories with files containing the search text
+    rules_dir = tmp_path / "rules"
+    
+    # Create S1234 rule with two language-specific files
+    s1234_dir = rules_dir / "S1234"
+    java_dir = s1234_dir / "java"
+    python_dir = s1234_dir / "python"
+    os.makedirs(java_dir, exist_ok=True)
+    os.makedirs(python_dir, exist_ok=True)
+    
+    java_file = java_dir / "rule.adoc"
+    java_file.write_text("This is a sample rule with TEXT_TO_REPLACE in it.")
+    
+    python_file = python_dir / "rule.adoc"
+    python_file.write_text("Python version with TEXT_TO_REPLACE in a different file.")
+    
+    # Create S5678 rule with a file
+    s5678_dir = rules_dir / "S5678"
+    js_dir = s5678_dir / "javascript"
+    os.makedirs(js_dir, exist_ok=True)
+    
+    js_file = js_dir / "rule.adoc"
+    js_file.write_text("JavaScript rule with TEXT_TO_REPLACE to be changed.")
+    
+    # Create a file that shouldn't match
+    no_match_dir = rules_dir / "S9999" / "go"
+    os.makedirs(no_match_dir, exist_ok=True)
+    no_match_file = no_match_dir / "rule.adoc"
+    no_match_file.write_text("This file doesn't have the text to replace.")
+
+    # Setup mocks
+    mock_repo.checkout_branch.return_value.__enter__ = Mock()
+    mock_repo.checkout_branch.return_value.__exit__ = Mock()
+    mock_pr = Mock()
+    mock_repo.create_pull_request.return_value = mock_pr
+    
+    # Mock datetime to get a predictable branch name
+    with patch('datetime.datetime') as mock_datetime:
+        mock_datetime.now.return_value.timestamp.return_value = 1234567890
+        
+        # Call the method
+        rule_editor.replace_string_in_all_rules_pull_request(
+            token="fake-token",
+            search_text="TEXT_TO_REPLACE",
+            replace_text="REPLACED_TEXT",
+            user="testuser",
+        )
+    
+    # Verify files were modified
+    assert "REPLACED_TEXT" in java_file.read_text()
+    assert "REPLACED_TEXT" in python_file.read_text()
+    assert "REPLACED_TEXT" in js_file.read_text()
+    assert "TEXT_TO_REPLACE" not in java_file.read_text()
+    assert "TEXT_TO_REPLACE" not in python_file.read_text()
+    assert "TEXT_TO_REPLACE" not in js_file.read_text()
+    
+    # The no-match file should be unchanged
+    assert "This file doesn't have the text to replace." == no_match_file.read_text()
+    
+    # Verify PR creation
+    mock_repo.create_pull_request.assert_called_once()
+    
+    # Verify the PR title contains both rule IDs
+    call_args = mock_repo.create_pull_request.call_args[0]
+    title = call_args[2]
+    assert "S1234" in title
+    assert "S5678" in title
+    
+    # Verify PR description includes info about all modified files
+    description = call_args[3]
+    assert "TEXT_TO_REPLACE" in description
+    assert "REPLACED_TEXT" in description
+    assert "rules/S1234/java/rule.adoc" in description
+    assert "rules/S1234/python/rule.adoc" in description
+    assert "rules/S5678/javascript/rule.adoc" in description
+    
+    # Verify labels include all affected languages
+    labels = call_args[4]
+    assert "java" in labels
+    assert "python" in labels
+    assert "jsts" in labels  # JavaScript uses this label
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
@@ -387,3 +475,29 @@ def test_replace_string_in_file_function(mock_rule_editor, mock_tmp_rspec_repo):
     assert pr_mock.call_args.args[4] == "testuser"
     assert pr_mock.call_args.args[5] == "Custom title"
     assert pr_mock.call_args.args[6] == "Custom description"
+
+
+@patch("rspec_tools.modify_rule.tmp_rspec_repo")
+@patch("rspec_tools.modify_rule.RuleEditor")
+def test_replace_string_in_all_rules_function(mock_rule_editor, mock_tmp_rspec_repo):
+    """Test replace_string_in_all_rules properly calls the underlying implementation."""
+    # Setup mock
+    pr_mock = mock_rule_editor.return_value.replace_string_in_all_rules_pull_request
+    
+    # Call the function
+    from rspec_tools.modify_rule import replace_string_in_all_rules
+    replace_string_in_all_rules(
+        search_text="old text",
+        replace_text="new text",
+        token="fake-token",
+        user="testuser",
+        description="Custom description",
+    )
+    
+    # Verify the call
+    pr_mock.assert_called_once()
+    assert pr_mock.call_args.args[0] == "fake-token"
+    assert pr_mock.call_args.args[1] == "old text"
+    assert pr_mock.call_args.args[2] == "new text"
+    assert pr_mock.call_args.args[3] == "testuser"
+    assert pr_mock.call_args.args[4] == "Custom description"
