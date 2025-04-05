@@ -147,13 +147,13 @@ def get_last_file_modifier(
 ) -> Dict[str, str]:
     """
     Retrieves information about the last user who modified a given file in a GitHub repository.
-    
+
     Args:
         token: GitHub authentication token
         repo_name: Name of the repository in the format "owner/repo"
         file_path: Path to the file within the repository
         user: Optional GitHub username for authentication
-        
+
     Returns:
         Dictionary containing 'login', 'id', 'name', and 'email' of the last modifier
         or empty dictionary if the information cannot be retrieved
@@ -162,29 +162,35 @@ def get_last_file_modifier(
         github_api = _auto_github(token)
         github = github_api(user)
         github_repo = github.get_repo(repo_name)
-        
+
         # Get the commit history for the specific file
         commits = github_repo.get_commits(path=file_path)
-        
+
         # Get the most recent commit
         if commits.totalCount > 0:
             last_commit = commits[0]
             author = last_commit.author
             commit_info = last_commit.commit
-            
+
             result = {
                 "login": author.login if author else "Unknown",
                 "id": str(author.id) if author else "Unknown",
                 "name": commit_info.author.name or "Unknown",
                 "email": commit_info.author.email or "Unknown",
-                "date": commit_info.author.date.isoformat() if commit_info.author.date else "Unknown",
-                "message": commit_info.message
+                "date": (
+                    commit_info.author.date.isoformat()
+                    if commit_info.author.date
+                    else "Unknown"
+                ),
+                "message": commit_info.message,
             }
             return result
-        
+
         return {}
     except GithubException as e:
-        click.echo(f"GitHub API error: {e.status} - {e.data.get('message', 'Unknown error')}")
+        click.echo(
+            f"GitHub API error: {e.status} - {e.data.get('message', 'Unknown error')}"
+        )
         return {}
     except Exception as e:
         click.echo(f"Error retrieving last file modifier: {str(e)}")
