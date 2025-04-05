@@ -1,5 +1,7 @@
+import os
 import shutil
 import subprocess
+from multiprocessing import Pool
 from pathlib import Path
 
 import click
@@ -24,21 +26,26 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
         rule_files[i : i + batch_size] for i in range(0, len(rule_files), batch_size)
     ]
 
+    # Function to process a batch of files
+    def process_batch(batch):
+        # Convert files in this batch
+        subprocess.run(
+            [
+                "asciidoctor",
+                "-R",
+                str(rules_dir),
+                "-D",
+                str(out_dir),
+                *[str(file) for file in batch],
+                "-q",
+            ],
+            check=True,
+        )
+        
     try:
-        for batch_num, batch in enumerate(batches, 1): #AI! parallelize this loop, using Pool from multiprocessing
-            # Convert files in this batch
-            subprocess.run(
-                [
-                    "asciidoctor",
-                    "-R",
-                    str(rules_dir),
-                    "-D",
-                    str(out_dir),
-                    *[str(file) for file in batch],
-                    "-q",
-                ],
-                check=True,
-            )
+        # Use Pool to parallelize processing
+        with Pool() as pool:
+            pool.map(process_batch, batches)
     except subprocess.CalledProcessError as e:
         raise click.ClickException(f"Error running asciidoctor: {e}")
 
