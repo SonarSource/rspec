@@ -439,8 +439,8 @@ This is a description for rule S{rule_id} in {lang}.
         # Check last rule, last language
         with open(expected_html_files[-1], "r") as f:
             content = f.read()
-            assert "Swift Rule S1020 Title" in content
-            assert "This is a description for rule S1020 in Swift" in content
+            assert "Swift Rule S1040 Title" in content
+            assert "This is a description for rule S1040 in Swift" in content
 
         # Check total number of files (4 languages × 40 rules = 160 of each type)
         assert len(list(self.output_dir.glob("**/rule.html"))) == rule_count * len(
