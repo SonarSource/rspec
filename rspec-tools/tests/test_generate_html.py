@@ -338,9 +338,9 @@ include::../comments-and-links.adoc[]
 
     def test_generate_html_large_ruleset(self):
         """Test that generate_html can process a large number of rules with multiple language specializations."""
-        # Create 20 rules, each with 4 language specializations
+        # Create 40 rules, each with 4 language specializations
         languages = ["python", "java", "cfamily", "swift"]
-        rule_count = 20
+        rule_count = 40
 
         # Keep track of all expected output files
         expected_html_files = []
@@ -442,7 +442,7 @@ This is a description for rule S{rule_id} in {lang}.
             assert "Swift Rule S1020 Title" in content
             assert "This is a description for rule S1020 in Swift" in content
 
-        # Check total number of files (4 languages × 20 rules = 80 of each type)
+        # Check total number of files (4 languages × 40 rules = 160 of each type)
         assert len(list(self.output_dir.glob("**/rule.html"))) == rule_count * len(
             languages
         )
