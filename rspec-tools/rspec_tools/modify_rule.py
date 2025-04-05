@@ -177,6 +177,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 # Extract rule ID
                 rule_id = rule_path.name
 
+                # AI! factor out these loops into a dedicated function. it should return the set of modified files, if any
                 # Walk through all files in this rule directory
                 for root, _, files in os.walk(rule_path):
                     for file in files:
