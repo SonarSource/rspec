@@ -252,7 +252,7 @@ def test_process_rule_directory(setup_rule_editor):
     binary_file.write_text("Not really binary but has png extension")
 
     # Call the method
-    modified_files = rule_editor._process_rule_directory(
+    modified_files = rule_editor._replace_string_in_rule_directory(
         rule_path, "TEXT_TO_REPLACE", "REPLACED_TEXT"
     )
 

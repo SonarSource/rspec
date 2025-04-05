@@ -183,7 +183,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 rule_id = rule_path.name
 
                 # Process files in this rule directory
-                rule_modified_files = self._process_rule_directory(
+                rule_modified_files = self._replace_string_in_rule_directory(
                     rule_path, search_text, replace_text
                 )
                 if rule_modified_files:
@@ -241,7 +241,7 @@ The rules won't be updated until this PR is merged."""
             assignee,
         )
 
-    def _process_rule_directory(
+    def _replace_string_in_rule_directory(
         self, rule_path: Path, search_text: str, replace_text: str
     ) -> List[str]:
         """
