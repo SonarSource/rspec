@@ -177,41 +177,13 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 # Extract rule ID
                 rule_id = rule_path.name
 
-                # AI! factor out these loops into a dedicated function. it should return the set of modified files, if any
-                # Walk through all files in this rule directory
-                for root, _, files in os.walk(rule_path):
-                    for file in files:
-                        file_path = Path(root) / file
-                        relative_path = file_path.relative_to(self.repo_dir)
-
-                        # Skip binary files and special directories
-                        if file_path.suffix in (
-                            ".png",
-                            ".jpg",
-                            ".jpeg",
-                            ".gif",
-                            ".svg",
-                        ):
-                            continue
-
-                        try:
-                            # Read the file content
-                            try:
-                                content = file_path.read_text(encoding="utf-8")
-                            except UnicodeDecodeError:
-                                # Skip binary files
-                                continue
-
-                            # Check if the search text exists in the file
-                            if search_text in content:
-                                # Replace the text
-                                new_content = content.replace(search_text, replace_text)
-                                file_path.write_text(new_content, encoding="utf-8")
-                                modified_files.append(str(relative_path))
-                                affected_rule_ids.add(rule_id)
-                                click.echo(f"Modified {relative_path}")
-                        except Exception as e:
-                            click.echo(f"Error processing {relative_path}: {str(e)}")
+                # Process files in this rule directory
+                rule_modified_files = self._process_rule_directory(
+                    rule_path, search_text, replace_text
+                )
+                if rule_modified_files:
+                    modified_files.extend(rule_modified_files)
+                    affected_rule_ids.add(rule_id)
 
             # If no user was provided, try to find the last modifier of one of the changed files
             assignee = self._find_assignee_from_file_history(
@@ -264,6 +236,58 @@ The rules won't be updated until this PR is merged."""
             assignee,
         )
 
+    def _process_rule_directory(
+        self, rule_path: Path, search_text: str, replace_text: str
+    ) -> List[str]:
+        """
+        Process all files in a rule directory, replacing text occurrences.
+
+        Args:
+            rule_path: Path to the rule directory
+            search_text: Text to search for
+            replace_text: Text to replace with
+
+        Returns:
+            List of modified file paths relative to the repository root
+        """
+        modified_files = []
+        
+        # Walk through all files in this rule directory
+        for root, _, files in os.walk(rule_path):
+            for file in files:
+                file_path = Path(root) / file
+                relative_path = file_path.relative_to(self.repo_dir)
+                
+                # Skip binary files and special directories
+                if file_path.suffix in (
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".gif",
+                    ".svg",
+                ):
+                    continue
+                    
+                try:
+                    # Read the file content
+                    try:
+                        content = file_path.read_text(encoding="utf-8")
+                    except UnicodeDecodeError:
+                        # Skip binary files
+                        continue
+                        
+                    # Check if the search text exists in the file
+                    if search_text in content:
+                        # Replace the text
+                        new_content = content.replace(search_text, replace_text)
+                        file_path.write_text(new_content, encoding="utf-8")
+                        modified_files.append(str(relative_path))
+                        click.echo(f"Modified {relative_path}")
+                except Exception as e:
+                    click.echo(f"Error processing {relative_path}: {str(e)}")
+        
+        return modified_files
+                    
     def _get_labels_for_affected_rules(
         self, rules_dir: Path, affected_rule_ids: Set[str]
     ) -> List[str]:
