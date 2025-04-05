@@ -140,7 +140,7 @@ def _get_url_and_config(token: str, user: Optional[str]):
     return url, config
 
 
-def get_last_file_modifier(
+def get_last_file_modifier( # AI! make this function accessible from cli
     token: str, repo_name: str, file_path: str, user: Optional[str] = None
 ) -> Dict[str, str]:
     """
