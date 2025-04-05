@@ -83,7 +83,6 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 @cli.command()
 @click.option("--search", required=True, help="Text to search for")
 @click.option("--replace", required=True, help="Text to replace with")
-@click.option("--title", help="Custom PR title")
 @click.option("--description", help="Custom PR description")
 @click.option(
     "--user",
@@ -93,7 +92,6 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 def replace_text_in_rules(
     search: str,
     replace: str,
-    title: Optional[str], # AI! remove this parameter as it has no effect
     description: Optional[str],
     user: Optional[str],
 ):
