@@ -175,7 +175,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 raise InvalidArgumentError("Rules directory not found")
 
             # Process all rule directories
-            self._process_all_rule_directories(
+            self._replace_string_in_all_rule_directories(
                 rules_dir, search_text, replace_text, modified_files, affected_rule_ids
             )
 
@@ -230,7 +230,7 @@ The rules won't be updated until this PR is merged."""
             assignee,
         )
 
-    def _process_all_rule_directories(
+    def _replace_string_in_all_rule_directories(
         self,
         rules_dir: Path,
         search_text: str,
