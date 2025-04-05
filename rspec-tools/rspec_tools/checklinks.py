@@ -149,7 +149,7 @@ def findurl_in_html(filename, urls, rules_dir=None, output_dir=None):
                     abs_filename = pathlib.Path(filename).absolute()
                     abs_output_dir = pathlib.Path(output_dir).absolute()
                     abs_rules_dir = pathlib.Path(rules_dir).absolute()
-                    
+
                     # Convert output/S123/java/rule.html -> rules/S123/java/rule.adoc
                     rel_path = abs_filename.relative_to(abs_output_dir)
                     rel_path = rel_path.with_suffix(".adoc")

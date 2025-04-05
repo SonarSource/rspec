@@ -200,7 +200,7 @@ This is another rule with a <a href="https://example.org/broken-link">broken lin
         with runner.isolated_filesystem():
             # Create symlink to the history file in the isolated filesystem
             os.symlink(history_file, "./link_probes.history")
-            
+
             result = runner.invoke(
                 cli, ["check-links", f"--d={abs_output_dir}", f"--r={abs_rules_dir}"]
             )
@@ -215,4 +215,7 @@ This is another rule with a <a href="https://example.org/broken-link">broken lin
 
             # Output should contain reference to the adoc file (full path after resolution)
             adoc_path = str(rules_path.absolute() / "rule.adoc")
-            assert adoc_path in result.output or str(rules_path / "rule.adoc") in result.output
+            assert (
+                adoc_path in result.output
+                or str(rules_path / "rule.adoc") in result.output
+            )
