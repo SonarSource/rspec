@@ -649,22 +649,22 @@ def test_skip_recently_checked_links():
         # Create a link probe history file with a recent timestamp for our test link
         test_link = "https://example.com/recent-link"
         now = datetime.datetime.now()
-        
+
         # Create history file with our test link marked as recently checked
         history_file = pathlib.Path(temp_dir) / "link_probes.history"
         with open(history_file, "w") as f:
             f.write(f"{{{repr(test_link)}: {repr(now)}}}")
-        
+
         # Create rule with the link that is already in the history file
         rule_dir = pathlib.Path(temp_dir) / "S400" / "java"
         os.makedirs(rule_dir, exist_ok=True)
-        
+
         # Create metadata files
         with open(pathlib.Path(temp_dir) / "S400" / "metadata.json", "w") as f:
             f.write('{"status": "ready"}')
         with open(rule_dir / "metadata.json", "w") as f:
             f.write('{"status": "ready"}')
-        
+
         # Create HTML file with the link that should be skipped
         with open(rule_dir / "rule.html", "w") as f:
             f.write(
@@ -677,34 +677,34 @@ def test_skip_recently_checked_links():
 </html>
 """
             )
-        
+
         # Run test in isolated filesystem
         runner = CliRunner()
         with runner.isolated_filesystem():
             # Create symlink to history file
             os.symlink(history_file, "./link_probes.history")
-            
+
             # Track if the live_url function was called for our test link
             called_for_links = set()
-            
+
             def mock_live_url(url, timeout=5):
                 called_for_links.add(url)
                 return True  # All links are live
-            
+
             with mock.patch(
                 "rspec_tools.checklinks.live_url", side_effect=mock_live_url
             ) as mock_live_url_fn:
                 result = runner.invoke(cli, ["check-links", f"--d={temp_dir}"])
                 print(result.output)
-                
+
                 # Test should pass because the link is considered valid
                 assert result.exit_code == 0
-                
+
                 # Verify our test link wasn't checked
                 assert test_link not in called_for_links
-                
+
                 # Verify output shows the link was skipped due to cache
                 assert "skip probing because it was reached recently" in result.output
-                
+
                 # Make sure the output reports the expected cache hit statistics
                 assert "link_cache_hit=1" in result.output
