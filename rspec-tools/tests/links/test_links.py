@@ -1,7 +1,8 @@
 import os
 import pathlib
-import tempfile
 import shutil
+import tempfile
+
 from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
@@ -68,33 +69,36 @@ def test_show_adoc_when_exists():
         # Create rule structure with a dead link in both places
         rule_id = "S999"
         language = "python"
-        
+
         # Create directories
         rules_path = pathlib.Path(rules_dir) / rule_id / language
         output_path = pathlib.Path(output_dir) / rule_id / language
         os.makedirs(rules_path, exist_ok=True)
         os.makedirs(output_path, exist_ok=True)
-        
+
         # Create metadata.json files
         for path in [rules_path.parent, output_path.parent]:
             with open(path / "metadata.json", "w") as f:
                 f.write('{"status": "ready"}')
-        
+
         for path in [rules_path, output_path]:
             with open(path / "metadata.json", "w") as f:
                 f.write('{"status": "ready"}')
-        
+
         # Create rule.adoc with a dead link
         with open(rules_path / "rule.adoc", "w") as f:
-            f.write('''
+            f.write(
+                """
 = Title of the Rule
             
 This rule contains a <a href="https://example.com/nonexistent">dead link</a>.
-''')
-        
+"""
+            )
+
         # Create corresponding rule.html
         with open(output_path / "rule.html", "w") as f:
-            f.write('''
+            f.write(
+                """
 <!DOCTYPE html>
 <html>
 <head><title>Title of the Rule</title></head>
@@ -102,23 +106,24 @@ This rule contains a <a href="https://example.com/nonexistent">dead link</a>.
 <p>This rule contains a <a href="https://example.com/nonexistent">dead link</a>.</p>
 </body>
 </html>
-''')
-        
+"""
+            )
+
         # Run the link checker with both directories
         runner = CliRunner()
         with runner.isolated_filesystem():
             result = runner.invoke(
                 cli.cli, ["check-links", f"--d={output_dir}", f"--r={rules_dir}"]
             )
-            
+
             print(result.output)
-            
+
             # The command should exit with error code 1 (link check failure)
             assert result.exit_code == 1
-            
+
             # Output should contain the dead link
             assert "https://example.com/nonexistent" in result.output
-            
+
             # Output should contain reference to the adoc file
             adoc_path = str(rules_path / "rule.adoc")
             assert adoc_path in result.output
