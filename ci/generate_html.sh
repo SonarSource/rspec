@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # DEPRECATED: Please use the Python implementation:
-# python -m rspec_tools.cli generate-html
+# python -m rspec_tools.cli generate-html [--rules-dir=DIR] [--output-dir=DIR]
 # 
 # This script is kept for backward compatibility
 

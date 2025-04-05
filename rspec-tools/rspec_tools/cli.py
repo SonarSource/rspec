@@ -173,7 +173,8 @@ def notify_failure_on_slack(message: str, channel: str):
 
 @cli.command()
 @click.option("--output-dir", default="out", help="Output directory for generated HTML")
-def generate_html(output_dir: str):
+@click.option("--rules-dir", default="rules", help="Source directory containing rule files")
+def generate_html(output_dir: str, rules_dir: str):
     """Generate HTML documentation from rule AsciiDoc files."""
     import subprocess
 
@@ -181,7 +182,7 @@ def generate_html(output_dir: str):
     out_dir.mkdir(exist_ok=True)
 
     # Run asciidoctor to generate HTML files
-    rules_dir = Path("rules")
+    rules_dir = Path(rules_dir)
     if not rules_dir.exists():
         _fatal_error(f"Rules directory not found: {rules_dir}")
 
@@ -193,7 +194,7 @@ def generate_html(output_dir: str):
                 str(rules_dir),
                 "-D",
                 str(out_dir),
-                "rules/*/*/rule.adoc",
+                f"{rules_dir}/*/*/rule.adoc",
                 "-q",
             ],
             check=True,
@@ -209,7 +210,7 @@ def generate_html(output_dir: str):
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(metadata_file, dest_path)
 
-    click.echo(f"HTML documentation generated in {out_dir}")
+    click.echo(f"HTML documentation generated in {out_dir} from {rules_dir}")
 
 
 __all__ = ["cli"]
