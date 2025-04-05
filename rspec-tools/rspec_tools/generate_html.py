@@ -41,7 +41,7 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
             ],
             check=True,
         )
-        
+
     try:
         # Use Pool to parallelize processing
         with Pool() as pool:
