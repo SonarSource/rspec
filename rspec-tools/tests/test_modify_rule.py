@@ -226,6 +226,52 @@ def test_replace_text_search_not_found(setup_rule_editor):
         )
 
 
+def test_process_rule_directory(setup_rule_editor):
+    rule_editor, mock_repo, tmp_path = setup_rule_editor
+
+    # Create a rule directory with multiple files
+    rule_path = tmp_path / "rules" / "S1234"
+    java_dir = rule_path / "java"
+    python_dir = rule_path / "python"
+    os.makedirs(java_dir, exist_ok=True)
+    os.makedirs(python_dir, exist_ok=True)
+
+    # Create files with text to replace
+    java_file = java_dir / "rule.adoc"
+    java_file.write_text("This is a test with TEXT_TO_REPLACE in it.")
+    
+    python_file = python_dir / "rule.adoc"
+    python_file.write_text("Another test with TEXT_TO_REPLACE to find.")
+    
+    # Create a file without the search text
+    no_match_file = rule_path / "metadata.json"
+    no_match_file.write_text('{"title": "Test rule"}')
+    
+    # Create a binary-like file that should be skipped
+    binary_file = rule_path / "image.png"
+    binary_file.write_text("Not really binary but has png extension")
+    
+    # Call the method
+    modified_files = rule_editor._process_rule_directory(
+        rule_path, "TEXT_TO_REPLACE", "REPLACED_TEXT"
+    )
+    
+    # Verify results
+    assert len(modified_files) == 2
+    assert "rules/S1234/java/rule.adoc" in modified_files
+    assert "rules/S1234/python/rule.adoc" in modified_files
+    
+    # Verify file contents were changed
+    assert "REPLACED_TEXT" in java_file.read_text()
+    assert "REPLACED_TEXT" in python_file.read_text()
+    
+    # Verify unmatched file was not changed
+    assert "TEXT_TO_REPLACE" not in no_match_file.read_text()
+    
+    # Verify binary file was not changed
+    assert "REPLACED_TEXT" not in binary_file.read_text()
+
+
 @patch("rspec_tools.modify_rule.click.echo")
 def test_replace_string_in_all_rules_pull_request(mock_echo, setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
