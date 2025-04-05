@@ -81,7 +81,11 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 
 
 @cli.command()
-@click.option("--file", required=True, help="Path to the file to modify (must follow pattern 'rules/S{rule_number}/{language}/...')")
+@click.option(
+    "--file",
+    required=True,
+    help="Path to the file to modify (must follow pattern 'rules/S{rule_number}/{language}/...')",
+)
 @click.option("--search", required=True, help="Text to search for")
 @click.option("--replace", required=True, help="Text to replace with")
 @click.option("--title", help="Custom PR title")
