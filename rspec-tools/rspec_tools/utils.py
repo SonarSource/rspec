@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List
+from git import Repo
 from contextlib import contextmanager
 import shutil
 import re
@@ -170,3 +171,10 @@ def pushd(new_dir):
     yield
   finally:
     os.chdir(previous_dir)
+
+
+def get_default_branch(r: Repo):
+  conf = r.config_reader()
+  if conf.has_section("init") and conf.has_option("init", "defaultBranch"):
+    return r.config_reader().get_value("init", "defaultBranch")
+  return 'master'

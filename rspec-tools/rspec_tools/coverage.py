@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from git import Git, Repo
-from rspec_tools.utils import load_json, pushd
+from rspec_tools.utils import load_json, pushd, get_default_branch
 
 REPOS = [
   'sonar-abap',
@@ -147,7 +147,7 @@ class Coverage:
       print(f"Create entry for {language}")
       self.rules[language] = {}
 
-    if version == 'master':
+    if version == 'master' or version == 'main':
       self._rule_implemented_for_last_version(rule_id, language, repo_and_version)
     else:
       self._rule_implemented_for_intermediate_version(rule_id, language, repo_and_version)
@@ -209,7 +209,9 @@ def collect_coverage_for_all_versions(repo, coverage):
   versions.sort(key = comparable_version)
   for version in versions:
     collect_coverage_for_version(repo, git_repo, version, coverage)
-  collect_coverage_for_version(repo, git_repo, 'master', coverage)
+  default_version = get_default_branch(git_repo)
+  collect_coverage_for_version(repo, git_repo, default_version, coverage)
+
 
 def collect_coverage_for_version(repo_name, git_repo, version, coverage):
   g = Git(git_repo)
@@ -246,3 +248,12 @@ def update_coverage_for_repo_version(repo, version, rules_dir):
   collect_coverage_for_version(repo, git_repo, version, coverage)
   coverage.save_to_file(RULES_FILENAME)
 
+
+def update_coverage_for_repo_default_version(repo, rules_dir):
+  print(f"checking {repo} default version")
+  coverage = Coverage(RULES_FILENAME, rules_dir)
+  git_repo = checkout_repo(repo)
+  default_version = get_default_branch(git_repo)
+  print(f"Default version is {default_version}")
+  collect_coverage_for_version(repo, git_repo, default_version, coverage)
+  coverage.save_to_file(RULES_FILENAME)

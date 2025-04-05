@@ -82,7 +82,9 @@ def live_url(url: str, timeout=5):
                                                   'Accept-Language': 'en-US,en;q=0.9',
                                                   'Connection': 'keep-alive'})
     session = requests.Session()
-    code = session.send(req.prepare(), timeout=timeout).status_code
+    prepped = session.prepare_request(req)
+    settings = session.merge_environment_settings(prepped.url, {}, None, None, None)
+    code = session.send(prepped, timeout=timeout, **settings).status_code
     if (code / 100 >= 4):
       print(f"ERROR: {code} Nothing there")
       return False
@@ -113,7 +115,7 @@ def live_url(url: str, timeout=5):
 def findurl_in_html(filename,urls):
   with open(filename, 'r', encoding="utf8") as file:
     soup = BeautifulSoup(file,features="html.parser")
-    for link in soup.findAll('a'):
+    for link in soup.find_all('a'):
       key=link.get('href')
       if key in urls:
         urls[key].append(filename)
