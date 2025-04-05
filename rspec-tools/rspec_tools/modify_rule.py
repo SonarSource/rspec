@@ -232,6 +232,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                     f"No files were modified. Text '{search_text}' not found in any rule files."
                 )
 
+            # AI! factor out this search for labels into a separate function
             # Get all relevant labels based on affected rules
             all_labels = set()
             for rule_id in affected_rule_ids:
