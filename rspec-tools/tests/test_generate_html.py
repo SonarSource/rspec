@@ -151,11 +151,15 @@ This is a sample rule with a [link](https://example.com).
             {"title": "Second Rule CFamily", "status": "ready"},
         )
 
-        # Run generate_html
+        # Run generate_html with a small batch size of 5
         runner = CliRunner()
         result = runner.invoke(
             generate_html,
-            ["--rules-dir", str(self.rules_dir), "--output-dir", str(self.output_dir)],
+            [
+                "--rules-dir", str(self.rules_dir),
+                "--output-dir", str(self.output_dir),
+                "--batch-size", "5"
+            ],
         )
 
         # Check command execution was successful
