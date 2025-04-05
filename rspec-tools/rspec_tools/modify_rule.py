@@ -211,7 +211,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         # Create PR title and description
         affected_rules_str = ",".join(sorted(affected_rule_ids))
         if len(affected_rule_ids) == 1:
-            title = f"Modify rule {affected_rules_str}: global text replacement"
+            title = f"Modify rule {affected_rules_str}: global text replacement" # AI! make the text after ":" in the PR title a parameter that you could set from cli
         else:
             title = f"Modify rules {affected_rules_str}: global text replacement"
 
