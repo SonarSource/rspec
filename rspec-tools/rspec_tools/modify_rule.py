@@ -355,7 +355,7 @@ The rule won't be updated until this PR is merged."""
             )
 
         # Create PR title and description
-        affected_rules_str = ','.join(sorted(affected_rule_ids))
+        affected_rules_str = ",".join(sorted(affected_rule_ids))
         if len(affected_rule_ids) == 1:
             title = f"Modify rule {affected_rules_str}: global text replacement"
         else:
