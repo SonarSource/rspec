@@ -288,9 +288,9 @@ The rules won't be updated until this PR is merged."""
                     except InvalidArgumentError:
                         # Not a language folder, skip
                         pass
-                        
+
         return list(all_labels)
-        
+
     def _find_assignee_from_file_history(
         self, token: str, user: Optional[str], modified_files: List[str]
     ) -> Optional[str]:
