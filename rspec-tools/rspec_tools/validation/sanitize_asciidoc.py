@@ -1,4 +1,4 @@
-""" Ensure the asciidoc code for a rule description follows best practices
+"""Ensure the asciidoc code for a rule description follows best practices
 
 Checks are:
 * "ifdef"/"endif" blocks should be well-formed for RSPEC
