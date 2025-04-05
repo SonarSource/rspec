@@ -25,7 +25,7 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
     ]
 
     try:
-        for batch_num, batch in enumerate(batches, 1):
+        for batch_num, batch in enumerate(batches, 1): #AI! parallelize this loop, using Pool from multiprocessing
             # Convert files in this batch
             subprocess.run(
                 [
