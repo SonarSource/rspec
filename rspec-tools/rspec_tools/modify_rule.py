@@ -175,7 +175,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             self.rspec_repo.master_branch, branch_name
         ):
             self._replace_text_in_file(
-                rule_number, language, file_path, search_text, replace_text
+                file_path, search_text, replace_text
             )
             self.rspec_repo.commit_all_and_push(title)
 
