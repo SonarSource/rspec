@@ -176,10 +176,13 @@ def notify_failure_on_slack(message: str, channel: str):
 @click.option(
     "--rules-dir", default="rules", help="Source directory containing rule files"
 )
-def generate_html(output_dir: str, rules_dir: str):
+@click.option(
+    "--batch-size", default=400, type=int, help="Number of files to process in each batch"
+)
+def generate_html(output_dir: str, rules_dir: str, batch_size: int):
     """Generate HTML documentation from rule AsciiDoc files."""
     try:
-        out_dir = generate_html_descriptions(output_dir, rules_dir)
+        out_dir = generate_html_descriptions(output_dir, rules_dir, batch_size)
         click.echo(f"HTML descriptions are generated in {out_dir} from {rules_dir}")
     except click.ClickException as e:
         _fatal_error(str(e))

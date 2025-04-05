@@ -25,7 +25,7 @@ def process_batch(args):
     )
 
 
-def generate_html_descriptions(output_dir: str, rules_dir: str):
+def generate_html_descriptions(output_dir: str, rules_dir: str, batch_size: int = 400):
     """Generate HTML documentation from rule AsciiDoc files."""
     out_dir = Path(output_dir)
     out_dir.mkdir(exist_ok=True)
@@ -38,8 +38,7 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
     # Get all rule.adoc files
     rule_files = list(rules_dir.glob("*/*/rule.adoc"))
 
-    # Process files in batches of 20
-    batch_size = 400
+    # Process files in batches
     batches = [
         rule_files[i : i + batch_size] for i in range(0, len(rule_files), batch_size)
     ]
