@@ -180,7 +180,7 @@ def generate_html(output_dir: str, rules_dir: str):
     """Generate HTML documentation from rule AsciiDoc files."""
     try:
         out_dir = generate_html_docs(output_dir, rules_dir)
-        click.echo(f"HTML documentation generated in {out_dir} from {rules_dir}")
+        click.echo(f"HTML descriptions are generated in {out_dir} from {rules_dir}")
     except click.ClickException as e:
         _fatal_error(str(e))
 

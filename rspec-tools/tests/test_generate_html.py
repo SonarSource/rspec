@@ -73,7 +73,7 @@ This is a sample rule with a [link](https://example.com).
 
         # Check command execution was successful
         assert result.exit_code == 0
-        assert f"HTML documentation generated in {self.output_dir}" in result.output
+        assert f"HTML descriptions are generated in {self.output_dir}" in result.output
 
         # Check output HTML file was created
         expected_html = self.output_dir / "S123" / "python" / "rule.html"
@@ -335,3 +335,117 @@ include::../comments-and-links.adoc[]
         assert java_metadata_out.exists()
         assert python_metadata_out.exists()
         assert base_metadata_out.exists()
+
+    def test_generate_html_large_ruleset(self):
+        """Test that generate_html can process a large number of rules with multiple language specializations."""
+        # Create 20 rules, each with 4 language specializations
+        languages = ["python", "java", "cfamily", "swift"]
+        rule_count = 20
+
+        # Keep track of all expected output files
+        expected_html_files = []
+        expected_metadata_files = []
+
+        # Create rule content templates
+        rule_content_template = """= {lang} Rule S{rule_id} Title
+        
+== Description
+
+This is a description for rule S{rule_id} in {lang}.
+
+== Noncompliant Code Example
+
+```
+// Bad code example for {lang}
+```
+
+== Compliant Solution
+
+```
+// Good code example for {lang}
+```
+"""
+
+        metadata_template = {
+            "title": "{lang} Rule S{rule_id}",
+            "type": "CODE_SMELL",
+            "status": "ready",
+            "tags": ["example", "test"],
+            "sqKey": "{lang}RuleS{rule_id}",
+        }
+
+        # Create the rules and language specializations
+        for i in range(1, rule_count + 1):
+            rule_id = f"S{1000 + i}"  # Start from S1001 to avoid conflicts
+
+            for lang in languages:
+                # Create rule directory and rule.adoc file
+                rule_content = rule_content_template.format(
+                    lang=lang.capitalize(), rule_id=rule_id[1:]
+                )
+                metadata = {}
+                for k, v in metadata_template.items():
+                    if isinstance(v, str):
+                        metadata[k] = v.format(
+                            lang=lang.capitalize(), rule_id=rule_id[1:]
+                        )
+                    else:
+                        metadata[k] = v  # Keep non-string values as they are
+
+                rule_dir, rule_adoc, metadata_json = self._create_rule(
+                    rule_id,
+                    lang,
+                    f"{lang.capitalize()} Rule {rule_id}",
+                    rule_content,
+                    metadata,
+                )
+
+                # Add expected output files
+                expected_html_files.append(
+                    self.output_dir / rule_id / lang / "rule.html"
+                )
+                expected_metadata_files.append(
+                    self.output_dir / rule_id / lang / "metadata.json"
+                )
+
+        # Run generate_html
+        runner = CliRunner()
+        result = runner.invoke(
+            generate_html,
+            ["--rules-dir", str(self.rules_dir), "--output-dir", str(self.output_dir)],
+        )
+
+        # Check command execution was successful
+        assert result.exit_code == 0
+        assert f"HTML descriptions are generated in {self.output_dir}" in result.output
+
+        # Verify all expected HTML files were created
+        for html_file in expected_html_files:
+            assert html_file.exists(), f"Expected HTML file not found: {html_file}"
+
+        # Verify all expected metadata files were copied
+        for metadata_file in expected_metadata_files:
+            assert (
+                metadata_file.exists()
+            ), f"Expected metadata file not found: {metadata_file}"
+
+        # Verify content of a sample of the generated HTML files
+        # Check first rule, first language
+        with open(expected_html_files[0], "r") as f:
+            content = f.read()
+            assert "Python Rule S1001 Title" in content
+            assert "This is a description for rule S1001 in Python" in content
+
+        # Check last rule, last language
+        with open(expected_html_files[-1], "r") as f:
+            content = f.read()
+            assert "Swift Rule S1020 Title" in content
+            assert "This is a description for rule S1020 in Swift" in content
+
+        # Check total number of files (4 languages × 20 rules = 80 of each type)
+        assert len(list(self.output_dir.glob("**/rule.html"))) == rule_count * len(
+            languages
+        )
+        assert len(list(self.output_dir.glob("**/metadata.json"))) == rule_count * len(
+            languages
+        )
