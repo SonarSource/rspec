@@ -17,11 +17,13 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
 
     # Get all rule.adoc files
     rule_files = list(rules_dir.glob("/*/*/rule.adoc"))
-    
+
     # Process files in batches of 20
     batch_size = 20
-    batches = [rule_files[i:i + batch_size] for i in range(0, len(rule_files), batch_size)]
-    
+    batches = [
+        rule_files[i : i + batch_size] for i in range(0, len(rule_files), batch_size)
+    ]
+
     try:
         for batch_num, batch in enumerate(batches, 1):
             # Convert files in this batch
