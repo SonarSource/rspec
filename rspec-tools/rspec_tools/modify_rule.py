@@ -263,27 +263,7 @@ The rules won't be updated until this PR is merged."""
         labels = list(all_labels)
 
         # If no user was provided, try to find the last modifier of one of the changed files
-        assignee = user
-        if user is None and modified_files:
-            # AI! factor out this branch into a separate function
-            repo_name = self.rspec_repo.get_repository_name()
-            # Try to find a contributor from the modified files
-            for file_path in modified_files:
-                try:
-                    file_info = get_last_file_modifier(token, repo_name, file_path)
-                    if (
-                        file_info
-                        and "login" in file_info
-                        and file_info["login"] != "Unknown"
-                    ):
-                        assignee = file_info["login"]
-                        click.echo(
-                            f"Auto-assigning PR to {assignee} (last modifier of {file_path})"
-                        )
-                        break
-                except Exception as e:
-                    click.echo(f"Error finding last modifier for {file_path}: {str(e)}")
-                    continue
+        assignee = self._find_assignee_from_file_history(token, user, modified_files)
 
         return self.rspec_repo.create_pull_request(
             token,
@@ -294,6 +274,47 @@ The rules won't be updated until this PR is merged."""
             assignee,
         )
 
+    def _find_assignee_from_file_history(
+        self, token: str, user: Optional[str], modified_files: List[str]
+    ) -> Optional[str]:
+        """
+        Find a user to assign the PR to based on file modification history.
+        
+        Args:
+            token: GitHub token
+            user: Explicitly provided user (if any)
+            modified_files: List of files that were modified
+            
+        Returns:
+            GitHub username to assign the PR to, or None if no suitable user is found
+        """
+        # If user is explicitly provided, use that
+        if user is not None:
+            return user
+            
+        # If no files were modified, can't determine an assignee
+        if not modified_files:
+            return None
+            
+        repo_name = self.rspec_repo.get_repository_name()
+        
+        # Try to find a contributor from the modified files
+        for file_path in modified_files:
+            try:
+                file_info = get_last_file_modifier(token, repo_name, file_path)
+                if file_info and "login" in file_info and file_info["login"] != "Unknown":
+                    assignee = file_info["login"]
+                    click.echo(
+                        f"Auto-assigning PR to {assignee} (last modifier of {file_path})"
+                    )
+                    return assignee
+            except Exception as e:
+                click.echo(f"Error finding last modifier for {file_path}: {str(e)}")
+                continue
+                
+        # If no suitable assignee is found
+        return None
+        
     def _replace_text_in_file(
         self,
         file_path: str,
