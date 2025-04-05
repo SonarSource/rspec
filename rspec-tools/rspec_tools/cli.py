@@ -93,7 +93,7 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 def replace_text_in_rules(
     search: str,
     replace: str,
-    title: Optional[str],
+    title: Optional[str], # AI! remove this parameter as it has no effect
     description: Optional[str],
     user: Optional[str],
 ):
