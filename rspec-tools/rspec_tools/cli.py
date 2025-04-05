@@ -173,7 +173,9 @@ def notify_failure_on_slack(message: str, channel: str):
 
 @cli.command()
 @click.option("--output-dir", default="out", help="Output directory for generated HTML")
-@click.option("--rules-dir", default="rules", help="Source directory containing rule files")
+@click.option(
+    "--rules-dir", default="rules", help="Source directory containing rule files"
+)
 def generate_html(output_dir: str, rules_dir: str):
     """Generate HTML documentation from rule AsciiDoc files."""
     import subprocess
