@@ -16,7 +16,7 @@ class TestGenerateHtml(TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.rules_dir = Path(self.test_dir) / "rules"
         self.output_dir = Path(self.test_dir) / "output"
-        
+
         # Create the base directories
         self.rules_dir.mkdir(parents=True)
         self.output_dir.mkdir(parents=True)
@@ -24,22 +24,22 @@ class TestGenerateHtml(TestCase):
     def tearDown(self):
         # Clean up temporary directory
         shutil.rmtree(self.test_dir)
-        
+
     def _create_rule(self, rule_id, language, title, content, metadata):
         """Helper method to create a rule directory with content"""
         rule_dir = self.rules_dir / rule_id / language
         rule_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Create rule.adoc file
         rule_adoc = rule_dir / "rule.adoc"
         with open(rule_adoc, "w") as f:
             f.write(content)
-            
+
         # Create metadata.json file
         metadata_json = rule_dir / "metadata.json"
         with open(metadata_json, "w") as f:
             json.dump(metadata, f)
-            
+
         return rule_dir, rule_adoc, metadata_json
 
     def test_generate_html(self):
@@ -59,9 +59,11 @@ This is a sample rule with a [link](https://example.com).
             "tags": ["example"],
             "defaultSeverity": "Major",
         }
-        
-        _, _, metadata_json = self._create_rule("S123", "python", "Sample Rule", rule_content, metadata)
-        
+
+        _, _, metadata_json = self._create_rule(
+            "S123", "python", "Sample Rule", rule_content, metadata
+        )
+
         # Run the command
         runner = CliRunner()
         result = runner.invoke(
@@ -105,8 +107,8 @@ This is a sample rule with a [link](https://example.com).
         """Test that generate_html processes multiple rules with multiple language specializations."""
         # Create first rule - python
         self._create_rule(
-            "S123", 
-            "python", 
+            "S123",
+            "python",
             "Sample Rule",
             """= Sample Rule Title
             
@@ -119,34 +121,34 @@ This is a sample rule with a [link](https://example.com).
                 "type": "CODE_SMELL",
                 "status": "ready",
                 "tags": ["example"],
-            }
+            },
         )
-        
+
         # Create second rule - python
         self._create_rule(
-            "S456", 
-            "python", 
+            "S456",
+            "python",
             "Second Rule Python",
             "= Second Rule Python\n\n== Description\n\nSecond rule python description.",
-            {"title": "Second Rule Python", "status": "ready"}
+            {"title": "Second Rule Python", "status": "ready"},
         )
-        
+
         # Create first rule - cfamily
         self._create_rule(
-            "S123", 
-            "cfamily", 
+            "S123",
+            "cfamily",
             "First Rule CFamily",
             "= First Rule CFamily\n\n== Description\n\nFirst rule cfamily description.",
-            {"title": "First Rule CFamily", "status": "ready"}
+            {"title": "First Rule CFamily", "status": "ready"},
         )
-        
+
         # Create second rule - cfamily
         self._create_rule(
-            "S456", 
-            "cfamily", 
+            "S456",
+            "cfamily",
             "Second Rule CFamily",
             "= Second Rule CFamily\n\n== Description\n\nSecond rule cfamily description.",
-            {"title": "Second Rule CFamily", "status": "ready"}
+            {"title": "Second Rule CFamily", "status": "ready"},
         )
 
         # Run generate_html
