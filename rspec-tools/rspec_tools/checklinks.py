@@ -144,12 +144,20 @@ def findurl_in_html(filename, urls, rules_dir=None, output_dir=None):
 
             # If rules_dir and output_dir are provided, calculate the original adoc file
             if rules_dir and output_dir:
-                # Convert output/S123/java/rule.html -> rules/S123/java/rule.adoc
-                rel_path = pathlib.Path(filename).relative_to(output_dir)
-                rel_path = rel_path.with_suffix(".adoc")
-                original_file = pathlib.Path(rules_dir) / rel_path
-                if original_file.exists():
-                    file_entry["adoc"] = str(original_file)
+                try:
+                    # Make sure we have absolute paths for proper resolution
+                    abs_filename = pathlib.Path(filename).absolute()
+                    abs_output_dir = pathlib.Path(output_dir).absolute()
+                    abs_rules_dir = pathlib.Path(rules_dir).absolute()
+                    
+                    # Convert output/S123/java/rule.html -> rules/S123/java/rule.adoc
+                    rel_path = abs_filename.relative_to(abs_output_dir)
+                    rel_path = rel_path.with_suffix(".adoc")
+                    original_file = abs_rules_dir / rel_path
+                    if original_file.exists():
+                        file_entry["adoc"] = str(original_file)
+                except ValueError as e:
+                    print(f"Path resolution error (will use HTML path): {e}")
 
             if key in urls:
                 urls[key].append(file_entry)

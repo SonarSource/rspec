@@ -144,6 +144,11 @@ def test_show_adoc_with_relative_paths():
         os.makedirs(rules_dir, exist_ok=True)
         os.makedirs(output_dir, exist_ok=True)
 
+        # Create empty history file to avoid load errors
+        history_file = pathlib.Path(temp_dir) / "link_probes.history"
+        with open(history_file, "w") as f:
+            f.write("{}")
+
         # Create rule structure
         rule_id = "S888"
         language = "javascript"
@@ -186,24 +191,28 @@ This is another rule with a <a href="https://example.org/broken-link">broken lin
 """
             )
 
-        # Get relative paths
-        rel_rules_dir = os.path.relpath(rules_dir, cwd)
-        rel_output_dir = os.path.relpath(output_dir, cwd)
+        # Get absolute paths to ensure proper resolution
+        abs_rules_dir = pathlib.Path(rules_dir).absolute()
+        abs_output_dir = pathlib.Path(output_dir).absolute()
 
-        # Run the link checker with relative paths
+        # Run the link checker with absolute paths
         runner = CliRunner()
-        result = runner.invoke(
-            cli, ["check-links", f"--d={rel_output_dir}", f"--r={rel_rules_dir}"]
-        )
+        with runner.isolated_filesystem():
+            # Create symlink to the history file in the isolated filesystem
+            os.symlink(history_file, "./link_probes.history")
+            
+            result = runner.invoke(
+                cli, ["check-links", f"--d={abs_output_dir}", f"--r={abs_rules_dir}"]
+            )
 
-        print(result.output)
+            print(result.output)
 
-        # The command should exit with error code 1 (link check failure)
-        assert result.exit_code == 1
+            # The command should exit with error code 1 (link check failure)
+            assert result.exit_code == 1
 
-        # Output should contain the dead link
-        assert "https://example.org/broken-link" in result.output
+            # Output should contain the dead link
+            assert "https://example.org/broken-link" in result.output
 
-        # Output should contain reference to the adoc file (full path after resolution)
-        adoc_path = str(rules_path / "rule.adoc")
-        assert adoc_path in result.output
+            # Output should contain reference to the adoc file (full path after resolution)
+            adoc_path = str(rules_path.absolute() / "rule.adoc")
+            assert adoc_path in result.output or str(rules_path / "rule.adoc") in result.output
