@@ -176,11 +176,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
             # Process all rule directories
             self._process_all_rule_directories(
-                rules_dir, 
-                search_text, 
-                replace_text, 
-                modified_files, 
-                affected_rule_ids
+                rules_dir, search_text, replace_text, modified_files, affected_rule_ids
             )
 
             # If no user was provided, try to find the last modifier of one of the changed files
