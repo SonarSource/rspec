@@ -251,13 +251,13 @@ The rules won't be updated until this PR is merged."""
             List of modified file paths relative to the repository root
         """
         modified_files = []
-        
+
         # Walk through all files in this rule directory
         for root, _, files in os.walk(rule_path):
             for file in files:
                 file_path = Path(root) / file
                 relative_path = file_path.relative_to(self.repo_dir)
-                
+
                 # Skip binary files and special directories
                 if file_path.suffix in (
                     ".png",
@@ -267,7 +267,7 @@ The rules won't be updated until this PR is merged."""
                     ".svg",
                 ):
                     continue
-                    
+
                 try:
                     # Read the file content
                     try:
@@ -275,7 +275,7 @@ The rules won't be updated until this PR is merged."""
                     except UnicodeDecodeError:
                         # Skip binary files
                         continue
-                        
+
                     # Check if the search text exists in the file
                     if search_text in content:
                         # Replace the text
@@ -285,9 +285,9 @@ The rules won't be updated until this PR is merged."""
                         click.echo(f"Modified {relative_path}")
                 except Exception as e:
                     click.echo(f"Error processing {relative_path}: {str(e)}")
-        
+
         return modified_files
-                    
+
     def _get_labels_for_affected_rules(
         self, rules_dir: Path, affected_rule_ids: Set[str]
     ) -> List[str]:

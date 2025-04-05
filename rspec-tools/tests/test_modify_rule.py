@@ -239,35 +239,35 @@ def test_process_rule_directory(setup_rule_editor):
     # Create files with text to replace
     java_file = java_dir / "rule.adoc"
     java_file.write_text("This is a test with TEXT_TO_REPLACE in it.")
-    
+
     python_file = python_dir / "rule.adoc"
     python_file.write_text("Another test with TEXT_TO_REPLACE to find.")
-    
+
     # Create a file without the search text
     no_match_file = rule_path / "metadata.json"
     no_match_file.write_text('{"title": "Test rule"}')
-    
+
     # Create a binary-like file that should be skipped
     binary_file = rule_path / "image.png"
     binary_file.write_text("Not really binary but has png extension")
-    
+
     # Call the method
     modified_files = rule_editor._process_rule_directory(
         rule_path, "TEXT_TO_REPLACE", "REPLACED_TEXT"
     )
-    
+
     # Verify results
     assert len(modified_files) == 2
     assert "rules/S1234/java/rule.adoc" in modified_files
     assert "rules/S1234/python/rule.adoc" in modified_files
-    
+
     # Verify file contents were changed
     assert "REPLACED_TEXT" in java_file.read_text()
     assert "REPLACED_TEXT" in python_file.read_text()
-    
+
     # Verify unmatched file was not changed
     assert "TEXT_TO_REPLACE" not in no_match_file.read_text()
-    
+
     # Verify binary file was not changed
     assert "REPLACED_TEXT" not in binary_file.read_text()
 
