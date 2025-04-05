@@ -88,14 +88,27 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 @click.option("--replace", required=True, help="Text to replace with")
 @click.option("--title", help="Custom PR title")
 @click.option("--description", help="Custom PR description")
-@click.option("--user", required=False, help="Github username (if not provided will use the token associated user)")
-def replace_text(rule: str, language: str, file: str, search: str, replace: str, title: Optional[str], description: Optional[str], user: Optional[str]):
+@click.option(
+    "--user",
+    required=False,
+    help="Github username (if not provided will use the token associated user)",
+)
+def replace_text(
+    rule: str,
+    language: str,
+    file: str,
+    search: str,
+    replace: str,
+    title: Optional[str],
+    description: Optional[str],
+    user: Optional[str],
+):
     """Replace text in a file and create a pull request"""
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         raise click.Abort()
-        
+
     rspec_tools.modify_rule.replace_string_in_file(
         rule, language, file, search, replace, token, user, title, description
     )

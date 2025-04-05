@@ -1,12 +1,16 @@
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from git import Repo
 from rspec_tools.errors import InvalidArgumentError, RuleNotFoundError
-from rspec_tools.modify_rule import RuleEditor, update_rule_quickfix_status, replace_string_in_file
+from rspec_tools.modify_rule import (
+    replace_string_in_file,
+    RuleEditor,
+    update_rule_quickfix_status,
+)
 from rspec_tools.repo import RspecRepo
 from rspec_tools.utils import get_default_branch
 
@@ -166,50 +170,51 @@ def test_update_rule_quickfix_status(mockRuleEditor, mock_tmp_rspec_repo):
 
 # Tests for new text replacement functionality
 
+
 @pytest.fixture
 def setup_rule_editor():
     # Mock RspecRepo
     mock_repo = Mock(spec=RspecRepo)
     mock_repo.repository = Mock()
     mock_repo.master_branch = "main"
-    
+
     # Create a temporary directory for testing
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        
+
         # Create necessary directories and files
         rule_path = tmp_path / "rules" / "S1234" / "java"
         rule_path.mkdir(parents=True)
-        
+
         # Create metadata.json
         metadata_file = rule_path / "metadata.json"
         metadata_file.write_text('{"title": "Test Rule", "type": "CODE_SMELL"}')
-        
+
         # Create a test file
         test_file = rule_path / "rule.adoc"
         test_file.write_text("This is a test rule with some text to replace.")
-        
+
         # Setup mock repo to use this directory
         mock_repo.repository.working_dir = str(tmp_path)
-        
+
         # Create RuleEditor with the mock repo
         rule_editor = RuleEditor(mock_repo)
-        
+
         yield rule_editor, mock_repo, tmp_path
 
 
 def test_replace_text_in_file(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Call the method under test
     rule_editor._replace_text_in_file(
         rule_number=1234,
         language="java",
         file_path="rules/S1234/java/rule.adoc",
         search_text="some text to replace",
-        replace_text="replaced text"
+        replace_text="replaced text",
     )
-    
+
     # Verify the content was changed
     test_file = tmp_path / "rules" / "S1234" / "java" / "rule.adoc"
     assert test_file.read_text() == "This is a test rule with replaced text."
@@ -217,11 +222,11 @@ def test_replace_text_in_file(setup_rule_editor):
 
 def test_replace_string_in_file_branch(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Setup checkout_branch context manager mock
     mock_repo.checkout_branch.return_value.__enter__ = Mock()
     mock_repo.checkout_branch.return_value.__exit__ = Mock()
-    
+
     # Call the method under test
     branch_name = rule_editor.replace_string_in_file_branch(
         title="Update rule text",
@@ -229,12 +234,12 @@ def test_replace_string_in_file_branch(setup_rule_editor):
         language="java",
         file_path="rules/S1234/java/rule.adoc",
         search_text="some text to replace",
-        replace_text="replaced text"
+        replace_text="replaced text",
     )
-    
+
     # Verify the branch name format
     assert branch_name == "rule/S1234-java-text-replacement"
-    
+
     # Verify commit was made
     mock_repo.commit_all_and_push.assert_called_once_with("Update rule text")
 
@@ -242,13 +247,13 @@ def test_replace_string_in_file_branch(setup_rule_editor):
 @patch("rspec_tools.modify_rule.click.echo")
 def test_replace_string_in_file_pull_request(mock_echo, setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Setup mocks
     mock_repo.checkout_branch.return_value.__enter__ = Mock()
     mock_repo.checkout_branch.return_value.__exit__ = Mock()
     mock_pr = Mock()
     mock_repo.create_pull_request.return_value = mock_pr
-    
+
     # Call the method under test
     rule_editor.replace_string_in_file_pull_request(
         token="fake-token",
@@ -258,12 +263,12 @@ def test_replace_string_in_file_pull_request(mock_echo, setup_rule_editor):
         search_text="some text to replace",
         replace_text="replaced text",
         label="java",
-        user="testuser"
+        user="testuser",
     )
-    
+
     # Verify PR creation
     mock_repo.create_pull_request.assert_called_once()
-    
+
     # Verify the PR title and description contain the file path and search/replace text
     call_args = mock_repo.create_pull_request.call_args[0]
     assert "rules/S1234/java/rule.adoc" in call_args[2]  # Title
@@ -271,7 +276,7 @@ def test_replace_string_in_file_pull_request(mock_echo, setup_rule_editor):
     assert "rules/S1234/java/rule.adoc" in description
     assert "some text to replace" in description
     assert "replaced text" in description
-    
+
     # Verify labels and user assignment
     assert call_args[4] == ["java"]  # Labels
     assert call_args[5] == "testuser"  # User
@@ -279,7 +284,7 @@ def test_replace_string_in_file_pull_request(mock_echo, setup_rule_editor):
 
 def test_replace_text_file_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with non-existent file
     with pytest.raises(InvalidArgumentError, match="does not exist"):
         rule_editor._replace_text_in_file(
@@ -287,13 +292,13 @@ def test_replace_text_file_not_found(setup_rule_editor):
             language="java",
             file_path="rules/S1234/java/nonexistent.adoc",
             search_text="text",
-            replace_text="new text"
+            replace_text="new text",
         )
 
 
 def test_replace_text_search_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with text that doesn't exist in the file
     with pytest.raises(InvalidArgumentError, match="Search text not found"):
         rule_editor._replace_text_in_file(
@@ -301,13 +306,13 @@ def test_replace_text_search_not_found(setup_rule_editor):
             language="java",
             file_path="rules/S1234/java/rule.adoc",
             search_text="nonexistent text",
-            replace_text="new text"
+            replace_text="new text",
         )
 
 
 def test_replace_text_rule_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with non-existent rule
     with pytest.raises(RuleNotFoundError, match="Rule S5678 not found"):
         rule_editor._replace_text_in_file(
@@ -315,13 +320,13 @@ def test_replace_text_rule_not_found(setup_rule_editor):
             language="java",
             file_path="rules/S1234/java/rule.adoc",
             search_text="text",
-            replace_text="new text"
+            replace_text="new text",
         )
 
 
 def test_replace_text_language_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with non-existent language
     with pytest.raises(RuleNotFoundError, match="Language python not found"):
         rule_editor._replace_text_in_file(
@@ -329,7 +334,7 @@ def test_replace_text_language_not_found(setup_rule_editor):
             language="python",
             file_path="rules/S1234/java/rule.adoc",
             search_text="text",
-            replace_text="new text"
+            replace_text="new text",
         )
 
 
@@ -339,7 +344,7 @@ def test_replace_string_in_file_function(mock_rule_editor, mock_tmp_rspec_repo):
     """Test replace_string_in_file properly calls the underlying implementation."""
     # Setup mock
     pr_mock = mock_rule_editor.return_value.replace_string_in_file_pull_request
-    
+
     # Call the function
     replace_string_in_file(
         rule="S1234",
@@ -350,9 +355,9 @@ def test_replace_string_in_file_function(mock_rule_editor, mock_tmp_rspec_repo):
         token="fake-token",
         user="testuser",
         title="Custom title",
-        description="Custom description"
+        description="Custom description",
     )
-    
+
     # Verify the call
     pr_mock.assert_called_once()
     assert pr_mock.call_args.args[0] == "fake-token"

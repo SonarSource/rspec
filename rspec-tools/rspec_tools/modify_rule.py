@@ -42,7 +42,7 @@ def replace_string_in_file(
 ):
     """
     Create a pull request to replace a string in a specific file.
-    
+
     Args:
         rule: Rule ID (e.g., "S1234")
         language: Language name (e.g., "java")
@@ -146,19 +146,19 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         # When generating the JSON, ensure forward slashes are escaped. See RULEAPI-750.
         json_string = json.dumps(metadata, indent=2).replace("/", "\\/")
         metadata_path.write_text(json_string)
-        
+
     def replace_string_in_file_branch(
-        self, 
-        title: str, 
-        rule_number: int, 
-        language: str, 
-        file_path: str, 
-        search_text: str, 
-        replace_text: str
+        self,
+        title: str,
+        rule_number: int,
+        language: str,
+        file_path: str,
+        search_text: str,
+        replace_text: str,
     ) -> str:
         """
         Create a branch and replace a string in a file.
-        
+
         Args:
             title: Commit message
             rule_number: Rule number (e.g., 1234 for S1234)
@@ -166,7 +166,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             file_path: Path to the file relative to the repository root
             search_text: Text to search for
             replace_text: Text to replace with
-            
+
         Returns:
             Name of the created branch
         """
@@ -174,11 +174,13 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         with self.rspec_repo.checkout_branch(
             self.rspec_repo.master_branch, branch_name
         ):
-            self._replace_text_in_file(rule_number, language, file_path, search_text, replace_text)
+            self._replace_text_in_file(
+                rule_number, language, file_path, search_text, replace_text
+            )
             self.rspec_repo.commit_all_and_push(title)
 
         return branch_name
-        
+
     def replace_string_in_file_pull_request(
         self,
         token: str,
@@ -194,7 +196,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
     ):
         """
         Create a pull request that replaces text in a file.
-        
+
         Args:
             token: GitHub token
             rule_number: Rule number (e.g., 1234 for S1234)
@@ -207,12 +209,14 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             custom_title: Optional custom PR title
             custom_description: Optional custom PR description
         """
-        title = custom_title or f"Modify rule S{rule_number}: update text in {file_path}"
+        title = (
+            custom_title or f"Modify rule S{rule_number}: update text in {file_path}"
+        )
         branch_name = self.replace_string_in_file_branch(
             title, rule_number, language, file_path, search_text, replace_text
         )
         click.echo(f"Created rule branch {branch_name}")
-        
+
         description = custom_description or (
             f"""See the original rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{language}).
 
@@ -222,7 +226,7 @@ Text replacement in file `{file_path}`:
 
 The rule won't be updated until this PR is merged."""
         )
-        
+
         return self.rspec_repo.create_pull_request(
             token,
             branch_name,
@@ -231,18 +235,18 @@ The rule won't be updated until this PR is merged."""
             [label],
             user,
         )
-        
+
     def _replace_text_in_file(
-        self, 
-        rule_number: int, 
-        language: str, 
-        file_path: str, 
-        search_text: str, 
-        replace_text: str
+        self,
+        rule_number: int,
+        language: str,
+        file_path: str,
+        search_text: str,
+        replace_text: str,
     ):
         """
         Replace text in a file.
-        
+
         Args:
             rule_number: Rule number (e.g., 1234 for S1234)
             language: Language identifier (e.g., "java")
@@ -254,26 +258,30 @@ The rule won't be updated until this PR is merged."""
         rule_path = self.repo_dir / "rules" / f"S{rule_number}"
         if not rule_path.exists() or not rule_path.is_dir():
             raise RuleNotFoundError(f"Rule S{rule_number} not found")
-            
+
         # Check if language directory exists
         lang_path = rule_path / language
         if not lang_path.exists() or not lang_path.is_dir():
-            raise RuleNotFoundError(f"Language {language} not found for rule S{rule_number}")
-            
+            raise RuleNotFoundError(
+                f"Language {language} not found for rule S{rule_number}"
+            )
+
         # Resolve the full path to the specified file
         target_file = self.repo_dir / file_path
         if not target_file.exists() or not target_file.is_file():
-            raise InvalidArgumentError(f"File {file_path} does not exist or is not a file")
-            
+            raise InvalidArgumentError(
+                f"File {file_path} does not exist or is not a file"
+            )
+
         # Read the file content
-        content = target_file.read_text(encoding='utf-8')
-        
+        content = target_file.read_text(encoding="utf-8")
+
         # Check if the search text exists in the file
         if search_text not in content:
             raise InvalidArgumentError(f"Search text not found in {file_path}")
-            
+
         # Replace the text
         new_content = content.replace(search_text, replace_text)
-        
+
         # Write the modified content back to the file
-        target_file.write_text(new_content, encoding='utf-8')
+        target_file.write_text(new_content, encoding="utf-8")
