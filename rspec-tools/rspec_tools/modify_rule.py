@@ -388,6 +388,8 @@ The rules won't be updated until this PR is merged."""
                         pass
 
         labels = list(all_labels)
+
+        # AI! if `user` is None, iterate over the files that were modified in this replacement and find the first file that has known user who modified that file last as per `get_last_file_modifier`
         return self.rspec_repo.create_pull_request(
             token,
             branch_name,
