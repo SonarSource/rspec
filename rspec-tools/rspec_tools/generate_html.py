@@ -1,8 +1,9 @@
 import shutil
+import subprocess
 from pathlib import Path
 
 import click
-import subprocess
+
 
 def generate_html_docs(output_dir: str, rules_dir: str):
     """Generate HTML documentation from rule AsciiDoc files."""

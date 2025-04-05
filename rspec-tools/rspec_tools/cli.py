@@ -6,7 +6,6 @@ import click
 
 import rspec_tools.create_rule
 import rspec_tools.modify_rule
-from rspec_tools.generate_html import generate_html_docs
 from rspec_tools.checklinks import check_html_links
 from rspec_tools.coverage import (
     update_coverage_for_all_repos,
@@ -14,6 +13,7 @@ from rspec_tools.coverage import (
     update_coverage_for_repo_version,
 )
 from rspec_tools.errors import RuleValidationError
+from rspec_tools.generate_html import generate_html_docs
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (
