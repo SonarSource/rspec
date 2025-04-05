@@ -291,7 +291,7 @@ def test_replace_text_file_not_found(setup_rule_editor):
 
 def test_replace_text_search_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with text that doesn't exist in the file
     with pytest.raises(InvalidArgumentError, match="Search text not found"):
         rule_editor._replace_text_in_file(
@@ -303,15 +303,17 @@ def test_replace_text_search_not_found(setup_rule_editor):
 
 def test_invalid_file_path_format(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with an invalid file path format
-    with pytest.raises(InvalidArgumentError, match="does not follow the expected pattern"):
+    with pytest.raises(
+        InvalidArgumentError, match="does not follow the expected pattern"
+    ):
         rule_editor.replace_string_in_file_pull_request(
             token="fake-token",
             file_path="invalid/path/format.txt",
             search_text="text",
             replace_text="new text",
-            user="testuser"
+            user="testuser",
         )
 
 
