@@ -1,8 +1,9 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from git import Repo
-from rspec_tools.repo import RspecRepo
+from rspec_tools.repo import RspecRepo, get_last_file_modifier
 
 
 def _read_counter_file(repo: Repo):
@@ -37,3 +38,50 @@ def test_reserve_rule_number_parallel_reservations(
     assert rule_creator1.reserve_rule_number() == 2
 
     assert _read_counter_file(mock_git_rspec_repo) == "3"
+
+
+@patch("rspec_tools.repo._auto_github")
+def test_get_last_file_modifier(mock_auto_github):
+    # Setup mocks
+    mock_commit_author = MagicMock()
+    mock_commit_author.login = "test-user"
+    mock_commit_author.id = 12345
+    
+    mock_commit_info = MagicMock()
+    mock_commit_info.author.name = "Test User"
+    mock_commit_info.author.email = "test@example.com"
+    mock_commit_info.author.date.isoformat.return_value = "2023-01-01T12:00:00Z"
+    mock_commit_info.message = "Test commit message"
+    
+    mock_commit = MagicMock()
+    mock_commit.author = mock_commit_author
+    mock_commit.commit = mock_commit_info
+    
+    mock_commits = MagicMock()
+    mock_commits.totalCount = 1
+    mock_commits.__getitem__.return_value = mock_commit
+    
+    mock_repo = MagicMock()
+    mock_repo.get_commits.return_value = mock_commits
+    
+    mock_github = MagicMock()
+    mock_github.get_repo.return_value = mock_repo
+    
+    mock_github_api = MagicMock(return_value=mock_github)
+    mock_auto_github.return_value = mock_github_api
+    
+    # Call the function
+    result = get_last_file_modifier("fake-token", "owner/repo", "path/to/file.txt")
+    
+    # Verify the result
+    assert result["login"] == "test-user"
+    assert result["id"] == "12345"
+    assert result["name"] == "Test User"
+    assert result["email"] == "test@example.com"
+    assert result["message"] == "Test commit message"
+    
+    # Verify the mocks were called correctly
+    mock_auto_github.assert_called_once_with("fake-token")
+    mock_github_api.assert_called_once_with(None)
+    mock_github.get_repo.assert_called_once_with("owner/repo")
+    mock_repo.get_commits.assert_called_once_with(path="path/to/file.txt")
