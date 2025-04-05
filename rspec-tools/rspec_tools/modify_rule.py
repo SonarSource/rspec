@@ -182,8 +182,8 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
     def replace_string_in_file_pull_request(
         self,
         token: str,
-        rule_number: int,
-        language: str,
+        rule_number: int, #AI! instead of accepting this parameter, infer it from file_path
+        language: str, #AI! instead of accepting this parameter, infer it from file path; adjust callers and cli so that they don't need to provide rule_number and language; Instead if file_path does not follow the structure "rules/<language>/<rule-id>/..." raise an error
         file_path: str,
         search_text: str,
         replace_text: str,

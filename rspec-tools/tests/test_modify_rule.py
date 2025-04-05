@@ -282,7 +282,7 @@ def test_replace_string_in_file_pull_request(mock_echo, setup_rule_editor):
 
 def test_replace_text_file_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with non-existent file
     with pytest.raises(InvalidArgumentError, match="does not exist"):
         rule_editor._replace_text_in_file(
@@ -294,7 +294,7 @@ def test_replace_text_file_not_found(setup_rule_editor):
 
 def test_replace_text_search_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-    
+
     # Test with text that doesn't exist in the file
     with pytest.raises(InvalidArgumentError, match="Search text not found"):
         rule_editor._replace_text_in_file(
@@ -302,8 +302,6 @@ def test_replace_text_search_not_found(setup_rule_editor):
             search_text="nonexistent text",
             replace_text="new text",
         )
-
-
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
