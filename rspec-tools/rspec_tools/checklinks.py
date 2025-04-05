@@ -204,6 +204,7 @@ def url_is_exception(url: str) -> bool:
 
 
 def probe_links(urls: dict) -> bool:
+    #AI! factor out this first part of the function that just collects the list of broken links
     errors = []
     link_cache_exception = 0
     link_cache_hit = 0
@@ -228,6 +229,7 @@ def probe_links(urls: dict) -> bool:
             link_cache_miss += 1
 
     confirmed_errors = confirm_errors(errors, urls)
+    #AI: up to this point
 
     print(f"\n\n\n{'=' * 80}\n\n\n")
     if confirmed_errors:
