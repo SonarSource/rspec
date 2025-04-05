@@ -265,6 +265,7 @@ The rules won't be updated until this PR is merged."""
         # If no user was provided, try to find the last modifier of one of the changed files
         assignee = user
         if user is None and modified_files:
+            # AI! factor out this branch into a separate function
             repo_name = self.rspec_repo.get_repository_name()
             # Try to find a contributor from the modified files
             for file_path in modified_files:
