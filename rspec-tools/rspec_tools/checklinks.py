@@ -138,19 +138,19 @@ def findurl_in_html(filename, urls, rules_dir=None, output_dir=None):
         soup = BeautifulSoup(file, features="html.parser")
         for link in soup.find_all("a"):
             key = link.get("href")
-            
+
             # Track both HTML file and the original adoc file if possible
             file_entry = {"html": filename}
-            
+
             # If rules_dir and output_dir are provided, calculate the original adoc file
             if rules_dir and output_dir:
                 # Convert output/S123/java/rule.html -> rules/S123/java/rule.adoc
                 rel_path = pathlib.Path(filename).relative_to(output_dir)
-                rel_path = rel_path.with_suffix('.adoc')
+                rel_path = rel_path.with_suffix(".adoc")
                 original_file = pathlib.Path(rules_dir) / rel_path
                 if original_file.exists():
                     file_entry["adoc"] = str(original_file)
-            
+
             if key in urls:
                 urls[key].append(file_entry)
             else:
