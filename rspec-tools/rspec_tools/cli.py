@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -168,6 +169,45 @@ def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[
 @click.option("--channel", required=True)
 def notify_failure_on_slack(message: str, channel: str):
     notify_slack(message, channel)
+
+
+@cli.command()
+@click.option("--output-dir", default="out", help="Output directory for generated HTML")
+def generate_html(output_dir: str):
+    """Generate HTML documentation from rule AsciiDoc files."""
+    import subprocess
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(exist_ok=True)
+    
+    # Run asciidoctor to generate HTML files
+    rules_dir = Path("rules")
+    if not rules_dir.exists():
+        _fatal_error(f"Rules directory not found: {rules_dir}")
+        
+    try:
+        subprocess.run(
+            [
+                "asciidoctor",
+                "-R", str(rules_dir),
+                "-D", str(out_dir),
+                "rules/*/*/rule.adoc",
+                "-q"
+            ],
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        _fatal_error(f"Error running asciidoctor: {e}")
+    
+    # Copy metadata.json files to output directory
+    for metadata_file in rules_dir.glob("**/metadata.json"):
+        # Create relative path to preserve directory structure
+        rel_path = metadata_file.relative_to(rules_dir)
+        dest_path = out_dir / rel_path
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(metadata_file, dest_path)
+    
+    click.echo(f"HTML documentation generated in {out_dir}")
 
 
 __all__ = ["cli"]
