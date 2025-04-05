@@ -14,7 +14,7 @@ readonly ALLOWED_RULE_SUB_FOLDERS=['common'];
 # Validate user-visible rule descriptions
 # i.e., without rspecator-view.
 cd rspec-tools
-pipenv run rspec-tools generate-html --rules-dir=../rules --output-dir=../out
+time pipenv run rspec-tools generate-html --rules-dir=../rules --output-dir=../out
 if pipenv run rspec-tools check-description --d ../out; then
   echo "Rule descriptions are fine"
 else
