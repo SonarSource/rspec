@@ -208,8 +208,6 @@ def test_replace_text_in_file(setup_rule_editor):
 
     # Call the method under test
     rule_editor._replace_text_in_file(
-        rule_number=1234,
-        language="java",
         file_path="rules/S1234/java/rule.adoc",
         search_text="some text to replace",
         replace_text="replaced text",
@@ -284,12 +282,10 @@ def test_replace_string_in_file_pull_request(mock_echo, setup_rule_editor):
 
 def test_replace_text_file_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-
+    
     # Test with non-existent file
     with pytest.raises(InvalidArgumentError, match="does not exist"):
         rule_editor._replace_text_in_file(
-            rule_number=1234,
-            language="java",
             file_path="rules/S1234/java/nonexistent.adoc",
             search_text="text",
             replace_text="new text",
@@ -298,44 +294,16 @@ def test_replace_text_file_not_found(setup_rule_editor):
 
 def test_replace_text_search_not_found(setup_rule_editor):
     rule_editor, mock_repo, tmp_path = setup_rule_editor
-
+    
     # Test with text that doesn't exist in the file
     with pytest.raises(InvalidArgumentError, match="Search text not found"):
         rule_editor._replace_text_in_file(
-            rule_number=1234,
-            language="java",
             file_path="rules/S1234/java/rule.adoc",
             search_text="nonexistent text",
             replace_text="new text",
         )
 
 
-def test_replace_text_rule_not_found(setup_rule_editor):
-    rule_editor, mock_repo, tmp_path = setup_rule_editor
-
-    # Test with non-existent rule
-    with pytest.raises(RuleNotFoundError, match="Rule S5678 not found"):
-        rule_editor._replace_text_in_file(
-            rule_number=5678,
-            language="java",
-            file_path="rules/S1234/java/rule.adoc",
-            search_text="text",
-            replace_text="new text",
-        )
-
-
-def test_replace_text_language_not_found(setup_rule_editor):
-    rule_editor, mock_repo, tmp_path = setup_rule_editor
-
-    # Test with non-existent language
-    with pytest.raises(RuleNotFoundError, match="Language python not found"):
-        rule_editor._replace_text_in_file(
-            rule_number=1234,
-            language="python",
-            file_path="rules/S1234/java/rule.adoc",
-            search_text="text",
-            replace_text="new text",
-        )
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
