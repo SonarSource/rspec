@@ -227,12 +227,6 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                     f"No files were modified. Text '{search_text}' not found in any rule files."
                 )
 
-        # Check if any rules were modified
-        if not affected_rule_ids:
-            raise InvalidArgumentError(
-                f"No files were modified. Text '{search_text}' not found in any rule files."
-            )
-
         # Create PR title and description
         affected_rules_str = ",".join(sorted(affected_rule_ids))
         if len(affected_rule_ids) == 1:
