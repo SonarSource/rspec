@@ -16,7 +16,7 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
         raise click.ClickException(f"Rules directory not found: {rules_dir}")
 
     # Get all rule.adoc files
-    rule_files = list(rules_dir.glob("/*/*/rule.adoc"))
+    rule_files = list(rules_dir.glob("*/*/rule.adoc"))
 
     # Process files in batches of 20
     batch_size = 20
