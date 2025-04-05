@@ -194,15 +194,15 @@ def test_deprecated():
 </html>
 """
             )
-            
+
         # 2. Create a ready language variant of the same rule
         ready_rule_dir = pathlib.Path(temp_dir) / "S103" / "python"
         os.makedirs(ready_rule_dir, exist_ok=True)
-        
+
         # Create language-specific metadata.json for ready variant
         with open(ready_rule_dir / "metadata.json", "w") as f:
             f.write('{"status": "ready"}')
-            
+
         # Create HTML file with a link that would pass when checked
         with open(ready_rule_dir / "rule.html", "w") as f:
             f.write(
@@ -230,7 +230,9 @@ def test_deprecated():
                     return False
                 return True
 
-            with mock.patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
+            with mock.patch(
+                "rspec_tools.checklinks.live_url", side_effect=mock_live_url
+            ):
                 result = runner.invoke(cli, ["check-links", f"--d={temp_dir}"])
                 print(result.output)
 
