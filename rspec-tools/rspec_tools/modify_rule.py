@@ -195,14 +195,18 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         """
         # Extract rule number and language from file path
         path_parts = Path(file_path).parts
-        if len(path_parts) < 2 or path_parts[0] != "rules" or not path_parts[1].startswith("S"):
+        if (
+            len(path_parts) < 2
+            or path_parts[0] != "rules"
+            or not path_parts[1].startswith("S")
+        ):
             raise InvalidArgumentError(
                 f"File path '{file_path}' does not follow the expected pattern 'rules/S{{rule_number}}/...'"
             )
 
         rule_id = path_parts[1]
         rule_number = resolve_rule(rule_id)
-        
+
         # Check if there's a language component
         language = None
         label = None

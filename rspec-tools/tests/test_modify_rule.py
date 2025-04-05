@@ -349,13 +349,13 @@ def test_generic_rule_file_without_language(setup_rule_editor):
     call_args = mock_repo.create_pull_request.call_args[0]
     branch_name = call_args[1]
     assert "rule/S1234-text-replacement" == branch_name
-    
+
     # Verify PR description doesn't reference a specific language
     description = call_args[3]
     assert "rules/S1234/metadata.json" in description
     assert "Generic Rule" in description
     assert "Updated Generic Rule" in description
-    
+
     # Verify no labels were added
     assert call_args[4] == []
 
