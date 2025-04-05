@@ -195,3 +195,139 @@ This is a sample rule with a [link](https://example.com).
 
         with open(expected_files[3], "r") as f:
             assert "Second Rule CFamily" in f.read()
+            
+    def test_generate_html_with_includes(self):
+        """Test that generate_html correctly processes rule.adoc files that include other .adoc files."""
+        # Create rule directory structure with shared .adoc files
+        rule_id = "S789"
+        rule_dir = self.rules_dir / rule_id
+        rule_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create shared .adoc files in the rule base directory
+        shared_description = rule_dir / "description.adoc"
+        with open(shared_description, "w") as f:
+            f.write("This is a shared description that will be included in language-specific rule files.")
+            
+        shared_message = rule_dir / "message.adoc"
+        with open(shared_message, "w") as f:
+            f.write("This is a shared message for all languages.")
+            
+        shared_comments = rule_dir / "comments-and-links.adoc"
+        with open(shared_comments, "w") as f:
+            f.write("See also: RSPEC-123, S456")
+        
+        # Create rule metadata in base directory
+        base_metadata = {
+            "title": "Base Rule Title",
+            "type": "CODE_SMELL",
+            "status": "ready",
+            "tags": ["example"],
+        }
+        with open(rule_dir / "metadata.json", "w") as f:
+            json.dump(base_metadata, f)
+            
+        # Create Java specialization that includes the shared files
+        java_dir = rule_dir / "java"
+        java_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Java rule.adoc that includes the shared files
+        java_rule_content = """= Java Rule Title
+        
+== Description
+
+include::../description.adoc[]
+
+== How to fix
+
+include::../message.adoc[]
+
+== See also
+
+include::../comments-and-links.adoc[]
+"""
+        
+        with open(java_dir / "rule.adoc", "w") as f:
+            f.write(java_rule_content)
+            
+        # Java-specific metadata
+        java_metadata = {
+            "title": "Java Rule Title",
+            "status": "ready",
+            "sqKey": "JavaRuleS789"
+        }
+        with open(java_dir / "metadata.json", "w") as f:
+            json.dump(java_metadata, f)
+            
+        # Create Python specialization that also includes the shared files
+        python_dir = rule_dir / "python"
+        python_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Python rule.adoc with includes
+        python_rule_content = """= Python Rule Title
+        
+== Description
+
+include::../description.adoc[]
+
+== How to fix
+
+include::../message.adoc[]
+
+== See also
+
+include::../comments-and-links.adoc[]
+"""
+        
+        with open(python_dir / "rule.adoc", "w") as f:
+            f.write(python_rule_content)
+            
+        # Python-specific metadata
+        python_metadata = {
+            "title": "Python Rule Title",
+            "status": "ready",
+            "sqKey": "PythonRuleS789"
+        }
+        with open(python_dir / "metadata.json", "w") as f:
+            json.dump(python_metadata, f)
+        
+        # Run generate_html
+        runner = CliRunner()
+        result = runner.invoke(
+            generate_html,
+            ["--rules-dir", str(self.rules_dir), "--output-dir", str(self.output_dir)],
+        )
+        
+        # Check command execution was successful
+        assert result.exit_code == 0
+        
+        # Check both language HTML files were created
+        java_html = self.output_dir / rule_id / "java" / "rule.html"
+        python_html = self.output_dir / rule_id / "python" / "rule.html"
+        
+        assert java_html.exists(), f"Expected Java HTML file not found: {java_html}"
+        assert python_html.exists(), f"Expected Python HTML file not found: {python_html}"
+        
+        # Check Java HTML content includes the shared content
+        with open(java_html, "r") as f:
+            java_content = f.read()
+            assert "Java Rule Title" in java_content
+            assert "This is a shared description" in java_content
+            assert "This is a shared message" in java_content
+            assert "See also: RSPEC-123, S456" in java_content
+            
+        # Check Python HTML content includes the shared content
+        with open(python_html, "r") as f:
+            python_content = f.read()
+            assert "Python Rule Title" in python_content
+            assert "This is a shared description" in python_content
+            assert "This is a shared message" in python_content
+            assert "See also: RSPEC-123, S456" in python_content
+            
+        # Verify metadata files are copied correctly
+        java_metadata_out = self.output_dir / rule_id / "java" / "metadata.json"
+        python_metadata_out = self.output_dir / rule_id / "python" / "metadata.json"
+        base_metadata_out = self.output_dir / rule_id / "metadata.json"
+        
+        assert java_metadata_out.exists()
+        assert python_metadata_out.exists()
+        assert base_metadata_out.exists()
