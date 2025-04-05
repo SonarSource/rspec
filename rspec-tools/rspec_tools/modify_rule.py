@@ -212,6 +212,11 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                         except Exception as e:
                             click.echo(f"Error processing {relative_path}: {str(e)}")
 
+            # If no user was provided, try to find the last modifier of one of the changed files
+            assignee = self._find_assignee_from_file_history(
+                token, user, modified_files
+            )
+
             # If we have modified files, create a commit
             if modified_files:
                 affected_rules_list = ",".join(sorted(affected_rule_ids))
@@ -226,6 +231,22 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 raise InvalidArgumentError(
                     f"No files were modified. Text '{search_text}' not found in any rule files."
                 )
+
+            # Get all relevant labels based on affected rules
+            all_labels = set()
+            for rule_id in affected_rule_ids:
+                rule_path = rules_dir / rule_id
+                # Add labels for language-specific rule folders
+                for item in rule_path.iterdir():
+                    if item.is_dir():
+                        try:
+                            label = get_label_for_language(item.name)
+                            all_labels.add(label)
+                        except InvalidArgumentError:
+                            # Not a language folder, skip
+                            pass
+
+            labels = list(all_labels)
 
         # Create PR title and description
         affected_rules_str = ",".join(sorted(affected_rule_ids))
@@ -245,25 +266,6 @@ Modified files ({len(modified_files)}):
 
 The rules won't be updated until this PR is merged."""
         )
-
-        # Get all relevant labels based on affected rules
-        all_labels = set()
-        for rule_id in affected_rule_ids:
-            rule_path = rules_dir / rule_id
-            # Add labels for language-specific rule folders
-            for item in rule_path.iterdir():
-                if item.is_dir():
-                    try:
-                        label = get_label_for_language(item.name)
-                        all_labels.add(label)
-                    except InvalidArgumentError:
-                        # Not a language folder, skip
-                        pass
-
-        labels = list(all_labels)
-
-        # If no user was provided, try to find the last modifier of one of the changed files
-        assignee = self._find_assignee_from_file_history(token, user, modified_files)
 
         return self.rspec_repo.create_pull_request(
             token,
