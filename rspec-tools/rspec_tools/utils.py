@@ -198,7 +198,16 @@ def pushd(new_dir):
 
 
 def get_default_branch(r: Repo):
-    conf = r.config_reader()
-    if conf.has_section("init") and conf.has_option("init", "defaultBranch"):
-        return r.config_reader().get_value("init", "defaultBranch")
+    # replace "origin" with your remote name if differs
+    show_result = r.git.remote("show", "origin")
+
+    # The show_result contains a wall of text in the language that
+    # is set by your locales. Now you can use regex to extract the
+    # default branch name, but if your language is different
+    # from english, you need to adjust this regex pattern.
+
+    matches = re.search(r"\s*HEAD branch:\s*(.*)", show_result)
+    if matches:
+        default_branch = matches.group(1)
+        return default_branch
     return "master"
