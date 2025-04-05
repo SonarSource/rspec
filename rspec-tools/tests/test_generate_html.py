@@ -73,7 +73,9 @@ This is a sample rule with a [link](https://example.com).
             html_content = f.read()
             assert "Sample Rule Title" in html_content
             assert "This is a sample rule" in html_content
-            assert 'href="https://example.com"' in html_content, "Expected link not found in HTML output"
+            assert (
+                'href="https://example.com"' in html_content
+            ), "Expected link not found in HTML output"
 
         # Check metadata.json was copied to output
         expected_metadata = self.output_dir / "S123" / "python" / "metadata.json"
