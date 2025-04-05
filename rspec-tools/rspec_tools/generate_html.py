@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 
 
-def generate_html_docs(output_dir: str, rules_dir: str):
+def generate_html_descriptions(output_dir: str, rules_dir: str):
     """Generate HTML documentation from rule AsciiDoc files."""
     out_dir = Path(output_dir)
     out_dir.mkdir(exist_ok=True)

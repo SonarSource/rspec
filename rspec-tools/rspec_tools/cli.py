@@ -13,7 +13,7 @@ from rspec_tools.coverage import (
     update_coverage_for_repo_version,
 )
 from rspec_tools.errors import RuleValidationError
-from rspec_tools.generate_html import generate_html_docs
+from rspec_tools.generate_html import generate_html_descriptions
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (
@@ -179,7 +179,7 @@ def notify_failure_on_slack(message: str, channel: str):
 def generate_html(output_dir: str, rules_dir: str):
     """Generate HTML documentation from rule AsciiDoc files."""
     try:
-        out_dir = generate_html_docs(output_dir, rules_dir)
+        out_dir = generate_html_descriptions(output_dir, rules_dir)
         click.echo(f"HTML descriptions are generated in {out_dir} from {rules_dir}")
     except click.ClickException as e:
         _fatal_error(str(e))
