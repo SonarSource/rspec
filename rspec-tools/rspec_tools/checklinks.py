@@ -206,20 +206,16 @@ def url_is_exception(url: str) -> bool:
 def collect_broken_links(urls: dict) -> tuple[list[str], dict[str, int]]:
     """
     Collect a list of broken links and cache statistics
-    
+
     Args:
         urls: Dictionary of URLs to check, where keys are URLs and values are lists of file entries
-    
+
     Returns:
         tuple: (list of broken URLs, dictionary of cache statistics)
     """
     errors = []
-    cache_stats = {
-        "link_cache_exception": 0,
-        "link_cache_hit": 0,
-        "link_cache_miss": 0
-    }
-    
+    cache_stats = {"link_cache_exception": 0, "link_cache_hit": 0, "link_cache_miss": 0}
+
     print("Testing links")
     link_count = len(urls)
     for idx, url in enumerate(urls):
@@ -238,17 +234,17 @@ def collect_broken_links(urls: dict) -> tuple[list[str], dict[str, int]]:
             errors.append(url)
         else:
             cache_stats["link_cache_miss"] += 1
-            
+
     return errors, cache_stats
 
 
 def probe_links(urls: dict) -> bool:
     """
     Check all links and report any issues
-    
+
     Args:
         urls: Dictionary of URLs to check, where keys are URLs and values are lists of file entries
-    
+
     Returns:
         bool: True if all links are valid, False otherwise
     """
@@ -261,12 +257,12 @@ def probe_links(urls: dict) -> bool:
         print(
             f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files\n\n"
         )
-    
+
     # Extract cache statistics
     link_cache_hit = cache_stats["link_cache_hit"]
     link_cache_miss = cache_stats["link_cache_miss"]
     link_cache_exception = cache_stats["link_cache_exception"]
-    
+
     print("Cache statistics:")
     print(f"\t{link_cache_hit=}")
     print(f"\t{link_cache_miss=}")
