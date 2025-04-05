@@ -254,7 +254,7 @@ The rule won't be updated until this PR is merged."""
             labels,
             user,
         )
-        
+
     def replace_string_in_all_rules_pull_request(
         self,
         token: str,
@@ -274,12 +274,14 @@ The rule won't be updated until this PR is merged."""
             custom_description: Optional custom PR description
         """
         # Create a unique branch name for this operation
-        branch_name = f"global-text-replacement-{int(datetime.datetime.now().timestamp())}"
-        
+        branch_name = (
+            f"global-text-replacement-{int(datetime.datetime.now().timestamp())}"
+        )
+
         # Track modified files and affected rules
         modified_files = []
         affected_rule_ids = set()
-        
+
         with self.rspec_repo.checkout_branch(
             self.rspec_repo.master_branch, branch_name
         ):
@@ -287,25 +289,31 @@ The rule won't be updated until this PR is merged."""
             rules_dir = self.repo_dir / "rules"
             if not rules_dir.exists() or not rules_dir.is_dir():
                 raise InvalidArgumentError("Rules directory not found")
-                
+
             # Iterate through each rule directory
             for rule_path in rules_dir.iterdir():
                 if not rule_path.is_dir() or not rule_path.name.startswith("S"):
                     continue
-                    
+
                 # Extract rule ID
                 rule_id = rule_path.name
-                
+
                 # Walk through all files in this rule directory
                 for root, _, files in os.walk(rule_path):
                     for file in files:
                         file_path = Path(root) / file
                         relative_path = file_path.relative_to(self.repo_dir)
-                        
+
                         # Skip binary files and special directories
-                        if file_path.suffix in ('.png', '.jpg', '.jpeg', '.gif', '.svg'):
+                        if file_path.suffix in (
+                            ".png",
+                            ".jpg",
+                            ".jpeg",
+                            ".gif",
+                            ".svg",
+                        ):
                             continue
-                            
+
                         try:
                             # Read the file content
                             try:
@@ -313,7 +321,7 @@ The rule won't be updated until this PR is merged."""
                             except UnicodeDecodeError:
                                 # Skip binary files
                                 continue
-                                
+
                             # Check if the search text exists in the file
                             if search_text in content:
                                 # Replace the text
@@ -324,19 +332,25 @@ The rule won't be updated until this PR is merged."""
                                 click.echo(f"Modified {relative_path}")
                         except Exception as e:
                             click.echo(f"Error processing {relative_path}: {str(e)}")
-            
+
             # If we have modified files, create a commit
             if modified_files:
                 affected_rules_list = ",".join(sorted(affected_rule_ids))
-                commit_title = f"Modify rules {affected_rules_list}: global text replacement"
+                commit_title = (
+                    f"Modify rules {affected_rules_list}: global text replacement"
+                )
                 self.rspec_repo.commit_all_and_push(commit_title)
-                click.echo(f"Created branch {branch_name} with {len(modified_files)} modified files")
+                click.echo(
+                    f"Created branch {branch_name} with {len(modified_files)} modified files"
+                )
             else:
-                raise InvalidArgumentError(f"No files were modified. Text '{search_text}' not found in any rule files.")
-        
+                raise InvalidArgumentError(
+                    f"No files were modified. Text '{search_text}' not found in any rule files."
+                )
+
         # Create PR title and description
         title = f"Modify rules {','.join(sorted(affected_rule_ids))}: global text replacement"
-        
+
         description = custom_description or (
             f"""Global text replacement across rule files:
 - Search: `{search_text}`
@@ -348,7 +362,7 @@ Modified files ({len(modified_files)}):
 
 The rules won't be updated until this PR is merged."""
         )
-        
+
         # Get all relevant labels based on affected rules
         all_labels = set()
         for rule_id in affected_rule_ids:
@@ -362,7 +376,7 @@ The rules won't be updated until this PR is merged."""
                     except InvalidArgumentError:
                         # Not a language folder, skip
                         pass
-        
+
         labels = list(all_labels)
         return self.rspec_repo.create_pull_request(
             token,

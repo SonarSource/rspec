@@ -117,8 +117,10 @@ def replace_text(
 
     if all_rules:
         if file:
-            click.echo("Warning: --file is ignored when --all-rules is specified", err=True)
-        
+            click.echo(
+                "Warning: --file is ignored when --all-rules is specified", err=True
+            )
+
         rspec_tools.modify_rule.replace_string_in_all_rules(
             search, replace, token, user, description
         )
@@ -126,7 +128,7 @@ def replace_text(
         if not file:
             click.echo("Error: --file is required when not using --all-rules", err=True)
             raise click.Abort()
-            
+
         rspec_tools.modify_rule.replace_string_in_file(
             file, search, replace, token, user, title, description
         )
