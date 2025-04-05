@@ -1,5 +1,4 @@
 import json
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -17,25 +16,41 @@ class TestGenerateHtml(TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.rules_dir = Path(self.test_dir) / "rules"
         self.output_dir = Path(self.test_dir) / "output"
+        
+        # Create the base directories
+        self.rules_dir.mkdir(parents=True)
+        self.output_dir.mkdir(parents=True)
 
-        # Create sample rule structure
-        self.rule_dir = self.rules_dir / "S123" / "python"
-        self.rule_dir.mkdir(parents=True)
+    def tearDown(self):
+        # Clean up temporary directory
+        shutil.rmtree(self.test_dir)
+        
+    def _create_rule(self, rule_id, language, title, content, metadata):
+        """Helper method to create a rule directory with content"""
+        rule_dir = self.rules_dir / rule_id / language
+        rule_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create rule.adoc file
+        rule_adoc = rule_dir / "rule.adoc"
+        with open(rule_adoc, "w") as f:
+            f.write(content)
+            
+        # Create metadata.json file
+        metadata_json = rule_dir / "metadata.json"
+        with open(metadata_json, "w") as f:
+            json.dump(metadata, f)
+            
+        return rule_dir, rule_adoc, metadata_json
 
-        # Create sample rule.adoc file
-        self.rule_adoc = self.rule_dir / "rule.adoc"
-        with open(self.rule_adoc, "w") as f:
-            f.write(
-                """= Sample Rule Title
+    def test_generate_html(self):
+        """Test that generate_html produces the expected output files."""
+        # Create a single rule
+        rule_content = """= Sample Rule Title
             
 == Description
 
 This is a sample rule with a [link](https://example.com).
 """
-            )
-
-        # Create sample metadata.json
-        self.metadata_json = self.rule_dir / "metadata.json"
         metadata = {
             "title": "Sample Rule",
             "type": "CODE_SMELL",
@@ -44,16 +59,10 @@ This is a sample rule with a [link](https://example.com).
             "tags": ["example"],
             "defaultSeverity": "Major",
         }
-
-        with open(self.metadata_json, "w") as f:
-            json.dump(metadata, f)
-
-    def tearDown(self):
-        # Clean up temporary directory
-        shutil.rmtree(self.test_dir)
-
-    def test_generate_html(self):
-        """Test that generate_html produces the expected output files."""
+        
+        _, _, metadata_json = self._create_rule("S123", "python", "Sample Rule", rule_content, metadata)
+        
+        # Run the command
         runner = CliRunner()
         result = runner.invoke(
             generate_html,
@@ -87,48 +96,58 @@ This is a sample rule with a [link](https://example.com).
         with open(expected_metadata, "r") as f:
             copied_metadata = json.load(f)
 
-        with open(self.metadata_json, "r") as f:
+        with open(metadata_json, "r") as f:
             original_metadata = json.load(f)
 
         assert copied_metadata == original_metadata, "Metadata files don't match"
 
     def test_generate_html_multiple_rules(self):
         """Test that generate_html processes multiple rules with multiple language specializations."""
-        # Create a second rule for python
-        rule2_dir = self.rules_dir / "S456" / "python"
-        rule2_dir.mkdir(parents=True)
+        # Create first rule - python
+        self._create_rule(
+            "S123", 
+            "python", 
+            "Sample Rule",
+            """= Sample Rule Title
+            
+== Description
 
-        with open(rule2_dir / "rule.adoc", "w") as f:
-            f.write(
-                "= Second Rule Python\n\n== Description\n\nSecond rule python description."
-            )
-
-        with open(rule2_dir / "metadata.json", "w") as f:
-            json.dump({"title": "Second Rule Python", "status": "ready"}, f)
-
-        # Add cfamily specialization for first rule
-        cfamily1_dir = self.rules_dir / "S123" / "cfamily"
-        cfamily1_dir.mkdir(parents=True)
-
-        with open(cfamily1_dir / "rule.adoc", "w") as f:
-            f.write(
-                "= First Rule CFamily\n\n== Description\n\nFirst rule cfamily description."
-            )
-
-        with open(cfamily1_dir / "metadata.json", "w") as f:
-            json.dump({"title": "First Rule CFamily", "status": "ready"}, f)
-
-        # Add cfamily specialization for second rule
-        cfamily2_dir = self.rules_dir / "S456" / "cfamily"
-        cfamily2_dir.mkdir(parents=True)
-
-        with open(cfamily2_dir / "rule.adoc", "w") as f:
-            f.write(
-                "= Second Rule CFamily\n\n== Description\n\nSecond rule cfamily description."
-            )
-
-        with open(cfamily2_dir / "metadata.json", "w") as f:
-            json.dump({"title": "Second Rule CFamily", "status": "ready"}, f)
+This is a sample rule with a [link](https://example.com).
+""",
+            {
+                "title": "Sample Rule",
+                "type": "CODE_SMELL",
+                "status": "ready",
+                "tags": ["example"],
+            }
+        )
+        
+        # Create second rule - python
+        self._create_rule(
+            "S456", 
+            "python", 
+            "Second Rule Python",
+            "= Second Rule Python\n\n== Description\n\nSecond rule python description.",
+            {"title": "Second Rule Python", "status": "ready"}
+        )
+        
+        # Create first rule - cfamily
+        self._create_rule(
+            "S123", 
+            "cfamily", 
+            "First Rule CFamily",
+            "= First Rule CFamily\n\n== Description\n\nFirst rule cfamily description.",
+            {"title": "First Rule CFamily", "status": "ready"}
+        )
+        
+        # Create second rule - cfamily
+        self._create_rule(
+            "S456", 
+            "cfamily", 
+            "Second Rule CFamily",
+            "= Second Rule CFamily\n\n== Description\n\nSecond rule cfamily description.",
+            {"title": "Second Rule CFamily", "status": "ready"}
+        )
 
         # Run generate_html
         runner = CliRunner()
