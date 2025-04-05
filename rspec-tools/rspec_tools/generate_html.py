@@ -39,7 +39,7 @@ def generate_html_descriptions(output_dir: str, rules_dir: str):
     rule_files = list(rules_dir.glob("*/*/rule.adoc"))
 
     # Process files in batches of 20
-    batch_size = 20
+    batch_size = 400
     batches = [
         rule_files[i : i + batch_size] for i in range(0, len(rule_files), batch_size)
     ]
