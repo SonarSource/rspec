@@ -210,16 +210,23 @@ def notify_failure_on_slack(message: str, channel: str):
 @click.option(
     "--r", required=False, help="Original rules directory containing adoc files"
 )
-@click.option("--user", required=False, help="GitHub username for pull request assignee")
-@click.option("--dry-run/--no-dry-run", default=False, help="Only print broken links without creating PRs")
+@click.option(
+    "--user", required=False, help="GitHub username for pull request assignee"
+)
+@click.option(
+    "--dry-run/--no-dry-run",
+    default=False,
+    help="Only print broken links without creating PRs",
+)
 def archive_broken_links(d, r=None, user=None, dry_run=False):
     """Find broken links and create pull requests to replace them with archived versions."""
     token = os.environ.get("GITHUB_TOKEN")
     if not token and not dry_run:
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         raise click.Abort()
-    
+
     from rspec_tools.modify_rule import archive_broken_links as archive_links
+
     archive_links(d, r, token, user, dry_run)
 
 

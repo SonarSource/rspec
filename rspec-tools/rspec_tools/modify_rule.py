@@ -8,13 +8,14 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import click
 
-from rspec_tools.errors import InvalidArgumentError, RuleNotFoundError
 from rspec_tools.checklinks import (
     collect_broken_links,
     get_all_links_from_htmls,
     load_url_probing_history,
     save_url_probing_history,
 )
+
+from rspec_tools.errors import InvalidArgumentError, RuleNotFoundError
 from rspec_tools.repo import get_last_file_modifier, RspecRepo, tmp_rspec_repo
 from rspec_tools.utils import get_label_for_language, resolve_rule
 
@@ -85,32 +86,33 @@ def archive_broken_links(
     """
     # Load URL probing history to avoid rechecking recently verified links
     load_url_probing_history()
-    
+
     # Get all links from HTML files
     click.echo("Finding all links in HTML files...")
     urls = get_all_links_from_htmls(output_dir, rules_dir)
     click.echo(f"Found {len(urls)} unique links to check")
-    
+
     # Collect broken links
     click.echo("Checking links to find broken ones...")
     errors, cache_stats = collect_broken_links(urls)
     click.echo(f"Found {len(errors)} potentially broken links")
-    
+
     # Confirm the links are actually broken with a longer timeout
     confirmed_errors = []
     click.echo(f"Retrying {len(errors)} failed probes with longer timeout...")
     from rspec_tools.checklinks import confirm_errors, live_url, rejuvenate_url
+
     confirmed_errors = confirm_errors(errors, urls)
-    
+
     # Save the updated URL probing history
     save_url_probing_history()
-    
+
     if not confirmed_errors:
         click.echo("No broken links found!")
         return
-    
+
     click.echo(f"Found {len(confirmed_errors)} confirmed broken links")
-    
+
     if dry_run:
         click.echo("Dry run mode - listing broken links but not creating PRs")
         for url in confirmed_errors:
@@ -121,13 +123,13 @@ def archive_broken_links(
                 else:
                     click.echo(f"    {file_entry['html']}")
         return
-    
+
     # Create pull requests for each broken link
     click.echo("Creating pull requests to archive broken links...")
     for broken_link in confirmed_errors:
         archived_link = f"https://web.archive.org/web/{broken_link}"
         click.echo(f"Creating PR to replace {broken_link} with {archived_link}")
-        
+
         description = f"""Replace broken link with archived version
 
 Original link: {broken_link}
@@ -142,7 +144,7 @@ Files containing this link:
                 description += f"- {file_entry['adoc']}\n"
             else:
                 description += f"- {file_entry['html']}\n"
-        
+
         try:
             replace_string_in_all_rules(
                 broken_link,
@@ -150,7 +152,7 @@ Files containing this link:
                 token,
                 user,
                 description,
-                "fix broken link with archive.org version"
+                "fix broken link with archive.org version",
             )
             click.echo(f"Successfully created PR for {broken_link}")
         except Exception as e:
