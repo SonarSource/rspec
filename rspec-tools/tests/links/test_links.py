@@ -173,25 +173,27 @@ def test_deprecated():
         # Create paths for rule structure
         rule_dir = pathlib.Path(temp_dir) / "S103" / "java"
         os.makedirs(rule_dir, exist_ok=True)
-        
+
         # Create generic metadata.json with deprecated status
         with open(pathlib.Path(temp_dir) / "S103" / "metadata.json", "w") as f:
             f.write('{"status": "deprecated"}')
-            
+
         # Create language-specific metadata.json
         with open(rule_dir / "metadata.json", "w") as f:
             f.write('{"status": "deprecated"}')
-            
+
         # Create HTML file with a link that would fail if checked
         with open(rule_dir / "rule.html", "w") as f:
-            f.write("""<!DOCTYPE html>
+            f.write(
+                """<!DOCTYPE html>
 <html>
 <head><title>Test Deprecated Rule</title></head>
 <body>
 <p>This is a deprecated rule with a <a href="https://example.org/bad-link">bad link</a>.</p>
 </body>
 </html>
-""")
+"""
+            )
 
         # Run test in isolated filesystem
         runner = CliRunner()
