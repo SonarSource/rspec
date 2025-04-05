@@ -170,6 +170,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
         return branch_name
 
+    #AI! file_path does not have to include {language}. if no folder follows the rule id, set language to none, add a test for this, and adjust replace_string_in_file_branch to accapt optional language parameter
     def replace_string_in_file_pull_request(
         self,
         token: str,
@@ -194,11 +195,15 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         """
         # Extract rule number and language from file path
         path_parts = Path(file_path).parts
-        if len(path_parts) < 3 or path_parts[0] != "rules" or not path_parts[1].startswith("S"):
+        if (
+            len(path_parts) < 3
+            or path_parts[0] != "rules"
+            or not path_parts[1].startswith("S")
+        ):
             raise InvalidArgumentError(
                 f"File path '{file_path}' does not follow the expected pattern 'rules/S{{rule_number}}/{{language}}/...'"
             )
-            
+
         rule_id = path_parts[1]
         language = path_parts[2]
         rule_number = resolve_rule(rule_id)
