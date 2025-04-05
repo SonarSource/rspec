@@ -7,7 +7,7 @@ from unittest import TestCase
 import pytest
 from click.testing import CliRunner
 
-from rspec_tools.cli import generate_html
+from rspec_tools.cli import generate_html  # Keep using the CLI function for testing
 
 
 class TestGenerateHtml(TestCase):

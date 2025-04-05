@@ -1,5 +1,4 @@
 import os
-import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -7,6 +6,7 @@ import click
 
 import rspec_tools.create_rule
 import rspec_tools.modify_rule
+from rspec_tools.generate_html import generate_html_docs
 from rspec_tools.checklinks import check_html_links
 from rspec_tools.coverage import (
     update_coverage_for_all_repos,
@@ -178,41 +178,11 @@ def notify_failure_on_slack(message: str, channel: str):
 )
 def generate_html(output_dir: str, rules_dir: str):
     """Generate HTML documentation from rule AsciiDoc files."""
-    import subprocess
-
-    out_dir = Path(output_dir)
-    out_dir.mkdir(exist_ok=True)
-
-    # Run asciidoctor to generate HTML files
-    rules_dir = Path(rules_dir)
-    if not rules_dir.exists():
-        _fatal_error(f"Rules directory not found: {rules_dir}")
-
     try:
-        subprocess.run(
-            [
-                "asciidoctor",
-                "-R",
-                str(rules_dir),
-                "-D",
-                str(out_dir),
-                f"{rules_dir}/*/*/rule.adoc",
-                "-q",
-            ],
-            check=True,
-        )
-    except subprocess.CalledProcessError as e:
-        _fatal_error(f"Error running asciidoctor: {e}")
-
-    # Copy metadata.json files to output directory
-    for metadata_file in rules_dir.glob("**/metadata.json"):
-        # Create relative path to preserve directory structure
-        rel_path = metadata_file.relative_to(rules_dir)
-        dest_path = out_dir / rel_path
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(metadata_file, dest_path)
-
-    click.echo(f"HTML documentation generated in {out_dir} from {rules_dir}")
+        out_dir = generate_html_docs(output_dir, rules_dir)
+        click.echo(f"HTML documentation generated in {out_dir} from {rules_dir}")
+    except click.ClickException as e:
+        _fatal_error(str(e))
 
 
 __all__ = ["cli"]
