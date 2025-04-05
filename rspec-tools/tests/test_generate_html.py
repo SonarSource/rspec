@@ -156,9 +156,12 @@ This is a sample rule with a [link](https://example.com).
         result = runner.invoke(
             generate_html,
             [
-                "--rules-dir", str(self.rules_dir),
-                "--output-dir", str(self.output_dir),
-                "--batch-size", "5"
+                "--rules-dir",
+                str(self.rules_dir),
+                "--output-dir",
+                str(self.output_dir),
+                "--batch-size",
+                "5",
             ],
         )
 
