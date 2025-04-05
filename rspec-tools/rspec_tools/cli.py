@@ -225,9 +225,9 @@ def replace_broken_links(d, r=None, user=None, dry_run=False):
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         raise click.Abort()
 
-    from rspec_tools.modify_rule import replace_broken_links as archive_links
+    from rspec_tools.checklinks import replace_broken_links
 
-    archive_links(d, r, token, user, dry_run)
+    replace_broken_links(d, r, token, user, dry_run)
 
 
 __all__ = ["cli"]

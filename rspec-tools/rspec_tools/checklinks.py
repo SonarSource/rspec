@@ -3,7 +3,9 @@ import json
 import pathlib
 import random
 import socket
+from typing import Optional, List
 
+import click
 import requests
 from bs4 import BeautifulSoup
 
@@ -298,6 +300,97 @@ def report_errors(errors, urls):
                 print(file_entry["adoc"])
             else:
                 print(file_entry["html"])
+
+
+def replace_broken_links(
+    output_dir: str,
+    rules_dir: Optional[str] = None,
+    token: Optional[str] = None,
+    user: Optional[str] = None,
+    dry_run: bool = False,
+):
+    """
+    Find broken links and create pull requests to replace them with archived versions.
+
+    Args:
+        output_dir: Directory containing generated HTML files
+        rules_dir: Original rules directory containing adoc files (optional)
+        token: GitHub token (required unless dry_run=True)
+        user: GitHub username for pull request assignee (optional)
+        dry_run: If True, only print broken links without creating PRs (default: False)
+    """
+    # Load URL probing history to avoid rechecking recently verified links
+    load_url_probing_history()
+
+    # Get all links from HTML files
+    click.echo("Finding all links in HTML files...")
+    urls = get_all_links_from_htmls(output_dir, rules_dir)
+    click.echo(f"Found {len(urls)} unique links to check")
+
+    # Collect broken links
+    click.echo("Checking links to find broken ones...")
+    errors, cache_stats = collect_broken_links(urls)
+    click.echo(f"Found {len(errors)} potentially broken links")
+
+    # Confirm the links are actually broken with a longer timeout
+    confirmed_errors = []
+    click.echo(f"Retrying {len(errors)} failed probes with longer timeout...")
+    confirmed_errors = confirm_errors(errors, urls)
+
+    # Save the updated URL probing history
+    save_url_probing_history()
+
+    if not confirmed_errors:
+        click.echo("No broken links found!")
+        return
+
+    click.echo(f"Found {len(confirmed_errors)} confirmed broken links")
+
+    if dry_run:
+        click.echo("Dry run mode - listing broken links but not creating PRs")
+        for url in confirmed_errors:
+            click.echo(f"  {url}")
+            for file_entry in urls[url]:
+                if "adoc" in file_entry:
+                    click.echo(f"    {file_entry['adoc']}")
+                else:
+                    click.echo(f"    {file_entry['html']}")
+        return
+
+    # Create pull requests for each broken link
+    click.echo("Creating pull requests to archive broken links...")
+    for broken_link in confirmed_errors:
+        archived_link = f"https://web.archive.org/web/{broken_link}"
+        click.echo(f"Creating PR to replace {broken_link} with {archived_link}")
+
+        description = f"""Replace broken link with archived version
+
+Original link: {broken_link}
+Archived link: {archived_link}
+
+This automated PR was created because the link was no longer accessible. Using the Internet Archive's Wayback Machine ensures that readers can still access the referenced content.
+
+Files containing this link:
+"""
+        for file_entry in urls[broken_link]:
+            if "adoc" in file_entry:
+                description += f"- {file_entry['adoc']}\n"
+            else:
+                description += f"- {file_entry['html']}\n"
+
+        try:
+            from rspec_tools.modify_rule import replace_string_in_all_rules
+            replace_string_in_all_rules(
+                broken_link,
+                archived_link,
+                token,
+                user,
+                description,
+                "fix broken link with archive.org version",
+            )
+            click.echo(f"Successfully created PR for {broken_link}")
+        except Exception as e:
+            click.echo(f"Error creating PR for {broken_link}: {str(e)}", err=True)
 
 
 def check_html_links(output_dir, rules_dir=None):
