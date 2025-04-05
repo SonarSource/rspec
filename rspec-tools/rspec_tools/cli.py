@@ -13,6 +13,7 @@ from rspec_tools.coverage import (
     update_coverage_for_repo_version,
 )
 from rspec_tools.errors import RuleValidationError
+from rspec_tools.generate_html import generate_html_descriptions
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (
@@ -168,6 +169,26 @@ def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[
 @click.option("--channel", required=True)
 def notify_failure_on_slack(message: str, channel: str):
     notify_slack(message, channel)
+
+
+@cli.command()
+@click.option("--output-dir", default="out", help="Output directory for generated HTML")
+@click.option(
+    "--rules-dir", default="rules", help="Source directory containing rule files"
+)
+@click.option(
+    "--batch-size",
+    default=400,
+    type=int,
+    help="Number of files to process in each batch",
+)
+def generate_html(output_dir: str, rules_dir: str, batch_size: int):
+    """Generate HTML documentation from rule AsciiDoc files."""
+    try:
+        out_dir = generate_html_descriptions(output_dir, rules_dir, batch_size)
+        click.echo(f"HTML descriptions are generated in {out_dir} from {rules_dir}")
+    except click.ClickException as e:
+        _fatal_error(str(e))
 
 
 __all__ = ["cli"]
