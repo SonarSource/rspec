@@ -394,7 +394,9 @@ def test_batch_find_replace_branch(rule_editor: RuleEditor, mock_git_rspec_repo:
     assert "search_text" not in modified_content
 
 
-def test_batch_find_replace_branch_no_matches(rule_editor: RuleEditor, mock_git_rspec_repo: Repo):
+def test_batch_find_replace_branch_no_matches(
+    rule_editor: RuleEditor, mock_git_rspec_repo: Repo
+):
     """Test that batch_find_replace_branch raises an error when no files match the search string."""
     # Need to simulate some files in the rules directory
     rules_dir = Path(mock_git_rspec_repo.working_dir) / "rules"
@@ -412,7 +414,7 @@ def test_batch_find_replace_branch_no_matches(rule_editor: RuleEditor, mock_git_
         rule_editor.batch_find_replace_branch(
             "Test batch replace", "nonexistent_text", "replacement_text"
         )
-    
+
     # Verify the error message contains the search string
     assert "No files were modified" in str(excinfo.value)
     assert "nonexistent_text" in str(excinfo.value)
