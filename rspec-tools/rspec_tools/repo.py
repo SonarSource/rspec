@@ -190,8 +190,6 @@ def get_last_author_for_file(
     return author
 
 
-
-
 def _build_github_repository_url(token: str, user: Optional[str]):
     """Builds the rspec repository url"""
     repo = os.environ.get("GITHUB_REPOSITORY", "SonarSource/rspec")
