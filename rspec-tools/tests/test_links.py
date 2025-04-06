@@ -9,15 +9,15 @@ from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
 
-def setup_history_file(temp_path, history_file, test_dir="OK", mock_date):
+def setup_history_file(temp_path, history_file, mock_date, test_dir="OK"):
     """
     Helper function to run check-links and setup a history file.
 
     Args:
         temp_path: Path to temporary directory
         history_file: Path to history file
-        test_dir: Directory containing test files
         mock_date: Date to use for the history entry
+        test_dir: Directory containing test files
 
     Returns:
         Result of the check-links command
@@ -182,7 +182,7 @@ def test_no_reprobe_recent_links(setup_test_files):
 
     # First run: Probe the links and update the history file with current date
     current_date = datetime.datetime.now()
-    first_result = setup_history_file(temp_path, history_file, mock_date=current_date)
+    first_result = setup_history_file(temp_path, history_file, current_date)
     assert first_result.exit_code == 0
     assert "All 1 links are good" in first_result.output
 
@@ -228,7 +228,7 @@ def test_reprobe_old_links(setup_test_files):
     )
 
     # Setup history file with an old date
-    first_result = setup_history_file(temp_path, history_file, mock_date=old_date)
+    first_result = setup_history_file(temp_path, history_file, old_date)
     assert first_result.exit_code == 0
 
     # Second run: The link should be probed again because the timestamp in history is old
@@ -269,7 +269,7 @@ def test_tolerable_downtime(setup_test_files):
     # Setup history file with a recent date (3 days ago) - within TOLERABLE_LINK_DOWNTIME
     recent_date = datetime.datetime.now() - datetime.timedelta(days=3)
     first_result = setup_history_file(
-        temp_path, history_file, "404", mock_date=recent_date
+        temp_path, history_file, recent_date, "404"
     )
     assert first_result.exit_code == 0
 
@@ -305,7 +305,7 @@ def test_old_dead_link(setup_test_files):
     # Setup history file with an old date (30 days ago) - beyond TOLERABLE_LINK_DOWNTIME
     old_date = datetime.datetime.now() - datetime.timedelta(days=30)
     first_result = setup_history_file(
-        temp_path, history_file, "404", mock_date=old_date
+        temp_path, history_file, old_date, "404"
     )
     assert first_result.exit_code == 0
 
