@@ -202,10 +202,6 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             title, search, replace
         )
 
-        if not modified_files:
-            click.echo("No files were modified. Aborting PR creation.")
-            return None
-
         # Build a comma-separated list of affected rule IDs for the PR title
         rule_ids = list(affected_rules.keys())
         rule_ids.sort()  # Sort rule IDs for consistent order
