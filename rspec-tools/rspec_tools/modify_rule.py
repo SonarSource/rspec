@@ -244,9 +244,10 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
             # Try to find the last author for each modified file
             for file_path in modified_files:
-                rel_path = str(file_path.relative_to(self.repo_dir))
                 try:
-                    last_author = get_last_login_modified_file(token, repo_name, rel_path)
+                    last_author = get_last_login_modified_file(
+                        token, repo_name, file_path
+                    )
                     if last_author:
                         auto_assignee = last_author
                         break
