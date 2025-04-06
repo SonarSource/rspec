@@ -174,6 +174,28 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
         return branch_name, affected_rules, modified_files
 
+    def collect_labels_from_affected_rules(self, affected_rules: Dict[str, Set[str]]) -> Set[str]:
+        """
+        Collect labels for the PR based on affected languages.
+        
+        Args:
+            affected_rules: Dictionary mapping rule IDs to sets of languages
+            
+        Returns:
+            Set of labels to apply to the PR
+        """
+        labels = set()
+        for rule_id, languages in affected_rules.items():
+            for lang in languages:
+                if lang:  # Skip empty strings (rule-level files)
+                    try:
+                        label = get_label_for_language(lang)
+                        labels.add(label)
+                    except Exception:
+                        # Skip invalid languages
+                        continue
+        return labels
+        
     def batch_find_replace_pull_request(
         self,
         token: str,
@@ -217,18 +239,8 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 rules_str = f"{len(rule_ids)} rules"
             pr_title = f"Modify rules {rules_str}: {title_suffix}"
 
-        # AI! factor out this loop into a dedicated function "collect_labels_from_affected_rules"
         # Collect labels for the PR based on affected languages
-        labels = set()
-        for rule_id, languages in affected_rules.items():
-            for lang in languages:
-                if lang:  # Skip empty strings (rule-level files)
-                    try:
-                        label = get_label_for_language(lang)
-                        labels.add(label)
-                    except Exception:
-                        # Skip invalid languages
-                        continue
+        labels = self.collect_labels_from_affected_rules(affected_rules)
 
         # Find the most appropriate assignee if not provided
         auto_assignee = assignee
