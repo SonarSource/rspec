@@ -209,7 +209,9 @@ def probe_links(urls: dict) -> bool:
     print("Cache statistics:")
     print(f"\t{link_cache_hit=}")
     print(f"\t{link_cache_miss=}")
-    link_cache_hit_ratio = (link_cache_hit) / (link_cache_hit + link_cache_miss)
+    # Prevent division by zero if both hit and miss are 0
+    denominator = link_cache_hit + link_cache_miss
+    link_cache_hit_ratio = (link_cache_hit / denominator) if denominator > 0 else 0
     print(f"\t{link_cache_hit_ratio:03.2%} hits")
     print(f"\t{link_cache_exception=}")
     print(f"\n\n\n{'=' * 80}\n\n\n")

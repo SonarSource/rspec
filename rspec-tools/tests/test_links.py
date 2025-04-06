@@ -337,7 +337,8 @@ def test_exception_url(setup_test_files):
 
     def mock_live_url(url, timeout=5):
         live_url_calls.append(url)
-        return original_live_url(url, timeout)
+        # Don't call the original function to avoid possible network errors
+        return True  # Just return True instead of calling the original function
 
     with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
         runner = CliRunner()
