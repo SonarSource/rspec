@@ -394,7 +394,7 @@ def test_mixed_links_reporting(setup_test_files):
     # Create test files for mixed links test
     dead_url = "https://www.example.com/dead-link"
     live_url = "https://www.example.com/live-link"
-    
+
     # Define the test directory structure with dead and live links
     mixed_test_dirs = {
         "mixed_links": {
@@ -406,10 +406,10 @@ def test_mixed_links_reporting(setup_test_files):
             "S200/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, mixed_test_dirs)
-    
+
     # Get paths to test files for later assertions
     mixed_dir = temp_path / "mixed_links"
     rule1_dir = mixed_dir / "S100" / "java"
