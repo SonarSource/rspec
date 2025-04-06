@@ -244,6 +244,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         # Collect labels for the PR based on affected languages
         labels = self.collect_labels_from_affected_rules(affected_rules)
 
+        # AI! factor out this section into a dedicated function "find_appropriate_assignee" ...
         # Find the most appropriate assignee if not provided
         auto_assignee = assignee
         if not auto_assignee and modified_files:
@@ -260,6 +261,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                         break
                 except Exception:
                     continue
+        # AI: ... up to this point
 
         click.echo(f"Created rule branch {branch_name}")
         return self.rspec_repo.create_pull_request(
