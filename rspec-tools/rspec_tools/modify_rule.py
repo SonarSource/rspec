@@ -217,6 +217,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 rules_str = f"{len(rule_ids)} rules"
             pr_title = f"Modify rules {rules_str}: {title_suffix}"
 
+        # AI! factor out this loop into a dedicated function "collect_labels_from_affected_rules"
         # Collect labels for the PR based on affected languages
         labels = set()
         for rule_id, languages in affected_rules.items():
@@ -228,10 +229,6 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                     except Exception:
                         # Skip invalid languages
                         continue
-
-        # If no languages were found, use a generic label
-        if not labels:
-            labels = ["rules"]
 
         # Find the most appropriate assignee if not provided
         auto_assignee = assignee
