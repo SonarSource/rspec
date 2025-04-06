@@ -204,6 +204,91 @@ def notify_failure_on_slack(message: str, channel: str):
     notify_slack(message, channel)
 
 
+@cli.command()
+@click.option("--d", required=True, help="Directory containing HTML files to check")
+@click.option(
+    "--history-file",
+    default="./link_probes.history",
+    help="Path to the link probes history file",
+)
+@click.option(
+    "--user", required=False, help="GitHub username for repository operations"
+)
+@click.option(
+    "--title", default="Fix broken links via web.archive.org", help="PR title"
+)
+@click.option(
+    "--dry-run/--no-dry-run", default=False, help="Print actions without creating PRs"
+)
+def replace_broken_links(d, history_file, user, title, dry_run):
+    """Find broken links and create PRs to replace them with web.archive.org URLs."""
+    from rspec_tools.checklinks import (
+        collect_confirmed_errors,
+        get_all_links_from_htmls,
+        load_url_probing_history,
+    )
+    from rspec_tools.modify_rule import batch_find_replace
+
+    # Load link history
+    load_url_probing_history(history_file)
+
+    # Get all links from HTML files
+    urls = get_all_links_from_htmls(d)
+
+    # Collect confirmed errors (broken links)
+    confirmed_errors, _, cache_stats = collect_confirmed_errors(urls)
+
+    if not confirmed_errors:
+        click.echo("No broken links found.")
+        return
+
+    click.echo(f"Found {len(confirmed_errors)} broken links.")
+
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token and not dry_run:
+        click.echo("GITHUB_TOKEN environment variable is not set", err=True)
+        exit(1)
+
+    # Create a PR for each broken link
+    for broken_link in confirmed_errors:
+        files_with_link = urls[broken_link]
+        file_count = len(files_with_link)
+
+        file_info = f"in {file_count} file{'s' if file_count > 1 else ''}"
+        click.echo(f"Processing broken link: {broken_link} {file_info}")
+
+        # Create web.archive.org URL
+        archived_link = f"https://web.archive.org/web/{broken_link}"
+
+        pr_description = f"""This PR replaces the broken link:
+{broken_link}
+
+With a Web Archive version:
+{archived_link}
+
+This link appears in the following files:
+{chr(10).join(str(f) for f in files_with_link)}
+"""
+
+        if dry_run:
+            click.echo(f"Would replace: {broken_link}")
+            click.echo(f"With: {archived_link}")
+            click.echo(f"Description: {pr_description}")
+        else:
+            try:
+                pr_url = batch_find_replace(
+                    broken_link,
+                    archived_link,
+                    f"Replace broken link with web.archive.org",
+                    pr_description,
+                    token,
+                    user,
+                )
+                click.echo(f"Created PR: {pr_url}")
+            except Exception as e:
+                click.echo(f"Error creating PR for {broken_link}: {e}", err=True)
+
+
 @cli.command("last-author")
 @click.option(
     "--repo",
