@@ -275,6 +275,7 @@ Original link: {broken_link}
 Archived link: {archived_link}
 
 The proposed replacement is very naive and relies on the Wayback Machine, which ideally should not be used for this purpose.
+Moreover, the replacement link is not guaranteed to be accessible, it wasn't checked.
 In the worst case, using the Internet Archive's Wayback Machine ensures that readers can still access the referenced content.
 Please try to find the appropriate replacement link.
 
