@@ -391,7 +391,7 @@ def test_mixed_links_reporting(setup_test_files):
     # Create a directory for mixed links test
     mixed_dir = temp_path / "mixed_links"
     mixed_dir.mkdir(exist_ok=True)
-    
+
     # Create first rule with a dead link
     rule1_dir = mixed_dir / "S100" / "java"
     rule1_dir.mkdir(parents=True, exist_ok=True)
@@ -402,7 +402,7 @@ def test_mixed_links_reporting(setup_test_files):
         f.write("{}")
     with open(mixed_dir / "S100" / "metadata.json", "w") as f:
         f.write("{}")
-        
+
     # Create second rule with a live link
     rule2_dir = mixed_dir / "S200" / "java"
     rule2_dir.mkdir(parents=True, exist_ok=True)
@@ -413,24 +413,26 @@ def test_mixed_links_reporting(setup_test_files):
         f.write("{}")
     with open(mixed_dir / "S200" / "metadata.json", "w") as f:
         f.write("{}")
-    
+
     # Initialize history with empty content
     with open(history_file, "w") as f:
         f.write("{}")
-    
+
     # Mock live_url to return different values based on URL
     def mock_live_url(url, timeout=5):
         if url == dead_url:
             return False  # This link is dead
         else:
-            return True   # All other links are alive
-    
+            return True  # All other links are alive
+
     with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
         # Mock url_is_long_dead to always return True for our dead URL
         def mock_url_is_long_dead(url):
             return url == dead_url
-            
-        with patch("rspec_tools.checklinks.url_is_long_dead", side_effect=mock_url_is_long_dead):
+
+        with patch(
+            "rspec_tools.checklinks.url_is_long_dead", side_effect=mock_url_is_long_dead
+        ):
             runner = CliRunner()
             result = runner.invoke(
                 cli,
@@ -442,17 +444,19 @@ def test_mixed_links_reporting(setup_test_files):
                     str(history_file),
                 ],
             )
-            
+
             # Verify test fails because there's a dead link
             assert result.exit_code == 1
-            
+
             # Verify that the dead URL and its file are reported in the output
             assert dead_url in result.output
             assert str(rule1_dir / "rule.html") in result.output
-            
+
             # Verify that the live URL and its file are NOT reported in the error section
             assert "1/2 links are dead" in result.output
-            
+
             # Check that the live link's file path is not in the errors section
-            error_section = result.output.split("There were errors")[1].split("Cache statistics")[0]
+            error_section = result.output.split("There were errors")[1].split(
+                "Cache statistics"
+            )[0]
             assert str(rule2_dir / "rule.html") not in error_section
