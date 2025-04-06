@@ -529,10 +529,10 @@ def test_duplicate_links_checked_once(setup_test_files):
 
         # Verify the test passed
         assert result.exit_code == 0
-        
+
         # Verify that the link shows up in all three files
         assert len(live_url_calls) == 1  # The link was only checked once
         assert live_url_calls[0] == test_url
-        
+
         # Verify that the output mentions the link appears in 3 files
         assert f"{test_url} in 3 files" in result.output
