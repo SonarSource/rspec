@@ -12,12 +12,12 @@ from rspec_tools import checklinks, cli
 def run_check_links_with_mocked_live_url(dir_path, history_file, mock_live_url_func):
     """
     Run check-links CLI command with a mocked live_url function.
-    
+
     Args:
         dir_path: Directory to check links in
         history_file: Path to the history file
         mock_live_url_func: Function to use for mocking live_url
-        
+
     Returns:
         Result of the CLI command
     """
@@ -271,9 +271,7 @@ def test_reprobe_old_links(setup_test_files):
 
     # Verify that the test URL was probed again
     assert test_url in probe_calls
-    assert (
-        "skip probing because it was reached recently" not in second_result.output
-    )
+    assert "skip probing because it was reached recently" not in second_result.output
     assert second_result.exit_code == 0
 
 
@@ -354,7 +352,9 @@ def test_exception_url(setup_test_files):
         # Don't call the original function to avoid possible network errors
         return True  # Just return True instead of calling the original function
 
-    result = run_check_links_with_mocked_live_url(exception_dir, history_file, mock_live_url)
+    result = run_check_links_with_mocked_live_url(
+        exception_dir, history_file, mock_live_url
+    )
 
     # Verify that the exception URL was not probed (not in live_url_calls)
     assert exception_url not in live_url_calls
@@ -472,9 +472,7 @@ def test_duplicate_links_checked_once(setup_test_files):
         live_url_calls.append(url)
         return True  # All links are alive
 
-    result = run_check_links_with_mocked_live_url(
-        dup_dir, history_file, mock_live_url
-    )
+    result = run_check_links_with_mocked_live_url(dup_dir, history_file, mock_live_url)
 
     # Verify the test passed
     assert result.exit_code == 0
