@@ -148,8 +148,8 @@ def test_update_quickfix_status_pull_request(rule_editor: RuleEditor):
         )
 
 
-def test_batch_find_replace_pull_request(rule_editor: RuleEditor):
-    """Test batch_find_replace_pull_request creates PR with appropriate labels and assignee."""
+def test_batch_find_replace_pull_request_multiple_rules(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request creates PR with appropriate labels and assignee for multiple rules."""
     with mock_github() as (token, user, mock_repo):
         # Mock the batch_find_replace_branch method to return expected values
         affected_rules = {"S123": {"java"}, "S456": {"python"}}
@@ -201,6 +201,45 @@ def test_batch_find_replace_pull_request(rule_editor: RuleEditor):
             mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(
                 "specific-user"
             )
+
+
+def test_batch_find_replace_pull_request_single_rule(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request creates PR with proper title for a single rule."""
+    with mock_github() as (token, user, mock_repo):
+        # Mock the batch_find_replace_branch method to return values for a single rule
+        affected_rules = {"S789": {"java"}}
+        
+        # Create paths using the repository working directory
+        repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
+        modified_files = [
+            repo_dir / "rules/S789/java/rule.adoc",
+        ]
+
+        with patch.object(
+            rule_editor,
+            "batch_find_replace_branch",
+            return_value=("test-branch-single", affected_rules, modified_files),
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old pattern",
+                "new pattern",
+                "fix description format",
+                "PR description for single rule update",
+                user,
+                None,
+            )
+
+            # Assert PR was created
+            mock_repo.create_pull.assert_called_once()
+
+            # Verify PR title - should use singular form for single rule
+            title = mock_repo.create_pull.call_args.kwargs["title"]
+            assert "Modify rule S789: fix description format" in title
+            assert "rules" not in title  # Should not use plural form
+
+            # Verify labels are added
+            mock_repo.create_pull.return_value.add_to_labels.assert_called_once()
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
