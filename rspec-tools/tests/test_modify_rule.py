@@ -251,10 +251,10 @@ def test_batch_find_replace_pull_request_auto_assignee(rule_editor: RuleEditor):
             repo_dir / "rules/S111/python/rule.adoc",
         ]
         affected_rules = {"S111": {"python"}}
-        
+
         # Set up the mocks
         auto_detected_author = "file-author"
-        
+
         with patch.object(
             rule_editor,
             "batch_find_replace_branch",
@@ -275,10 +275,15 @@ def test_batch_find_replace_pull_request_auto_assignee(rule_editor: RuleEditor):
 
             # Verify that PR was created with the auto-detected assignee
             mock_repo.create_pull.assert_called_once()
-            
+
             # The assignee should be the auto-detected author, not the user
-            mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(auto_detected_author)
-            assert mock_repo.create_pull.return_value.add_to_assignees.call_args.args[0] != user
+            mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(
+                auto_detected_author
+            )
+            assert (
+                mock_repo.create_pull.return_value.add_to_assignees.call_args.args[0]
+                != user
+            )
 
 
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
