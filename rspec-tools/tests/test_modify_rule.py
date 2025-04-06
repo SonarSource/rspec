@@ -148,6 +148,44 @@ def test_update_quickfix_status_pull_request(rule_editor: RuleEditor):
         )
 
 
+def test_batch_find_replace_pull_request(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request creates PR with appropriate labels and assignee."""
+    with mock_github() as (token, user, mock_repo):
+        # Mock the batch_find_replace_branch method to return expected values
+        affected_rules = {"S123": {"java"}, "S456": {"python"}}
+        modified_files = [Path("rules/S123/java/test.txt"), Path("rules/S456/python/test.txt")]
+        
+        with patch.object(
+            rule_editor, 
+            "batch_find_replace_branch", 
+            return_value=("test-branch", affected_rules, modified_files)
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token, "old text", "new text", "update text", "PR description", user, None
+            )
+            
+            # Assert PR was created
+            mock_repo.create_pull.assert_called_once()
+            
+            # Verify PR title format
+            title = mock_repo.create_pull.call_args.kwargs["title"]
+            assert "Modify rules S123, S456: update text" in title
+            
+            # Verify assignees and labels
+            mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(user)
+            
+            # Check that labels were added
+            labels_call = mock_repo.create_pull.return_value.add_to_labels.call_args
+            assert labels_call is not None
+            
+            # Test with specific assignee
+            mock_repo.create_pull.reset_mock()
+            rule_editor.batch_find_replace_pull_request(
+                token, "old text", "new text", "update text", "PR description", user, "specific-user"
+            )
+            mock_repo.create_pull.return_value.add_to_assignees.assert_called_with("specific-user")
+
+
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
 @patch("rspec_tools.modify_rule.RuleEditor")
 def test_update_rule_quickfix_status(mockRuleEditor, mock_tmp_rspec_repo):
