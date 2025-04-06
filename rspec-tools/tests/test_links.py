@@ -223,3 +223,48 @@ def test_reprobe_old_links(setup_test_files):
         assert test_url in probe_calls
         assert "skip probing because it was reached recently" not in result.output
         assert result.exit_code == 0
+
+
+def test_tolerable_downtime(setup_test_files):
+    """Test that links that were alive recently but are now dead are not reported as dead."""
+    temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
+    test_url = "https://www.google.com/404"  # This URL will return 404
+
+    # Create history file with a recent probe (3 days ago) for our test URL
+    # This is within the TOLERABLE_LINK_DOWNTIME period (7 days)
+    with open(history_file, "w") as f:
+        # Set the date to be 3 days ago (within the TOLERABLE_LINK_DOWNTIME of 7 days)
+        recent_time = (
+            datetime.datetime.now() - datetime.timedelta(days=3)
+        ).strftime("%Y-%m-%d %H:%M:%S.%f")
+        f.write(
+            f"{{{repr(test_url)}: datetime.datetime.strptime('{recent_time}', '%Y-%m-%d %H:%M:%S.%f')}}"
+        )
+
+    # Mock url_is_long_dead to verify it's called with our test URL
+    original_url_is_long_dead = checklinks.url_is_long_dead
+    long_dead_calls = []
+
+    def mock_url_is_long_dead(url):
+        long_dead_calls.append(url)
+        return original_url_is_long_dead(url)
+
+    with patch("rspec_tools.checklinks.url_is_long_dead", side_effect=mock_url_is_long_dead):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "check-links",
+                "--d",
+                temp_path / "404",  # This directory has a link to google.com/404
+                "--history-file",
+                str(history_file),
+            ],
+        )
+
+        # Verify url_is_long_dead was called with our test URL
+        assert test_url in long_dead_calls
+        # Verify the link wasn't reported as dead (exit code 0 means all links are good)
+        assert result.exit_code == 0
+        assert "All 1 links are good" in result.output
