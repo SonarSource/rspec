@@ -461,3 +461,4 @@ def test_batch_find_replace_pull_request_invalid_language(rule_editor: RuleEdito
             labels_call = mock_repo.create_pull.return_value.add_to_labels.call_args
             # The java label should be in the call, but no label for invalid_lang
             assert "java" in str(labels_call)
+            assert "invalid_lang" not in str(labels_call)
