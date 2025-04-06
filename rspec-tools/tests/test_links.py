@@ -144,7 +144,7 @@ def test_no_reprobe_recent_links(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
     test_url = "https://www.google.com/"
-    
+
     # First run: Probe the links and update the history file
     with patch("rspec_tools.checklinks.live_url", return_value=True):
         runner = CliRunner()
@@ -160,15 +160,15 @@ def test_no_reprobe_recent_links(setup_test_files):
         )
         assert first_result.exit_code == 0
         assert "All 1 links are good" in first_result.output
-    
+
     # Second run: The link should not be probed again
     # Mock the live_url function to track if it gets called
     probe_calls = []
-    
+
     def mock_live_url(url, timeout=5):
         probe_calls.append(url)
         return True
-    
+
     with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
         runner = CliRunner()
         second_result = runner.invoke(
@@ -181,7 +181,7 @@ def test_no_reprobe_recent_links(setup_test_files):
                 str(history_file),
             ],
         )
-        
+
         # Verify that the test URL wasn't probed again
         assert test_url not in probe_calls
         assert "skip probing because it was reached recently" in second_result.output
