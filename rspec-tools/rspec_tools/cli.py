@@ -14,6 +14,7 @@ from rspec_tools.coverage import (
 )
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.notify_failure_on_slack import notify_slack
+from rspec_tools.repo import get_last_login_modified_file
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (
     validate_parameters,
@@ -168,6 +169,34 @@ def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[
 @click.option("--channel", required=True)
 def notify_failure_on_slack(message: str, channel: str):
     notify_slack(message, channel)
+
+
+@cli.command("last-author")
+@click.option(
+    "--repo",
+    help="Repository in format 'owner/repo'",
+    default=lambda: os.environ.get("GITHUB_REPOSITORY", "SonarSource/rspec"),
+)
+@click.option(
+    "--max-commits", default=3, type=int, help="Maximum number of commits to check"
+)
+@click.argument("file_path")
+def last_author_command(repo: str, max_commits: int, file_path: str):
+    """Find the last non-bot GitHub login that modified a given file.
+
+    Requires GITHUB_TOKEN environment variable to be set.
+    """
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        click.echo("GITHUB_TOKEN environment variable is not set", err=True)
+        exit(1)
+
+    author = get_last_login_modified_file(token, repo, file_path, max_commits)
+    if author:
+        click.echo(author)
+    else:
+        click.echo("No non-bot author found for the specified file", err=True)
+        exit(1)
 
 
 __all__ = ["cli"]

@@ -116,3 +116,72 @@ class TestCLIValidateDescription:
         result = self._run_invalid(["S100"])
         assert re.search(r"Validation failed due to \d+ errors", result.output)
         assert result.exit_code == 1
+
+
+class TestCLILastAuthor:
+    """Unit tests for the last-author command."""
+
+    @patch.dict(
+        os.environ,
+        {"GITHUB_TOKEN": "fake-token", "GITHUB_REPOSITORY": "test-owner/test-repo"},
+    )
+    @patch("rspec_tools.cli.get_last_login_modified_file")
+    def test_success(self, mock_get_login):
+        """Test successful author lookup."""
+        mock_get_login.return_value = "johndoe"
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["last-author", "path/to/file.txt"])
+
+        mock_get_login.assert_called_once_with(
+            "fake-token", "test-owner/test-repo", "path/to/file.txt", 3
+        )
+        assert result.output.strip() == "johndoe"
+        assert result.exit_code == 0
+
+    @patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"})
+    @patch("rspec_tools.cli.get_last_login_modified_file")
+    def test_custom_parameters(self, mock_get_login):
+        """Test with custom repository and max commits."""
+        mock_get_login.return_value = "janedoe"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "last-author",
+                "--repo",
+                "custom/repo",
+                "--max-commits",
+                "5",
+                "path/to/file.txt",
+            ],
+        )
+
+        mock_get_login.assert_called_once_with(
+            "fake-token", "custom/repo", "path/to/file.txt", 5
+        )
+        assert result.output.strip() == "janedoe"
+        assert result.exit_code == 0
+
+    @patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"})
+    @patch("rspec_tools.cli.get_last_login_modified_file")
+    def test_no_author_found(self, mock_get_login):
+        """Test when no non-bot author is found."""
+        mock_get_login.return_value = None
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["last-author", "path/to/file.txt"])
+
+        assert "No non-bot author found" in result.output
+        assert result.exit_code == 1
+
+    # Clear to make sure the potentially pre-existing GITHUB_TOKEN is not mixed in
+    @patch.dict(os.environ, {}, clear=True)
+    def test_missing_token(self):
+        """Test error when GITHUB_TOKEN is not set."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["last-author", "path/to/file.txt"])
+
+        assert "GITHUB_TOKEN environment variable is not set" in result.output
+        assert result.exit_code == 1
