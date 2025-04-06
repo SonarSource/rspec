@@ -79,6 +79,34 @@ def update_quickfix_status(language: str, rule: str, status: str, user: Optional
 
 
 @cli.command()
+@click.option("--search", required=True, help="Text to search for")
+@click.option("--replace", required=True, help="Text to replace with")
+@click.option("--title", required=True, help="Pull request title suffix")
+@click.option("--description", required=True, help="Pull request description")
+@click.option(
+    "--user", required=False, help="GitHub username for repository operations"
+)
+@click.option(
+    "--assignee",
+    required=False,
+    help="GitHub username to assign the PR to (overrides automatic detection)",
+)
+def batch_replace(
+    search: str,
+    replace: str,
+    title: str,
+    description: str,
+    user: Optional[str],
+    assignee: Optional[str],
+):
+    """Perform a batch find and replace across rule files and create a PR"""
+    token = os.environ.get("GITHUB_TOKEN")
+    rspec_tools.modify_rule.batch_find_replace(
+        search, replace, title, description, token, user, assignee
+    )
+
+
+@cli.command()
 @click.argument("rules", nargs=-1, required=True)
 def validate_rules_metadata(rules):
     """Validate rules metadata."""

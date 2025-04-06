@@ -5,7 +5,11 @@ from unittest.mock import Mock, patch
 import pytest
 from git import Repo
 from rspec_tools.errors import InvalidArgumentError
-from rspec_tools.modify_rule import RuleEditor, update_rule_quickfix_status
+from rspec_tools.modify_rule import (
+    batch_find_replace,
+    RuleEditor,
+    update_rule_quickfix_status,
+)
 from rspec_tools.repo import RspecRepo
 
 from tests.conftest import mock_github
@@ -155,3 +159,58 @@ def test_update_rule_quickfix_status(mockRuleEditor, mock_tmp_rspec_repo):
     assert prMock.call_args.args[2] == "cfamily"
     assert prMock.call_args.args[3] == "covered"
     assert prMock.call_args.args[4] == "cfamily"
+
+
+@patch("rspec_tools.modify_rule.tmp_rspec_repo")
+@patch("rspec_tools.modify_rule.RuleEditor")
+def test_batch_find_replace(mockRuleEditor, mock_tmp_rspec_repo):
+    """Test batch_find_replace uses the expected implementation."""
+    prMock = mockRuleEditor.return_value.batch_find_replace_pull_request
+    batch_find_replace(
+        "text to find",
+        "replacement text",
+        "update description text",
+        "PR description",
+        "my token",
+        "testuser",
+        "assignee",
+    )
+    prMock.assert_called_once()
+    assert prMock.call_args.args[1] == "text to find"
+    assert prMock.call_args.args[2] == "replacement text"
+    assert prMock.call_args.args[3] == "update description text"
+    assert prMock.call_args.args[4] == "PR description"
+    assert prMock.call_args.args[5] == "testuser"
+    assert prMock.call_args.args[6] == "assignee"
+
+
+def test_batch_find_replace_branch(rule_editor: RuleEditor, mock_git_rspec_repo: Repo):
+    """Test that batch_find_replace_branch correctly identifies and modifies files."""
+    # Need to simulate some files in the rules directory
+    rules_dir = Path(mock_git_rspec_repo.working_dir) / "rules"
+    test_rule_dir = rules_dir / "S123" / "java"
+    test_rule_dir.mkdir(parents=True, exist_ok=True)
+
+    test_file = test_rule_dir / "test.txt"
+    test_file.write_text("This is a test file with search_text in it.")
+
+    mock_git_rspec_repo.git.checkout("master")
+    mock_git_rspec_repo.index.add([str(test_file)])
+    mock_git_rspec_repo.index.commit("Add test file")
+
+    branch_name, affected_rules, modified_files = rule_editor.batch_find_replace_branch(
+        "Test batch replace", "search_text", "replacement_text"
+    )
+
+    # Verify branch was created
+    assert branch_name.startswith("rule/batch-replace-")
+
+    # Check that the right rule and language were identified
+    assert "S123" in affected_rules
+    assert "java" in affected_rules["S123"]
+
+    # Verify file was modified
+    mock_git_rspec_repo.git.checkout(branch_name)
+    modified_content = test_file.read_text()
+    assert "replacement_text" in modified_content
+    assert "search_text" not in modified_content
