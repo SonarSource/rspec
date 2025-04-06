@@ -12,10 +12,10 @@ from rspec_tools import checklinks, cli
 def get_error_section(result_output):
     """
     Extract the error section from the check-links command output.
-    
+
     Args:
         result_output: The output from running the check-links command
-        
+
     Returns:
         The error section of the output containing the dead links and their files
     """
