@@ -391,37 +391,29 @@ def test_mixed_links_reporting(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
 
-    # AI: refactor this code ...
-    # Create a directory for mixed links test
-    mixed_dir = temp_path / "mixed_links"
-    mixed_dir.mkdir(exist_ok=True)
-
-    # Create first rule with a dead link
-    rule1_dir = mixed_dir / "S100" / "java"
-    rule1_dir.mkdir(parents=True, exist_ok=True)
+    # Create test files for mixed links test
     dead_url = "https://www.example.com/dead-link"
-    with open(rule1_dir / "rule.html", "w") as f:
-        f.write(f'<a href="{dead_url}">Dead Link</a>')
-    with open(rule1_dir / "metadata.json", "w") as f:
-        f.write("{}")
-    with open(mixed_dir / "S100" / "metadata.json", "w") as f:
-        f.write("{}")
-
-    # Create second rule with a live link
-    rule2_dir = mixed_dir / "S200" / "java"
-    rule2_dir.mkdir(parents=True, exist_ok=True)
     live_url = "https://www.example.com/live-link"
-    with open(rule2_dir / "rule.html", "w") as f:
-        f.write(f'<a href="{live_url}">Live Link</a>')
-    with open(rule2_dir / "metadata.json", "w") as f:
-        f.write("{}")
-    with open(mixed_dir / "S200" / "metadata.json", "w") as f:
-        f.write("{}")
-
-    # Initialize history with empty content
-    with open(history_file, "w") as f:
-        f.write("{}")
-    # ... up to this point using create_test_files AI!
+    
+    # Define the test directory structure with dead and live links
+    mixed_test_dirs = {
+        "mixed_links": {
+            "S100/java/rule.html": f'<a href="{dead_url}">Dead Link</a>',
+            "S100/java/metadata.json": "{}",
+            "S100/metadata.json": "{}",
+            "S200/java/rule.html": f'<a href="{live_url}">Live Link</a>',
+            "S200/java/metadata.json": "{}",
+            "S200/metadata.json": "{}",
+        }
+    }
+    
+    # Create the test files
+    create_test_files(temp_path, mixed_test_dirs)
+    
+    # Get paths to test files for later assertions
+    mixed_dir = temp_path / "mixed_links"
+    rule1_dir = mixed_dir / "S100" / "java"
+    rule2_dir = mixed_dir / "S200" / "java"
 
     # Mock live_url to return different values based on URL
     def mock_live_url(url, timeout=5):
