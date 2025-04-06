@@ -282,7 +282,9 @@ def test_tolerable_downtime(setup_test_files):
 
     # Setup history file with a recent date (3 days ago) - within TOLERABLE_LINK_DOWNTIME
     recent_date = datetime.datetime.now() - datetime.timedelta(days=3)
-    first_result = setup_history_file(temp_path, history_file, "404", mock_date=recent_date)
+    first_result = setup_history_file(
+        temp_path, history_file, "404", mock_date=recent_date
+    )
     assert first_result.exit_code == 0
 
     # Mock live_url to always return False for our test URL (simulating a dead link)
@@ -316,7 +318,9 @@ def test_old_dead_link(setup_test_files):
 
     # Setup history file with an old date (30 days ago) - beyond TOLERABLE_LINK_DOWNTIME
     old_date = datetime.datetime.now() - datetime.timedelta(days=30)
-    first_result = setup_history_file(temp_path, history_file, "404", mock_date=old_date)
+    first_result = setup_history_file(
+        temp_path, history_file, "404", mock_date=old_date
+    )
     assert first_result.exit_code == 0
 
     # Mock live_url to always return False for our test URL (simulating a dead link)
