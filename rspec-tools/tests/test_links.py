@@ -235,9 +235,9 @@ def test_tolerable_downtime(setup_test_files):
     # This is within the TOLERABLE_LINK_DOWNTIME period (7 days)
     with open(history_file, "w") as f:
         # Set the date to be 3 days ago (within the TOLERABLE_LINK_DOWNTIME of 7 days)
-        recent_time = (
-            datetime.datetime.now() - datetime.timedelta(days=3)
-        ).strftime("%Y-%m-%d %H:%M:%S.%f")
+        recent_time = (datetime.datetime.now() - datetime.timedelta(days=3)).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
         f.write(
             f"{{{repr(test_url)}: datetime.datetime.strptime('{recent_time}', '%Y-%m-%d %H:%M:%S.%f')}}"
         )
@@ -250,7 +250,9 @@ def test_tolerable_downtime(setup_test_files):
         long_dead_calls.append(url)
         return original_url_is_long_dead(url)
 
-    with patch("rspec_tools.checklinks.url_is_long_dead", side_effect=mock_url_is_long_dead):
+    with patch(
+        "rspec_tools.checklinks.url_is_long_dead", side_effect=mock_url_is_long_dead
+    ):
         runner = CliRunner()
         result = runner.invoke(
             cli,
