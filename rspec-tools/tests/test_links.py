@@ -449,7 +449,9 @@ def test_mixed_links_reporting(setup_test_files):
             assert result.exit_code == 1
 
             # Verify that the dead URL and its file are reported in the errors section of the output
-            error_section = result.output.split("There were errors")[1].split("Cache statistics")[0]
+            error_section = result.output.split("There were errors")[1].split(
+                "Cache statistics"
+            )[0]
             assert dead_url in error_section
             assert str(rule1_dir / "rule.html") in error_section
 
