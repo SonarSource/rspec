@@ -71,7 +71,9 @@ def test_live_url_failure():
 def test_404(setup_test_files):
     temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", temp_path / "404", "--history-file", ":memory:"])
+    result = runner.invoke(
+        cli, ["check-links", "--d", temp_path / "404", "--history-file", ":memory:"]
+    )
     print(result.output)
     assert result.exit_code == 1
     assert (
@@ -83,7 +85,9 @@ def test_404(setup_test_files):
 def test_url(setup_test_files):
     temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", temp_path / "URL", "--history-file", ":memory:"])
+    result = runner.invoke(
+        cli, ["check-links", "--d", temp_path / "URL", "--history-file", ":memory:"]
+    )
     print(result.output)
     assert result.exit_code == 1
     assert (
@@ -95,7 +99,9 @@ def test_url(setup_test_files):
 def test_ok(setup_test_files):
     temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", temp_path / "OK", "--history-file", ":memory:"])
+    result = runner.invoke(
+        cli, ["check-links", "--d", temp_path / "OK", "--history-file", ":memory:"]
+    )
     print(result.output)
     assert result.exit_code == 0
     assert "All 1 links are good" in result.output
@@ -104,7 +110,10 @@ def test_ok(setup_test_files):
 def test_deprecated(setup_test_files):
     temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", temp_path / "deprecated", "--history-file", ":memory:"])
+    result = runner.invoke(
+        cli,
+        ["check-links", "--d", temp_path / "deprecated", "--history-file", ":memory:"],
+    )
     print(result.output)
     assert result.exit_code == 0
     assert "All 1 links are good" in result.output
