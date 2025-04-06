@@ -144,15 +144,27 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 except UnicodeDecodeError:
                     # Skip binary files
                     continue
-                if search in content:
-                    self._find_n_replace_in_file(
-                        filepath,
-                        search,
-                        replace,
-                        rules_dir,
-                        affected_rules,
-                        modified_files,
-                    )
+                if search in content: # AI! factor out this block into a dedicated function "find_n_replace_in_file"
+                    # Perform the replacement
+                    new_content = content.replace(search, replace)
+                    filepath.write_text(new_content, encoding="utf-8")
+
+                    # Get relative path components to determine rule and language
+                    rel_path = filepath.relative_to(rules_dir)
+                    parts = rel_path.parts
+
+                    if len(parts) >= 1:
+                        rule_id = parts[0]  # The rule folder (e.g., "S123")
+
+                        # If there's a language subfolder, record it
+                        if len(parts) >= 2:
+                            language = parts[1]
+                            affected_rules[rule_id].add(language)
+                        else:
+                            # It's in the rule root folder
+                            affected_rules[rule_id].add("")
+
+                        modified_files.append(filepath)
 
             if modified_files:
                 self.rspec_repo.commit_all_and_push(title)
@@ -286,48 +298,6 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         return self.rspec_repo.create_pull_request(
             token, branch_name, pr_title, description, labels, auto_assignee or user
         )
-
-    def _find_n_replace_in_file(
-        self,
-        filepath: Path,
-        search: str,
-        replace: str,
-        rules_dir: Path,
-        affected_rules: Dict[str, Set[str]],
-        modified_files: List[Path],
-    ):
-        """
-        Perform find and replace operation on a file and track affected rules.
-
-        Args:
-            filepath: Path to the file to modify
-            search: The string to search for
-            replace: The string to replace with
-            rules_dir: Base rules directory for relative path calculation
-            affected_rules: Dictionary to update with affected rule IDs and languages
-            modified_files: List to update with modified file paths
-        """
-        # Perform the replacement
-        content = filepath.read_text(encoding="utf-8")
-        new_content = content.replace(search, replace)
-        filepath.write_text(new_content, encoding="utf-8")
-
-        # Get relative path components to determine rule and language
-        rel_path = filepath.relative_to(rules_dir)
-        parts = rel_path.parts
-
-        if len(parts) >= 1:
-            rule_id = parts[0]  # The rule folder (e.g., "S123")
-
-            # If there's a language subfolder, record it
-            if len(parts) >= 2:
-                language = parts[1]
-                affected_rules[rule_id].add(language)
-            else:
-                # It's in the rule root folder
-                affected_rules[rule_id].add("")
-
-            modified_files.append(filepath)
 
     def _get_generic_quickfix_status(self, rule_number: int):
         DEFAULT = "unknown"
