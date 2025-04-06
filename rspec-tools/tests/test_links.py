@@ -469,7 +469,7 @@ def test_duplicate_links_checked_once(setup_test_files):
 
     # Create test files for duplicate links test
     test_url = "https://www.example.com/test-link"
-    
+
     # Define the test directory structure with the same URL in multiple files
     duplicate_test_dirs = {
         "duplicate_links": {
@@ -481,13 +481,13 @@ def test_duplicate_links_checked_once(setup_test_files):
             "S200/metadata.json": "{}",
             "S300/java/rule.html": f'<a href="{test_url}">Same Test Link in File 3</a>',
             "S300/java/metadata.json": "{}",
-            "S300/metadata.json": "{}"
+            "S300/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, duplicate_test_dirs)
-    
+
     # Get the directory path for later use
     dup_dir = temp_path / "duplicate_links"
 
