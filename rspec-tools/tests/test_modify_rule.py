@@ -208,7 +208,7 @@ def test_batch_find_replace_pull_request_single_rule(rule_editor: RuleEditor):
     with mock_github() as (token, user, mock_repo):
         # Mock the batch_find_replace_branch method to return values for a single rule
         affected_rules = {"S789": {"java"}}
-        
+
         # Create paths using the repository working directory
         repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
         modified_files = [
