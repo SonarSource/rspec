@@ -9,8 +9,7 @@ from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
 
-#AI! simplify this function to always require the mock_date and always mock it
-def setup_history_file(temp_path, history_file, test_dir="OK", mock_date=None):
+def setup_history_file(temp_path, history_file, test_dir="OK", mock_date):
     """
     Helper function to run check-links and setup a history file.
 
@@ -18,34 +17,19 @@ def setup_history_file(temp_path, history_file, test_dir="OK", mock_date=None):
         temp_path: Path to temporary directory
         history_file: Path to history file
         test_dir: Directory containing test files
-        mock_date: Optional date to use for the history entry (for simulating old entries)
+        mock_date: Date to use for the history entry
 
     Returns:
         Result of the check-links command
     """
-    # Mock datetime.now() if a specific date is provided
-    if mock_date:
-        with patch("datetime.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_date
-            mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(
-                *args, **kw
-            )
+    # Always mock datetime.now() with the provided date
+    with patch("datetime.datetime") as mock_datetime:
+        mock_datetime.now.return_value = mock_date
+        mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(
+            *args, **kw
+        )
 
-            # Run check-links with mocked live_url
-            with patch("rspec_tools.checklinks.live_url", return_value=True):
-                runner = CliRunner()
-                return runner.invoke(
-                    cli,
-                    [
-                        "check-links",
-                        "--d",
-                        temp_path / test_dir,
-                        "--history-file",
-                        str(history_file),
-                    ],
-                )
-    else:
-        # Run check-links with mocked live_url (no date mocking)
+        # Run check-links with mocked live_url
         with patch("rspec_tools.checklinks.live_url", return_value=True):
             runner = CliRunner()
             return runner.invoke(
@@ -196,8 +180,9 @@ def test_no_reprobe_recent_links(setup_test_files):
     history_file = temp_path / "link_probes.history"
     test_url = "https://www.google.com/"
 
-    # First run: Probe the links and update the history file
-    first_result = setup_history_file(temp_path, history_file)
+    # First run: Probe the links and update the history file with current date
+    current_date = datetime.datetime.now()
+    first_result = setup_history_file(temp_path, history_file, mock_date=current_date)
     assert first_result.exit_code == 0
     assert "All 1 links are good" in first_result.output
 
