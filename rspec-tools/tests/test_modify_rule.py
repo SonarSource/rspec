@@ -425,10 +425,10 @@ def test_batch_find_replace_pull_request_invalid_language(rule_editor: RuleEdito
     with mock_github() as (token, user, mock_repo):
         # Create affected_rules with a valid language and an invalid one
         affected_rules = {
-            "S123": {"java"},           # Valid language
-            "S456": {"invalid_lang"}    # Invalid language that should be skipped
+            "S123": {"java"},  # Valid language
+            "S456": {"invalid_lang"},  # Invalid language that should be skipped
         }
-        
+
         repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
         modified_files = [
             repo_dir / "rules/S123/java/rule.adoc",
@@ -452,11 +452,11 @@ def test_batch_find_replace_pull_request_invalid_language(rule_editor: RuleEdito
 
             # Assert PR was created despite the invalid language
             mock_repo.create_pull.assert_called_once()
-            
+
             # Check the PR title contains both rules
             title = mock_repo.create_pull.call_args.kwargs["title"]
             assert "Modify rules S123, S456: handle invalid languages" in title
-            
+
             # Verify the correct label was added (only from valid language)
             labels_call = mock_repo.create_pull.return_value.add_to_labels.call_args
             # The java label should be in the call, but no label for invalid_lang
