@@ -9,6 +9,22 @@ from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
 
+def create_test_files(base_path, test_dirs):
+    """
+    Create test files based on a directory structure definition.
+    
+    Args:
+        base_path: Base directory where files will be created
+        test_dirs: Dictionary mapping directory names to file paths and contents
+    """
+    for test_dir, files in test_dirs.items():
+        for file_path, content in files.items():
+            full_path = base_path / test_dir / file_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(full_path, "w") as f:
+                f.write(content)
+
+
 def setup_history_file(temp_path, history_file, mock_date, test_dir="OK"):
     """
     Helper function to run check-links and setup a history file.
@@ -72,14 +88,8 @@ def setup_test_files():
         },
     }
 
-    #AI! factor out this section that creates the temporary files based on `test_dirs`
     # Create all test files
-    for test_dir, files in test_dirs.items():
-        for file_path, content in files.items():
-            full_path = temp_path / test_dir / file_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(full_path, "w") as f:
-                f.write(content)
+    create_test_files(temp_path, test_dirs)
 
     # Create empty history file
     history_file = temp_path / "link_probes.history"
