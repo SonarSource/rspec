@@ -174,13 +174,15 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
         return branch_name, affected_rules, modified_files
 
-    def collect_labels_from_affected_rules(self, affected_rules: Dict[str, Set[str]]) -> Set[str]:
+    def collect_labels_from_affected_rules(
+        self, affected_rules: Dict[str, Set[str]]
+    ) -> Set[str]:
         """
         Collect labels for the PR based on affected languages.
-        
+
         Args:
             affected_rules: Dictionary mapping rule IDs to sets of languages
-            
+
         Returns:
             Set of labels to apply to the PR
         """
@@ -195,7 +197,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                         # Skip invalid languages
                         continue
         return labels
-        
+
     def batch_find_replace_pull_request(
         self,
         token: str,
