@@ -44,6 +44,11 @@ def setup_test_files():
             full_path.parent.mkdir(parents=True, exist_ok=True)
             with open(full_path, "w") as f:
                 f.write(content)
+    
+    # Create empty history file
+    history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
 
     yield temp_path
 
@@ -70,9 +75,10 @@ def test_live_url_failure():
 
 def test_404(setup_test_files):
     temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["check-links", "--d", temp_path / "404", "--history-file", ":memory:"]
+        cli, ["check-links", "--d", temp_path / "404", "--history-file", str(history_file)]
     )
     print(result.output)
     assert result.exit_code == 1
@@ -84,9 +90,10 @@ def test_404(setup_test_files):
 
 def test_url(setup_test_files):
     temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["check-links", "--d", temp_path / "URL", "--history-file", ":memory:"]
+        cli, ["check-links", "--d", temp_path / "URL", "--history-file", str(history_file)]
     )
     print(result.output)
     assert result.exit_code == 1
@@ -98,9 +105,10 @@ def test_url(setup_test_files):
 
 def test_ok(setup_test_files):
     temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["check-links", "--d", temp_path / "OK", "--history-file", ":memory:"]
+        cli, ["check-links", "--d", temp_path / "OK", "--history-file", str(history_file)]
     )
     print(result.output)
     assert result.exit_code == 0
@@ -109,10 +117,11 @@ def test_ok(setup_test_files):
 
 def test_deprecated(setup_test_files):
     temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["check-links", "--d", temp_path / "deprecated", "--history-file", ":memory:"],
+        ["check-links", "--d", temp_path / "deprecated", "--history-file", str(history_file)],
     )
     print(result.output)
     assert result.exit_code == 0
