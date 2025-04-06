@@ -129,8 +129,7 @@ def is_a_bot(username: str):
 def get_last_login_modified_file(
     repo_name: str, file_path: str, max_commits: int = 3, token: str
 ) -> Optional[str]:
-    """
-    Find the last non-bot GitHub login that modified a given file.
+    """Find the last non-bot GitHub login that modified a given file.
 
     Args:
         repo_name: Repository name in format 'owner/repo'
