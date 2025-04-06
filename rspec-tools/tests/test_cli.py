@@ -125,7 +125,7 @@ class TestCLILastAuthor:
         os.environ,
         {"GITHUB_TOKEN": "fake-token", "GITHUB_REPOSITORY": "test-owner/test-repo"},
     )
-    @patch("rspec_tools.repo.get_last_login_modified_file")
+    @patch("rspec_tools.cli.get_last_login_modified_file")
     def test_success(self, mock_get_login):
         """Test successful author lookup."""
         mock_get_login.return_value = "johndoe"
@@ -140,7 +140,7 @@ class TestCLILastAuthor:
         assert result.exit_code == 0
 
     @patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"})
-    @patch("rspec_tools.repo.get_last_login_modified_file")
+    @patch("rspec_tools.cli.get_last_login_modified_file")
     def test_custom_parameters(self, mock_get_login):
         """Test with custom repository and max commits."""
         mock_get_login.return_value = "janedoe"
@@ -165,7 +165,7 @@ class TestCLILastAuthor:
         assert result.exit_code == 0
 
     @patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"})
-    @patch("rspec_tools.repo.get_last_login_modified_file")
+    @patch("rspec_tools.cli.get_last_login_modified_file")
     def test_no_author_found(self, mock_get_login):
         """Test when no non-bot author is found."""
         mock_get_login.return_value = None
