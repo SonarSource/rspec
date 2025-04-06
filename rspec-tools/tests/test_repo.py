@@ -1,7 +1,7 @@
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import os
 from git import Repo
 from rspec_tools.repo import get_last_login_modified_file, RspecRepo
 
@@ -114,5 +114,7 @@ def test_get_last_login_modified_file():
         mock_github.reset_mock()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "env-token"}):
             token = os.environ.get("GITHUB_TOKEN")
-            result = get_last_login_modified_file("owner/repo", "some/file.txt", token=token)
+            result = get_last_login_modified_file(
+                "owner/repo", "some/file.txt", token=token
+            )
             mock_github.assert_called_once_with("env-token")
