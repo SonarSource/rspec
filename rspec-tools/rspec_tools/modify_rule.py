@@ -263,6 +263,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         rule_ids = list(affected_rules.keys())
         rule_ids.sort()  # Sort rule IDs for consistent order
 
+        # AI! factor out this block into a function "compose_pr_title"
         # If there's just one rule affected, use singular form
         if len(rule_ids) == 1:
             pr_title = f"Modify rule {rule_ids[0]}: {title_suffix}"
@@ -273,6 +274,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             else:
                 rules_str = f"{len(rule_ids)} rules"
             pr_title = f"Modify rules {rules_str}: {title_suffix}"
+        # AI: up to this line
 
         # Collect labels for the PR based on affected languages
         labels = self.collect_labels_from_affected_rules(affected_rules)
