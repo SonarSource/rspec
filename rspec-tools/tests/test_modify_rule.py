@@ -392,3 +392,27 @@ def test_batch_find_replace_branch(rule_editor: RuleEditor, mock_git_rspec_repo:
     modified_content = test_file.read_text()
     assert "replacement_text" in modified_content
     assert "search_text" not in modified_content
+
+
+def test_batch_find_replace_branch_no_matches(rule_editor: RuleEditor, mock_git_rspec_repo: Repo):
+    """Test that batch_find_replace_branch raises an error when no files match the search string."""
+    # Need to simulate some files in the rules directory
+    rules_dir = Path(mock_git_rspec_repo.working_dir) / "rules"
+    test_rule_dir = rules_dir / "S123" / "java"
+    test_rule_dir.mkdir(parents=True, exist_ok=True)
+
+    test_file = test_rule_dir / "test.txt"
+    test_file.write_text("This is a test file with some content.")
+
+    mock_git_rspec_repo.git.checkout("master")
+    mock_git_rspec_repo.index.add([str(test_file)])
+    mock_git_rspec_repo.index.commit("Add test file")
+
+    with pytest.raises(InvalidArgumentError) as excinfo:
+        rule_editor.batch_find_replace_branch(
+            "Test batch replace", "nonexistent_text", "replacement_text"
+        )
+    
+    # Verify the error message contains the search string
+    assert "No files were modified" in str(excinfo.value)
+    assert "nonexistent_text" in str(excinfo.value)
