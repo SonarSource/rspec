@@ -191,15 +191,11 @@ def last_author_command(repo: str, max_commits: int, file_path: str):
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         exit(1)
 
-    try: # AI! remove this try/except handling
-        author = get_last_login_modified_file(token, repo, file_path, max_commits)
-        if author:
-            click.echo(author)
-        else:
-            click.echo("No non-bot author found for the specified file", err=True)
-            exit(1)
-    except ValueError as e:
-        click.echo(str(e), err=True)
+    author = get_last_login_modified_file(token, repo, file_path, max_commits)
+    if author:
+        click.echo(author)
+    else:
+        click.echo("No non-bot author found for the specified file", err=True)
         exit(1)
 
 
