@@ -181,7 +181,7 @@ def get_last_author_for_file(
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         raise ValueError("GITHUB_TOKEN environment variable is not set")
-        
+
     github = Github(token)
     github_repo = github.get_repo(repo_name)
 

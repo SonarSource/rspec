@@ -181,11 +181,9 @@ def notify_failure_on_slack(message: str, channel: str):
     "--max-commits", default=3, type=int, help="Maximum number of commits to check"
 )
 @click.argument("file_path")
-def last_author_command(
-    repo: str, max_commits: int, file_path: str
-):
+def last_author_command(repo: str, max_commits: int, file_path: str):
     """Find the last non-bot GitHub login that modified a given file.
-    
+
     Requires GITHUB_TOKEN environment variable to be set.
     """
     try:
