@@ -14,7 +14,7 @@ from rspec_tools.coverage import (
 )
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.notify_failure_on_slack import notify_slack
-from rspec_tools.repo import get_last_author_for_file
+from rspec_tools.repo import get_last_login_modified_file
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (
     validate_parameters,
@@ -186,8 +186,13 @@ def last_author_command(repo: str, max_commits: int, file_path: str):
 
     Requires GITHUB_TOKEN environment variable to be set.
     """
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        click.echo("GITHUB_TOKEN environment variable is not set", err=True)
+        exit(1)
+        
     try:
-        author = get_last_author_for_file(repo, file_path, max_commits)
+        author = get_last_login_modified_file(repo, file_path, max_commits, token)
         if author:
             click.echo(author)
         else:

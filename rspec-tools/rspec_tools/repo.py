@@ -127,19 +127,29 @@ def is_a_bot(username: str):
 
 
 def get_last_login_modified_file(
-    github_repo: Repository, file_path: str, max_commits: int = 3
+    repo_name: str, file_path: str, max_commits: int = 3, token: Optional[str] = None
 ) -> Optional[str]:
     """
     Find the last non-bot GitHub login that modified a given file.
 
     Args:
-        github_repo: A PyGithub Repository object
+        repo_name: Repository name in format 'owner/repo'
         file_path: The path to the file within the repository
         max_commits: Maximum number of commits to check (default: 3)
+        token: GitHub token (if None, will use GITHUB_TOKEN environment variable)
 
     Returns:
         The GitHub login of the last non-bot author, or None if not found
     """
+    # Initialize GitHub client and get repository
+    if token is None:
+        token = os.environ.get("GITHUB_TOKEN")
+        if not token:
+            raise ValueError("GITHUB_TOKEN environment variable is not set")
+
+    github = Github(token)
+    github_repo = github.get_repo(repo_name)
+    
     # Get the last few commits for the file
     commits = list(github_repo.get_commits(path=file_path))[:max_commits]
 
@@ -164,33 +174,6 @@ def get_last_login_modified_file(
 
     # No suitable author found in any of the commits
     return None
-
-
-def get_last_author_for_file(
-    repo_name: str,
-    file_path: str,
-    max_commits: int = 3,
-) -> Optional[str]:
-    """
-    CLI callable function to find the last non-bot author for a file in a GitHub repository.
-
-    Args:
-        repo_name: Repository name in format 'owner/repo'
-        file_path: Path to the file within the repository
-        max_commits: Maximum number of commits to check
-
-    Returns:
-        The GitHub login of the last non-bot author, or None if not found
-    """
-    token = os.environ.get("GITHUB_TOKEN")
-    if not token:
-        raise ValueError("GITHUB_TOKEN environment variable is not set")
-
-    github = Github(token)
-    github_repo = github.get_repo(repo_name)
-
-    author = get_last_login_modified_file(github_repo, file_path, max_commits)
-    return author
 
 
 def _build_github_repository_url(token: str, user: Optional[str]):

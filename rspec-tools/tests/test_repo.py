@@ -42,55 +42,68 @@ def test_reserve_rule_number_parallel_reservations(
 
 def test_get_last_login_modified_file():
     """Test get_last_login_modified_file with various commit author scenarios."""
-    # Create mock objects
-    mock_repo = MagicMock()
+    
+    with patch("github.Github") as mock_github:
+        # Create mock objects
+        mock_repo = mock_github.return_value.get_repo.return_value
 
-    # Scenario 1: First commit has non-bot author
-    mock_commit1 = MagicMock()
-    mock_commit1.author.login = "real-user"
-    mock_commit1.author.__bool__.return_value = True
+        # Scenario 1: First commit has non-bot author
+        mock_commit1 = MagicMock()
+        mock_commit1.author.login = "real-user"
+        mock_commit1.author.__bool__.return_value = True
 
-    mock_repo.get_commits.return_value = [mock_commit1]
-    result = get_last_login_modified_file(mock_repo, "some/file.txt")
-    assert result == "real-user"
+        mock_repo.get_commits.return_value = [mock_commit1]
+        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        assert result == "real-user"
+        mock_github.assert_called_once_with("fake-token")
+        mock_github.return_value.get_repo.assert_called_once_with("owner/repo")
 
-    # Scenario 2: First commit has bot author, second has real committer
-    mock_commit1 = MagicMock()
-    mock_commit1.author.login = "dependabot[bot]"
-    mock_commit1.author.__bool__.return_value = True
-    mock_commit1.committer.login = "github-actions[bot]"
-    mock_commit1.committer.__bool__.return_value = True
-    mock_commit1.commit.message = "Update dependency"
+        # Scenario 2: First commit has bot author, second has real committer
+        mock_github.reset_mock()
+        mock_commit1 = MagicMock()
+        mock_commit1.author.login = "dependabot[bot]"
+        mock_commit1.author.__bool__.return_value = True
+        mock_commit1.committer.login = "github-actions[bot]"
+        mock_commit1.committer.__bool__.return_value = True
+        mock_commit1.commit.message = "Update dependency"
 
-    mock_commit2 = MagicMock()
-    mock_commit2.committer.login = "real-committer"
-    mock_commit2.committer.__bool__.return_value = True
-    mock_commit2.author = None
+        mock_commit2 = MagicMock()
+        mock_commit2.committer.login = "real-committer"
+        mock_commit2.committer.__bool__.return_value = True
+        mock_commit2.author = None
 
-    mock_repo.get_commits.return_value = [mock_commit1, mock_commit2]
-    result = get_last_login_modified_file(mock_repo, "some/file.txt")
-    assert result == "real-committer"
+        mock_repo.get_commits.return_value = [mock_commit1, mock_commit2]
+        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        assert result == "real-committer"
 
-    # Scenario 3: Only co-authored-by is available
-    mock_commit1 = MagicMock()
-    mock_commit1.author.login = "dependabot[bot]"
-    mock_commit1.author.__bool__.return_value = True
-    mock_commit1.committer.login = "github-actions[bot]"
-    mock_commit1.committer.__bool__.return_value = True
-    mock_commit1.commit.message = "Update dependency\n\nCo-authored-by: John Doe <johndoe@users.noreply.github.com>"
+        # Scenario 3: Only co-authored-by is available
+        mock_github.reset_mock()
+        mock_commit1 = MagicMock()
+        mock_commit1.author.login = "dependabot[bot]"
+        mock_commit1.author.__bool__.return_value = True
+        mock_commit1.committer.login = "github-actions[bot]"
+        mock_commit1.committer.__bool__.return_value = True
+        mock_commit1.commit.message = "Update dependency\n\nCo-authored-by: John Doe <johndoe@users.noreply.github.com>"
 
-    mock_repo.get_commits.return_value = [mock_commit1]
-    result = get_last_login_modified_file(mock_repo, "some/file.txt")
-    assert result == "johndoe"
+        mock_repo.get_commits.return_value = [mock_commit1]
+        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        assert result == "johndoe"
 
-    # Scenario 4: No suitable author found
-    mock_commit1 = MagicMock()
-    mock_commit1.author.login = "dependabot[bot]"
-    mock_commit1.author.__bool__.return_value = True
-    mock_commit1.committer.login = "github-actions[bot]"
-    mock_commit1.committer.__bool__.return_value = True
-    mock_commit1.commit.message = "Update dependency"
+        # Scenario 4: No suitable author found
+        mock_github.reset_mock()
+        mock_commit1 = MagicMock()
+        mock_commit1.author.login = "dependabot[bot]"
+        mock_commit1.author.__bool__.return_value = True
+        mock_commit1.committer.login = "github-actions[bot]"
+        mock_commit1.committer.__bool__.return_value = True
+        mock_commit1.commit.message = "Update dependency"
 
-    mock_repo.get_commits.return_value = [mock_commit1]
-    result = get_last_login_modified_file(mock_repo, "some/file.txt")
-    assert result is None
+        mock_repo.get_commits.return_value = [mock_commit1]
+        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        assert result is None
+        
+        # Scenario 5: Using environment variable for token
+        mock_github.reset_mock()
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "env-token"}):
+            result = get_last_login_modified_file("owner/repo", "some/file.txt")
+            mock_github.assert_called_once_with("env-token")
