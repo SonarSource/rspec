@@ -263,3 +263,43 @@ def test_tolerable_downtime(setup_test_files):
         # Verify the link wasn't reported as dead (exit code 0 means all links are good)
         assert result.exit_code == 0
         assert "All 1 links are good" in result.output
+
+
+def test_old_dead_link(setup_test_files):
+    """Test that links that were alive a long time ago (1 month) but are now dead are reported as dead."""
+    temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
+    test_url = "https://www.google.com/404"  # This URL will return 404
+
+    # Create history file with an old probe (30 days ago) for our test URL
+    # This is well beyond the TOLERABLE_LINK_DOWNTIME period (7 days)
+    with open(history_file, "w") as f:
+        # Set the date to be 30 days ago (longer than TOLERABLE_LINK_DOWNTIME of 7 days)
+        old_time = (datetime.datetime.now() - datetime.timedelta(days=30)).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
+        f.write(
+            f"{{{repr(test_url)}: datetime.datetime.strptime('{old_time}', '%Y-%m-%d %H:%M:%S.%f')}}"
+        )
+
+    # Mock live_url to always return False for our test URL (simulating a dead link)
+    def mock_live_url(url, timeout=5):
+        # The link is dead now and was last alive 30 days ago
+        return False
+
+    with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "check-links",
+                "--d",
+                temp_path / "404",  # This directory has a link to google.com/404
+                "--history-file",
+                str(history_file),
+            ],
+        )
+
+        # Verify the link was reported as dead (exit code 1 means dead links found)
+        assert result.exit_code == 1
+        assert "1/1 links are dead" in result.output
