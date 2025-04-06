@@ -25,9 +25,7 @@ def setup_history_file(temp_path, history_file, mock_date, test_dir="OK"):
     # Always mock datetime.now() with the provided date
     with patch("datetime.datetime") as mock_datetime:
         mock_datetime.now.return_value = mock_date
-        mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(
-            *args, **kw
-        )
+        mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(*args, **kw)
 
         # Run check-links with mocked live_url
         with patch("rspec_tools.checklinks.live_url", return_value=True):
@@ -268,9 +266,7 @@ def test_tolerable_downtime(setup_test_files):
 
     # Setup history file with a recent date (3 days ago) - within TOLERABLE_LINK_DOWNTIME
     recent_date = datetime.datetime.now() - datetime.timedelta(days=3)
-    first_result = setup_history_file(
-        temp_path, history_file, recent_date, "404"
-    )
+    first_result = setup_history_file(temp_path, history_file, recent_date, "404")
     assert first_result.exit_code == 0
 
     # Mock live_url to always return False for our test URL (simulating a dead link)
@@ -304,9 +300,7 @@ def test_old_dead_link(setup_test_files):
 
     # Setup history file with an old date (30 days ago) - beyond TOLERABLE_LINK_DOWNTIME
     old_date = datetime.datetime.now() - datetime.timedelta(days=30)
-    first_result = setup_history_file(
-        temp_path, history_file, old_date, "404"
-    )
+    first_result = setup_history_file(temp_path, history_file, old_date, "404")
     assert first_result.exit_code == 0
 
     # Mock live_url to always return False for our test URL (simulating a dead link)
