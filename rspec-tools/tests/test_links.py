@@ -461,3 +461,78 @@ def test_mixed_links_reporting(setup_test_files):
                 "Cache statistics"
             )[0]
             assert str(rule2_dir / "rule.html") not in error_section
+
+
+def test_duplicate_links_checked_once(setup_test_files):
+    """Test that a link present in multiple files is only checked once."""
+    temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
+
+    # Create a directory for duplicate links test
+    dup_dir = temp_path / "duplicate_links"
+    dup_dir.mkdir(exist_ok=True)
+
+    # Create first rule with our test link
+    rule1_dir = dup_dir / "S100" / "java"
+    rule1_dir.mkdir(parents=True, exist_ok=True)
+    test_url = "https://www.example.com/test-link"
+    with open(rule1_dir / "rule.html", "w") as f:
+        f.write(f'<a href="{test_url}">Test Link in File 1</a>')
+    with open(rule1_dir / "metadata.json", "w") as f:
+        f.write("{}")
+    with open(dup_dir / "S100" / "metadata.json", "w") as f:
+        f.write("{}")
+
+    # Create second rule with the same link
+    rule2_dir = dup_dir / "S200" / "java"
+    rule2_dir.mkdir(parents=True, exist_ok=True)
+    with open(rule2_dir / "rule.html", "w") as f:
+        f.write(f'<a href="{test_url}">Same Test Link in File 2</a>')
+    with open(rule2_dir / "metadata.json", "w") as f:
+        f.write("{}")
+    with open(dup_dir / "S200" / "metadata.json", "w") as f:
+        f.write("{}")
+
+    # Create third rule with the same link again
+    rule3_dir = dup_dir / "S300" / "java"
+    rule3_dir.mkdir(parents=True, exist_ok=True)
+    with open(rule3_dir / "rule.html", "w") as f:
+        f.write(f'<a href="{test_url}">Same Test Link in File 3</a>')
+    with open(rule3_dir / "metadata.json", "w") as f:
+        f.write("{}")
+    with open(dup_dir / "S300" / "metadata.json", "w") as f:
+        f.write("{}")
+
+    # Initialize history with empty content
+    with open(history_file, "w") as f:
+        f.write("{}")
+
+    # Mock live_url to track how many times it gets called
+    live_url_calls = []
+
+    def mock_live_url(url, timeout=5):
+        live_url_calls.append(url)
+        return True  # All links are alive
+
+    with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "check-links",
+                "--d",
+                dup_dir,
+                "--history-file",
+                str(history_file),
+            ],
+        )
+
+        # Verify the test passed
+        assert result.exit_code == 0
+        
+        # Verify that the link shows up in all three files
+        assert len(live_url_calls) == 1  # The link was only checked once
+        assert live_url_calls[0] == test_url
+        
+        # Verify that the output mentions the link appears in 3 files
+        assert f"{test_url} in 3 files" in result.output
