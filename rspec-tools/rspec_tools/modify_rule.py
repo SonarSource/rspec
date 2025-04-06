@@ -197,40 +197,38 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                         # Skip invalid languages
                         continue
         return labels
-        
+
     def find_appropriate_assignee(
         self, token: str, assignee: Optional[str], modified_files: List[Path]
     ) -> Optional[str]:
         """
         Find the most appropriate assignee for a PR based on file history.
-        
+
         Args:
             token: GitHub token
             assignee: Optional explicitly provided assignee
             modified_files: List of files modified in the PR
-            
+
         Returns:
             The appropriate assignee, or None if no assignee can be determined
         """
         if assignee:
             return assignee
-            
+
         if not modified_files:
             return None
-            
+
         repo_name = self.rspec_repo.get_repository_name()
 
         # Try to find the last author for each modified file
         for file_path in modified_files:
             try:
-                last_author = get_last_login_modified_file(
-                    token, repo_name, file_path
-                )
+                last_author = get_last_login_modified_file(token, repo_name, file_path)
                 if last_author:
                     return last_author
             except Exception:
                 continue
-                
+
         return None
 
     def batch_find_replace_pull_request(
