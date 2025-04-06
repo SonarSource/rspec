@@ -420,6 +420,62 @@ def test_batch_find_replace_branch_no_matches(
     assert "nonexistent_text" in str(excinfo.value)
 
 
+def test_batch_find_replace_multiple_occurrences(
+    rule_editor: RuleEditor, mock_git_rspec_repo: Repo
+):
+    """Test that batch_find_replace_branch replaces all occurrences across multiple files."""
+    # Need to simulate some files in the rules directory
+    rules_dir = Path(mock_git_rspec_repo.working_dir) / "rules"
+    
+    # Create first rule directory with a file containing multiple occurrences
+    java_rule_dir = rules_dir / "S123" / "java"
+    java_rule_dir.mkdir(parents=True, exist_ok=True)
+    java_file = java_rule_dir / "rule.adoc"
+    java_file.write_text("This is a PLACEHOLDER text.\nIt has PLACEHOLDER multiple times.\nPLACEHOLDER here as well.")
+    
+    # Create second rule directory with the same pattern
+    python_rule_dir = rules_dir / "S456" / "python"
+    python_rule_dir.mkdir(parents=True, exist_ok=True)
+    python_file = python_rule_dir / "rule.adoc"
+    python_file.write_text("Python PLACEHOLDER example.\nAnother PLACEHOLDER line.")
+
+    # Add files to git
+    mock_git_rspec_repo.git.checkout("master")
+    mock_git_rspec_repo.index.add([str(java_file), str(python_file)])
+    mock_git_rspec_repo.index.commit("Add test files")
+
+    # Perform the replacement
+    branch_name, affected_rules, modified_files = rule_editor.batch_find_replace_branch(
+        "Test multiple replacements", "PLACEHOLDER", "REPLACED"
+    )
+
+    # Verify branch was created
+    assert branch_name.startswith("rule/batch-replace-")
+    
+    # Verify correct rules and languages were identified
+    assert "S123" in affected_rules
+    assert "java" in affected_rules["S123"]
+    assert "S456" in affected_rules
+    assert "python" in affected_rules["S456"]
+    
+    # Verify both files were captured in modified_files
+    assert len(modified_files) == 2
+    modified_paths = [str(f) for f in modified_files]
+    assert any("S123/java" in path for path in modified_paths)
+    assert any("S456/python" in path for path in modified_paths)
+    
+    # Verify all occurrences were replaced in both files
+    mock_git_rspec_repo.git.checkout(branch_name)
+    
+    java_content = java_file.read_text()
+    assert "PLACEHOLDER" not in java_content
+    assert java_content.count("REPLACED") == 3
+    
+    python_content = python_file.read_text()
+    assert "PLACEHOLDER" not in python_content
+    assert python_content.count("REPLACED") == 2
+
+
 def test_batch_find_replace_pull_request_invalid_language(rule_editor: RuleEditor):
     """Test batch_find_replace_pull_request skips invalid languages when generating labels."""
     with mock_github() as (token, user, mock_repo):
