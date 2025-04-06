@@ -1,31 +1,82 @@
+import os
+import tempfile
+import shutil
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
 FILE_DIR = Path(__file__).resolve().parent
 
 
-def test_find_urls():
+@pytest.fixture
+def setup_test_files():
+    """Create a temporary directory with test files for each test case."""
+    # Create a temp directory
+    temp_dir = tempfile.mkdtemp()
+    temp_path = Path(temp_dir)
+    
+    # Create test directories
+    test_dirs = {
+        "404": {
+            "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
+            "S100/java/metadata.json": '{}'
+        },
+        "URL": {
+            "S100/java/rule.html": '<a href="https://ww.test">error</a>',
+            "S100/java/metadata.json": '{}'
+        },
+        "OK": {
+            "S100/java/rule.html": '<a href="https://www.google.com/">ok</a>',
+            "S100/java/metadata.json": '{}'
+        },
+        "deprecated": {
+            "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
+            "S100/java/metadata.json": '{}',
+            "S100/metadata.json": '{"status": "deprecated"}',
+            "S100/rpg/rule.html": '<a href="https://www.google.com/">ok</a>',
+            "S100/rpg/metadata.json": '{"status": "ready"}'
+        }
+    }
+    
+    # Create all test files
+    for test_dir, files in test_dirs.items():
+        for file_path, content in files.items():
+            full_path = temp_path / test_dir / file_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(full_path, "w") as f:
+                f.write(content)
+    
+    yield temp_path
+    
+    # Cleanup
+    shutil.rmtree(temp_dir)
+
+
+def test_find_urls(setup_test_files):
+    temp_path = setup_test_files
     urls = {}
-    checklinks.findurl_in_html(FILE_DIR / "404/S100/java/rule.html", urls)
+    test_file = temp_path / "404/S100/java/rule.html"
+    checklinks.findurl_in_html(test_file, urls)
     assert urls == {
-        "https://www.google.com/404": [FILE_DIR / "404/S100/java/rule.html"]
+        "https://www.google.com/404": [test_file]
     }
     assert len(urls) == 1
 
 
-def test_live():
+def test_live_url_success():
     assert checklinks.live_url("https://www.google.com")
 
 
-def test_live():
+def test_live_url_failure():
     assert not checklinks.live_url("https://ww.nothing")
 
 
-def test_404():
+def test_404(setup_test_files):
+    temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", FILE_DIR / "404"])
+    result = runner.invoke(cli, ["check-links", "--d", temp_path / "404"])
     print(result.output)
     assert result.exit_code == 1
     assert (
@@ -34,9 +85,10 @@ def test_404():
     )
 
 
-def test_url():
+def test_url(setup_test_files):
+    temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", FILE_DIR / "URL"])
+    result = runner.invoke(cli, ["check-links", "--d", temp_path / "URL"])
     print(result.output)
     assert result.exit_code == 1
     assert (
@@ -45,17 +97,19 @@ def test_url():
     )
 
 
-def test_ok():
+def test_ok(setup_test_files):
+    temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", FILE_DIR / "OK"])
+    result = runner.invoke(cli, ["check-links", "--d", temp_path / "OK"])
     print(result.output)
     assert result.exit_code == 0
     assert "All 1 links are good" in result.output
 
 
-def test_deprecated():
+def test_deprecated(setup_test_files):
+    temp_path = setup_test_files
     runner = CliRunner()
-    result = runner.invoke(cli, ["check-links", "--d", FILE_DIR / "deprecated"])
+    result = runner.invoke(cli, ["check-links", "--d", temp_path / "deprecated"])
     print(result.output)
     assert result.exit_code == 0
     assert "All 1 links are good" in result.output
