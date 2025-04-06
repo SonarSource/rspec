@@ -110,8 +110,9 @@ def test_get_last_login_modified_file():
         )
         assert result is None
 
-        # Scenario 5: Using environment variable for token
+        # Scenario 5: Using token from environment
         mock_github.reset_mock()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "env-token"}):
-            result = get_last_login_modified_file("owner/repo", "some/file.txt")
+            token = os.environ.get("GITHUB_TOKEN")
+            result = get_last_login_modified_file("owner/repo", "some/file.txt", token=token)
             mock_github.assert_called_once_with("env-token")

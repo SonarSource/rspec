@@ -127,7 +127,7 @@ def is_a_bot(username: str):
 
 
 def get_last_login_modified_file(
-    repo_name: str, file_path: str, max_commits: int = 3, token: Optional[str] = None # AI! make the token required argument and return the fallback from the body
+    repo_name: str, file_path: str, max_commits: int = 3, token: str
 ) -> Optional[str]:
     """
     Find the last non-bot GitHub login that modified a given file.
@@ -136,16 +136,12 @@ def get_last_login_modified_file(
         repo_name: Repository name in format 'owner/repo'
         file_path: The path to the file within the repository
         max_commits: Maximum number of commits to check (default: 3)
-        token: GitHub token (if None, will use GITHUB_TOKEN environment variable)
+        token: GitHub token
 
     Returns:
         The GitHub login of the last non-bot author, or None if not found
     """
     # Initialize GitHub client and get repository
-    if token is None: # AI: here
-        token = os.environ.get("GITHUB_TOKEN")
-        if not token:
-            raise ValueError("GITHUB_TOKEN environment variable is not set")
 
     github = Github(token)
     github_repo = github.get_repo(repo_name)
