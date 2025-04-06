@@ -6,6 +6,7 @@ import click
 
 import rspec_tools.create_rule
 import rspec_tools.modify_rule
+from rspec_tools.repo import last_author_command
 from rspec_tools.checklinks import check_html_links
 from rspec_tools.coverage import (
     update_coverage_for_all_repos,
@@ -168,6 +169,10 @@ def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[
 @click.option("--channel", required=True)
 def notify_failure_on_slack(message: str, channel: str):
     notify_slack(message, channel)
+
+
+# Add the last-author command to the CLI
+cli.add_command(last_author_command)
 
 
 __all__ = ["cli"]
