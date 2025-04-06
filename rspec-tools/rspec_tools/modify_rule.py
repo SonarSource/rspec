@@ -177,11 +177,11 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
     def compose_pr_title(self, rule_ids: List[str], title_suffix: str) -> str:
         """
         Compose an appropriate PR title based on the affected rules.
-        
+
         Args:
             rule_ids: List of rule IDs affected by the change
             title_suffix: The suffix to append to the PR title
-            
+
         Returns:
             A formatted PR title
         """
@@ -195,7 +195,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
             else:
                 rules_str = f"{len(rule_ids)} rules"
             return f"Modify rules {rules_str}: {title_suffix}"
-    
+
     def collect_labels_from_affected_rules(
         self, affected_rules: Dict[str, Set[str]]
     ) -> Set[str]:
