@@ -190,28 +190,6 @@ def get_last_author_for_file(
     return author
 
 
-@click.command("last-author")
-@click.option("--token", envvar="GITHUB_TOKEN", required=True, help="GitHub token")
-@click.option("--user", help="GitHub username")
-@click.option(
-    "--repo",
-    help="Repository in format 'owner/repo'",
-    default=lambda: os.environ.get("GITHUB_REPOSITORY", "SonarSource/rspec"),
-)
-@click.option(
-    "--max-commits", default=3, type=int, help="Maximum number of commits to check"
-)
-@click.argument("file_path")
-def last_author_command(
-    token: str, user: Optional[str], repo: str, max_commits: int, file_path: str
-):
-    """Find the last non-bot GitHub login that modified a given file."""
-    author = get_last_author_for_file(token, repo, file_path, max_commits, user)
-    if author:
-        click.echo(author)
-    else:
-        click.echo("No non-bot author found for the specified file", err=True)
-        exit(1)
 
 
 def _build_github_repository_url(token: str, user: Optional[str]):
