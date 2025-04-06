@@ -194,30 +194,45 @@ def test_reprobe_old_links(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
     test_url = "https://www.google.com/"
-
-    # Create history file with an old probe for our test URL
+    
+    # First run: Probe the links with a mocked datetime that's older than PROBING_COOLDOWN
+    old_date = datetime.datetime.now() - checklinks.PROBING_COOLDOWN - datetime.timedelta(days=1)
+    
+    # Create an empty history file
     with open(history_file, "w") as f:
-        # Set the date to be older than PROBING_COOLDOWN
-        old_time = (
-            datetime.datetime.now()
-            - checklinks.PROBING_COOLDOWN
-            - datetime.timedelta(days=1)
-        ).strftime("%Y-%m-%d %H:%M:%S.%f")
-        f.write(
-            f"{{{repr(test_url)}: datetime.datetime.strptime('{old_time}', '%Y-%m-%d %H:%M:%S.%f')}}"
-        )
-
+        f.write("{}")
+        
+    # Mock datetime.now() to return an old date for the first run
+    with patch("datetime.datetime") as mock_datetime:
+        mock_datetime.now.return_value = old_date
+        mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(*args, **kw)
+        
+        # Mock live_url to always return True
+        with patch("rspec_tools.checklinks.live_url", return_value=True):
+            runner = CliRunner()
+            first_result = runner.invoke(
+                cli,
+                [
+                    "check-links",
+                    "--d",
+                    temp_path / "OK",  # This directory has a link to google.com
+                    "--history-file",
+                    str(history_file),
+                ],
+            )
+            assert first_result.exit_code == 0
+    
+    # Second run: The link should be probed again because the timestamp in history is old
     # Mock the live_url function to track if it gets called
-    original_live_url = checklinks.live_url
     probe_calls = []
-
+    
     def mock_live_url(url, timeout=5):
         probe_calls.append(url)
-        return True  # Always return True for this test
-
+        return True
+    
     with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
         runner = CliRunner()
-        result = runner.invoke(
+        second_result = runner.invoke(
             cli,
             [
                 "check-links",
@@ -227,11 +242,11 @@ def test_reprobe_old_links(setup_test_files):
                 str(history_file),
             ],
         )
-
+        
         # Verify that the test URL was probed again
         assert test_url in probe_calls
-        assert "skip probing because it was reached recently" not in result.output
-        assert result.exit_code == 0
+        assert "skip probing because it was reached recently" not in second_result.output
+        assert second_result.exit_code == 0
 
 
 def test_tolerable_downtime(setup_test_files):
