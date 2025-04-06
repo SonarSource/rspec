@@ -467,47 +467,29 @@ def test_duplicate_links_checked_once(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
 
-    # AI: refactor this ...
-    # Create a directory for duplicate links test
-    dup_dir = temp_path / "duplicate_links"
-    dup_dir.mkdir(exist_ok=True)
-
-    # Create first rule with our test link
-    rule1_dir = dup_dir / "S100" / "java"
-    rule1_dir.mkdir(parents=True, exist_ok=True)
+    # Create test files for duplicate links test
     test_url = "https://www.example.com/test-link"
-    with open(rule1_dir / "rule.html", "w") as f:
-        f.write(f'<a href="{test_url}">Test Link in File 1</a>')
-    with open(rule1_dir / "metadata.json", "w") as f:
-        f.write("{}")
-    with open(dup_dir / "S100" / "metadata.json", "w") as f:
-        f.write("{}")
-
-    # Create second rule with the same link
-    rule2_dir = dup_dir / "S200" / "java"
-    rule2_dir.mkdir(parents=True, exist_ok=True)
-    with open(rule2_dir / "rule.html", "w") as f:
-        f.write(f'<a href="{test_url}">Same Test Link in File 2</a>')
-    with open(rule2_dir / "metadata.json", "w") as f:
-        f.write("{}")
-    with open(dup_dir / "S200" / "metadata.json", "w") as f:
-        f.write("{}")
-
-    # Create third rule with the same link again
-    rule3_dir = dup_dir / "S300" / "java"
-    rule3_dir.mkdir(parents=True, exist_ok=True)
-    with open(rule3_dir / "rule.html", "w") as f:
-        f.write(f'<a href="{test_url}">Same Test Link in File 3</a>')
-    with open(rule3_dir / "metadata.json", "w") as f:
-        f.write("{}")
-    with open(dup_dir / "S300" / "metadata.json", "w") as f:
-        f.write("{}")
-
-    # Initialize history with empty content
-    with open(history_file, "w") as f:
-        f.write("{}")
-
-    # ... to use create_test_files, AI!
+    
+    # Define the test directory structure with the same URL in multiple files
+    duplicate_test_dirs = {
+        "duplicate_links": {
+            "S100/java/rule.html": f'<a href="{test_url}">Test Link in File 1</a>',
+            "S100/java/metadata.json": "{}",
+            "S100/metadata.json": "{}",
+            "S200/java/rule.html": f'<a href="{test_url}">Same Test Link in File 2</a>',
+            "S200/java/metadata.json": "{}",
+            "S200/metadata.json": "{}",
+            "S300/java/rule.html": f'<a href="{test_url}">Same Test Link in File 3</a>',
+            "S300/java/metadata.json": "{}",
+            "S300/metadata.json": "{}"
+        }
+    }
+    
+    # Create the test files
+    create_test_files(temp_path, duplicate_test_dirs)
+    
+    # Get the directory path for later use
+    dup_dir = temp_path / "duplicate_links"
 
     # Mock live_url to track how many times it gets called
     live_url_calls = []
