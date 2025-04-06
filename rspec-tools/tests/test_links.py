@@ -189,7 +189,11 @@ def test_reprobe_old_links(setup_test_files):
     # Create history file with an old probe for our test URL
     with open(history_file, "w") as f:
         # Set the date to be older than PROBING_COOLDOWN
-        old_time = (datetime.datetime.now() - checklinks.PROBING_COOLDOWN - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S.%f")
+        old_time = (
+            datetime.datetime.now()
+            - checklinks.PROBING_COOLDOWN
+            - datetime.timedelta(days=1)
+        ).strftime("%Y-%m-%d %H:%M:%S.%f")
         f.write(
             f"{{{repr(test_url)}: datetime.datetime.strptime('{old_time}', '%Y-%m-%d %H:%M:%S.%f')}}"
         )
