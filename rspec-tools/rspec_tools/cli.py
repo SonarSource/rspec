@@ -191,7 +191,7 @@ def last_author_command(repo: str, max_commits: int, file_path: str):
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         exit(1)
 
-    try:
+    try: # AI! remove this try/except handling
         author = get_last_login_modified_file(token, repo, file_path, max_commits)
         if author:
             click.echo(author)
