@@ -137,33 +137,34 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
             # Process all files under rules directory
             for filepath in rules_dir.glob("**/*"):
-                if filepath.is_file():
-                    try:
-                        content = filepath.read_text(encoding="utf-8")
-                        if search in content:
-                            # Perform the replacement
-                            new_content = content.replace(search, replace)
-                            filepath.write_text(new_content, encoding="utf-8")
+                if not filepath.is_file():
+                    continue
+                try:
+                    content = filepath.read_text(encoding="utf-8")
+                except UnicodeDecodeError:
+                    # Skip binary files
+                    continue
+                if search in content: # AI! factor out this block into a dedicated function "find_n_replace_in_file"
+                    # Perform the replacement
+                    new_content = content.replace(search, replace)
+                    filepath.write_text(new_content, encoding="utf-8")
 
-                            # Get relative path components to determine rule and language
-                            rel_path = filepath.relative_to(rules_dir)
-                            parts = rel_path.parts
+                    # Get relative path components to determine rule and language
+                    rel_path = filepath.relative_to(rules_dir)
+                    parts = rel_path.parts
 
-                            if len(parts) >= 1:
-                                rule_id = parts[0]  # The rule folder (e.g., "S123")
+                    if len(parts) >= 1:
+                        rule_id = parts[0]  # The rule folder (e.g., "S123")
 
-                                # If there's a language subfolder, record it
-                                if len(parts) >= 2:
-                                    language = parts[1]
-                                    affected_rules[rule_id].add(language)
-                                else:
-                                    # It's in the rule root folder
-                                    affected_rules[rule_id].add("")
+                        # If there's a language subfolder, record it
+                        if len(parts) >= 2:
+                            language = parts[1]
+                            affected_rules[rule_id].add(language)
+                        else:
+                            # It's in the rule root folder
+                            affected_rules[rule_id].add("")
 
-                                modified_files.append(filepath)
-                    except UnicodeDecodeError:
-                        # Skip binary files
-                        continue
+                        modified_files.append(filepath)
 
             if modified_files:
                 self.rspec_repo.commit_all_and_push(title)
