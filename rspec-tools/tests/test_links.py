@@ -548,7 +548,7 @@ def test_dead_link_in_multiple_files(setup_test_files):
 
     # Create test files with the same dead link in multiple files
     dead_url = "https://www.example.com/dead-link"
-    
+
     # Define the test directory structure with the same dead link in multiple files
     multi_file_dead_link_dirs = {
         "multi_file_dead_link": {
@@ -563,42 +563,46 @@ def test_dead_link_in_multiple_files(setup_test_files):
             "S300/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, multi_file_dead_link_dirs)
-    
+
     # Get the directory path and file paths for later use
     multi_file_dir = temp_path / "multi_file_dead_link"
     file1_path = multi_file_dir / "S100" / "java" / "rule.html"
     file2_path = multi_file_dir / "S200" / "python" / "rule.html"
     file3_path = multi_file_dir / "S300" / "csharp" / "rule.html"
-    
+
     # Setup the history file with an old date for the dead URL
     old_date = datetime.datetime.now() - datetime.timedelta(days=30)
-    first_result = setup_history_file(temp_path, history_file, old_date, "multi_file_dead_link")
+    first_result = setup_history_file(
+        temp_path, history_file, old_date, "multi_file_dead_link"
+    )
     assert first_result.exit_code == 0
-    
+
     # Mock live_url to make our test URL return dead (False)
     def mock_live_url(url, timeout=5):
         return url != dead_url  # Only the dead_url returns False
-    
+
     result = run_check_links_with_mocked_live_url(
         multi_file_dir, history_file, mock_live_url
     )
-    
+
     # Verify the test fails (has a dead link)
     assert result.exit_code == 1
-    
+
     # Get the error section of the output
-    error_section = result.output.split("There were errors")[1].split("Cache statistics")[0]
-    
+    error_section = result.output.split("There were errors")[1].split(
+        "Cache statistics"
+    )[0]
+
     # Verify the dead URL is reported in the error section
     assert dead_url in error_section
-    
+
     # Verify all three files with the dead link are listed in the error section
     assert str(file1_path) in error_section
     assert str(file2_path) in error_section
     assert str(file3_path) in error_section
-    
+
     # Verify the output mentions the correct count of dead links
     assert "1/1 links are dead" in result.output
