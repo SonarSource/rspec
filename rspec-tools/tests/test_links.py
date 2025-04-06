@@ -242,17 +242,12 @@ def test_tolerable_downtime(setup_test_files):
             f"{{{repr(test_url)}: datetime.datetime.strptime('{recent_time}', '%Y-%m-%d %H:%M:%S.%f')}}"
         )
 
-    # Mock url_is_long_dead to verify it's called with our test URL
-    original_url_is_long_dead = checklinks.url_is_long_dead
-    long_dead_calls = []
+    # Mock live_url to always return False for our test URL (simulating a dead link)
+    def mock_live_url(url, timeout=5):
+        # The link is "dead" now, but was alive 3 days ago according to our history
+        return False
 
-    def mock_url_is_long_dead(url):
-        long_dead_calls.append(url)
-        return original_url_is_long_dead(url)
-
-    with patch(
-        "rspec_tools.checklinks.url_is_long_dead", side_effect=mock_url_is_long_dead
-    ):
+    with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -265,8 +260,6 @@ def test_tolerable_downtime(setup_test_files):
             ],
         )
 
-        # Verify url_is_long_dead was called with our test URL
-        assert test_url in long_dead_calls
         # Verify the link wasn't reported as dead (exit code 0 means all links are good)
         assert result.exit_code == 0
         assert "All 1 links are good" in result.output
