@@ -467,6 +467,7 @@ def test_duplicate_links_checked_once(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
 
+    # AI: refactor this ...
     # Create a directory for duplicate links test
     dup_dir = temp_path / "duplicate_links"
     dup_dir.mkdir(exist_ok=True)
@@ -505,6 +506,8 @@ def test_duplicate_links_checked_once(setup_test_files):
     # Initialize history with empty content
     with open(history_file, "w") as f:
         f.write("{}")
+
+    # ... to use create_test_files, AI!
 
     # Mock live_url to track how many times it gets called
     live_url_calls = []
