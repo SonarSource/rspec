@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
+import os
 from git import Repo
 from rspec_tools.repo import get_last_login_modified_file, RspecRepo
 
@@ -43,7 +43,7 @@ def test_reserve_rule_number_parallel_reservations(
 def test_get_last_login_modified_file():
     """Test get_last_login_modified_file with various commit author scenarios."""
 
-    with patch("github.Github") as mock_github:
+    with patch("rspec_tools.repo.Github") as mock_github:
         # Create mock objects
         mock_repo = mock_github.return_value.get_repo.return_value
 
