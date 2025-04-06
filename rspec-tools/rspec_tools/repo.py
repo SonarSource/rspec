@@ -122,6 +122,10 @@ class RspecRepo:
         return counter
 
 
+def is_a_bot(username: str):
+    return "[bot]" in username or username == "web-flow"
+
+
 def get_last_login_modified_file(
     github_repo: Repository, file_path: str, max_commits: int = 3
 ) -> Optional[str]:
@@ -142,12 +146,12 @@ def get_last_login_modified_file(
     for commit in commits:
         # Try to get author login
         author = commit.author
-        if author and not (author.login and "[bot]" in author.login):
+        if author and not is_a_bot(author.login):
             return author.login
 
         # Try to get committer login
         committer = commit.committer
-        if committer and not (committer.login and "[bot]" in committer.login):
+        if committer and not is_a_bot(committer.login):
             return committer.login
 
         # Try to find co-authors in commit message
@@ -155,7 +159,7 @@ def get_last_login_modified_file(
         co_author_matches = re.findall(
             r"Co-authored-by:.*?<(.+?)@users\.noreply\.github\.com>", message
         )
-        if co_author_matches:
+        if co_author_matches and not is_a_bot(co_author_matches[0]):
             return co_author_matches[0]  # Return the first co-author login
 
     # No suitable author found in any of the commits
