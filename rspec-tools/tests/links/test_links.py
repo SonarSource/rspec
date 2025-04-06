@@ -1,6 +1,6 @@
 import os
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,30 +16,30 @@ def setup_test_files():
     # Create a temp directory
     temp_dir = tempfile.mkdtemp()
     temp_path = Path(temp_dir)
-    
+
     # Create test directories
     test_dirs = {
         "404": {
             "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
-            "S100/java/metadata.json": '{}'
+            "S100/java/metadata.json": "{}",
         },
         "URL": {
             "S100/java/rule.html": '<a href="https://ww.test">error</a>',
-            "S100/java/metadata.json": '{}'
+            "S100/java/metadata.json": "{}",
         },
         "OK": {
             "S100/java/rule.html": '<a href="https://www.google.com/">ok</a>',
-            "S100/java/metadata.json": '{}'
+            "S100/java/metadata.json": "{}",
         },
         "deprecated": {
             "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
-            "S100/java/metadata.json": '{}',
+            "S100/java/metadata.json": "{}",
             "S100/metadata.json": '{"status": "deprecated"}',
             "S100/rpg/rule.html": '<a href="https://www.google.com/">ok</a>',
-            "S100/rpg/metadata.json": '{"status": "ready"}'
-        }
+            "S100/rpg/metadata.json": '{"status": "ready"}',
+        },
     }
-    
+
     # Create all test files
     for test_dir, files in test_dirs.items():
         for file_path, content in files.items():
@@ -47,9 +47,9 @@ def setup_test_files():
             full_path.parent.mkdir(parents=True, exist_ok=True)
             with open(full_path, "w") as f:
                 f.write(content)
-    
+
     yield temp_path
-    
+
     # Cleanup
     shutil.rmtree(temp_dir)
 
@@ -59,9 +59,7 @@ def test_find_urls(setup_test_files):
     urls = {}
     test_file = temp_path / "404/S100/java/rule.html"
     checklinks.findurl_in_html(test_file, urls)
-    assert urls == {
-        "https://www.google.com/404": [test_file]
-    }
+    assert urls == {"https://www.google.com/404": [test_file]}
     assert len(urls) == 1
 
 
