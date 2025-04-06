@@ -483,3 +483,57 @@ def test_duplicate_links_checked_once(setup_test_files):
 
     # Verify that the output mentions the link appears in 3 files
     assert f"{test_url} in 3 files" in result.output
+
+
+def test_multiple_links_in_single_file(setup_test_files):
+    """Test that multiple different links in a single file are all checked."""
+    temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
+
+    # Create test file with multiple links
+    link1 = "https://www.example.com/link1"
+    link2 = "https://www.example.com/link2"
+    link3 = "https://www.example.com/link3"
+    
+    # Define the test directory structure with multiple links in a single file
+    multi_links_test_dirs = {
+        "multi_links": {
+            "S100/java/rule.html": f'''
+                <a href="{link1}">First Link</a>
+                <p>Some content between links</p>
+                <a href="{link2}">Second Link</a>
+                <div>
+                    <a href="{link3}">Third Link</a>
+                </div>
+            ''',
+            "S100/java/metadata.json": "{}",
+            "S100/metadata.json": "{}",
+        }
+    }
+
+    # Create the test files
+    create_test_files(temp_path, multi_links_test_dirs)
+
+    # Get the directory path for later use
+    multi_dir = temp_path / "multi_links"
+
+    # Mock live_url to track which URLs are called
+    live_url_calls = []
+
+    def mock_live_url(url, timeout=5):
+        live_url_calls.append(url)
+        return True  # All links are alive
+
+    result = run_check_links_with_mocked_live_url(multi_dir, history_file, mock_live_url)
+
+    # Verify the test passed
+    assert result.exit_code == 0
+
+    # Verify that all three links were checked
+    assert len(live_url_calls) == 3
+    assert link1 in live_url_calls
+    assert link2 in live_url_calls
+    assert link3 in live_url_calls
+
+    # Verify that the output mentions the correct number of links
+    assert "All 3 links are good" in result.output
