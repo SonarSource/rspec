@@ -1,12 +1,15 @@
 import os
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Final, Iterable, Optional
+from typing import Callable, Final, Iterable, Optional, List
 
 import click
 from git import Repo
 from github import Github
+from github.Commit import Commit
+from github.Repository import Repository
 
 
 def _auto_github(token: str) -> Callable[[Optional[str]], Github]:
@@ -117,6 +120,42 @@ class RspecRepo:
 
         click.echo(f"Reserved Rule ID S{counter}")
         return counter
+
+
+def get_last_login_modified_file(github_repo: Repository, file_path: str, max_commits: int = 3) -> Optional[str]:
+    """
+    Find the last non-bot GitHub login that modified a given file.
+    
+    Args:
+        github_repo: A PyGithub Repository object
+        file_path: The path to the file within the repository
+        max_commits: Maximum number of commits to check (default: 3)
+        
+    Returns:
+        The GitHub login of the last non-bot author, or None if not found
+    """
+    # Get the last few commits for the file
+    commits = list(github_repo.get_commits(path=file_path))[:max_commits]
+    
+    for commit in commits:
+        # Try to get author login
+        author = commit.author
+        if author and not (author.login and "[bot]" in author.login):
+            return author.login
+            
+        # Try to get committer login
+        committer = commit.committer
+        if committer and not (committer.login and "[bot]" in committer.login):
+            return committer.login
+            
+        # Try to find co-authors in commit message
+        message = commit.commit.message
+        co_author_matches = re.findall(r"Co-authored-by:.*?<(.+?)@users\.noreply\.github\.com>", message)
+        if co_author_matches:
+            return co_author_matches[0]  # Return the first co-author login
+            
+    # No suitable author found in any of the commits
+    return None
 
 
 def _build_github_repository_url(token: str, user: Optional[str]):
