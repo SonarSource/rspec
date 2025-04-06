@@ -617,21 +617,21 @@ def test_dead_link_in_multiple_files(setup_test_files):
 def test_create_history_file(setup_test_files):
     """Test that check-links creates a history file if none exists."""
     temp_path = setup_test_files
-    
+
     # Create a new directory for this test
     test_dir_name = "create_history_test"
     test_dir = temp_path / test_dir_name
-    
+
     # Create test files with a live link
     test_link = "https://www.example.com/test-link"
     test_dirs = {
         test_dir_name: {
             "S100/java/rule.html": f'<a href="{test_link}">Test Link</a>',
             "S100/java/metadata.json": "{}",
-            "S100/metadata.json": "{}"
+            "S100/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files using the helper function
     create_test_files(temp_path, test_dirs)
 
