@@ -54,7 +54,7 @@ def test_get_last_login_modified_file():
 
         mock_repo.get_commits.return_value = [mock_commit1]
         result = get_last_login_modified_file(
-            "owner/repo", "some/file.txt", token="fake-token"
+            "fake-token", "owner/repo", "some/file.txt"
         )
         assert result == "real-user"
         mock_github.assert_called_once_with("fake-token")
@@ -76,7 +76,7 @@ def test_get_last_login_modified_file():
 
         mock_repo.get_commits.return_value = [mock_commit1, mock_commit2]
         result = get_last_login_modified_file(
-            "owner/repo", "some/file.txt", token="fake-token"
+            "fake-token", "owner/repo", "some/file.txt"
         )
         assert result == "real-committer"
 
@@ -91,7 +91,7 @@ def test_get_last_login_modified_file():
 
         mock_repo.get_commits.return_value = [mock_commit1]
         result = get_last_login_modified_file(
-            "owner/repo", "some/file.txt", token="fake-token"
+            "fake-token", "owner/repo", "some/file.txt"
         )
         assert result == "johndoe"
 
@@ -106,7 +106,7 @@ def test_get_last_login_modified_file():
 
         mock_repo.get_commits.return_value = [mock_commit1]
         result = get_last_login_modified_file(
-            "owner/repo", "some/file.txt", token="fake-token"
+            "fake-token", "owner/repo", "some/file.txt"
         )
         assert result is None
 
@@ -115,6 +115,6 @@ def test_get_last_login_modified_file():
         with patch.dict(os.environ, {"GITHUB_TOKEN": "env-token"}):
             token = os.environ.get("GITHUB_TOKEN")
             result = get_last_login_modified_file(
-                "owner/repo", "some/file.txt", token=token
+                token, "owner/repo", "some/file.txt"
             )
             mock_github.assert_called_once_with("env-token")

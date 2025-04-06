@@ -192,7 +192,7 @@ def last_author_command(repo: str, max_commits: int, file_path: str):
         exit(1)
 
     try:
-        author = get_last_login_modified_file(repo, file_path, max_commits, token)
+        author = get_last_login_modified_file(token, repo, file_path, max_commits)
         if author:
             click.echo(author)
         else:

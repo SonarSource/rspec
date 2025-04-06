@@ -126,9 +126,8 @@ def is_a_bot(username: str):
     return "[bot]" in username or username == "web-flow"
 
 
-# AI! make `token` the first argument and not the last
 def get_last_login_modified_file(
-    repo_name: str, file_path: str, max_commits: int = 3, token: str
+    token: str, repo_name: str, file_path: str, max_commits: int = 3
 ) -> Optional[str]:
     """Find the last non-bot GitHub login that modified a given file.
 
