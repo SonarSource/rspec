@@ -262,7 +262,6 @@ def test_tolerable_downtime(setup_test_files):
     """Test that links that were alive recently but are now dead are not reported as dead."""
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
-    test_url = "https://www.google.com/404"  # This URL will return 404
 
     # Setup history file with a recent date (3 days ago) - within TOLERABLE_LINK_DOWNTIME
     recent_date = datetime.datetime.now() - datetime.timedelta(days=3)
@@ -296,7 +295,6 @@ def test_old_dead_link(setup_test_files):
     """Test that links that were alive a long time ago (1 month) but are now dead are reported as dead."""
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
-    test_url = "https://www.google.com/404"  # This URL will return 404
 
     # Setup history file with an old date (30 days ago) - beyond TOLERABLE_LINK_DOWNTIME
     old_date = datetime.datetime.now() - datetime.timedelta(days=30)
