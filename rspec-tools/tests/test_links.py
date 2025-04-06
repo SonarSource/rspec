@@ -309,36 +309,36 @@ def test_exception_url(setup_test_files):
     """Test that URLs matching exception patterns are not probed and reported as live."""
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
-    
+
     # Create a test file with an exception URL
     exception_dir = temp_path / "exception"
     exception_dir.mkdir(exist_ok=True)
     rule_dir = exception_dir / "S100" / "java"
     rule_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create a rule.html file with a URL that matches an exception prefix
     exception_url = "https://wiki.sei.cmu.edu/confluence/display/java/SEC05-J"
     with open(rule_dir / "rule.html", "w") as f:
         f.write(f'<a href="{exception_url}">Exception URL</a>')
-    
+
     # Create empty metadata files
     with open(exception_dir / "S100" / "metadata.json", "w") as f:
         f.write("{}")
     with open(rule_dir / "metadata.json", "w") as f:
         f.write("{}")
-    
+
     # Initialize history with empty content
     with open(history_file, "w") as f:
         f.write("{}")
-    
+
     # Mock live_url to track if it gets called
     live_url_calls = []
     original_live_url = checklinks.live_url
-    
+
     def mock_live_url(url, timeout=5):
         live_url_calls.append(url)
         return original_live_url(url, timeout)
-    
+
     with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
         runner = CliRunner()
         result = runner.invoke(
@@ -351,7 +351,7 @@ def test_exception_url(setup_test_files):
                 str(history_file),
             ],
         )
-        
+
         # Verify that the exception URL was not probed (not in live_url_calls)
         assert exception_url not in live_url_calls
         # Verify that the test passed (exit code 0)
