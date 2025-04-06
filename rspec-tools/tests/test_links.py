@@ -415,6 +415,15 @@ def test_mixed_links_reporting(setup_test_files):
     rule1_dir = mixed_dir / "S100" / "java"
     rule2_dir = mixed_dir / "S200" / "java"
 
+    # Setup the history file to show that the dead_url was last alive a long time ago
+    # (making it "long dead" without mocking url_is_long_dead)
+    old_date = datetime.datetime.now() - datetime.timedelta(days=30)  # Well beyond TOLERABLE_LINK_DOWNTIME
+    
+    # Create history file with an old last-alive date for the dead URL
+    with open(history_file, "w") as f:
+        history_data = {dead_url: old_date}
+        f.write(str(history_data))
+    
     # Mock live_url to return different values based on URL
     def mock_live_url(url, timeout=5):
         if url == dead_url:
@@ -423,27 +432,20 @@ def test_mixed_links_reporting(setup_test_files):
             return True  # All other links are alive
 
     with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
-        # Mock url_is_long_dead to always return True for our dead URL
-        def mock_url_is_long_dead(url):
-            return url == dead_url
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "check-links",
+                "--d",
+                mixed_dir,
+                "--history-file",
+                str(history_file),
+            ],
+        )
 
-        with patch(
-            "rspec_tools.checklinks.url_is_long_dead", side_effect=mock_url_is_long_dead
-        ):
-            runner = CliRunner()
-            result = runner.invoke(
-                cli,
-                [
-                    "check-links",
-                    "--d",
-                    mixed_dir,
-                    "--history-file",
-                    str(history_file),
-                ],
-            )
-
-            # Verify test fails because there's a dead link
-            assert result.exit_code == 1
+        # Verify test fails because there's a dead link
+        assert result.exit_code == 1
 
             # Verify that the dead URL and its file are reported in the errors section of the output
             error_section = result.output.split("There were errors")[1].split(
