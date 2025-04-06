@@ -162,9 +162,66 @@ def test_live_url_with_anchor_only_link():
     """Test that the live_url function correctly handles anchor-only links."""
     # Test with an anchor-only link
     assert checklinks.live_url("#section-reference") is True
-
+    
     # Test with a more complex anchor
     assert checklinks.live_url("#complex-anchor-with-numbers-123") is True
+
+
+def test_link_initially_dead_then_alive(setup_test_files):
+    """Test that a link initially marked as dead but then confirmed alive is not reported as dead."""
+    temp_path = setup_test_files
+    history_file = temp_path / "link_probes.history"
+    
+    # Create test files with a link that will be initially dead but then alive
+    test_link = "https://www.example.com/intermittent-link"
+    test_dirs = {
+        "intermittent_link": {
+            "S100/java/rule.html": f'<a href="{test_link}">Intermittent Link</a>',
+            "S100/java/metadata.json": "{}",
+            "S100/metadata.json": "{}",
+        }
+    }
+    
+    # Create the test files
+    create_test_files(temp_path, test_dirs)
+    
+    # Get the directory path for later use
+    test_dir = temp_path / "intermittent_link"
+    
+    # First attempt counter to track calls to mock_live_url
+    attempt_counter = {"count": 0}
+    
+    # Mock live_url to return False on first attempt, True on second attempt
+    def mock_live_url(url, timeout=5):
+        if url == test_link:
+            attempt_counter["count"] += 1
+            # Return False on first call (initial check), True on second call (confirmation)
+            return attempt_counter["count"] > 1
+        return True  # All other links are alive
+    
+    # Set up a history file with an old date so the link will be checked
+    old_date = datetime.datetime.now() - datetime.timedelta(days=30)
+    first_result = setup_history_file(temp_path, history_file, old_date, "intermittent_link")
+    assert first_result.exit_code == 0
+    
+    # Run check-links with the mocked live_url function
+    result = run_check_links_with_mocked_live_url(
+        test_dir, history_file, mock_live_url
+    )
+    
+    # Verify that mock_live_url was called twice for our test link
+    assert attempt_counter["count"] == 2
+    
+    # Verify the command succeeded (exit code 0 means no dead links)
+    assert result.exit_code == 0
+    
+    # Verify the output indicates success
+    assert "All 1 links are good" in result.output
+    
+    # Verify that the history file was updated with the now-alive link
+    with open(history_file, "r") as f:
+        history_content = f.read()
+        assert test_link in history_content
 
 
 def test_404(setup_test_files):
