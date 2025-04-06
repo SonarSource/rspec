@@ -158,6 +158,15 @@ def test_live_url_failure():
     assert not checklinks.live_url("https://ww.nothing")
 
 
+def test_live_url_with_anchor_only_link():
+    """Test that the live_url function correctly handles anchor-only links."""
+    # Test with an anchor-only link
+    assert checklinks.live_url("#section-reference") is True
+
+    # Test with a more complex anchor
+    assert checklinks.live_url("#complex-anchor-with-numbers-123") is True
+
+
 def test_404(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
@@ -634,15 +643,6 @@ def test_create_history_file(setup_test_files):
 
     # Create the test files using the helper function
     create_test_files(temp_path, test_dirs)
-
-
-def test_live_url_with_anchor_only_link():
-    """Test that the live_url function correctly handles anchor-only links."""
-    # Test with an anchor-only link
-    assert checklinks.live_url("#section-reference") is True
-
-    # Test with a more complex anchor
-    assert checklinks.live_url("#complex-anchor-with-numbers-123") is True
 
     # Define a non-existent history file
     history_file = temp_path / "new_history_file.json"
