@@ -340,29 +340,21 @@ def test_exception_url(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
 
-    # AI! rewrite this part using create_test_files
     # Create a test file with an exception URL
-    exception_dir = temp_path / "exception"
-    exception_dir.mkdir(exist_ok=True)
-    rule_dir = exception_dir / "S100" / "java"
-    rule_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create a rule.html file with a URL that matches an exception prefix
     exception_url = "https://wiki.sei.cmu.edu/confluence/display/java/SEC05-J"
-    with open(rule_dir / "rule.html", "w") as f:
-        f.write(f'<a href="{exception_url}">Exception URL</a>')
-
-    # Create empty metadata files
-    with open(exception_dir / "S100" / "metadata.json", "w") as f:
-        f.write("{}")
-    with open(rule_dir / "metadata.json", "w") as f:
-        f.write("{}")
-
-    # Initialize history with empty content
-    with open(history_file, "w") as f:
-        f.write("{}")
-
-    # AI: up to this point
+    exception_dir = temp_path / "exception"
+    
+    # Define the file structure for the exception URL test
+    exception_test_dirs = {
+        "exception": {
+            "S100/java/rule.html": f'<a href="{exception_url}">Exception URL</a>',
+            "S100/java/metadata.json": "{}",
+            "S100/metadata.json": "{}",
+        }
+    }
+    
+    # Create the test files
+    create_test_files(temp_path, exception_test_dirs)
 
     # Mock live_url to track if it gets called
     live_url_calls = []
