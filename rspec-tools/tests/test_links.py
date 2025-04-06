@@ -343,7 +343,7 @@ def test_exception_url(setup_test_files):
     # Create a test file with an exception URL
     exception_url = "https://wiki.sei.cmu.edu/confluence/display/java/SEC05-J"
     exception_dir = temp_path / "exception"
-    
+
     # Define the file structure for the exception URL test
     exception_test_dirs = {
         "exception": {
@@ -352,7 +352,7 @@ def test_exception_url(setup_test_files):
             "S100/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, exception_test_dirs)
 
