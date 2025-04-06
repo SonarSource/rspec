@@ -233,11 +233,11 @@ def test_no_reprobe_recent_links(setup_test_files):
         temp_path / "OK", history_file, mock_live_url
     )
 
-        # Verify that the test URL wasn't probed again
-        assert test_url not in probe_calls
-        assert "skip probing because it was reached recently" in second_result.output
-        assert second_result.exit_code == 0
-        assert "All 1 links are good" in second_result.output
+    # Verify that the test URL wasn't probed again
+    assert test_url not in probe_calls
+    assert "skip probing because it was reached recently" in second_result.output
+    assert second_result.exit_code == 0
+    assert "All 1 links are good" in second_result.output
 
 
 def test_reprobe_old_links(setup_test_files):
@@ -269,12 +269,12 @@ def test_reprobe_old_links(setup_test_files):
         temp_path / "OK", history_file, mock_live_url
     )
 
-        # Verify that the test URL was probed again
-        assert test_url in probe_calls
-        assert (
-            "skip probing because it was reached recently" not in second_result.output
-        )
-        assert second_result.exit_code == 0
+    # Verify that the test URL was probed again
+    assert test_url in probe_calls
+    assert (
+        "skip probing because it was reached recently" not in second_result.output
+    )
+    assert second_result.exit_code == 0
 
 
 def test_tolerable_downtime(setup_test_files):
@@ -296,9 +296,9 @@ def test_tolerable_downtime(setup_test_files):
         temp_path / "404", history_file, mock_live_url
     )
 
-        # Verify the link wasn't reported as dead (exit code 0 means all links are good)
-        assert second_result.exit_code == 0
-        assert "All 1 links are good" in second_result.output
+    # Verify the link wasn't reported as dead (exit code 0 means all links are good)
+    assert second_result.exit_code == 0
+    assert "All 1 links are good" in second_result.output
 
 
 def test_old_dead_link(setup_test_files):
@@ -320,9 +320,9 @@ def test_old_dead_link(setup_test_files):
         temp_path / "404", history_file, mock_live_url
     )
 
-        # Verify the link was reported as dead (exit code 1 means dead links found)
-        assert second_result.exit_code == 1
-        assert "1/1 links are dead" in second_result.output
+    # Verify the link was reported as dead (exit code 1 means dead links found)
+    assert second_result.exit_code == 1
+    assert "1/1 links are dead" in second_result.output
 
 
 def test_exception_url(setup_test_files):
@@ -356,13 +356,13 @@ def test_exception_url(setup_test_files):
 
     result = run_check_links_with_mocked_live_url(exception_dir, history_file, mock_live_url)
 
-        # Verify that the exception URL was not probed (not in live_url_calls)
-        assert exception_url not in live_url_calls
-        # Verify that the test passed (exit code 0)
-        assert result.exit_code == 0
-        # Verify that the right message appears in the output
-        assert "skip as an exception" in result.output
-        assert "All 1 links are good" in result.output
+    # Verify that the exception URL was not probed (not in live_url_calls)
+    assert exception_url not in live_url_calls
+    # Verify that the test passed (exit code 0)
+    assert result.exit_code == 0
+    # Verify that the right message appears in the output
+    assert "skip as an exception" in result.output
+    assert "All 1 links are good" in result.output
 
 
 def test_mixed_links_reporting(setup_test_files):
@@ -416,24 +416,24 @@ def test_mixed_links_reporting(setup_test_files):
         mixed_dir, history_file, mock_live_url
     )
 
-        # Verify test fails because there's a dead link
-        assert result.exit_code == 1
+    # Verify test fails because there's a dead link
+    assert result.exit_code == 1
 
-        # Verify that the dead URL and its file are reported in the errors section of the output
-        error_section = result.output.split("There were errors")[1].split(
-            "Cache statistics"
-        )[0]
-        assert dead_url in error_section
-        assert str(rule1_dir / "rule.html") in error_section
+    # Verify that the dead URL and its file are reported in the errors section of the output
+    error_section = result.output.split("There were errors")[1].split(
+        "Cache statistics"
+    )[0]
+    assert dead_url in error_section
+    assert str(rule1_dir / "rule.html") in error_section
 
-        # Verify that the live URL and its file are NOT reported in the error section
-        assert "1/2 links are dead" in result.output
+    # Verify that the live URL and its file are NOT reported in the error section
+    assert "1/2 links are dead" in result.output
 
-        # Check that the live link's file path is not in the errors section
-        error_section = result.output.split("There were errors")[1].split(
-            "Cache statistics"
-        )[0]
-        assert str(rule2_dir / "rule.html") not in error_section
+    # Check that the live link's file path is not in the errors section
+    error_section = result.output.split("There were errors")[1].split(
+        "Cache statistics"
+    )[0]
+    assert str(rule2_dir / "rule.html") not in error_section
 
 
 def test_duplicate_links_checked_once(setup_test_files):
@@ -476,12 +476,12 @@ def test_duplicate_links_checked_once(setup_test_files):
         dup_dir, history_file, mock_live_url
     )
 
-        # Verify the test passed
-        assert result.exit_code == 0
+    # Verify the test passed
+    assert result.exit_code == 0
 
-        # Verify that the link shows up in all three files
-        assert len(live_url_calls) == 1  # The link was only checked once
-        assert live_url_calls[0] == test_url
+    # Verify that the link shows up in all three files
+    assert len(live_url_calls) == 1  # The link was only checked once
+    assert live_url_calls[0] == test_url
 
-        # Verify that the output mentions the link appears in 3 files
-        assert f"{test_url} in 3 files" in result.output
+    # Verify that the output mentions the link appears in 3 files
+    assert f"{test_url} in 3 files" in result.output
