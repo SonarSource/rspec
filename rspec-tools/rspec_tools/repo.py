@@ -3,7 +3,7 @@ import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Final, Iterable, Optional, List
+from typing import Callable, Final, Iterable, List, Optional
 
 import click
 from git import Repo
@@ -122,38 +122,42 @@ class RspecRepo:
         return counter
 
 
-def get_last_login_modified_file(github_repo: Repository, file_path: str, max_commits: int = 3) -> Optional[str]:
+def get_last_login_modified_file(
+    github_repo: Repository, file_path: str, max_commits: int = 3
+) -> Optional[str]:
     """
     Find the last non-bot GitHub login that modified a given file.
-    
+
     Args:
         github_repo: A PyGithub Repository object
         file_path: The path to the file within the repository
         max_commits: Maximum number of commits to check (default: 3)
-        
+
     Returns:
         The GitHub login of the last non-bot author, or None if not found
     """
     # Get the last few commits for the file
     commits = list(github_repo.get_commits(path=file_path))[:max_commits]
-    
+
     for commit in commits:
         # Try to get author login
         author = commit.author
         if author and not (author.login and "[bot]" in author.login):
             return author.login
-            
+
         # Try to get committer login
         committer = commit.committer
         if committer and not (committer.login and "[bot]" in committer.login):
             return committer.login
-            
+
         # Try to find co-authors in commit message
         message = commit.commit.message
-        co_author_matches = re.findall(r"Co-authored-by:.*?<(.+?)@users\.noreply\.github\.com>", message)
+        co_author_matches = re.findall(
+            r"Co-authored-by:.*?<(.+?)@users\.noreply\.github\.com>", message
+        )
         if co_author_matches:
             return co_author_matches[0]  # Return the first co-author login
-            
+
     # No suitable author found in any of the commits
     return None
 
