@@ -162,24 +162,30 @@ def get_last_login_modified_file(
     return None
 
 
-def get_last_author_for_file(token: str, repo_name: str, file_path: str, max_commits: int = 3, user: Optional[str] = None) -> Optional[str]:
+def get_last_author_for_file(
+    token: str,
+    repo_name: str,
+    file_path: str,
+    max_commits: int = 3,
+    user: Optional[str] = None,
+) -> Optional[str]:
     """
     CLI callable function to find the last non-bot author for a file in a GitHub repository.
-    
+
     Args:
         token: GitHub token for authentication
         repo_name: Repository name in format 'owner/repo'
         file_path: Path to the file within the repository
         max_commits: Maximum number of commits to check
         user: Optional GitHub username for authentication
-        
+
     Returns:
         The GitHub login of the last non-bot author, or None if not found
     """
     github_api = _auto_github(token)
     github = github_api(user)
     github_repo = github.get_repo(repo_name)
-    
+
     author = get_last_login_modified_file(github_repo, file_path, max_commits)
     return author
 
@@ -187,10 +193,18 @@ def get_last_author_for_file(token: str, repo_name: str, file_path: str, max_com
 @click.command("last-author")
 @click.option("--token", envvar="GITHUB_TOKEN", required=True, help="GitHub token")
 @click.option("--user", help="GitHub username")
-@click.option("--repo", help="Repository in format 'owner/repo'", default=lambda: os.environ.get("GITHUB_REPOSITORY", "SonarSource/rspec"))
-@click.option("--max-commits", default=3, type=int, help="Maximum number of commits to check")
+@click.option(
+    "--repo",
+    help="Repository in format 'owner/repo'",
+    default=lambda: os.environ.get("GITHUB_REPOSITORY", "SonarSource/rspec"),
+)
+@click.option(
+    "--max-commits", default=3, type=int, help="Maximum number of commits to check"
+)
 @click.argument("file_path")
-def last_author_command(token: str, user: Optional[str], repo: str, max_commits: int, file_path: str):
+def last_author_command(
+    token: str, user: Optional[str], repo: str, max_commits: int, file_path: str
+):
     """Find the last non-bot GitHub login that modified a given file."""
     author = get_last_author_for_file(token, repo, file_path, max_commits, user)
     if author:
