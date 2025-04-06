@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
 
+#AI! simplify this function to always require the mock_date and always mock it
 def setup_history_file(temp_path, history_file, test_dir="OK", mock_date=None):
     """
     Helper function to run check-links and setup a history file.
