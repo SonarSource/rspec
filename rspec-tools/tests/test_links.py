@@ -44,7 +44,7 @@ def setup_test_files():
             full_path.parent.mkdir(parents=True, exist_ok=True)
             with open(full_path, "w") as f:
                 f.write(content)
-    
+
     # Create empty history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
@@ -78,7 +78,8 @@ def test_404(setup_test_files):
     history_file = temp_path / "link_probes.history"
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["check-links", "--d", temp_path / "404", "--history-file", str(history_file)]
+        cli,
+        ["check-links", "--d", temp_path / "404", "--history-file", str(history_file)],
     )
     print(result.output)
     assert result.exit_code == 1
@@ -93,7 +94,8 @@ def test_url(setup_test_files):
     history_file = temp_path / "link_probes.history"
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["check-links", "--d", temp_path / "URL", "--history-file", str(history_file)]
+        cli,
+        ["check-links", "--d", temp_path / "URL", "--history-file", str(history_file)],
     )
     print(result.output)
     assert result.exit_code == 1
@@ -108,7 +110,8 @@ def test_ok(setup_test_files):
     history_file = temp_path / "link_probes.history"
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["check-links", "--d", temp_path / "OK", "--history-file", str(history_file)]
+        cli,
+        ["check-links", "--d", temp_path / "OK", "--history-file", str(history_file)],
     )
     print(result.output)
     assert result.exit_code == 0
@@ -121,7 +124,13 @@ def test_deprecated(setup_test_files):
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["check-links", "--d", temp_path / "deprecated", "--history-file", str(history_file)],
+        [
+            "check-links",
+            "--d",
+            temp_path / "deprecated",
+            "--history-file",
+            str(history_file),
+        ],
     )
     print(result.output)
     assert result.exit_code == 0
