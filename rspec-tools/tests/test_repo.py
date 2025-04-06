@@ -114,7 +114,5 @@ def test_get_last_login_modified_file():
         mock_github.reset_mock()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "env-token"}):
             token = os.environ.get("GITHUB_TOKEN")
-            result = get_last_login_modified_file(
-                token, "owner/repo", "some/file.txt"
-            )
+            result = get_last_login_modified_file(token, "owner/repo", "some/file.txt")
             mock_github.assert_called_once_with("env-token")
