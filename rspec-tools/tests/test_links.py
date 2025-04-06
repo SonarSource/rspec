@@ -12,13 +12,13 @@ from rspec_tools import checklinks, cli
 def setup_history_file(temp_path, history_file, test_dir="OK", mock_date=None):
     """
     Helper function to run check-links and setup a history file.
-    
+
     Args:
         temp_path: Path to temporary directory
         history_file: Path to history file
         test_dir: Directory containing test files
         mock_date: Optional date to use for the history entry (for simulating old entries)
-    
+
     Returns:
         Result of the check-links command
     """
@@ -26,8 +26,10 @@ def setup_history_file(temp_path, history_file, test_dir="OK", mock_date=None):
     if mock_date:
         with patch("datetime.datetime") as mock_datetime:
             mock_datetime.now.return_value = mock_date
-            mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(*args, **kw)
-            
+            mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(
+                *args, **kw
+            )
+
             # Run check-links with mocked live_url
             with patch("rspec_tools.checklinks.live_url", return_value=True):
                 runner = CliRunner()
