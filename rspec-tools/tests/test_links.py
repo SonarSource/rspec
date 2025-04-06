@@ -447,21 +447,21 @@ def test_mixed_links_reporting(setup_test_files):
         # Verify test fails because there's a dead link
         assert result.exit_code == 1
 
-            # Verify that the dead URL and its file are reported in the errors section of the output
-            error_section = result.output.split("There were errors")[1].split(
-                "Cache statistics"
-            )[0]
-            assert dead_url in error_section
-            assert str(rule1_dir / "rule.html") in error_section
+        # Verify that the dead URL and its file are reported in the errors section of the output
+        error_section = result.output.split("There were errors")[1].split(
+            "Cache statistics"
+        )[0]
+        assert dead_url in error_section
+        assert str(rule1_dir / "rule.html") in error_section
 
-            # Verify that the live URL and its file are NOT reported in the error section
-            assert "1/2 links are dead" in result.output
+        # Verify that the live URL and its file are NOT reported in the error section
+        assert "1/2 links are dead" in result.output
 
-            # Check that the live link's file path is not in the errors section
-            error_section = result.output.split("There were errors")[1].split(
-                "Cache statistics"
-            )[0]
-            assert str(rule2_dir / "rule.html") not in error_section
+        # Check that the live link's file path is not in the errors section
+        error_section = result.output.split("There were errors")[1].split(
+            "Cache statistics"
+        )[0]
+        assert str(rule2_dir / "rule.html") not in error_section
 
 
 def test_duplicate_links_checked_once(setup_test_files):
