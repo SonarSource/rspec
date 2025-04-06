@@ -421,11 +421,10 @@ def test_mixed_links_reporting(setup_test_files):
         days=30
     )  # Well beyond TOLERABLE_LINK_DOWNTIME
 
-    # AI! use setup_history_file instead of writing directly to it
-    # Create history file with an old last-alive date for the dead URL
-    with open(history_file, "w") as f:
-        history_data = {dead_url: old_date}
-        f.write(str(history_data))
+    # Setup history file with an old date for the dead URL
+    # Use the mixed_links directory to create links that will be checked against the history
+    first_result = setup_history_file(temp_path, history_file, old_date, "mixed_links")
+    assert first_result.exit_code == 0
 
     # Mock live_url to return different values based on URL
     def mock_live_url(url, timeout=5):
