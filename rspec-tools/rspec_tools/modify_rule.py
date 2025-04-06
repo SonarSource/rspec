@@ -197,6 +197,41 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                         # Skip invalid languages
                         continue
         return labels
+        
+    def find_appropriate_assignee(
+        self, token: str, assignee: Optional[str], modified_files: List[Path]
+    ) -> Optional[str]:
+        """
+        Find the most appropriate assignee for a PR based on file history.
+        
+        Args:
+            token: GitHub token
+            assignee: Optional explicitly provided assignee
+            modified_files: List of files modified in the PR
+            
+        Returns:
+            The appropriate assignee, or None if no assignee can be determined
+        """
+        if assignee:
+            return assignee
+            
+        if not modified_files:
+            return None
+            
+        repo_name = self.rspec_repo.get_repository_name()
+
+        # Try to find the last author for each modified file
+        for file_path in modified_files:
+            try:
+                last_author = get_last_login_modified_file(
+                    token, repo_name, file_path
+                )
+                if last_author:
+                    return last_author
+            except Exception:
+                continue
+                
+        return None
 
     def batch_find_replace_pull_request(
         self,
@@ -244,24 +279,8 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         # Collect labels for the PR based on affected languages
         labels = self.collect_labels_from_affected_rules(affected_rules)
 
-        # AI! factor out this section into a dedicated function "find_appropriate_assignee" ...
-        # Find the most appropriate assignee if not provided
-        auto_assignee = assignee
-        if not auto_assignee and modified_files:
-            repo_name = self.rspec_repo.get_repository_name()
-
-            # Try to find the last author for each modified file
-            for file_path in modified_files:
-                try:
-                    last_author = get_last_login_modified_file(
-                        token, repo_name, file_path
-                    )
-                    if last_author:
-                        auto_assignee = last_author
-                        break
-                except Exception:
-                    continue
-        # AI: ... up to this point
+        # Find the appropriate assignee for the PR
+        auto_assignee = self.find_appropriate_assignee(token, assignee, modified_files)
 
         click.echo(f"Created rule branch {branch_name}")
         return self.rspec_repo.create_pull_request(
