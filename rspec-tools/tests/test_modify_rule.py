@@ -5,7 +5,11 @@ from unittest.mock import Mock, patch
 import pytest
 from git import Repo
 from rspec_tools.errors import InvalidArgumentError
-from rspec_tools.modify_rule import RuleEditor, update_rule_quickfix_status
+from rspec_tools.modify_rule import (
+    batch_find_replace,
+    RuleEditor,
+    update_rule_quickfix_status,
+)
 from rspec_tools.repo import RspecRepo
 
 from tests.conftest import mock_github
@@ -144,6 +148,184 @@ def test_update_quickfix_status_pull_request(rule_editor: RuleEditor):
         )
 
 
+def test_batch_find_replace_pull_request_multiple_rules(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request creates PR with appropriate labels and assignee for multiple rules."""
+    with mock_github() as (token, user, mock_repo):
+        # Mock the batch_find_replace_branch method to return expected values
+        affected_rules = {"S123": {"java"}, "S456": {"python"}}
+        modified_files = [
+            Path("rules/S123/java/test.txt"),
+            Path("rules/S456/python/test.txt"),
+        ]
+
+        with patch.object(
+            rule_editor,
+            "batch_find_replace_branch",
+            return_value=("test-branch", affected_rules, modified_files),
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old text",
+                "new text",
+                "update text",
+                "PR description",
+                user,
+                None,
+            )
+
+            # Assert PR was created
+            mock_repo.create_pull.assert_called_once()
+
+            # Verify PR title format
+            title = mock_repo.create_pull.call_args.kwargs["title"]
+            assert "Modify rules S123, S456: update text" in title
+
+            # Verify assignees and labels
+            mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(user)
+
+            # Check that labels were added
+            labels_call = mock_repo.create_pull.return_value.add_to_labels.call_args
+            assert labels_call is not None
+
+            # Test with specific assignee
+            mock_repo.create_pull.reset_mock()
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old text",
+                "new text",
+                "update text",
+                "PR description",
+                user,
+                "specific-user",
+            )
+            mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(
+                "specific-user"
+            )
+
+
+def test_batch_find_replace_pull_request_single_rule(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request creates PR with proper title for a single rule."""
+    with mock_github() as (token, user, mock_repo):
+        # Mock the batch_find_replace_branch method to return values for a single rule
+        affected_rules = {"S789": {"java"}}
+
+        # Create paths using the repository working directory
+        repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
+        modified_files = [
+            repo_dir / "rules/S789/java/rule.adoc",
+        ]
+
+        with patch.object(
+            rule_editor,
+            "batch_find_replace_branch",
+            return_value=("test-branch-single", affected_rules, modified_files),
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old pattern",
+                "new pattern",
+                "fix description format",
+                "PR description for single rule update",
+                user,
+                None,
+            )
+
+            # Assert PR was created
+            mock_repo.create_pull.assert_called_once()
+
+            # Verify PR title - should use singular form for single rule
+            title = mock_repo.create_pull.call_args.kwargs["title"]
+            assert "Modify rule S789: fix description format" in title
+            assert "rules" not in title  # Should not use plural form
+
+            # Verify labels are added
+            mock_repo.create_pull.return_value.add_to_labels.assert_called_once()
+
+
+def test_batch_find_replace_pull_request_auto_assignee(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request automatically finds the appropriate assignee based on file history."""
+    with mock_github() as (token, user, mock_repo):
+        # Modified files for the test
+        repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
+        modified_files = [
+            repo_dir / "rules/S111/python/rule.adoc",
+        ]
+        affected_rules = {"S111": {"python"}}
+
+        # Set up the mocks
+        auto_detected_author = "file-author"
+
+        with patch.object(
+            rule_editor,
+            "batch_find_replace_branch",
+            return_value=("test-branch-auto-assignee", affected_rules, modified_files),
+        ), patch(
+            "rspec_tools.modify_rule.get_last_login_modified_file",
+            return_value=auto_detected_author,
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old text",
+                "new text",
+                "update formatting",
+                "PR description with auto assignee",
+                user,
+                None,  # Pass None to trigger auto assignee detection
+            )
+
+            # Verify that PR was created with the auto-detected assignee
+            mock_repo.create_pull.assert_called_once()
+
+            # The assignee should be the auto-detected author, not the user
+            mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(
+                auto_detected_author
+            )
+            assert (
+                mock_repo.create_pull.return_value.add_to_assignees.call_args.args[0]
+                != user
+            )
+
+
+def test_batch_find_replace_pull_request_many_rules(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request with more than 5 rules uses count in PR title."""
+    with mock_github() as (token, user, mock_repo):
+        # Create a case with more than 5 rules
+        repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
+        affected_rules = {f"S{i}": {"java"} for i in range(100, 107)}  # 7 rules
+
+        # Create modified files for each rule
+        modified_files = [
+            repo_dir / f"rules/S{i}/java/rule.adoc" for i in range(100, 107)
+        ]
+
+        with patch.object(
+            rule_editor,
+            "batch_find_replace_branch",
+            return_value=("test-branch-many-rules", affected_rules, modified_files),
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old pattern",
+                "new pattern",
+                "update multiple rules",
+                "PR description for many rules update",
+                user,
+                "test-assignee",
+            )
+
+            # Assert PR was created
+            mock_repo.create_pull.assert_called_once()
+
+            # Verify PR title uses count instead of listing all rules
+            title = mock_repo.create_pull.call_args.kwargs["title"]
+            assert "7 rules" in title
+            assert "Modify rules 7 rules: update multiple rules" in title
+
+            # Make sure it doesn't list all rules in the title
+            for i in range(100, 107):
+                assert f"S{i}" not in title
+
+
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
 @patch("rspec_tools.modify_rule.RuleEditor")
 def test_update_rule_quickfix_status(mockRuleEditor, mock_tmp_rspec_repo):
@@ -155,3 +337,186 @@ def test_update_rule_quickfix_status(mockRuleEditor, mock_tmp_rspec_repo):
     assert prMock.call_args.args[2] == "cfamily"
     assert prMock.call_args.args[3] == "covered"
     assert prMock.call_args.args[4] == "cfamily"
+
+
+@patch("rspec_tools.modify_rule.tmp_rspec_repo")
+@patch("rspec_tools.modify_rule.RuleEditor")
+def test_batch_find_replace(mockRuleEditor, mock_tmp_rspec_repo):
+    """Test batch_find_replace uses the expected implementation."""
+    prMock = mockRuleEditor.return_value.batch_find_replace_pull_request
+    batch_find_replace(
+        "text to find",
+        "replacement text",
+        "update description text",
+        "PR description",
+        "my token",
+        "testuser",
+        "assignee",
+    )
+    prMock.assert_called_once()
+    assert prMock.call_args.args[1] == "text to find"
+    assert prMock.call_args.args[2] == "replacement text"
+    assert prMock.call_args.args[3] == "update description text"
+    assert prMock.call_args.args[4] == "PR description"
+    assert prMock.call_args.args[5] == "testuser"
+    assert prMock.call_args.args[6] == "assignee"
+
+
+def test_batch_find_replace_branch(rule_editor: RuleEditor, mock_git_rspec_repo: Repo):
+    """Test that batch_find_replace_branch correctly identifies and modifies files."""
+    # Need to simulate some files in the rules directory
+    rules_dir = Path(mock_git_rspec_repo.working_dir) / "rules"
+    test_rule_dir = rules_dir / "S123" / "java"
+    test_rule_dir.mkdir(parents=True, exist_ok=True)
+
+    test_file = test_rule_dir / "test.txt"
+    test_file.write_text("This is a test file with search_text in it.")
+
+    mock_git_rspec_repo.git.checkout("master")
+    mock_git_rspec_repo.index.add([str(test_file)])
+    mock_git_rspec_repo.index.commit("Add test file")
+
+    branch_name, affected_rules, modified_files = rule_editor.batch_find_replace_branch(
+        "Test batch replace", "search_text", "replacement_text"
+    )
+
+    # Verify branch was created
+    assert branch_name.startswith("rule/batch-replace-")
+
+    # Check that the right rule and language were identified
+    assert "S123" in affected_rules
+    assert "java" in affected_rules["S123"]
+
+    # Verify file was modified
+    mock_git_rspec_repo.git.checkout(branch_name)
+    modified_content = test_file.read_text()
+    assert "replacement_text" in modified_content
+    assert "search_text" not in modified_content
+
+
+def test_batch_find_replace_branch_no_matches(
+    rule_editor: RuleEditor, mock_git_rspec_repo: Repo
+):
+    """Test that batch_find_replace_branch raises an error when no files match the search string."""
+    # Need to simulate some files in the rules directory
+    rules_dir = Path(mock_git_rspec_repo.working_dir) / "rules"
+    test_rule_dir = rules_dir / "S123" / "java"
+    test_rule_dir.mkdir(parents=True, exist_ok=True)
+
+    test_file = test_rule_dir / "test.txt"
+    test_file.write_text("This is a test file with some content.")
+
+    mock_git_rspec_repo.git.checkout("master")
+    mock_git_rspec_repo.index.add([str(test_file)])
+    mock_git_rspec_repo.index.commit("Add test file")
+
+    with pytest.raises(InvalidArgumentError) as excinfo:
+        rule_editor.batch_find_replace_branch(
+            "Test batch replace", "nonexistent_text", "replacement_text"
+        )
+
+    # Verify the error message contains the search string
+    assert "No files were modified" in str(excinfo.value)
+    assert "nonexistent_text" in str(excinfo.value)
+
+
+def test_batch_find_replace_multiple_occurrences(
+    rule_editor: RuleEditor, mock_git_rspec_repo: Repo
+):
+    """Test that batch_find_replace_branch replaces all occurrences across multiple files."""
+    # Need to simulate some files in the rules directory
+    rules_dir = Path(mock_git_rspec_repo.working_dir) / "rules"
+
+    # Create first rule directory with a file containing multiple occurrences
+    java_rule_dir = rules_dir / "S123" / "java"
+    java_rule_dir.mkdir(parents=True, exist_ok=True)
+    java_file = java_rule_dir / "rule.adoc"
+    java_file.write_text(
+        "This is a PLACEHOLDER text.\nIt has PLACEHOLDER multiple times.\nPLACEHOLDER here as well."
+    )
+
+    # Create second rule directory with the same pattern
+    python_rule_dir = rules_dir / "S456" / "python"
+    python_rule_dir.mkdir(parents=True, exist_ok=True)
+    python_file = python_rule_dir / "rule.adoc"
+    python_file.write_text("Python PLACEHOLDER example.\nAnother PLACEHOLDER line.")
+
+    # Add files to git
+    mock_git_rspec_repo.git.checkout("master")
+    mock_git_rspec_repo.index.add([str(java_file), str(python_file)])
+    mock_git_rspec_repo.index.commit("Add test files")
+
+    # Perform the replacement
+    branch_name, affected_rules, modified_files = rule_editor.batch_find_replace_branch(
+        "Test multiple replacements", "PLACEHOLDER", "REPLACED"
+    )
+
+    # Verify branch was created
+    assert branch_name.startswith("rule/batch-replace-")
+
+    # Verify correct rules and languages were identified
+    assert "S123" in affected_rules
+    assert "java" in affected_rules["S123"]
+    assert "S456" in affected_rules
+    assert "python" in affected_rules["S456"]
+
+    # Verify both files were captured in modified_files
+    assert len(modified_files) == 2
+    modified_paths = [str(f) for f in modified_files]
+    assert any("S123/java" in path for path in modified_paths)
+    assert any("S456/python" in path for path in modified_paths)
+
+    # Verify all occurrences were replaced in both files
+    mock_git_rspec_repo.git.checkout(branch_name)
+
+    java_content = java_file.read_text()
+    assert "PLACEHOLDER" not in java_content
+    assert java_content.count("REPLACED") == 3
+
+    python_content = python_file.read_text()
+    assert "PLACEHOLDER" not in python_content
+    assert python_content.count("REPLACED") == 2
+
+
+def test_batch_find_replace_pull_request_invalid_language(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request skips invalid languages when generating labels."""
+    with mock_github() as (token, user, mock_repo):
+        # Create affected_rules with a valid language and an invalid one
+        affected_rules = {
+            "S123": {"java"},  # Valid language
+            "S456": {"invalid_lang"},  # Invalid language that should be skipped
+        }
+
+        repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
+        modified_files = [
+            repo_dir / "rules/S123/java/rule.adoc",
+            repo_dir / "rules/S456/invalid_lang/rule.adoc",
+        ]
+
+        with patch.object(
+            rule_editor,
+            "batch_find_replace_branch",
+            return_value=("test-branch-invalid-lang", affected_rules, modified_files),
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old pattern",
+                "new pattern",
+                "handle invalid languages",
+                "PR description with invalid language",
+                user,
+                "test-assignee",
+            )
+
+            # Assert PR was created despite the invalid language
+            mock_repo.create_pull.assert_called_once()
+
+            # Check the PR title contains both rules
+            title = mock_repo.create_pull.call_args.kwargs["title"]
+            assert "Modify rules S123, S456: handle invalid languages" in title
+
+            # Verify the correct label was added (only from valid language)
+            labels_call = mock_repo.create_pull.return_value.add_to_labels.call_args
+            # The java label should be in the call, but no label for invalid_lang
+            assert "java" in str(labels_call)
+            assert "invalid_lang" not in str(labels_call)

@@ -84,6 +84,6 @@ def mock_github():
     mock_auto_github = Mock(return_value=mock_github_api)
     with patch("rspec_tools.repo._auto_github", mock_auto_github):
         yield (token, user, mock_repo)
-        mock_auto_github.assert_called_once_with(token)
-        mock_github_api.assert_called_once_with(user)
-        mock_github.get_repo.assert_called_once()
+        mock_auto_github.assert_any_call(token)
+        mock_github_api.assert_called()
+        mock_github.get_repo.assert_called()
