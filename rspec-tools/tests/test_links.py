@@ -1,4 +1,3 @@
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -6,8 +5,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from rspec_tools import checklinks, cli
-
-FILE_DIR = Path(__file__).resolve().parent
 
 
 @pytest.fixture
