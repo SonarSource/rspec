@@ -190,7 +190,7 @@ def last_author_command(repo: str, max_commits: int, file_path: str):
     if not token:
         click.echo("GITHUB_TOKEN environment variable is not set", err=True)
         exit(1)
-        
+
     try:
         author = get_last_login_modified_file(repo, file_path, max_commits, token)
         if author:

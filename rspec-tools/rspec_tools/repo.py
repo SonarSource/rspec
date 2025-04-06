@@ -149,7 +149,7 @@ def get_last_login_modified_file(
 
     github = Github(token)
     github_repo = github.get_repo(repo_name)
-    
+
     # Get the last few commits for the file
     commits = list(github_repo.get_commits(path=file_path))[:max_commits]
 

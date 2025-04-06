@@ -42,7 +42,7 @@ def test_reserve_rule_number_parallel_reservations(
 
 def test_get_last_login_modified_file():
     """Test get_last_login_modified_file with various commit author scenarios."""
-    
+
     with patch("github.Github") as mock_github:
         # Create mock objects
         mock_repo = mock_github.return_value.get_repo.return_value
@@ -53,7 +53,9 @@ def test_get_last_login_modified_file():
         mock_commit1.author.__bool__.return_value = True
 
         mock_repo.get_commits.return_value = [mock_commit1]
-        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        result = get_last_login_modified_file(
+            "owner/repo", "some/file.txt", token="fake-token"
+        )
         assert result == "real-user"
         mock_github.assert_called_once_with("fake-token")
         mock_github.return_value.get_repo.assert_called_once_with("owner/repo")
@@ -73,7 +75,9 @@ def test_get_last_login_modified_file():
         mock_commit2.author = None
 
         mock_repo.get_commits.return_value = [mock_commit1, mock_commit2]
-        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        result = get_last_login_modified_file(
+            "owner/repo", "some/file.txt", token="fake-token"
+        )
         assert result == "real-committer"
 
         # Scenario 3: Only co-authored-by is available
@@ -86,7 +90,9 @@ def test_get_last_login_modified_file():
         mock_commit1.commit.message = "Update dependency\n\nCo-authored-by: John Doe <johndoe@users.noreply.github.com>"
 
         mock_repo.get_commits.return_value = [mock_commit1]
-        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        result = get_last_login_modified_file(
+            "owner/repo", "some/file.txt", token="fake-token"
+        )
         assert result == "johndoe"
 
         # Scenario 4: No suitable author found
@@ -99,9 +105,11 @@ def test_get_last_login_modified_file():
         mock_commit1.commit.message = "Update dependency"
 
         mock_repo.get_commits.return_value = [mock_commit1]
-        result = get_last_login_modified_file("owner/repo", "some/file.txt", token="fake-token")
+        result = get_last_login_modified_file(
+            "owner/repo", "some/file.txt", token="fake-token"
+        )
         assert result is None
-        
+
         # Scenario 5: Using environment variable for token
         mock_github.reset_mock()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "env-token"}):
