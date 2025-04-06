@@ -340,6 +340,7 @@ def test_exception_url(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
 
+    # AI! rewrite this part using create_test_files
     # Create a test file with an exception URL
     exception_dir = temp_path / "exception"
     exception_dir.mkdir(exist_ok=True)
@@ -360,6 +361,8 @@ def test_exception_url(setup_test_files):
     # Initialize history with empty content
     with open(history_file, "w") as f:
         f.write("{}")
+
+    # AI: up to this point
 
     # Mock live_url to track if it gets called
     live_url_calls = []
