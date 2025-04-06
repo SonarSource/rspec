@@ -174,6 +174,28 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
 
         return branch_name, affected_rules, modified_files
 
+    def compose_pr_title(self, rule_ids: List[str], title_suffix: str) -> str:
+        """
+        Compose an appropriate PR title based on the affected rules.
+        
+        Args:
+            rule_ids: List of rule IDs affected by the change
+            title_suffix: The suffix to append to the PR title
+            
+        Returns:
+            A formatted PR title
+        """
+        # If there's just one rule affected, use singular form
+        if len(rule_ids) == 1:
+            return f"Modify rule {rule_ids[0]}: {title_suffix}"
+        else:
+            # For multiple rules, combine them up to a reasonable length
+            if len(rule_ids) <= 5:
+                rules_str = ", ".join(rule_ids)
+            else:
+                rules_str = f"{len(rule_ids)} rules"
+            return f"Modify rules {rules_str}: {title_suffix}"
+    
     def collect_labels_from_affected_rules(
         self, affected_rules: Dict[str, Set[str]]
     ) -> Set[str]:
@@ -263,18 +285,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
         rule_ids = list(affected_rules.keys())
         rule_ids.sort()  # Sort rule IDs for consistent order
 
-        # AI! factor out this block into a function "compose_pr_title"
-        # If there's just one rule affected, use singular form
-        if len(rule_ids) == 1:
-            pr_title = f"Modify rule {rule_ids[0]}: {title_suffix}"
-        else:
-            # For multiple rules, combine them up to a reasonable length
-            if len(rule_ids) <= 5:
-                rules_str = ", ".join(rule_ids)
-            else:
-                rules_str = f"{len(rule_ids)} rules"
-            pr_title = f"Modify rules {rules_str}: {title_suffix}"
-        # AI: up to this line
+        pr_title = self.compose_pr_title(rule_ids, title_suffix)
 
         # Collect labels for the PR based on affected languages
         labels = self.collect_labels_from_affected_rules(affected_rules)
