@@ -144,25 +144,11 @@ def test_no_reprobe_recent_links(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
     test_url = "https://www.google.com/"
-
-    # Create history file with a recent probe for our test URL
-    with open(history_file, "w") as f:
-        recent_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        f.write(
-            f"{{{repr(test_url)}: datetime.datetime.strptime('{recent_time}', '%Y-%m-%d %H:%M:%S.%f')}}"
-        )
-
-    # Mock the live_url function to track if it gets called
-    original_live_url = checklinks.live_url
-    probe_calls = []
-
-    def mock_live_url(url, timeout=5):
-        probe_calls.append(url)
-        return original_live_url(url, timeout)
-
-    with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
+    
+    # First run: Probe the links and update the history file
+    with patch("rspec_tools.checklinks.live_url", return_value=True):
         runner = CliRunner()
-        result = runner.invoke(
+        first_result = runner.invoke(
             cli,
             [
                 "check-links",
@@ -172,12 +158,35 @@ def test_no_reprobe_recent_links(setup_test_files):
                 str(history_file),
             ],
         )
-
+        assert first_result.exit_code == 0
+        assert "All 1 links are good" in first_result.output
+    
+    # Second run: The link should not be probed again
+    # Mock the live_url function to track if it gets called
+    probe_calls = []
+    
+    def mock_live_url(url, timeout=5):
+        probe_calls.append(url)
+        return True
+    
+    with patch("rspec_tools.checklinks.live_url", side_effect=mock_live_url):
+        runner = CliRunner()
+        second_result = runner.invoke(
+            cli,
+            [
+                "check-links",
+                "--d",
+                temp_path / "OK",  # This directory has a link to google.com
+                "--history-file",
+                str(history_file),
+            ],
+        )
+        
         # Verify that the test URL wasn't probed again
         assert test_url not in probe_calls
-        assert "skip probing because it was reached recently" in result.output
-        assert result.exit_code == 0
-        assert "All 1 links are good" in result.output
+        assert "skip probing because it was reached recently" in second_result.output
+        assert second_result.exit_code == 0
+        assert "All 1 links are good" in second_result.output
 
 
 def test_reprobe_old_links(setup_test_files):
