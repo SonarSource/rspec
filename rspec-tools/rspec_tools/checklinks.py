@@ -34,10 +34,7 @@ def load_url_probing_history(history_file):
     global link_probes_history
     try:
         with open(history_file, "r") as link_probes_history_stream:
-            print(
-                "Using the historical url-probe results from "
-                + history_file
-            )
+            print("Using the historical url-probe results from " + history_file)
             link_probes_history = eval(link_probes_history_stream.read())
     except Exception as e:
         # If the history file is not present, ignore, will create one in the end.

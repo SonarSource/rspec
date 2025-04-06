@@ -40,7 +40,11 @@ def cli(debug):
 
 @cli.command()
 @click.option("--d", required=True)
-@click.option("--history-file", default="./link_probes.history", help="Path to the link probes history file")
+@click.option(
+    "--history-file",
+    default="./link_probes.history",
+    help="Path to the link probes history file",
+)
 def check_links(d, history_file):
     """Check links in html."""
     check_html_links(d, history_file)
