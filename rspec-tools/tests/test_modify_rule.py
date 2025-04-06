@@ -286,6 +286,48 @@ def test_batch_find_replace_pull_request_auto_assignee(rule_editor: RuleEditor):
             )
 
 
+def test_batch_find_replace_pull_request_many_rules(rule_editor: RuleEditor):
+    """Test batch_find_replace_pull_request with more than 5 rules uses count in PR title."""
+    with mock_github() as (token, user, mock_repo):
+        # Create a case with more than 5 rules
+        repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
+        affected_rules = {
+            f"S{i}": {"java"} for i in range(100, 107)  # 7 rules
+        }
+        
+        # Create modified files for each rule
+        modified_files = [
+            repo_dir / f"rules/S{i}/java/rule.adoc" for i in range(100, 107)
+        ]
+
+        with patch.object(
+            rule_editor,
+            "batch_find_replace_branch",
+            return_value=("test-branch-many-rules", affected_rules, modified_files),
+        ):
+            rule_editor.batch_find_replace_pull_request(
+                token,
+                "old pattern",
+                "new pattern",
+                "update multiple rules",
+                "PR description for many rules update",
+                user,
+                "test-assignee",
+            )
+
+            # Assert PR was created
+            mock_repo.create_pull.assert_called_once()
+
+            # Verify PR title uses count instead of listing all rules
+            title = mock_repo.create_pull.call_args.kwargs["title"]
+            assert "7 rules" in title
+            assert "Modify rules 7 rules: update multiple rules" in title
+            
+            # Make sure it doesn't list all rules in the title
+            for i in range(100, 107):
+                assert f"S{i}" not in title
+
+
 @patch("rspec_tools.modify_rule.tmp_rspec_repo")
 @patch("rspec_tools.modify_rule.RuleEditor")
 def test_update_rule_quickfix_status(mockRuleEditor, mock_tmp_rspec_repo):
