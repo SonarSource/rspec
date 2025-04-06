@@ -358,7 +358,6 @@ def test_exception_url(setup_test_files):
 
     # Mock live_url to track if it gets called
     live_url_calls = []
-    original_live_url = checklinks.live_url
 
     def mock_live_url(url, timeout=5):
         live_url_calls.append(url)
@@ -392,6 +391,7 @@ def test_mixed_links_reporting(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
 
+    # AI: refactor this code ...
     # Create a directory for mixed links test
     mixed_dir = temp_path / "mixed_links"
     mixed_dir.mkdir(exist_ok=True)
@@ -421,6 +421,7 @@ def test_mixed_links_reporting(setup_test_files):
     # Initialize history with empty content
     with open(history_file, "w") as f:
         f.write("{}")
+    # ... up to this point using create_test_files AI!
 
     # Mock live_url to return different values based on URL
     def mock_live_url(url, timeout=5):
