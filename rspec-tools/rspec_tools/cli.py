@@ -172,8 +172,6 @@ def notify_failure_on_slack(message: str, channel: str):
 
 
 @cli.command("last-author")
-@click.option("--token", envvar="GITHUB_TOKEN", required=True, help="GitHub token")
-@click.option("--user", help="GitHub username")
 @click.option(
     "--repo",
     help="Repository in format 'owner/repo'",
@@ -184,14 +182,21 @@ def notify_failure_on_slack(message: str, channel: str):
 )
 @click.argument("file_path")
 def last_author_command(
-    token: str, user: Optional[str], repo: str, max_commits: int, file_path: str
+    repo: str, max_commits: int, file_path: str
 ):
-    """Find the last non-bot GitHub login that modified a given file."""
-    author = get_last_author_for_file(token, repo, file_path, max_commits, user)
-    if author:
-        click.echo(author)
-    else:
-        click.echo("No non-bot author found for the specified file", err=True)
+    """Find the last non-bot GitHub login that modified a given file.
+    
+    Requires GITHUB_TOKEN environment variable to be set.
+    """
+    try:
+        author = get_last_author_for_file(repo, file_path, max_commits)
+        if author:
+            click.echo(author)
+        else:
+            click.echo("No non-bot author found for the specified file", err=True)
+            exit(1)
+    except ValueError as e:
+        click.echo(str(e), err=True)
         exit(1)
 
 

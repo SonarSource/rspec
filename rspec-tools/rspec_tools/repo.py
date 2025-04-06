@@ -163,27 +163,26 @@ def get_last_login_modified_file(
 
 
 def get_last_author_for_file(
-    token: str,
     repo_name: str,
     file_path: str,
     max_commits: int = 3,
-    user: Optional[str] = None,
 ) -> Optional[str]:
     """
     CLI callable function to find the last non-bot author for a file in a GitHub repository.
 
     Args:
-        token: GitHub token for authentication
         repo_name: Repository name in format 'owner/repo'
         file_path: Path to the file within the repository
         max_commits: Maximum number of commits to check
-        user: Optional GitHub username for authentication
 
     Returns:
         The GitHub login of the last non-bot author, or None if not found
     """
-    github_api = _auto_github(token)
-    github = github_api(user)
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise ValueError("GITHUB_TOKEN environment variable is not set")
+        
+    github = Github(token)
     github_repo = github.get_repo(repo_name)
 
     author = get_last_login_modified_file(github_repo, file_path, max_commits)
