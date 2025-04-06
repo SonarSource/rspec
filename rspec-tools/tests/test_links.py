@@ -72,6 +72,7 @@ def setup_test_files():
         },
     }
 
+    #AI! factor out this section that creates the temporary files based on `test_dirs`
     # Create all test files
     for test_dir, files in test_dirs.items():
         for file_path, content in files.items():
