@@ -12,7 +12,7 @@ from rspec_tools import checklinks, cli
 def create_test_files(base_path, test_dirs):
     """
     Create test files based on a directory structure definition.
-    
+
     Args:
         base_path: Base directory where files will be created
         test_dirs: Dictionary mapping directory names to file paths and contents
