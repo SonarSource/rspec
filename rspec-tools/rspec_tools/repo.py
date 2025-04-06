@@ -141,7 +141,7 @@ def get_last_login_modified_file(
         The GitHub login of the last non-bot author, or None if not found
     """
     # Initialize GitHub client and get repository
-    github = Github(token)
+    github = _auto_github(token)()
     github_repo = github.get_repo(repo_name)
 
     # Get the last few commits for the file
