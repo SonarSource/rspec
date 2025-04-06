@@ -176,7 +176,8 @@ class TestCLILastAuthor:
         assert "No non-bot author found" in result.output
         assert result.exit_code == 1
 
-    @patch.dict(os.environ, {})
+    # Clear to make sure the potentially pre-existing GITHUB_TOKEN is not mixed in
+    @patch.dict(os.environ, {}, clear=True)
     def test_missing_token(self):
         """Test error when GITHUB_TOKEN is not set."""
         runner = CliRunner()
