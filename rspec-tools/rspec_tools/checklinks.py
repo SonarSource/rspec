@@ -174,38 +174,74 @@ def url_is_exception(url: str) -> bool:
     return any(url.startswith(e) for e in EXCEPTION_PREFIXES)
 
 
-def probe_links(urls: dict) -> bool:
+def collect_confirmed_errors(urls: dict) -> tuple[list[str], dict, dict]:
+    """
+    Check links and collect confirmed dead links.
+
+    Args:
+        urls: Dictionary mapping URLs to lists of files containing them
+
+    Returns:
+        - List of confirmed dead URLs
+        - Dictionary mapping dead URLs to files containing them
+        - Dictionary with cache statistics
+    """
     errors = []
-    link_cache_exception = 0
-    link_cache_hit = 0
-    link_cache_miss = 0
+    cache_stats = {
+        "link_cache_exception": 0,
+        "link_cache_hit": 0,
+        "link_cache_miss": 0,
+    }
+    
     print("Testing links")
     link_count = len(urls)
     for idx, url in enumerate(urls):
         print(f"[{idx+1}/{link_count}] {url} in {len(urls[url])} files")
         if url_is_exception(url):
-            link_cache_exception += 1
+            cache_stats["link_cache_exception"] += 1
             print("skip as an exception")
         elif url_was_reached_recently(url):
-            link_cache_hit += 1
+            cache_stats["link_cache_hit"] += 1
             print("skip probing because it was reached recently")
         elif live_url(url, timeout=5):
-            link_cache_miss += 1
+            cache_stats["link_cache_miss"] += 1
             rejuvenate_url(url)
         elif url_is_long_dead(url):
-            link_cache_miss += 1
+            cache_stats["link_cache_miss"] += 1
             errors.append(url)
         else:
-            link_cache_miss += 1
+            cache_stats["link_cache_miss"] += 1
 
     confirmed_errors = confirm_errors(errors, urls)
+    return confirmed_errors, urls, cache_stats
 
-    print(f"\n\n\n{'=' * 80}\n\n\n")
+
+def report_broken_links(confirmed_errors: list[str], urls: dict) -> None:
+    """
+    Report broken links and the files that contain them.
+
+    Args:
+        confirmed_errors: List of URLs confirmed to be dead
+        urls: Dictionary mapping URLs to lists of files containing them
+    """
     if confirmed_errors:
         report_errors(confirmed_errors, urls)
         print(
             f"{len(confirmed_errors)}/{len(urls)} links are dead, see above ^^ the list and the related files\n\n"
         )
+
+
+def report_cache_stats(cache_stats: dict) -> None:
+    """
+    Report statistics about cache hits and misses.
+
+    Args:
+        cache_stats: Dictionary containing cache hit/miss statistics
+    """
+    link_cache_hit = cache_stats["link_cache_hit"]
+    link_cache_miss = cache_stats["link_cache_miss"]
+    link_cache_exception = cache_stats["link_cache_exception"]
+    
     print("Cache statistics:")
     print(f"\t{link_cache_hit=}")
     print(f"\t{link_cache_miss=}")
@@ -214,10 +250,26 @@ def probe_links(urls: dict) -> bool:
     link_cache_hit_ratio = (link_cache_hit / denominator) if denominator > 0 else 0
     print(f"\t{link_cache_hit_ratio:03.2%} hits")
     print(f"\t{link_cache_exception=}")
+
+
+def probe_links(urls: dict) -> bool:
+    """
+    Probe links to check if they are alive and report results.
+
+    Args:
+        urls: Dictionary mapping URLs to lists of files containing them
+
+    Returns:
+        True if all links are good, False otherwise
+    """
+    confirmed_errors, urls, cache_stats = collect_confirmed_errors(urls)
+
+    print(f"\n\n\n{'=' * 80}\n\n\n")
+    report_broken_links(confirmed_errors, urls)
+    report_cache_stats(cache_stats)
     print(f"\n\n\n{'=' * 80}\n\n\n")
 
-    success = len(confirmed_errors) == 0
-    return success
+    return len(confirmed_errors) == 0
 
 
 def confirm_errors(presumed_errors, urls):
