@@ -192,7 +192,7 @@ def collect_confirmed_errors(urls: dict) -> tuple[list[str], dict, dict]:
         "link_cache_hit": 0,
         "link_cache_miss": 0,
     }
-    
+
     print("Testing links")
     link_count = len(urls)
     for idx, url in enumerate(urls):
@@ -241,7 +241,7 @@ def report_cache_stats(cache_stats: dict) -> None:
     link_cache_hit = cache_stats["link_cache_hit"]
     link_cache_miss = cache_stats["link_cache_miss"]
     link_cache_exception = cache_stats["link_cache_exception"]
-    
+
     print("Cache statistics:")
     print(f"\t{link_cache_hit=}")
     print(f"\t{link_cache_miss=}")
