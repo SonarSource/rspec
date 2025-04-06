@@ -9,6 +9,54 @@ from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
 
+def setup_history_file(temp_path, history_file, test_dir="OK", mock_date=None):
+    """
+    Helper function to run check-links and setup a history file.
+    
+    Args:
+        temp_path: Path to temporary directory
+        history_file: Path to history file
+        test_dir: Directory containing test files
+        mock_date: Optional date to use for the history entry (for simulating old entries)
+    
+    Returns:
+        Result of the check-links command
+    """
+    # Mock datetime.now() if a specific date is provided
+    if mock_date:
+        with patch("datetime.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_date
+            mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(*args, **kw)
+            
+            # Run check-links with mocked live_url
+            with patch("rspec_tools.checklinks.live_url", return_value=True):
+                runner = CliRunner()
+                return runner.invoke(
+                    cli,
+                    [
+                        "check-links",
+                        "--d",
+                        temp_path / test_dir,
+                        "--history-file",
+                        str(history_file),
+                    ],
+                )
+    else:
+        # Run check-links with mocked live_url (no date mocking)
+        with patch("rspec_tools.checklinks.live_url", return_value=True):
+            runner = CliRunner()
+            return runner.invoke(
+                cli,
+                [
+                    "check-links",
+                    "--d",
+                    temp_path / test_dir,
+                    "--history-file",
+                    str(history_file),
+                ],
+            )
+
+
 @pytest.fixture
 def setup_test_files():
     """Create a temporary directory with test files for each test case."""
@@ -146,20 +194,9 @@ def test_no_reprobe_recent_links(setup_test_files):
     test_url = "https://www.google.com/"
 
     # First run: Probe the links and update the history file
-    with patch("rspec_tools.checklinks.live_url", return_value=True):
-        runner = CliRunner()
-        first_result = runner.invoke(
-            cli,
-            [
-                "check-links",
-                "--d",
-                temp_path / "OK",  # This directory has a link to google.com
-                "--history-file",
-                str(history_file),
-            ],
-        )
-        assert first_result.exit_code == 0
-        assert "All 1 links are good" in first_result.output
+    first_result = setup_history_file(temp_path, history_file)
+    assert first_result.exit_code == 0
+    assert "All 1 links are good" in first_result.output
 
     # Second run: The link should not be probed again
     # Mock the live_url function to track if it gets called
@@ -202,29 +239,9 @@ def test_reprobe_old_links(setup_test_files):
         - datetime.timedelta(days=1)
     )
 
-    # Create an empty history file
-    with open(history_file, "w") as f:
-        f.write("{}")
-
-    # Mock datetime.now() to return an old date for the first run
-    with patch("datetime.datetime") as mock_datetime:
-        mock_datetime.now.return_value = old_date
-        mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(*args, **kw)
-
-        # Mock live_url to always return True
-        with patch("rspec_tools.checklinks.live_url", return_value=True):
-            runner = CliRunner()
-            first_result = runner.invoke(
-                cli,
-                [
-                    "check-links",
-                    "--d",
-                    temp_path / "OK",  # This directory has a link to google.com
-                    "--history-file",
-                    str(history_file),
-                ],
-            )
-            assert first_result.exit_code == 0
+    # Setup history file with an old date
+    first_result = setup_history_file(temp_path, history_file, mock_date=old_date)
+    assert first_result.exit_code == 0
 
     # Second run: The link should be probed again because the timestamp in history is old
     # Mock the live_url function to track if it gets called
