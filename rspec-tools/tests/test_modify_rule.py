@@ -291,10 +291,8 @@ def test_batch_find_replace_pull_request_many_rules(rule_editor: RuleEditor):
     with mock_github() as (token, user, mock_repo):
         # Create a case with more than 5 rules
         repo_dir = Path(rule_editor.rspec_repo.repository.working_dir)
-        affected_rules = {
-            f"S{i}": {"java"} for i in range(100, 107)  # 7 rules
-        }
-        
+        affected_rules = {f"S{i}": {"java"} for i in range(100, 107)}  # 7 rules
+
         # Create modified files for each rule
         modified_files = [
             repo_dir / f"rules/S{i}/java/rule.adoc" for i in range(100, 107)
@@ -322,7 +320,7 @@ def test_batch_find_replace_pull_request_many_rules(rule_editor: RuleEditor):
             title = mock_repo.create_pull.call_args.kwargs["title"]
             assert "7 rules" in title
             assert "Modify rules 7 rules: update multiple rules" in title
-            
+
             # Make sure it doesn't list all rules in the title
             for i in range(100, 107):
                 assert f"S{i}" not in title
