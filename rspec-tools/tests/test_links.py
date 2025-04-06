@@ -9,6 +9,19 @@ from click.testing import CliRunner
 from rspec_tools import checklinks, cli
 
 
+def get_error_section(result_output):
+    """
+    Extract the error section from the check-links command output.
+    
+    Args:
+        result_output: The output from running the check-links command
+        
+    Returns:
+        The error section of the output containing the dead links and their files
+    """
+    return result_output.split("There were errors")[1].split("Cache statistics")[0]
+
+
 def run_check_links_with_mocked_live_url(dir_path, history_file, mock_live_url_func):
     """
     Run check-links CLI command with a mocked live_url function.
@@ -420,9 +433,7 @@ def test_mixed_links_reporting(setup_test_files):
     assert result.exit_code == 1
 
     # Verify that the dead URL and its file are reported in the errors section of the output
-    error_section = result.output.split("There were errors")[1].split(
-        "Cache statistics"
-    )[0]
+    error_section = get_error_section(result.output)
     assert dead_url in error_section
     assert str(rule1_dir / "rule.html") in error_section
 
@@ -430,9 +441,6 @@ def test_mixed_links_reporting(setup_test_files):
     assert "1/2 links are dead" in result.output
 
     # Check that the live link's file path is not in the errors section
-    error_section = result.output.split("There were errors")[1].split(
-        "Cache statistics"
-    )[0]
     assert str(rule2_dir / "rule.html") not in error_section
 
 
@@ -592,9 +600,7 @@ def test_dead_link_in_multiple_files(setup_test_files):
     assert result.exit_code == 1
 
     # Get the error section of the output
-    error_section = result.output.split("There were errors")[1].split(
-        "Cache statistics"
-    )[0]
+    error_section = get_error_section(result.output)
 
     # Verify the dead URL is reported in the error section
     assert dead_url in error_section
