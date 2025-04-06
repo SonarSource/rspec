@@ -417,13 +417,15 @@ def test_mixed_links_reporting(setup_test_files):
 
     # Setup the history file to show that the dead_url was last alive a long time ago
     # (making it "long dead" without mocking url_is_long_dead)
-    old_date = datetime.datetime.now() - datetime.timedelta(days=30)  # Well beyond TOLERABLE_LINK_DOWNTIME
-    
+    old_date = datetime.datetime.now() - datetime.timedelta(
+        days=30
+    )  # Well beyond TOLERABLE_LINK_DOWNTIME
+
     # Create history file with an old last-alive date for the dead URL
     with open(history_file, "w") as f:
         history_data = {dead_url: old_date}
         f.write(str(history_data))
-    
+
     # Mock live_url to return different values based on URL
     def mock_live_url(url, timeout=5):
         if url == dead_url:
