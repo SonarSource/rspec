@@ -494,18 +494,18 @@ def test_multiple_links_in_single_file(setup_test_files):
     link1 = "https://www.example.com/link1"
     link2 = "https://www.example.com/link2"
     link3 = "https://www.example.com/link3"
-    
+
     # Define the test directory structure with multiple links in a single file
     multi_links_test_dirs = {
         "multi_links": {
-            "S100/java/rule.html": f'''
+            "S100/java/rule.html": f"""
                 <a href="{link1}">First Link</a>
                 <p>Some content between links</p>
                 <a href="{link2}">Second Link</a>
                 <div>
                     <a href="{link3}">Third Link</a>
                 </div>
-            ''',
+            """,
             "S100/java/metadata.json": "{}",
             "S100/metadata.json": "{}",
         }
@@ -524,7 +524,9 @@ def test_multiple_links_in_single_file(setup_test_files):
         live_url_calls.append(url)
         return True  # All links are alive
 
-    result = run_check_links_with_mocked_live_url(multi_dir, history_file, mock_live_url)
+    result = run_check_links_with_mocked_live_url(
+        multi_dir, history_file, mock_live_url
+    )
 
     # Verify the test passed
     assert result.exit_code == 0
