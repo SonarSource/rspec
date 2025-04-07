@@ -70,7 +70,7 @@ def test_rule_with_invalid_education_principles(invalid_rules: RulesRepository):
 
 def test_rule_with_no_impacts(invalid_rules: RulesRepository):
   s504 = invalid_rules.get_rule('S504')
-  with pytest.raises(RuleValidationError, match=re.escape("Rule S504 failed validation for these reasons:\n - Rule scala:S504 has invalid metadata in impacts: {} does not have enough properties")):
+  with pytest.raises(RuleValidationError, match=re.escape("Rule S504 failed validation for these reasons:\n - Rule scala:S504 has invalid metadata in impacts: {} should be non-empty")):
     validate_rule_metadata(s504)
 
 
