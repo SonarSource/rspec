@@ -144,7 +144,7 @@ The rule won't be updated until this PR is merged, see [RULEAPI-655](https://jir
                 except UnicodeDecodeError:
                     # Skip binary files
                     continue
-                if search in content: # AI! factor out this block into a dedicated function "find_n_replace_in_file"
+                if search in content:
                     # Perform the replacement
                     new_content = content.replace(search, replace)
                     filepath.write_text(new_content, encoding="utf-8")
