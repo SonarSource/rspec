@@ -41,8 +41,10 @@ REPOS = [
 
 CANONICAL_NAMES = {
   'CLOUD_FORMATION': 'CLOUDFORMATION',
-  'JS': 'JAVASCRIPT',
-  'TS': 'TYPESCRIPT',
+  'JS': 'js',
+  'TS': 'ts',
+  'JAVASCRIPT': 'js',
+  'TYPESCRIPT': 'ts',
   'WEB': 'HTML'
 }
 
