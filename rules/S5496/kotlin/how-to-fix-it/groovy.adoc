@@ -1,0 +1,59 @@
+== How to fix it in Groovy
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following code example is vulnerable to a Server-Side Template Injection
+attack because it builds a template string from a user input without control or
+sanitation.
+
+[source,kotlin,diff-id=21,diff-type=noncompliant]
+----
+import groovy.text.markup.MarkupTemplateEngine
+import groovy.text.markup.TemplateConfiguration
+
+@Controller
+class ExampleController {
+    @GetMapping("/example")
+    fun example(@RequestParam("title") title: String): String {
+        val templateString = "h1('$title')"
+        val config = TemplateConfiguration()
+        val engine = MarkupTemplateEngine(config)
+        val template = engine.createTemplate(templateString) // Noncompliant
+        val out = template.make()
+        return out.toString()
+    }
+}
+----
+
+==== Compliant solution
+
+[source,kotlin,diff-id=21,diff-type=compliant]
+----
+import groovy.text.markup.MarkupTemplateEngine
+import groovy.text.markup.TemplateConfiguration
+
+@Controller
+class ExampleController {
+    @GetMapping("/example")
+    fun example(@RequestParam("title") title: String): String {
+        val templateString = "h1(title)"
+
+        val ctx = mutableMapOf<String, Any>()
+        ctx["title"] = title
+
+        val config = TemplateConfiguration()
+        val engine = MarkupTemplateEngine(config)
+        val template = engine.createTemplate(templateString)
+        val out: Writable = template.make(ctx)
+        return out.toString()
+    }
+}
+----
+
+=== How does this work?
+
+The compliant code example uses a template binding to pass user information to
+the template. The rendering engine then ensures that this tainted data is
+processed in a way that will not change the template semantics.
