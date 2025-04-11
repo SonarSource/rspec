@@ -559,10 +559,10 @@ def test_old_dead_link(setup_temp_dir):
 def test_exception_url(setup_temp_dir):
     """Test that URLs matching exception patterns are not probed and reported as live."""
     temp_path = setup_temp_dir
-    
+
     # Create a test file with an exception URL
     exception_url = "https://wiki.sei.cmu.edu/confluence/display/java/SEC05-J"
-    
+
     # Define the file structure for the exception URL test
     exception_test_dirs = {
         "exception": {
@@ -571,15 +571,15 @@ def test_exception_url(setup_temp_dir):
             "S100/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, exception_test_dirs)
-    
+
     # Create history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
         f.write("{}")
-        
+
     exception_dir = temp_path / "exception"
 
     # Mock live_url to track if it gets called
