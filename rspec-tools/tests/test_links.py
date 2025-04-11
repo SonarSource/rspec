@@ -342,6 +342,7 @@ def test_ok(setup_temp_dir):
     assert "All 1 links are good" in result.output
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_deprecated(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
