@@ -556,16 +556,13 @@ def test_old_dead_link(setup_temp_dir):
     assert "1/1 links are dead" in second_result.output
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_exception_url(setup_test_files):
+def test_exception_url(setup_temp_dir):
     """Test that URLs matching exception patterns are not probed and reported as live."""
-    temp_path = setup_test_files
-    history_file = temp_path / "link_probes.history"
-
+    temp_path = setup_temp_dir
+    
     # Create a test file with an exception URL
     exception_url = "https://wiki.sei.cmu.edu/confluence/display/java/SEC05-J"
-    exception_dir = temp_path / "exception"
-
+    
     # Define the file structure for the exception URL test
     exception_test_dirs = {
         "exception": {
@@ -574,9 +571,16 @@ def test_exception_url(setup_test_files):
             "S100/metadata.json": "{}",
         }
     }
-
+    
     # Create the test files
     create_test_files(temp_path, exception_test_dirs)
+    
+    # Create history file
+    history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
+        
+    exception_dir = temp_path / "exception"
 
     # Mock live_url to track if it gets called
     live_url_calls = []
