@@ -149,9 +149,21 @@ def setup_test_files(setup_temp_dir):
     return temp_path
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_find_urls(setup_test_files):
-    temp_path = setup_test_files
+def test_find_urls(setup_temp_dir):
+    temp_path = setup_temp_dir
+    
+    # Create test files with a URL to check
+    test_dirs = {
+        "404": {
+            "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
+            "S100/java/metadata.json": "{}",
+        }
+    }
+    
+    # Create the test files using the existing helper function
+    create_test_files(temp_path, test_dirs)
+    
+    # Test URL extraction
     urls = {}
     test_file = temp_path / "404/S100/java/rule.html"
     checklinks.findurl_in_html(test_file, urls)
