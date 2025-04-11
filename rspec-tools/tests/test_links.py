@@ -313,10 +313,25 @@ def test_url(setup_temp_dir):
     )
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_ok(setup_test_files):
-    temp_path = setup_test_files
+def test_ok(setup_temp_dir):
+    temp_path = setup_temp_dir
+    
+    # Create test directories and files
+    test_dirs = {
+        "OK": {
+            "S100/java/rule.html": '<a href="https://www.google.com/">ok</a>',
+            "S100/java/metadata.json": "{}",
+        }
+    }
+    
+    # Create the test files
+    create_test_files(temp_path, test_dirs)
+    
+    # Create empty history file
     history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
+        
     runner = CliRunner()
     result = runner.invoke(
         cli,
