@@ -556,6 +556,7 @@ def test_old_dead_link(setup_temp_dir):
     assert "1/1 links are dead" in second_result.output
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_exception_url(setup_test_files):
     """Test that URLs matching exception patterns are not probed and reported as live."""
     temp_path = setup_test_files
