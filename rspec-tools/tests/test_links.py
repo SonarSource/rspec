@@ -191,7 +191,7 @@ def test_live_url_with_anchor_only_link():
 def test_link_initially_dead_then_alive(setup_temp_dir):
     """Test that a link initially marked as dead but then confirmed alive is not reported as dead."""
     temp_path = setup_temp_dir
-    
+
     # Create empty history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
