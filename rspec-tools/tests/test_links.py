@@ -786,6 +786,7 @@ def test_multiple_links_in_single_file(setup_temp_dir):
     assert "All 3 links are good" in result.output
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_dead_link_in_multiple_files(setup_test_files):
     """Test that if a dead link appears in multiple files, all those files are listed in the error report."""
     temp_path = setup_test_files
