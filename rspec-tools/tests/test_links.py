@@ -344,7 +344,7 @@ def test_ok(setup_temp_dir):
 
 def test_deprecated(setup_temp_dir):
     temp_path = setup_temp_dir
-    
+
     # Create test directories and files
     test_dirs = {
         "deprecated": {
@@ -355,15 +355,15 @@ def test_deprecated(setup_temp_dir):
             "S100/rpg/metadata.json": '{"status": "ready"}',
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, test_dirs)
-    
+
     # Create empty history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
         f.write("{}")
-        
+
     runner = CliRunner()
     result = runner.invoke(
         cli,
