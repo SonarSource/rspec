@@ -281,6 +281,7 @@ def test_404(setup_temp_dir):
     )
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_url(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
