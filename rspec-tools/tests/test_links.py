@@ -151,7 +151,7 @@ def setup_test_files(setup_temp_dir):
 
 def test_find_urls(setup_temp_dir):
     temp_path = setup_temp_dir
-    
+
     # Create test files with a URL to check
     test_dirs = {
         "404": {
@@ -159,10 +159,10 @@ def test_find_urls(setup_temp_dir):
             "S100/java/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files using the existing helper function
     create_test_files(temp_path, test_dirs)
-    
+
     # Test URL extraction
     urls = {}
     test_file = temp_path / "404/S100/java/rule.html"
