@@ -476,6 +476,7 @@ def test_reprobe_old_links(setup_temp_dir):
     assert second_result.exit_code == 0
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_tolerable_downtime(setup_test_files):
     """Test that links that were alive recently but are now dead are not reported as dead."""
     temp_path = setup_test_files
