@@ -149,6 +149,7 @@ def setup_test_files(setup_temp_dir):
     return temp_path
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_find_urls(setup_test_files):
     temp_path = setup_test_files
     urls = {}
