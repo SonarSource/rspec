@@ -516,6 +516,7 @@ def test_tolerable_downtime(setup_temp_dir):
     assert "All 1 links are good" in second_result.output
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_old_dead_link(setup_test_files):
     """Test that links that were alive a long time ago (1 month) but are now dead are reported as dead."""
     temp_path = setup_test_files
