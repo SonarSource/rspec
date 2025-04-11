@@ -603,6 +603,7 @@ def test_exception_url(setup_temp_dir):
     assert "All 1 links are good" in result.output
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_mixed_links_reporting(setup_test_files):
     """Test that when some links are dead and some are alive, only the dead ones are reported."""
     temp_path = setup_test_files
