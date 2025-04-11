@@ -789,7 +789,7 @@ def test_multiple_links_in_single_file(setup_temp_dir):
 def test_dead_link_in_multiple_files(setup_temp_dir):
     """Test that if a dead link appears in multiple files, all those files are listed in the error report."""
     temp_path = setup_temp_dir
-    
+
     # Create empty history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
