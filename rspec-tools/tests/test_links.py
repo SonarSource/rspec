@@ -606,7 +606,7 @@ def test_exception_url(setup_temp_dir):
 def test_mixed_links_reporting(setup_temp_dir):
     """Test that when some links are dead and some are alive, only the dead ones are reported."""
     temp_path = setup_temp_dir
-    
+
     # Create history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
