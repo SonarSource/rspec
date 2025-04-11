@@ -726,11 +726,14 @@ def test_duplicate_links_checked_once(setup_temp_dir):
     assert f"{test_url} in 3 files" in result.output
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_multiple_links_in_single_file(setup_test_files):
+def test_multiple_links_in_single_file(setup_temp_dir):
     """Test that multiple different links in a single file are all checked."""
-    temp_path = setup_test_files
+    temp_path = setup_temp_dir
+    
+    # Create history file
     history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
 
     # Create test file with multiple links
     link1 = "https://www.example.com/link1"
