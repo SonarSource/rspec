@@ -97,13 +97,23 @@ def setup_history_file(temp_path, history_file, mock_date, test_dir="OK"):
             )
 
 
-# AI! split this function into the one that creates and removes a temporary directory, and another that populates it with files
 @pytest.fixture
-def setup_test_files():
-    """Create a temporary directory with test files for each test case."""
+def setup_temp_dir():
+    """Create a temporary directory for test files and clean it up after the test."""
     # Create a temp directory
     temp_dir = tempfile.mkdtemp()
     temp_path = Path(temp_dir)
+
+    yield temp_path
+
+    # Cleanup
+    shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def setup_test_files(setup_temp_dir):
+    """Populate the temporary directory with test files for each test case."""
+    temp_path = setup_temp_dir
 
     # Create test directories
     test_dirs = {
@@ -136,10 +146,7 @@ def setup_test_files():
     with open(history_file, "w") as f:
         f.write("{}")
 
-    yield temp_path
-
-    # Cleanup
-    shutil.rmtree(temp_dir)
+    return temp_path
 
 
 def test_find_urls(setup_test_files):
