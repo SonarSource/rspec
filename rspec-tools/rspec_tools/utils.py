@@ -8,7 +8,8 @@ import json
 import os
 from rspec_tools.errors import InvalidArgumentError
 
-SUPPORTED_LANGUAGES_FILENAME = '../supported_languages.adoc'
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+SUPPORTED_LANGUAGES_FILENAME = REPO_ROOT / 'supported_languages.adoc'
 LANG_TO_LABEL = {'abap': 'abap',
                  'apex': 'slang',
                  'azureresourcemanager': 'iac',

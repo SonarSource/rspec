@@ -98,7 +98,7 @@ def mock_git_analyzer_repos(tmpdir):
   for mock_spec in MOCK_REPOS:
     repo_name = mock_spec['name']
     repo_dir = tmpdir.mkdir('mock-' + repo_name)
-    repo = Repo.init(str(repo_dir))
+    repo = Repo.init(str(repo_dir), b='master')
     with repo.config_writer() as config_writer:
       config_writer.set_value('user', 'name', 'originuser')
       config_writer.set_value('user', 'email', 'originuser@mock.mock')
