@@ -676,7 +676,7 @@ def test_mixed_links_reporting(setup_temp_dir):
 def test_duplicate_links_checked_once(setup_temp_dir):
     """Test that a link present in multiple files is only checked once."""
     temp_path = setup_temp_dir
-    
+
     # Create history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
