@@ -1,8 +1,12 @@
 import datetime
+import itertools
 import json
 import pathlib
 import random
+import re
 import socket
+from collections import defaultdict
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -22,12 +26,31 @@ EXCEPTION_PREFIXES = [
     # The CI reports 403 on drupal.org while it works locally.
     # Maybe the CI's IP is blocklisted...
     "https://www.drupal.org/",
+    # This host implements bot protection: it manages to differentiate between
+    # the request performed by the link-probing bot and a genuin website and
+    # sends a js challenge.
+    "https://www.baeldung.com/",
 ]
 
 
-def show_files(filenames):
-    for filename in filenames:
-        print(filename)
+RULE_LANG_IN_PATH = re.compile(r"^.*[\/\\](S\d{3,})[\/\\]([^\/]*)[\/\\]rule.html$")
+
+
+def report_files(filenames):
+    lang_by_rule = defaultdict(list)
+    for file in filenames:
+        m = re.fullmatch(RULE_LANG_IN_PATH, file)
+        if m is not None:
+            lang_by_rule[m[1]].append(m[2])
+    res = ""
+    for k, v in lang_by_rule.items():
+        langs = ", ".join(v)
+        res += f"|  {k} ({langs})\n"
+    return res
+
+
+def error_message_for_domain(errors, urls):
+    return "|\n".join(f"| {key} in:\n" + report_files(urls[key]) for key in errors)
 
 
 def load_url_probing_history(history_file):
@@ -76,7 +99,7 @@ def live_url(url: str, timeout=5):
         return True
     try:
         req = requests.Request(
-            "GET",
+            "HEAD",
             url,
             headers={
                 "sec-ch-ua": '" Not A;Brand";v="99", "Chromium";v="90"',
@@ -234,9 +257,16 @@ def confirm_errors(presumed_errors, urls):
 
 def report_errors(errors, urls):
     print("There were errors")
-    for key in errors:
-        print(f"{key} in:")
-        show_files(urls[key])
+
+    errors.sort()
+    by_domain = dict(
+        (k, list(g))
+        for k, g in itertools.groupby(errors, lambda url: urlparse(url).netloc)
+    )
+    for k, v in by_domain.items():
+        print(f"For domain = {k}")
+        print(error_message_for_domain(v, urls))
+        print("")
 
 
 def check_html_links(dir, history_file):
