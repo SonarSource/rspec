@@ -239,7 +239,7 @@ def report_errors(errors, urls):
         show_files(urls[key])
 
 
-def check_html_links(dir, history_file="./link_probes.history"):
+def check_html_links(dir, history_file):
     load_url_probing_history(history_file)
     urls = get_all_links_from_htmls(dir)
     success = probe_links(urls)
