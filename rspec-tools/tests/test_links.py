@@ -97,6 +97,7 @@ def setup_history_file(temp_path, history_file, mock_date, test_dir="OK"):
             )
 
 
+# AI! split this function into the one that creates and removes a temporary directory, and another that populates it with files
 @pytest.fixture
 def setup_test_files():
     """Create a temporary directory with test files for each test case."""
