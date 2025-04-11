@@ -110,45 +110,6 @@ def setup_temp_dir():
     shutil.rmtree(temp_dir)
 
 
-@pytest.fixture
-def setup_test_files(setup_temp_dir):
-    """Populate the temporary directory with test files for each test case."""
-    temp_path = setup_temp_dir
-
-    # Create test directories
-    test_dirs = {
-        "404": {
-            "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
-            "S100/java/metadata.json": "{}",
-        },
-        "URL": {
-            "S100/java/rule.html": '<a href="https://ww.test">error</a>',
-            "S100/java/metadata.json": "{}",
-        },
-        "OK": {
-            "S100/java/rule.html": '<a href="https://www.google.com/">ok</a>',
-            "S100/java/metadata.json": "{}",
-        },
-        "deprecated": {
-            "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
-            "S100/java/metadata.json": "{}",
-            "S100/metadata.json": '{"status": "deprecated"}',
-            "S100/rpg/rule.html": '<a href="https://www.google.com/">ok</a>',
-            "S100/rpg/metadata.json": '{"status": "ready"}',
-        },
-    }
-
-    # Create all test files
-    create_test_files(temp_path, test_dirs)
-
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
-
-    return temp_path
-
-
 def test_find_urls(setup_temp_dir):
     temp_path = setup_temp_dir
 
