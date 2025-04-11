@@ -384,7 +384,7 @@ def test_no_reprobe_recent_links(setup_temp_dir):
     """Test that links probed recently are not probed again."""
     temp_path = setup_temp_dir
     test_url = "https://www.google.com/"
-    
+
     # Create test directories and files
     test_dirs = {
         "OK": {
@@ -392,10 +392,10 @@ def test_no_reprobe_recent_links(setup_temp_dir):
             "S100/java/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, test_dirs)
-    
+
     # Create empty history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
