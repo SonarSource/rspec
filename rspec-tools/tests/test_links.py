@@ -426,12 +426,26 @@ def test_no_reprobe_recent_links(setup_temp_dir):
     assert "All 1 links are good" in second_result.output
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_reprobe_old_links(setup_test_files):
+def test_reprobe_old_links(setup_temp_dir):
     """Test that links probed a long time ago are checked again."""
-    temp_path = setup_test_files
-    history_file = temp_path / "link_probes.history"
+    temp_path = setup_temp_dir
     test_url = "https://www.google.com/"
+
+    # Create test directories and files
+    test_dirs = {
+        "OK": {
+            "S100/java/rule.html": f'<a href="{test_url}">ok</a>',
+            "S100/java/metadata.json": "{}",
+        }
+    }
+
+    # Create the test files
+    create_test_files(temp_path, test_dirs)
+
+    # Create history file
+    history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
 
     # First run: Probe the links with a mocked datetime that's older than PROBING_COOLDOWN
     old_date = (
@@ -441,7 +455,7 @@ def test_reprobe_old_links(setup_test_files):
     )
 
     # Setup history file with an old date
-    first_result = setup_history_file(temp_path, history_file, old_date)
+    first_result = setup_history_file(temp_path, history_file, old_date, "OK")
     assert first_result.exit_code == 0
 
     # Second run: The link should be probed again because the timestamp in history is old
