@@ -8,7 +8,6 @@ import requests
 from bs4 import BeautifulSoup
 
 TOLERABLE_LINK_DOWNTIME = datetime.timedelta(days=7)
-LINK_PROBES_HISTORY_FILE = "./link_probes.history"
 PROBING_COOLDOWN = datetime.timedelta(days=2)
 PROBING_SPREAD = 60 * 24  # in minutes, 1 day
 link_probes_history = {}
@@ -31,23 +30,20 @@ def show_files(filenames):
         print(filename)
 
 
-def load_url_probing_history():
+def load_url_probing_history(history_file):
     global link_probes_history
     try:
-        with open(LINK_PROBES_HISTORY_FILE, "r") as link_probes_history_stream:
-            print(
-                "Using the historical url-probe results from "
-                + LINK_PROBES_HISTORY_FILE
-            )
+        with open(history_file, "r") as link_probes_history_stream:
+            print("Using the historical url-probe results from " + history_file)
             link_probes_history = eval(link_probes_history_stream.read())
     except Exception as e:
         # If the history file is not present, ignore, will create one in the end.
         print(f"Failed to load historical url-probe results: {e}")
 
 
-def save_url_probing_history():
+def save_url_probing_history(history_file):
     global link_probes_history
-    with open(LINK_PROBES_HISTORY_FILE, "w") as link_probes_history_stream:
+    with open(history_file, "w") as link_probes_history_stream:
         link_probes_history_stream.write(str(link_probes_history))
 
 
@@ -213,7 +209,9 @@ def probe_links(urls: dict) -> bool:
     print("Cache statistics:")
     print(f"\t{link_cache_hit=}")
     print(f"\t{link_cache_miss=}")
-    link_cache_hit_ratio = (link_cache_hit) / (link_cache_hit + link_cache_miss)
+    # Prevent division by zero if both hit and miss are 0
+    denominator = link_cache_hit + link_cache_miss
+    link_cache_hit_ratio = (link_cache_hit / denominator) if denominator > 0 else 0
     print(f"\t{link_cache_hit_ratio:03.2%} hits")
     print(f"\t{link_cache_exception=}")
     print(f"\n\n\n{'=' * 80}\n\n\n")
@@ -241,11 +239,11 @@ def report_errors(errors, urls):
         show_files(urls[key])
 
 
-def check_html_links(dir):
-    load_url_probing_history()
+def check_html_links(dir, history_file):
+    load_url_probing_history(history_file)
     urls = get_all_links_from_htmls(dir)
     success = probe_links(urls)
     if success:
         print(f"All {len(urls)} links are good")
-    save_url_probing_history()
+    save_url_probing_history(history_file)
     exit(0 if success else 1)
