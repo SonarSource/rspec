@@ -251,7 +251,7 @@ def test_link_initially_dead_then_alive(setup_temp_dir):
 
 def test_404(setup_temp_dir):
     temp_path = setup_temp_dir
-    
+
     # Create test files with a 404 URL
     test_dirs = {
         "404": {
@@ -259,15 +259,15 @@ def test_404(setup_temp_dir):
             "S100/java/metadata.json": "{}",
         }
     }
-    
+
     # Create the test files
     create_test_files(temp_path, test_dirs)
-    
+
     # Create empty history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
         f.write("{}")
-    
+
     runner = CliRunner()
     result = runner.invoke(
         cli,
