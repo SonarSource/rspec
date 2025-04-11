@@ -673,6 +673,7 @@ def test_mixed_links_reporting(setup_temp_dir):
     assert str(rule2_dir / "rule.html") not in error_section
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_duplicate_links_checked_once(setup_test_files):
     """Test that a link present in multiple files is only checked once."""
     temp_path = setup_test_files
