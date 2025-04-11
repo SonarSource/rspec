@@ -103,7 +103,7 @@ def live_url(url: str, timeout=5):
         return True
     try:
         req = requests.Request(
-            "GET",
+            "HEAD",
             url,
             headers={
                 "sec-ch-ua": '" Not A;Brand";v="99", "Chromium";v="90"',
