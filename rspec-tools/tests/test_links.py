@@ -64,6 +64,13 @@ def create_test_files(base_path, test_dirs):
                 f.write(content)
 
 
+def empty_history_file(temp_path):
+    history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
+    return history_file
+
+
 def setup_history_file(temp_path, history_file, mock_date, test_dir="OK"):
     """
     Helper function to run check-links and setup a history file.
@@ -224,10 +231,7 @@ def test_404(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -256,10 +260,7 @@ def test_url(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -288,10 +289,7 @@ def test_ok(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -320,10 +318,7 @@ def test_deprecated(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -357,10 +352,7 @@ def test_no_reprobe_recent_links(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # First run: Probe the links and update the history file with current date
     current_date = datetime.datetime.now()
@@ -403,10 +395,7 @@ def test_reprobe_old_links(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # First run: Probe the links with a mocked datetime that's older than PROBING_COOLDOWN
     old_date = (
@@ -453,10 +442,7 @@ def test_tolerable_downtime(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # Setup history file with a recent date (3 days ago) - within TOLERABLE_LINK_DOWNTIME
     recent_date = datetime.datetime.now() - datetime.timedelta(days=3)
@@ -493,10 +479,7 @@ def test_old_dead_link(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, test_dirs)
 
-    # Create history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # Setup history file with an old date (30 days ago) - beyond TOLERABLE_LINK_DOWNTIME
     old_date = datetime.datetime.now() - datetime.timedelta(days=30)
@@ -536,10 +519,7 @@ def test_exception_url(setup_temp_dir):
     # Create the test files
     create_test_files(temp_path, exception_test_dirs)
 
-    # Create history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     exception_dir = temp_path / "exception"
 
@@ -568,10 +548,7 @@ def test_mixed_links_reporting(setup_temp_dir):
     """Test that when some links are dead and some are alive, only the dead ones are reported."""
     temp_path = setup_temp_dir
 
-    # Create history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # Create test files for mixed links test
     dead_url = "https://www.example.com/dead-link"
@@ -638,10 +615,7 @@ def test_duplicate_links_checked_once(setup_temp_dir):
     """Test that a link present in multiple files is only checked once."""
     temp_path = setup_temp_dir
 
-    # Create history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # Create test files for duplicate links test
     test_url = "https://www.example.com/test-link"
@@ -691,10 +665,7 @@ def test_multiple_links_in_single_file(setup_temp_dir):
     """Test that multiple different links in a single file are all checked."""
     temp_path = setup_temp_dir
 
-    # Create history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # Create test file with multiple links
     link1 = "https://www.example.com/link1"
@@ -751,10 +722,7 @@ def test_dead_link_in_multiple_files(setup_temp_dir):
     """Test that if a dead link appears in multiple files, all those files are listed in the error report."""
     temp_path = setup_temp_dir
 
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # Create test files with the same dead link in multiple files
     dead_url = "https://www.example.com/dead-link"
