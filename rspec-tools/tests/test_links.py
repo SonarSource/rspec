@@ -476,11 +476,26 @@ def test_reprobe_old_links(setup_temp_dir):
     assert second_result.exit_code == 0
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_tolerable_downtime(setup_test_files):
+def test_tolerable_downtime(setup_temp_dir):
     """Test that links that were alive recently but are now dead are not reported as dead."""
-    temp_path = setup_test_files
+    temp_path = setup_temp_dir
+    test_url = "https://www.google.com/404"
+
+    # Create test directories and files
+    test_dirs = {
+        "404": {
+            "S100/java/rule.html": f'<a href="{test_url}">404</a>',
+            "S100/java/metadata.json": "{}",
+        }
+    }
+
+    # Create the test files
+    create_test_files(temp_path, test_dirs)
+
+    # Create history file
     history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
 
     # Setup history file with a recent date (3 days ago) - within TOLERABLE_LINK_DOWNTIME
     recent_date = datetime.datetime.now() - datetime.timedelta(days=3)
