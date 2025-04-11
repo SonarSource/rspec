@@ -249,6 +249,7 @@ def test_link_initially_dead_then_alive(setup_temp_dir):
         assert test_link in history_content
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_404(setup_test_files):
     temp_path = setup_test_files
     history_file = temp_path / "link_probes.history"
