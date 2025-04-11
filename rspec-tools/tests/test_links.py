@@ -188,6 +188,7 @@ def test_live_url_with_anchor_only_link():
     assert checklinks.live_url("#complex-anchor-with-numbers-123") is True
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_link_initially_dead_then_alive(setup_test_files):
     """Test that a link initially marked as dead but then confirmed alive is not reported as dead."""
     temp_path = setup_test_files
