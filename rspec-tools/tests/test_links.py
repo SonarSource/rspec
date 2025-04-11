@@ -249,10 +249,25 @@ def test_link_initially_dead_then_alive(setup_temp_dir):
         assert test_link in history_content
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_404(setup_test_files):
-    temp_path = setup_test_files
+def test_404(setup_temp_dir):
+    temp_path = setup_temp_dir
+    
+    # Create test files with a 404 URL
+    test_dirs = {
+        "404": {
+            "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
+            "S100/java/metadata.json": "{}",
+        }
+    }
+    
+    # Create the test files
+    create_test_files(temp_path, test_dirs)
+    
+    # Create empty history file
     history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
+    
     runner = CliRunner()
     result = runner.invoke(
         cli,
