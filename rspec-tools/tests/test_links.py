@@ -120,16 +120,12 @@ def setup_temp_dir():
 def test_find_urls(setup_temp_dir):
     temp_path = setup_temp_dir
 
-    # Create test files with a URL to check
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "404": {
             "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files using the existing helper function
-    create_test_files(temp_path, test_dirs)
+    })
 
     # Test URL extraction
     urls = {}
@@ -160,23 +156,18 @@ def test_link_initially_dead_then_alive(setup_temp_dir):
     """Test that a link initially marked as dead but then confirmed alive is not reported as dead."""
     temp_path = setup_temp_dir
 
-    # Create empty history file
-    history_file = temp_path / "link_probes.history"
-    with open(history_file, "w") as f:
-        f.write("{}")
+    history_file = empty_history_file(temp_path)
 
     # Create test files with a link that will be initially dead but then alive
     test_link = "https://www.example.com/intermittent-link"
-    test_dirs = {
+    
+    create_test_files(temp_path, test_dirs={
         "intermittent_link": {
             "S100/java/rule.html": f'<a href="{test_link}">Intermittent Link</a>',
             "S100/java/metadata.json": "{}",
             "S100/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     # Get the directory path for later use
     test_dir = temp_path / "intermittent_link"
@@ -220,17 +211,12 @@ def test_link_initially_dead_then_alive(setup_temp_dir):
 def test_404(setup_temp_dir):
     temp_path = setup_temp_dir
 
-    # Create test files with a 404 URL
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "404": {
             "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
-
+    })
     history_file = empty_history_file(temp_path)
 
     runner = CliRunner()
@@ -249,16 +235,12 @@ def test_404(setup_temp_dir):
 def test_url(setup_temp_dir):
     temp_path = setup_temp_dir
 
-    # Create test directories and files
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "URL": {
             "S100/java/rule.html": '<a href="https://ww.test">error</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -278,16 +260,12 @@ def test_url(setup_temp_dir):
 def test_ok(setup_temp_dir):
     temp_path = setup_temp_dir
 
-    # Create test directories and files
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "OK": {
             "S100/java/rule.html": '<a href="https://www.google.com/">ok</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -304,8 +282,7 @@ def test_ok(setup_temp_dir):
 def test_deprecated(setup_temp_dir):
     temp_path = setup_temp_dir
 
-    # Create test directories and files
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "deprecated": {
             "S100/java/rule.html": '<a href="https://www.google.com/404">404</a>',
             "S100/java/metadata.json": "{}",
@@ -313,10 +290,7 @@ def test_deprecated(setup_temp_dir):
             "S100/rpg/rule.html": '<a href="https://www.google.com/">ok</a>',
             "S100/rpg/metadata.json": '{"status": "ready"}',
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -341,16 +315,12 @@ def test_no_reprobe_recent_links(setup_temp_dir):
     temp_path = setup_temp_dir
     test_url = "https://www.google.com/"
 
-    # Create test directories and files
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "OK": {
             "S100/java/rule.html": f'<a href="{test_url}">ok</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -384,16 +354,12 @@ def test_reprobe_old_links(setup_temp_dir):
     temp_path = setup_temp_dir
     test_url = "https://www.google.com/"
 
-    # Create test directories and files
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "OK": {
             "S100/java/rule.html": f'<a href="{test_url}">ok</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -431,16 +397,12 @@ def test_tolerable_downtime(setup_temp_dir):
     temp_path = setup_temp_dir
     test_url = "https://www.google.com/404"
 
-    # Create test directories and files
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "404": {
             "S100/java/rule.html": f'<a href="{test_url}">404</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -468,16 +430,12 @@ def test_old_dead_link(setup_temp_dir):
     temp_path = setup_temp_dir
     test_url = "https://www.google.com/404"
 
-    # Create test directories and files
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "404": {
             "S100/java/rule.html": f'<a href="{test_url}">404</a>',
             "S100/java/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -507,17 +465,13 @@ def test_exception_url(setup_temp_dir):
     # Create a test file with an exception URL
     exception_url = "https://wiki.sei.cmu.edu/confluence/display/java/SEC05-J"
 
-    # Define the file structure for the exception URL test
-    exception_test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "exception": {
             "S100/java/rule.html": f'<a href="{exception_url}">Exception URL</a>',
             "S100/java/metadata.json": "{}",
             "S100/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, exception_test_dirs)
+    })
 
     history_file = empty_history_file(temp_path)
 
@@ -554,8 +508,7 @@ def test_mixed_links_reporting(setup_temp_dir):
     dead_url = "https://www.example.com/dead-link"
     live_url = "https://www.example.com/live-link"
 
-    # Define the test directory structure with dead and live links
-    mixed_test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "mixed_links": {
             "S100/java/rule.html": f'<a href="{dead_url}">Dead Link</a>',
             "S100/java/metadata.json": "{}",
@@ -564,10 +517,7 @@ def test_mixed_links_reporting(setup_temp_dir):
             "S200/java/metadata.json": "{}",
             "S200/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, mixed_test_dirs)
+    })
 
     # Get paths to test files for later assertions
     mixed_dir = temp_path / "mixed_links"
@@ -620,8 +570,7 @@ def test_duplicate_links_checked_once(setup_temp_dir):
     # Create test files for duplicate links test
     test_url = "https://www.example.com/test-link"
 
-    # Define the test directory structure with the same URL in multiple files
-    duplicate_test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "duplicate_links": {
             "S100/java/rule.html": f'<a href="{test_url}">Test Link in File 1</a>',
             "S100/java/metadata.json": "{}",
@@ -633,10 +582,7 @@ def test_duplicate_links_checked_once(setup_temp_dir):
             "S300/java/metadata.json": "{}",
             "S300/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, duplicate_test_dirs)
+    })
 
     # Get the directory path for later use
     dup_dir = temp_path / "duplicate_links"
@@ -672,8 +618,7 @@ def test_multiple_links_in_single_file(setup_temp_dir):
     link2 = "https://www.example.com/link2"
     link3 = "https://www.example.com/link3"
 
-    # Define the test directory structure with multiple links in a single file
-    multi_links_test_dirs = {
+    create_test_files(temp_path, test_dirs={
         "multi_links": {
             "S100/java/rule.html": f"""
                 <a href="{link1}">First Link</a>
@@ -686,10 +631,7 @@ def test_multiple_links_in_single_file(setup_temp_dir):
             "S100/java/metadata.json": "{}",
             "S100/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, multi_links_test_dirs)
+    })
 
     # Get the directory path for later use
     multi_dir = temp_path / "multi_links"
@@ -727,8 +669,7 @@ def test_dead_link_in_multiple_files(setup_temp_dir):
     # Create test files with the same dead link in multiple files
     dead_url = "https://www.example.com/dead-link"
 
-    # Define the test directory structure with the same dead link in multiple files
-    multi_file_dead_link_dirs = {
+    create_test_files(temp_path, test_dirs={
         "multi_file_dead_link": {
             "S100/java/rule.html": f'<a href="{dead_url}">Dead Link in Java Rule</a>',
             "S100/java/metadata.json": "{}",
@@ -740,10 +681,7 @@ def test_dead_link_in_multiple_files(setup_temp_dir):
             "S300/csharp/metadata.json": "{}",
             "S300/metadata.json": "{}",
         }
-    }
-
-    # Create the test files
-    create_test_files(temp_path, multi_file_dead_link_dirs)
+    })
 
     # Get the directory path and file paths for later use
     multi_file_dir = temp_path / "multi_file_dead_link"
@@ -794,16 +732,13 @@ def test_create_history_file(setup_temp_dir):
 
     # Create test files with a live link
     test_link = "https://www.example.com/test-link"
-    test_dirs = {
+    create_test_files(temp_path, test_dirs={
         test_dir_name: {
             "S100/java/rule.html": f'<a href="{test_link}">Test Link</a>',
             "S100/java/metadata.json": "{}",
             "S100/metadata.json": "{}",
         }
-    }
-
-    # Create the test files using the helper function
-    create_test_files(temp_path, test_dirs)
+    })
 
     # Define a non-existent history file
     history_file = temp_path / "new_history_file.json"
