@@ -380,6 +380,7 @@ def test_deprecated(setup_temp_dir):
     assert "All 1 links are good" in result.output
 
 
+# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
 def test_no_reprobe_recent_links(setup_test_files):
     """Test that links probed recently are not probed again."""
     temp_path = setup_test_files
