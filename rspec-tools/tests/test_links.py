@@ -729,7 +729,7 @@ def test_duplicate_links_checked_once(setup_temp_dir):
 def test_multiple_links_in_single_file(setup_temp_dir):
     """Test that multiple different links in a single file are all checked."""
     temp_path = setup_temp_dir
-    
+
     # Create history file
     history_file = temp_path / "link_probes.history"
     with open(history_file, "w") as f:
