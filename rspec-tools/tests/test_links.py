@@ -380,12 +380,26 @@ def test_deprecated(setup_temp_dir):
     assert "All 1 links are good" in result.output
 
 
-# AI! refactor this test to use only setup_temp_dir, and inline the relevant parts of setup_test_files, but keep using the create_test_files function
-def test_no_reprobe_recent_links(setup_test_files):
+def test_no_reprobe_recent_links(setup_temp_dir):
     """Test that links probed recently are not probed again."""
-    temp_path = setup_test_files
-    history_file = temp_path / "link_probes.history"
+    temp_path = setup_temp_dir
     test_url = "https://www.google.com/"
+    
+    # Create test directories and files
+    test_dirs = {
+        "OK": {
+            "S100/java/rule.html": f'<a href="{test_url}">ok</a>',
+            "S100/java/metadata.json": "{}",
+        }
+    }
+    
+    # Create the test files
+    create_test_files(temp_path, test_dirs)
+    
+    # Create empty history file
+    history_file = temp_path / "link_probes.history"
+    with open(history_file, "w") as f:
+        f.write("{}")
 
     # First run: Probe the links and update the history file with current date
     current_date = datetime.datetime.now()
