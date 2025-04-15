@@ -1,0 +1,60 @@
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  publish:
+    permissions:
+      contents: read
+      id-token: write # required for SonarSource/vault-action-wrapper
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_NAME: ${{ github.event.release.name }}
+      BUILD_NAME: 'rspec'
+      ARTIFACTORY_REPOSITORY_NAME: 'sonarsource-npm-public-releases'
+    steps:
+      - name: Fetch the secrets
+        id: secrets
+        uses: SonarSource/vault-action-wrapper@v3
+        with:
+          secrets:
+            development/artifactory/token/SonarSource-rspec-promoter access_token  | promoter_access_token;
+            development/kv/data/npmjs sonartech_npm_token  | npm_token;
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Setup the registries
+        run: |
+          npm config set //registry.npmjs.org/:_authToken=${{ fromJSON(steps.secrets.outputs.vault).npm_token }}
+          npm config set //repox.jfrog.io/artifactory/api/npm/:_authToken=${{ fromJSON(steps.secrets.outputs.vault).promoter_access_token }}
+
+      - name: Build the package
+        run: |
+          (cd rspec-tools && npm i)
+          VERSION=${RELEASE_TAG} node rspec-tools/build-package.mjs
+          cp LICENSE build
+
+      - name: Install JFrog CLI
+        uses: SonarSource/jfrog-setup-wrapper@v3
+
+      - name: Publish the package to Artifactory
+        run: |
+          jfrog config add repox --url https://repox.jfrog.io --access-token ${{ fromJSON(steps.secrets.outputs.vault).promoter_access_token }}
+          jfrog config use repox
+          jfrog npm-config --repo-resolve npm --repo-deploy $ARTIFACTORY_REPOSITORY_NAME
+          cd build
+          jfrog npm publish --build-name $BUILD_NAME --build-number $RELEASE_TAG --dry-run
+          jfrog rt build-add-git $BUILD_NAME $RELEASE_TAG
+          jfrog rt build-publish --dry-run $BUILD_NAME $RELEASE_TAG
+          jfrog rt build-promote --dry-run --status released $BUILD_NAME $RELEASE_TAG $ARTIFACTORY_REPOSITORY_NAME
+
+      - name: Publish the package to npm
+        run: |
+          cd build
+          [ ${{ github.event.release.prerelease }} == true ] && TAG="next" || TAG="latest"
+          npm publish --tag=$TAG --access=public --dry-run
