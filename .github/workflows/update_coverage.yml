@@ -10,7 +10,6 @@ jobs:
     permissions:
       id-token: write # required by SonarSource/vault-action-wrapper
       contents: write
-      checks: read # required by fountainhead/action-wait-for-check
       actions: write # required by andymckay/cancel-action
     env:
       TMP_BRANCH: temporary/coverage_update
@@ -30,6 +29,7 @@ jobs:
         fetch-depth: 0
         path: 'rspec'
         token: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
+        ref: 'master'
 
     - uses: actions/setup-python@v4
       with:
@@ -73,40 +73,62 @@ jobs:
         git commit -m "update coverage information"
         git push --force-with-lease origin $TMP_BRANCH
 
-    - name: 'Wait for CI to succeed'
-      if: steps.gen-coverage.outputs.new_coverage == 'true'
-      uses: fountainhead/action-wait-for-check@v1.0.0
-      id: wait-for-build
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        checkName: all_required_checks
-        ref: ${{ env.TMP_BRANCH }}
-        timeoutSeconds: 2400
-        intervalSeconds: 30
+    - name: 'Create a PR'
+      id: create-github-pr
+      working-directory: 'rspec'
+      env:
+        GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
+      run: |
+        PR_URL=$(gh pr create --head ${{ env.TMP_BRANCH }} --title "Update coverage information" --body "" --label "rspec system")
+        gh pr merge $PR_URL
 
-    - name: 'Push the updated coverage to master'
-      if: |
-        steps.gen-coverage.outputs.new_coverage == 'true' &&
-        steps.wait-for-build.outputs.conclusion == 'success' &&
-        (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    - name: 'Wait until the PR is merged'
+      id: wait-for-pr-to-merge
+      env:
+        GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
       working-directory: 'rspec'
       run: |
-        git checkout master
-        git merge $TMP_BRANCH
-        git push origin master
+        set -ueo pipefail
 
-    - name: 'Delete the temporary branch'
-      if: always() && steps.create-temp-branch.conclusion == 'success'
-      uses: dawidd6/action-delete-branch@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branches: ${{ env.TMP_BRANCH}}
+        # Implicitly referring to the PR corresponding to current branch
 
-    - name: 'Fail if the change breaks CI'
-      if: |
-        steps.gen-coverage.outputs.new_coverage == 'true' &&
-        steps.wait-for-build.outputs.conclusion != 'success'
-      run: exit 1
+        # Set timeout (20 minutes in seconds)
+        TIMEOUT=1200 # seconds
+        START_TIME=$(date +%s)
+        INTERVAL=20 # seconds
+
+        while true; do
+          # Check if the PR is merged
+          PR_STATE=$(gh pr view --json state,mergedAt -q '.state')
+          MERGED_AT=$(gh pr view --json state,mergedAt -q '.mergedAt')
+
+          if [[ "${PR_STATE}" == "MERGED" ]]; then
+            echo "PR merged at: $MERGED_AT"
+            exit 0
+          fi
+          echo "PR state is ${PR_STATE}"
+
+          # Check for timeout
+          CURRENT_TIME=$(date +%s)
+          ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+          if [[ "${ELAPSED_TIME}" -gt "${TIMEOUT}" ]]; then
+            echo "Timeout waiting for PR to merge."
+            exit 1
+          fi
+
+          # Wait for $INTERVAL seconds before checking again
+          sleep "$INTERVAL"
+        done
+
+    - name: 'Close PR and delete branch upon failure to merge'
+      if: ${{ failure() }}
+      env:
+        GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
+      working-directory: 'rspec'
+      run: |
+        PR_URL=$(gh pr view --json url --jq '.url')
+        gh pr close "$PR_URL" --delete-branch
 
     - name: 'Notify on slack about the failure'
       if: ${{ failure() }}
