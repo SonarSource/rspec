@@ -555,11 +555,6 @@ def test_mixed_links_reporting(setup_temp_dir):
         },
     )
 
-    # Get paths to test files for later assertions
-    mixed_dir = temp_path / "mixed_links"
-    rule1_dir = mixed_dir / "S100" / "java"
-    rule2_dir = mixed_dir / "S200" / "java"
-
     # Setup the history file to show that the dead_url was last alive a long time ago
     # (making it "long dead" without mocking url_is_long_dead)
     old_date = datetime.datetime.now() - datetime.timedelta(
@@ -578,6 +573,7 @@ def test_mixed_links_reporting(setup_temp_dir):
         else:
             return True  # All other links are alive
 
+    mixed_dir = temp_path / "mixed_links"
     result = run_check_links_with_mocked_live_url(
         mixed_dir, history_file, mock_live_url
     )
@@ -588,13 +584,13 @@ def test_mixed_links_reporting(setup_temp_dir):
     # Verify that the dead URL and its file are reported in the errors section of the output
     error_section = get_error_section(result.output)
     assert dead_url in error_section
-    assert str(rule1_dir / "rule.html") in error_section
+    assert "S100 (java)" in error_section
 
     # Verify that the live URL and its file are NOT reported in the error section
     assert "1/2 links are dead" in result.output
 
     # Check that the live link's file path is not in the errors section
-    assert str(rule2_dir / "rule.html") not in error_section
+    assert "S200" not in error_section
 
 
 def test_duplicate_links_checked_once(setup_temp_dir):
@@ -728,12 +724,6 @@ def test_dead_link_in_multiple_files(setup_temp_dir):
         },
     )
 
-    # Get the directory path and file paths for later use
-    multi_file_dir = temp_path / "multi_file_dead_link"
-    file1_path = multi_file_dir / "S100" / "java" / "rule.html"
-    file2_path = multi_file_dir / "S200" / "python" / "rule.html"
-    file3_path = multi_file_dir / "S300" / "csharp" / "rule.html"
-
     # Setup the history file with an old date for the dead URL
     old_date = datetime.datetime.now() - datetime.timedelta(days=30)
     first_result = setup_history_file(
@@ -745,6 +735,7 @@ def test_dead_link_in_multiple_files(setup_temp_dir):
     def mock_live_url(url, timeout=5):
         return url != dead_url  # Only the dead_url returns False
 
+    multi_file_dir = temp_path / "multi_file_dead_link"
     result = run_check_links_with_mocked_live_url(
         multi_file_dir, history_file, mock_live_url
     )
@@ -759,9 +750,9 @@ def test_dead_link_in_multiple_files(setup_temp_dir):
     assert dead_url in error_section
 
     # Verify all three files with the dead link are listed in the error section
-    assert str(file1_path) in error_section
-    assert str(file2_path) in error_section
-    assert str(file3_path) in error_section
+    assert "S100 (java)" in error_section
+    assert "S200 (python)" in error_section
+    assert "S300 (csharp)" in error_section
 
     # Verify the output mentions the correct count of dead links
     assert "1/1 links are dead" in result.output
