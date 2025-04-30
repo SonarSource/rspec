@@ -6,27 +6,14 @@ This means that it can be more efficient to use them over the default platform t
 
 Whenever a virtual thread is started, the JVM will mount it on an OS thread.
 As soon as the virtual thread runs into a blocking operation like an HTTP request or a filesystem read/write operation,
-the JVM will detect this and unmount the virtual thread. 
+the JVM will detect this and unmount the virtual thread.
 This allows another virtual thread to take over the OS thread and continue its execution.
 
-This is why virtual threads should be preferred to platform threads for tasks that involve blocking operations. 
+This is why virtual threads should be preferred to platform threads for tasks that involve blocking operations.
 By default, a Java thread is a platform thread.
 To use a virtual thread it must be started either with `Thread.startVirtualThread(Runnable)` or `Thread.ofVirtual().start(Runnable)`.
 
-This rule raises an issue every time a platform thread is created with a task that includes heavy blocking operations.
-
-=== Exceptions
-
-If the task assigned to the thread is not a blocking operation, then it is not necessary to use a virtual thread.
-
-[source,java]
-----
-ExecutorService executor = Executors.newFixedThreadPool(100);
-void enqueueRequest(float[] buff, float[] matrix){
-    // bulkMatrixMultiplication is a CPU-intensive operation, that will always keep the threads busy
-    executor.execute(() -> bulkMatrixMultiplication(buff, matrix));
-}
-----
+This rule raises an issue when a platform thread is created with a task that includes heavy blocking operations.
 
 == How to fix it
 
@@ -36,40 +23,24 @@ Replace platform thread instances or platform thread pools with virtual threads,
 
 ==== Noncompliant code example
 
-The following example utilizes a thread pool to handle the creation of new platform threads, that will be then used to perform some blocking operation.
-In the event of a large number of requests being made to the `enqueueRequest` method, for example, 10000 of them, the thread pool will quickly run out of available threads,
-and it will be only capable of processing 100 requests in parallel per second.
-This means that in this example the total execution time for 10000 requests would be at least 100 seconds.
-
-[source,java]
-----
-ExecutorService executor = Executors.newFixedThreadPool(100);
-void enqueueRequest(String data){
-    // processRequest is a blocking operation that will take ~1 second to complete
-    executor.execute(() -> processRequest(data)); // Noncompliant
-}
-
-static void processRequest(String data) {
-    try {
-        // do something with data
-        Thread.sleep(1000);
-    } catch (InterruptedException e) {
-        e.printStackTrace();
-    }
-}
-----
-
-In this example instead, there is no limit to the number of platform threads that could be instantiated.
-So the execution of 10000 requests could take just over ~1 second.
-However, this could lead to problems if the number of instantiated threads exceeds the maximum number of platform threads allowed by the OS.
-Moreover, the instantiation of a new platform thread has a higher overhead than the instantiation of a virtual thread.
+The following example creates a platform thread to handle a blocking operation, here denoted by `Thread.sleep(1000)`.
+The overhead for instantiating a platform thread is higher than for a virtual thread.
+Further, instantiating too many platform threads can lead to problems if the number of instantiated threads exceeds the maximum number of platform threads allowed by the OS.
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-void enqueueRequest(String data){
-    new Thread(() -> processRequest(data)).start();
-}
+new Thread(() -> {
+    try {
+        Thread.sleep(1000); // Noncompliant blocking operation in platform thread
+    } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+    }
+});
 ----
+
+In the context of thread pools, using platform threads for heavy blocking operations can lead to the thread pool running out of available threads.
+Even though the threads spend most of their time waiting for e.g. I/O operations to complete and subsequently the CPU usage is low,
+the application cannot continue processing efficiently, due to the lack of available threads.
 
 ==== Compliant solution
 
@@ -79,10 +50,13 @@ In this example, the execution of 10000 requests would take just over ~1 second 
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-void enqueueRequest(String data) {
-  // processRequest is a blocking operation that will take ~1 second to complete
-  Thread.startVirtualThread(() -> processRequest(data));
-}
+Thread.ofVirtual().start(() -> {
+    try {
+        Thread.sleep(1000); // Compliant
+    } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+    }
+});
 ----
 
 == Resources

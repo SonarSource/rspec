@@ -1,0 +1,49 @@
+== How to fix it in Spring
+
+=== Code examples
+
+The following code examples assume that the `tainted` variable is controlled by an attacker and is not sanitized before being used in the template. For instance, consider the following endpoint that could be defined within a Spring controller:
+[source,java]
+----
+@GetMapping("/example")
+public String noncompliant(@RequestParam String tainted, Map<String, Object> model) {
+    model.put("tainted", tainted);
+    return "template";
+}
+----
+
+==== Noncompliant code example
+
+The following code example is vulnerable to a Server-Side Template Injection (SSTI) attack if the `tainted` variable is not sanitized before being used in the `th:text` attribute. The `&lowbar;&lowbar;&dollar;&lcub;&period;&period;&period;&rcub;&lowbar;&lowbar;` syntax indicates that this variable should be preprocessed by Thymeleaf before being used in the template. If the `tainted` variable is controlled by an attacker, they can inject arbitrary code into the template.
+
+[source,html,diff-id=11,diff-type=noncompliant]
+----
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <span th:text="${__${tainted}__}"></span> <!-- Noncompliant -->
+</div>
+</body>
+</html>
+----
+
+==== Compliant solution
+
+[source,html,diff-id=11,diff-type=compliant]
+----
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <span th:text="${tainted}"></span>
+</div>
+</body>
+</html>
+----
+
+=== How does this work?
+
+The compliant code example does not use preprocessing so that the `tainted` variable will be directly inserted into the template, which prevents an attacker from injecting arbitrary code into the template.
+
+==== Thymeleaf's Built-in Security Measures
+
+It is worth noting that since Thymeleaf version 3.0.12, expressions are executed in a sandboxed environment where only a limited set of classes and methods are available. While this might make it harder to exploit SSTI vulnerabilities, it does not make it impossible and there might be unknown bypasses which could still allow attackers to execute arbitrary code.

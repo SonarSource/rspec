@@ -1,10 +1,13 @@
-""" Ensure the asciidoc code for a rule description follows best practices
+"""Ensure the asciidoc code for a rule description follows best practices
 
 Checks are:
 * "ifdef"/"endif" blocks should be well-formed for RSPEC
 * Inline code with backquotes is correctly escaped and balanced
 * Include commands are not appended to other code
+* "C++" is referred to using the {cpp} attribute
+* rules.sonarsource.com is not linked directly
 """
+
 import re
 from pathlib import Path
 
@@ -51,6 +54,8 @@ PASSTHROUGH_MACRO_TEXT = r"pass:\w*\[(\\\]|[^\]])*\]"
 PASSTHROUGH_MACRO = re.compile(PASSTHROUGH_MACRO_TEXT)
 
 CPP = re.compile(r"\b[Cc]\+\+")
+
+RULES_SONARSOURCE = re.compile(r"https?:\/\/rules\.sonarsource\.com\/(.*)\/RSPEC-\d+")
 
 # There is a regex trick here:
 # We want to skip passthrough macros, to not find pass:[``whatever``]
@@ -199,7 +204,8 @@ class Sanitizer:
             cpp = CPP.search(line, pos)
         if cpp:
             self._on_error(
-                line_number, 'To avoid rendering issues, always use the "{cpp}" attribute to refer to the language C++'
+                line_number,
+                'To avoid rendering issues, always use the "{cpp}" attribute to refer to the language C++.',
             )
         return next_pos
 
@@ -211,7 +217,7 @@ class Sanitizer:
                 line_number - 1,
                 """An empty line is missing after the include.
 This may result in broken tags and other display issues.
-Make sure there are always empty lines before and after each include""",
+Make sure there are always empty lines before and after each include.""",
             )
         if INCLUDE.match(line):
             self._previous_line_was_include = True
@@ -220,11 +226,17 @@ Make sure there are always empty lines before and after each include""",
                     line_number,
                     """An empty line is missing before the include.
 This may result in broken tags and other display issues.
-Make sure there are always empty lines before and after each include""",
+Make sure there are always empty lines before and after each include.""",
                 )
             return
         else:
             self._previous_line_was_include = False
+        if RULES_SONARSOURCE.search(line) and not self._is_env_open:
+            self._on_error(
+                line_number,
+                """Do not put direct links to https://rules.sonarsource.com/.
+Just use the rule ID and let cross-reference substitution do its job.""",
+            )
         pos = 0
         res = self._advance_to_next_backquote(line, pos, line_number)
         # We filter out matches for passthrough. See comment near the BACKQUOTE declaration

@@ -1,14 +1,14 @@
 == Why is this an issue?
 
-Ephemeral storage is a type of storage that is temporary and non-persistent,
-meaning it does not retain data once the process is terminated. In the context
-of Kubernetes, ephemeral storage is used for storing temporary files that a
-running container can write and read.
+Ephemeral storage in Kubernetes refers to temporary storage that is non-persistent,
+meaning it does not retain data once the container or pod is terminated. This
+type of storage is typically used for storing temporary files that a running
+container can write and read. Examples of ephemeral storage include the container's
+writable layer, emptyDir volumes, and log files.
 
-The issue at hand pertains to the creation of a container without any defined
-limits for this ephemeral storage. This means that the container can potentially
-consume as much ephemeral storage as is available on the node where it is
-running.
+The issue arises when a container is created without any defined limits for its
+ephemeral storage usage. Without these limits, the container can potentially
+consume all available ephemeral storage on the node where it is running.
 
 === What is the potential impact?
 
@@ -28,11 +28,32 @@ exhibit other unexpected behaviors.
 
 == How to fix it
 
+To prevent these issues, it is important to set limits on the amount of ephemeral
+storage a container can use. This can be done through the
+`resources.limits.ephemeral-storage` property of a container. Additionally, a
+default limit for a namespace can be set using a `LimitRange` object through
+`spec.limits[].default.ephemeral-storage`.
+
 === Code examples
 
 ==== Noncompliant code example
 
 [source,yaml,diff-id=1,diff-type=noncompliant]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: example
+spec:
+  containers:
+    - name: web # Noncompliant
+      image: nginx
+      volumeMounts:
+        - name: ephemeral
+          mountPath: "/tmp"
+----
+
+[source,yaml,diff-id=2,diff-type=noncompliant]
 ----
 apiVersion: v1
 kind: Pod
@@ -67,11 +88,38 @@ spec:
           mountPath: "/tmp"
 ----
 
+[source,yaml,diff-id=2,diff-type=compliant]
+----
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: storage-limit-range
+  namespace: namespace-with-limit-range
+spec:
+  limits:
+  - default:
+      ephemeral-storage: "10Mi"
+    type: Container
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: example
+  namespace: namespace-with-limit-range
+spec:
+  containers:
+    - name: web
+      image: nginx
+      volumeMounts:
+        - name: ephemeral
+          mountPath: "/tmp"
+----
+
 === How does this work?
 
-A limit can be set through the property `resources.limits.ephemeral-storage` of
-a container. Alternatively, a default limit for a namespace can be set with
-`LimitRange`.
+By setting a limit on ephemeral storage, you ensure that a container cannot
+consume more than the specified amount of temporary storage. This helps prevent
+resource exhaustion and ensures more predictable application behavior.
 
 == Resources
 

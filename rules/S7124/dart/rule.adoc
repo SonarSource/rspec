@@ -1,0 +1,123 @@
+https://api.flutter.dev/flutter/widgets/Widget/Widget.html[Widgets] that have constructors accepting children widgets as https://dart.dev/language/functions#named-parameters[named parameters], should be called with children arguments as the last ones.
+
+== Why is this an issue?
+
+Flutter widgets may or may not have children. For example:
+
+* a https://api.flutter.dev/flutter/widgets/Container-class.html[`Container`] widget can have a single child (in a property named `child`), or none at all
+* a https://api.flutter.dev/flutter/widgets/OverflowBar-class.html[`OverflowBar`] widget can have multiple children (in a property named `children`), or none at all
+
+When a widget has children, it is common to pass them as named parameters. When that is the case, it is a good practice to pass them as the last arguments in the constructor invocation. 
+
+This makes the code more readable and easier to understand.
+
+=== Exceptions
+
+The rule does not apply in the case of widgets that define their children via positional parameters, since the order of the parameters is fixed by the constructor signature:
+
+[source,dart]
+----
+class MyWidget extends StatelessWidget {
+  final Widget child;
+  MyWidget(this.child, {Key? key}) : super(key: key);
+}
+
+var myWidget = MyWidget(MyChildWidget(), key: Key('myKey')); // Non applicable
+----
+
+=== What is the potential impact?
+
+The `child` and `children` properties of widgets wrapping other widgets are usually the longest and most complex ones. If those are not placed last, vertical scrolling may hide the rest of the constructor invocation, that potentially include other properties modifying the behavior of the widget.
+
+For example, a `Container` may be introduced with the intent of applying a transformation, such as a rotation, that can crucially impact the overall UI layout. 
+
+If the `transformation` property comes after the `child` widget, and the `child` widget is long and complex, the developer may miss the `transformation` property when inspecting the code.
+
+[source,dart]
+----
+Container(
+  // ...
+  child: MyWidget(
+    // very long widget definition
+  ),
+  // ...
+  transformation: Matrix4.rotationZ(0.1), // This may be overlooked
+)
+----
+
+The impact may be further amplified in the case of nesting of widgets within widgets within widgets:
+
+[source,dart]
+----
+Container(
+  child: MyWidget(
+    // very long widget definition
+    child: AnotherWidget(
+      // very long widget definition
+      child: YetAnotherWidget(
+        // very long widget definition
+      ),
+      customProperty: 42, // This may be overlooked
+    ),
+    customProperty: 42, // This may also be overlooked
+  ),
+  transformation: Matrix4.rotationZ(0.1), // This may also be overlooked
+)
+----
+
+== How to fix it
+
+Rearrange the arguments in the constructor invocation so that the children arguments are passed last.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+Container(
+  // ...
+  child: MyWidget(), // Non compliant
+  // ...
+  transformation: Matrix4.rotationZ(0.1),
+)
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+Container(
+  // ...
+  transformation: Matrix4.rotationZ(0.1),
+  // ...
+  child: MyWidget(),
+)
+----
+
+== Resources
+
+=== Documentation
+
+* Dart Docs - https://dart.dev/tools/linter-rules/sort_child_properties_last[Dart Linter rule - sort_child_properties_last]
+* Dart Docs - https://dart.dev/language/functions#named-parameters[Dart Language - Named parameters]
+* Flutter API Reference - https://api.flutter.dev/flutter/widgets/Container-class.html[Container class]
+* Flutter API Reference - https://api.flutter.dev/flutter/widgets/OverflowBar-class.html[OverflowBar class]
+* Flutter API Reference - https://api.flutter.dev/flutter/widgets/Widget/Widget.html[Widget class - constructor]
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+The 'child' argument should be last in widget constructor invocations.
+
+=== Highlighting
+
+The named argument 'child' in the constructor of a widget: e.g. `child: MyWidget()` in `WrapperWidget(42, true, child: MyWidget(), named1: 42)`.
+
+endif::env-github,rspecator-view[]

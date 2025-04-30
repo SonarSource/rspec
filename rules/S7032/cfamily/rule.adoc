@@ -1,0 +1,74 @@
+== Why is this an issue?
+
+Since {cpp}17, it is possible to add an initialization to an `if` or a `switch`, and this possibility has been extended to range-based `for` loops in {cpp}20.
+
+The intended use case of this feature is to declare and initialize variables that can be used in the condition or the range but whose scope does not extend beyond the body of the control-flow statement. 
+
+For instance, in this compliant code, the intent is to lock the mutex associated with the object `obj` while manipulating this object and unlock it immediately after. A lock object is, therefore, declared in the initialization of the condition.
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+if (std::scoped_lock lock(obj.getMutex()); obj.isVisible()) {
+  obj.draw();
+}
+----
+
+However, the language's syntax also allows simple expressions to be written in this place as well as using declarations since {cpp}23. 
+This leads to code that is more complex to read for no real benefits. In some cases, it can hide nasty bugs. Let's revisit the previous example:
+
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+if (std::scoped_lock (obj.getMutex()); obj.isVisible()) {
+  obj.draw();
+}
+----
+
+This very similar-looking code does not declare a variable in the initialization part of the `if`. Instead, it creates a temporary lock object that is then immediately discarded. The mutex is unlocked before `isVisible` or `draw` are called.
+
+Note: A classical `for` loop presents the same flexibility for its initialization part (the first part of the loop). However, since the initialization part is not optional, it is common practice to use it for simple expressions and not only variable declarations. So, this rule does not apply to classical `for` loops.
+
+== How to fix it
+
+=== Code examples
+
+In many cases, a statement that does not declare a variable can be moved to the previous line.
+
+==== Noncompliant code example
+
+// https://godbolt.org/z/bE6qrzEjT
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+char const* message(Items items) {
+  int i;
+  switch (items.computeCount(i); i) {
+    case 0: return "empty";
+    case 1: return "unique";
+    default: return "several";
+  }
+  for (using Val = Items::value_type; Val v : items) {
+    display(v);
+  }
+}
+----
+
+==== Compliant solution
+
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+char const* message2(Items items) {
+  int i;
+  items.computeCount(i);
+  switch (i) {
+    case 0: return "empty";
+    case 1: return "unique";
+    default: return "several";
+  }
+  using Val = Items::value_type;
+  for (Val v : items) {
+    display(v);
+  }
+}
+----

@@ -1,0 +1,180 @@
+A `final` or `const` variable that is declared as a nullable type, but then initialized with a non-null value, should rather be declared as a non-nullable type.
+
+== Why is this an issue?
+
+Unlike `var` variables, `final` and `const` variables need to be initialized inline.
+
+[source,dart]
+----
+final int i = 42;
+const int i = 42;
+----
+
+An exception to the inline initialization is when the https://dart.dev/null-safety/understanding-null-safety#late-variables[`late` keyword] is used, which allows the variable to be initialized later, and that can only apply to non-`const` variables:
+
+[source,dart]
+----
+late final int i1;
+late int? i2; 
+
+void main() {
+  // ...
+  i1 = int.parse(String.fromEnvironment('I1'));
+  i2 = int.parse(String.fromEnvironment('I2'));
+  // Use i
+}
+----
+
+Aforementioned exceptions apart, if:
+
+* the declared type is explicit (e.g. `final int?` or `const int?`)
+* the declared type is a nullable type (e.g. `int?`)
+* the inline initialization value is not null (e.g. `42`)
+
+then the declared type could be non-nullable instead, because the value of the variable will never be `null` under any circumstances, due to the `final` or `const` constaints imposed.
+
+The rule applies to:
+
+* local variables of functions and methods
+* top-level variables
+
+=== What is the potential impact?
+
+Because Dart 3 enforces https://dart.dev/null-safety#dart-3-and-null-safety[sound null safety], not following this rule may have multiple consequences.
+
+==== Code complexity
+
+It may make the code *unnecessarily complicated*, as the developer will have to handle the `null` case even though it will never happen: for example, if the variable `t` is of type `T?`, any operation `f` on `t` will have to:
+
+* either use the null-aware operator `?.`: e.g. `t?.f()`
+* or the null assertion operator `!` on `t`: e.g. `t!.f()`
+* or narrow the type from `T?` to `T` with an `if` statement, a conditional expression, or via pattern matching: e.g. ``++t != null ? t.f() : ...++``
+
+Neither of these options is necessary if the variable is declared as `final T` or `const T` instead.
+
+==== Unclear intent
+
+If the variable is declared as `final T?` or `const T?`, and used far from its declaration, the `?` can be misleading, since the developer may assume that the variable can be `null` at some point in its lifetime, even though it can't.
+
+=== Exceptions
+
+The rule does not apply to class instance fields, whether they are `late` or not.
+
+[source,dart]
+----
+class A {
+  final int? i = 42; // Non applicable
+  A(this.a);
+}
+----
+
+However, it does apply to class static fields:
+
+[source,dart]
+----
+class A {
+  static final int? i1 = 42; // Non compliant
+  static const int? i2 = 42; // Non compliant
+}
+----
+
+== How to fix it
+
+Change the type of the variable to be non-nullable and remove all the null-safety measures potentially used at every call site, such as 
+
+* the null-aware operator `?.`
+* the null assertion operator `!`
+* or any construct introduced to narrow the type
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+final int? i = 42; // Noncompliant
+final String? s = 'Hello'; // Noncompliant
+
+void main() {
+  print(i!);
+  print(s?.length);
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+final int i = 42;
+final String s = 'Hello';
+
+void main() {
+  print(i);
+  print(s.length);
+}
+----
+
+==== Noncompliant code example
+
+[source,dart,diff-id=2,diff-type=noncompliant]
+----
+class AClass {
+  static final int? i1 = 42; // Noncompliant
+  static final String? s1 = 'Hello'; // Noncompliant
+
+  static void aFunction() {
+    final int? i2 = 42; // Noncompliant
+    const int? i3 = 42; // Noncompliant
+
+    print(i1!);
+    print(s1?.length);
+    print(i2 ?? 0);
+    print(i3 != null ? i3 : '<no value>');
+  }
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=2,diff-type=compliant]
+----
+class AClass {
+  static final int i1 = 42;
+  static final String s1 = 'Hello';
+
+  static void aFunction() {
+    final int i2 = 42;
+    const int i3 = 42;
+
+    print(i1);
+    print(s1.length);
+    print(i2);
+    print(i3);
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Dart Docs - https://dart.dev/tools/linter-rules/unnecessary_nullable_for_final_variable_declarations[Dart Linter rule - unnecessary_nullable_for_final_variable_declarations]
+* Dart Docs - https://dart.dev/null-safety#dart-3-and-null-safety[Language - Dart 3 and null safety]
+* Dart Docs - https://dart.dev/null-safety/understanding-null-safety#late-variables[Language - Late variables]
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Type could be non-nullable.
+
+=== Highlighting
+
+The identifier of the variable defined as nullable, at the declaration site.
+
+endif::env-github,rspecator-view[]

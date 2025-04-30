@@ -29,6 +29,7 @@ def relative_output(capsys, path: Path):
         ("include_stuck_after", 1),
         ("two_stuck_includes", 2),
         ("unnamed_language", 2),
+        ("link_rule_sonarsource_com", 3),
     ],
 )
 def test_need_sanitation(

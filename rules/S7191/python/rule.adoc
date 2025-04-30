@@ -1,0 +1,64 @@
+This rule identifies instances where multiple `withColumn` calls are used in succession to add or modify columns in a PySpark DataFrame. It suggests using `withColumns` instead, which is more efficient and concise.
+
+== Why is this an issue?
+
+Using `withColumn` multiple times can lead to inefficient code, as each call creates a new Spark Logical Plan. withColumns allows for adding or modifying multiple columns in a single operation, improving performance.
+
+=== What is the potential impact?
+
+Creating a new column can be a costly operation, as Spark has to loop on every row to compute the new column value.
+
+=== Exceptions
+
+`withColumn` can be used multiple times sequentially on a Dataframe when computing consecutive columns requires the presence of the previous ones.
+In this case, consecutive `withColumn` calls are a solution. 
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+spark = SparkSession.builder.getOrCreate()
+df = spark.createDataFrame([[1,2],[2,3]], ["id", "value"])
+df_with_new_cols = df.withColumn("squared_value", col("value") * col("value")).withColumn("cubic_value", col("squared_value") * col("value")) # Compliant
+----
+
+== How to fix it
+To fix this issue, `withColumns` method should be used instead of multiple consecutive calls to `withColumn` method. 
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+spark = SparkSession.builder.getOrCreate()
+df = spark.createDataFrame([[1,2],[2,3]], ["id", "value"])
+df_with_new_cols = df.withColumn("value_plus_1", col("value") + 1).withColumn("value_plus_2", col("value") + 2).withColumn("value_plus_3", col("value") + 3) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+spark = SparkSession.builder.getOrCreate()
+df = spark.createDataFrame([[1,2],[2,3]], ["id", "value"])
+df_with_new_cols = df.withColumns({    # Compliant
+    "value_plus_1": col("value") + 1,
+    "value_plus_2": col("value") + 2,
+    "value_plus_3": col("value") + 3,
+})
+----
+
+== Resources
+=== Documentation
+
+ * PySpark withColumn Documentation - https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.withColumn.html[pyspark.sql.DataFrame.withColumn]
+ * PySpark withColumns Documentation - https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.withColumns.html[pyspark.sql.DataFrame.withColumns]
+ 
+=== Articles & blog posts
+
+ * Medium blog - https://blog.devgenius.io/why-to-avoid-multiple-chaining-of-withcolumn-function-in-spark-job-35ee8e09daaa[Why to avoid multiple chaining of withColumn() function in Spark job.]

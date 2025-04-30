@@ -31,7 +31,7 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
   const repo = await (() => {
     if (!fs.existsSync(path.join(tmpRepoDir, '.git'))) {
       if (process.env.GITHUB_TOKEN) {
-        return Git.Clone.clone('https://' + process.env.GITHUB_TOKEN + '@github.com/SonarSource/rspec/', tmpRepoDir);
+        return Git.Clone.clone(`https://${process.env.GITHUB_TOKEN}@github.com/SonarSource/rspec/`, tmpRepoDir);
       } else {
         return Git.Clone.clone('https://github.com/SonarSource/rspec/', tmpRepoDir);
       }

@@ -16,5 +16,6 @@ export default interface RuleMetadata {
   languagesSupport: LanguageSupport[],
   allKeys: string[],
   branch: string,
+  defaultQualityProfiles: string[],
   prUrl?: string
 }

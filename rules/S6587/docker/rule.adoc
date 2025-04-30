@@ -1,12 +1,16 @@
-When installing packages an index is cached locally by default.
-The index can be used on-the-fly and not stored locally.
+In Docker, when packages are installed via a package manager, an index is cached locally by default.
+This index should either be cleaned up or stored in a dedicated cache mount.
 
 == Why is this an issue?
 
-Docker images should only contain necessary data.
-The package index is optional for the correct working of the installed software.
+Docker images should only contain the necessary data.
+The package index is redundant for the correct operation of the installed software.
 Storing an index also increases the size of the Docker image.
 It should be reduced to speed up deployments and reduce storage and bandwidth.
+
+=== Exceptions
+
+In multi-stage builds, the rule only scans instructions that are part of the final image.
 
 == How to fix it
 
@@ -39,6 +43,13 @@ For apt:
 ----
 RUN apt update \
   && apt install nginx
+----
+
+For apt-get, without a cache mount:
+[source,docker,diff-id=5,diff-type=noncompliant]
+----
+RUN apt-get update \
+  && apt-get install nginx
 ----
 
 ==== Compliant solution
@@ -95,11 +106,21 @@ RUN apt update \
   && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 ----
 
+For apt-get, with a cache mount:
+[source,docker,diff-id=5,diff-type=compliant]
+----
+RUN \
+  --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  apt-get update \
+  && apt-get install nginx
+----
+
 === How does this work?
 
-When installing packages using `apt-get`, `aptitude` or `apt` they store an index in the Docker image layer in `/var/lib/apt/lists`.
+When installing packages using `apt-get`, `aptitude` or `apt` these package managers store an index in the Docker image layer in `/var/lib/apt/lists`.
 Using `apk`, it will store an index in `/var/cache/apk/`.
-In some distributions and configurations the cache will be created in `/etc/apk/cache`.
+In some distributions and configurations, the cache will be created in `/etc/apk/cache`.
 
 This index is not needed after installation, so it can be removed.
 To do that, execute the `clean` command, or run `rm -rf <location>` for the cache location of you package manager tool.
@@ -107,14 +128,32 @@ To do that, execute the `clean` command, or run `rm -rf <location>` for the cach
 Additionally, for `apt-get`, `aptitude` and `apt` some lock files are stored in `/var/cache/apt/archives`, which can also be removed safely.
 They are not removed by the `clean` command, so they need to be removed manually.
 
+Alternatively, store the cache in a dedicated cache mount. A cache mount can be created by adding a flag `--mount type=cache` to the `RUN` command. +
+This will store the cache in a Docker volume, which will be persisted between builds making the build faster.
+
+Also, each `RUN` instruction creates a new layer, and any changes made in one layer are not visible in the next. Thus, the cache should be removed in the same layer (i.e., the same `RUN` instruction) as the installation.
+
+The following code incorrectly cleans the cache:
+[source,docker]
+----
+RUN apt-get install nginx
+RUN apt-get clean
+----
+It should be written as:
+[source,docker]
+----
+RUN apt-get install nginx && apt-get clean
+----
+
 == Resources
 === Documentation
 
-* https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#run[RUN - Best practices for writing Dockerfiles]
+* Dockefile Best Practices - https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#run[RUN - Best practices for writing Dockerfiles]
 * https://man.archlinux.org/man/apk.8.en[apk man]
 * https://manpages.debian.org/bookworm/apt/apt-get.8.en.html[apt-get man]
 * https://manpages.debian.org/testing/aptitude/aptitude.8.en.html[aptitude man]
-* https://askubuntu.com/questions/1050800/how-do-i-remove-the-apt-package-index[How do I remove the apt package index?]
+* Ask Ubuntu - https://askubuntu.com/questions/1050800/how-do-i-remove-the-apt-package-index[How do I remove the apt package index?]
+* Docker Build Cache - https://docs.docker.com/build/cache/#use-the-dedicated-run-cache[Use the dedicated `RUN` cache]
 
 ifdef::env-github,rspecator-view[]
 '''

@@ -1,0 +1,115 @@
+== How to fix it in BouncyCastle
+
+BouncyCastle provides several random number generators implementations. Most of
+these will automatically create unpredictable output.
+
+The remaining random number generators require seeding with an unpredictable
+value before they will produce unpredictable outputs. These should be seeded
+with at least 16 bytes of random data to ensure unpredictable output and that
+the random seed cannot be guessed using a brute-force attack.
+
+=== Code examples
+
+==== Noncompliant code example
+
+`SecureRandom` instances created with `GetInstance()` are seeded by default.
+Disabling seeding results in predictable output.
+
+[source,csharp,diff-id=101,diff-type=noncompliant]
+----
+using Org.BouncyCastle.Security;
+
+byte[] random = new byte[8];
+
+SecureRandom sr = SecureRandom.GetInstance("SHA256PRNG", false);
+sr.NextBytes(random); // Noncompliant
+----
+
+`DigestRandomGenerator` and `VmpcRandomGenerator` instances require seeding
+before use. Predictable seed values will result in predictable outputs.
+
+[source,csharp,diff-id=102,diff-type=noncompliant]
+----
+using Org.BouncyCastle.Crypto.Digest;
+using Org.BouncyCastle.Crypto.Prng;
+
+byte[] random = new byte[8];
+
+IRandomGenerator digest = new DigestRandomGenerator(new Sha256Digest());
+digest.AddSeedMaterial(Encoding.UTF8.GetBytes("predictable seed value"));
+digest.NextBytes(random); // Noncompliant
+
+IRandomGenerator vmpc = new VmpcRandomGenerator();
+vmpc.AddSeedMaterial(Convert.FromBase64String("2hq9pkyqLQJkrYTrEv1eNw=="));
+vmpc.NextBytes(random); // Noncompliant
+----
+
+When a `SecureRandom` is created using an unseeded `DigestRandomGenerator` and
+`VmpcRandomGenerator` instance, the `SecureRandom` will create predictable
+outputs.
+
+[source,csharp,diff-id=103,diff-type=noncompliant]
+----
+using Org.BouncyCastle.Crypto.Digest;
+using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Security;
+
+byte[] random = new byte[8];
+
+IRandomGenerator digest = new DigestRandomGenerator(new Sha256Digest());
+SecureRandom sr = new SecureRandom(digest);
+sr.NextBytes(random); // Noncompliant
+----
+
+==== Compliant solution
+
+Allow `SecureRandom.GetInstance()` to automatically seed new `SecureRandom`
+instances.
+
+[source,csharp,diff-id=101,diff-type=compliant]
+----
+using Org.BouncyCastle.Security;
+
+byte[] random = new byte[8];
+
+SecureRandom sr = SecureRandom.GetInstance("SHA256PRNG");
+sr.NextBytes(random);
+----
+
+Use unpredictable values to seed `DigestRandomGenerator` and
+`VmpcRandomGenerator` instances. The `SecureRandom.GenerateSeed()` method is
+designed for this purpose.
+
+[source,csharp,diff-id=102,diff-type=compliant]
+----
+using Org.BouncyCastle.Crypto.Digest;
+using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Security;
+
+byte[] random = new byte[8];
+
+IRandomGenerator digest = new DigestRandomGenerator(new Sha256Digest());
+digest.AddSeedMaterial(SecureRandom.GenerateSeed(16));
+digest.NextBytes(random);
+
+IRandomGenerator vmpc = new VmpcRandomGenerator();
+vmpc.AddSeedMaterial(SecureRandom.GenerateSeed(16));
+vmpc.NextBytes(random);
+----
+
+An overload of the `SecureRandom` constructor will automatically seed the
+underlying `IRandomGenerator` with an unpredictable value.
+
+[source,csharp,diff-id=103,diff-type=compliant]
+----
+using Org.BouncyCastle.Crypto.Digest;
+using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Security;
+
+byte[] random = new byte[8];
+
+IRandomGenerator digest = new DigestRandomGenerator(new Sha256Digest());
+SecureRandom sr = new SecureRandom(digest, 16);
+sr.NextBytes(random);
+----
+

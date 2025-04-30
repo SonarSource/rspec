@@ -6,65 +6,55 @@ include::../../common/fix/code-rationale.adoc[]
 
 ==== Noncompliant code example
 
-[source,java]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance(); // Noncompliant
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+public void decode() {
+    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance(); // Noncompliant
+}
+----
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+import javax.xml.stream.XMLInputFactory;
+
+public void decode() {
+    XMLInputFactory factory = XMLInputFactory.newInstance(); // Noncompliant
+}
 ----
 
 ==== Compliant solution
 
-Protection from XXE can be done in several different ways. Choose one depending
-on how the affected parser object is used in your code.
+For `DocumentBuilderFactory`, `SAXParserFactory`, `TransformerFactory`, and
+`SchemaFactory` set `XMLConstants.FEATURE_SECURE_PROCESSING` to `true`.
 
-**1.** The first way is to completely disable `DOCTYPE` declarations:
-
-[source, java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-// Applicable to:
-// - DocumentBuilderFactory 
-// - SAXParserFactory 
-// - SchemaFactory
-factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
 
-// For XMLInputFactory:
-factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+public void decode() {
+    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+    factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+}
 ----
 
-**2.** Disable external entity declarations completely:
+For `XMLInputFactory` set `SUPPORT_DTD` to `false`.
 
-[source, java]
+[source,java,diff-id=2,diff-type=compliant]
 ----
-// Applicable to:
-// - DocumentBuilderFactory 
-// - SAXParserFactory 
-factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+import javax.xml.stream.XMLInputFactory;
 
-// For XMLInputFactory:
-factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, Boolean.FALSE);
+public void decode() {
+    XMLInputFactory factory = XMLInputFactory.newInstance();
+    factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+}
 ----
 
-**3.** Prohibit the use of all protocols by external entities:
-
-[source, java]
-----
-// `setAttribute` variant, applicable to:
-// - DocumentBuilderFactory 
-// - TransformerFactory 
-factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-
-// `setProperty` variant, applicable to:
-// - XMLInputFactory 
-// - SchemaFactory 
-factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-
-// For SAXParserFactory, the prohibition is done on child objects:
-SAXParser parser = factory.newSAXParser();
-parser.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-parser.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-----
+Other combinations of settings are secure, but in general, it is recommendable
+to use the approaches shown here, as they are the most clear.
 
 === How does this work?
 
@@ -73,6 +63,7 @@ include::../../common/fix/xxe.adoc[]
 === Going the extra mile
 
 ==== Disable entity expansion
+
 Specifically for `DocumentBuilderFactory`, it is possible to disable the entity
 expansion. Note, however, that this does not prevent the retrieval of external
 entities.

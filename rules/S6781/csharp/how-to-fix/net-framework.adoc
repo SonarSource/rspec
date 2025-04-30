@@ -1,0 +1,96 @@
+== How to fix it in ASP.NET
+
+=== Code examples
+
+==== Noncompliant code example
+
+Secrets stored in `web.config` can be read by anyone with access to the file.
+
+[source,csharp,diff-id=201,diff-type=noncompliant]
+----
+public class LoginExampleController : ApiController
+{
+    public IHttpActionResult Post([FromBody] LoginModel login)
+    {
+        // Code to validate the login information is omitted
+
+        var key = ConfigurationManager.AppSettings["key"] ??
+            throw new ApplicationException("JWT key is not configured.");
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var secToken = new JwtSecurityToken(
+            "example.com",
+            "example.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials
+        );
+
+        var token = new JwtSecurityTokenHandler().WriteToken(secToken);
+        return Ok(token);
+    }
+}
+----
+
+Secrets that are hard-coded into the application can be read by anyone with access to the source code or can be decompiled from the application binaries.
+
+[source,csharp]
+----
+public class LoginExampleController : ApiController
+{
+    private const string key = "SecretSecretSecretSecretSecretSecretSecretSecret";
+
+    public IHttpActionResult Post([FromBody] LoginModel login)
+    {
+        // Code to validate the login information is omitted
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var secToken = new JwtSecurityToken(
+            "example.com",
+            "example.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials
+        );
+
+        var token = new JwtSecurityTokenHandler().WriteToken(secToken);
+        return Ok(token);
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=201,diff-type=compliant]
+----
+public class LoginExampleController : ApiController
+{
+    public IHttpActionResult Post([FromBody] LoginModel login)
+    {
+        // Code to validate the login information is omitted
+
+        var key = Environment.GetEnvironmentVariable("JWT_KEY") ??
+            throw new ApplicationException("JWT key is not configured.");
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        var secToken = new JwtSecurityToken(
+            "example.com",
+            "example.com",
+            null,
+            expires: DateTime.Now.AddMinutes(120),
+            signingCredentials: credentials
+        );
+
+        var token = new JwtSecurityTokenHandler().WriteToken(secToken);
+        return Ok(token);
+    }
+}
+----
+
+=== How does this work?
+
+Here, the compliant solution uses an environment variable to hold the secret. Environment variables are easy to change and are not easily accessible outside of the application.

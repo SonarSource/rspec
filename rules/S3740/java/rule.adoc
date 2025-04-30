@@ -1,4 +1,4 @@
-Generic types should not be used raw (without type parameters).
+Generic types should not be used raw (without type arguments).
 To fix this issue, add the type parameters.
 
 == Why is this an issue?
@@ -6,18 +6,31 @@ To fix this issue, add the type parameters.
 A generic type is a generic class or interface that is parameterized over types.
 For example, `java.util.List` has one type parameter: the type of its elements.
 
-When generic types are used raw (without type parameters), the compiler is not able to do generic type checking.
-For this reason, it is sometimes necessary to cast objects and defer type-checking to runtime.
+Using generic types raw (without binding arguments to the type parameters) prevents compile-time type checking for expressions that use these type parameters.
+Explicit type casts are necessary for them, which do perform a runtime type check that may fail with a `ClassCastException`.
 
 === What is the potential impact?
 
-When a cast fails, a `ClassCastException` is thrown and the program most likely crashes.
+The compiler cannot assert that the program is inherently type safe.
+When a cast fails, a `ClassCastException` is thrown during runtime and the program most likely crashes.
 Therefore, this issue might impact the availability and reliability of your application.
+
+=== Exceptions
+
+The rule does not raise an issue for the simple `instanceof` operator, which checks against runtime types where type parameter information has been erased.
+Since it does not return a rawly typed instance but a boolean value, it does not prevent compile-time type checking.
+
+This, however, is not the case for the `cast`  operator as well as the extended `instanceof` operator which are both not an exception from this rule.
+Since they operate on the erased runtime type as well, they must use wildcard type arguments when checked against a parameterized type (see the examples).
 
 == How to fix it
 
-You should add type parameters.
-In the case of collections, the type parameter(s) should correspond to the type of elements that the list is intended to store.
+For any usage of parameterized types, bind the type parameters with type arguments.
+For example, when a function returns a list of strings, the return type is `List<String>`, where the type parameter `E` in interface `List<E>` is bound with the argument `String`.
+
+If the concrete binding is unknown, you still should not use the type raw.
+Use a wildcard type argument instead, with optional lower or upper bound, such as in `List<?>` for a list whose element type is unknown,
+or `List<? extends Number>` for a list whose element type is `Number` or a subtype of it.
 
 === Code examples
 
@@ -25,37 +38,82 @@ In the case of collections, the type parameter(s) should correspond to the type 
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
+// List is supposed to store integers only
 List integers = new ArrayList<>();
 
-// It is possible to add a string to a list that is supposed to be integers only
+// Yet, we can add strings, because we did not give
+// this information to the compiler
 integers.add("Hello World!");
 
-Integer a = (Integer) integers.get(0);  // ClassCastException!
+// Type is checked during runtime and will throw a ClassCastException
+Integer a = (Integer) integers.get(0);
 ----
 
 ==== Compliant solution
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
+// List is supposed to store integers, and we let the compiler know
 List<Integer> integers = new ArrayList<>();
 
-// The program does not compile anymore with this mistake:
-// integers.add("Hello World!");
+// Now we can add only integers.
+// Adding a string results in a compile time error.
 integers.add(42);
 
-Integer a = integers.get(0);  // No need to cast anymore.
+// No cast required anymore, and no possible ClassCastException
+Integer a = integers.get(0);
 ----
 
-=== How does this work?
+==== Noncompliant code example
 
-In the noncompliant example, `List` is used as a raw type.
-Even though the list stores integers, the compiler will type its elements as `Object`,
-To use an element of the list as an integer, it needs to be cast first.
-But elements are not garanteed to be integers.
-In this case, a `String` is erroneously appended to the list, causing the cast to `Integer` to fail.
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+String getStringFromForcedList(Object object) {
+  // Cast expression and instanceof can check runtime type only.
+  // The solution is _not_ to skip the type argument in that case.
+  return object instanceof List stringList ? (String) stringList.getFirst(): "";
+}
+----
 
-When the type parameter is specified, this bug is detected by the compiler during type-checking.
-The cast is also unncessary in this case.
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+String getStringFromForcedList(Object object) {
+  // The solution is to use a wildcard type argument in that case.
+  return object instanceof List<?> stringList ? (String) stringList.getFirst(): "";
+}
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+String getStringFromForcedList(Object object) {
+  return object instanceof List stringList ? (String) stringList.getFirst(): "";
+}
+
+String returnString() {
+  Object object = List.of("Hello");
+  return getStringFromForcedList(object);
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+Object getObjectFromForcedList(Object object) {
+  // You may also choose not to make assumptions about type arguments you cannot infer.
+  return object instanceof List<?> list ? list.getFirst(): "";
+}
+
+String returnString(Object object) {
+  // Instead, delegate the decision to use-site, which may have more information.
+  Object object = List.of("Hello");
+  return (String) getObjectFromForcedList(object);
+}
+----
 
 == Resources
 

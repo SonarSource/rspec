@@ -1,0 +1,138 @@
+This rule raises an issue when the `axis`/`dim`` argument is not provided to reduction operations.
+
+== Why is this an issue?
+
+=== TensorFlow
+
+The result of reduction operations (i.e. ``tf.math.reduce_sum``, ``tf.math.reduce_std``, ``torch.sum``, ``torch.mean``, etc...),
+highly depends on the shape of the Tensor provided. 
+
+[source,python]
+----
+import tensorflow as tf
+
+x = tf.constant([[1, 1, 1], [1, 1, 1]])
+tf.math.reduce_sum(x)
+----
+
+In the example above the reduction of the 2 dimensional array will return the value `6` as all the elements are added together.
+By default TensorFlow's reduction operations are applied across all axis. When specifying an axis the result will be completely different.
+
+[source,python]
+----
+import tensorflow as tf
+
+x = tf.constant([[1, 1, 1], [1, 1, 1]])
+tf.math.reduce_sum(x, axis=0)
+----
+
+Here the result will be `[2,2,2]` as the reduction is applied only on the axis 0.
+
+TensorFlow's default behavior can be confusing, especially when the reducing array of different shapes. 
+
+Considering the following example:
+
+[source,python]
+----
+import tensorflow as tf
+
+x = tf.constant([[1], [2]])
+y = tf.constant([1, 2])
+tf.math.reduce_sum(x + y)
+----
+
+Here the result will be `12` instead of the `6` that could be expected. This is because the implicit broadcasting reshapes the 
+first array to `[[1,1], [2,2]]` which is then added to the `y` array `[1,2]` resulting in ``[[2,3], [3,4]]``. As the 
+reduction happen across all dimensions the result is then ``2 + 3 + 3 + 4 = 12``. It is not clear by looking at the example 
+if this was intentional or if the user made a mistake.
+
+This is why a good practice is to always specify the axis on which to perform the reduction.
+
+For example: 
+
+[source,python]
+----
+import tensorflow as tf
+
+x = tf.constant([[1], [2]])
+y = tf.constant([1, 2])
+tf.math.reduce_sum(x + y, axis=0)
+----
+
+In the example above, specifying the axis clarifies the intent, as the result now is ``[5, 7]``. If the intent was to effectively
+reduce across all dimensions the user should provide the list of axis `axis=[0,1]` 
+or clearly state the default behavior should be applied with ``axis=None``.
+
+=== The PyTorch equivalent
+
+The same behavior occurs in PyTorch, but the argument is called `dim` instead of `axis`.
+
+== How to fix it in TensorFlow
+
+To fix this issue provide the axis argument when using a TensorFlow reduction operation such as ``tf.math.reduce_sum``, ``tf.math.reduce_prod``, ``tf.math.reduce_mean``, etc...
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import tensorflow as tf
+
+x = tf.constant([[1, 1, 1], [1, 1, 1]])
+tf.math.reduce_sum(x) # Noncompliant: the axis arguments defaults to None
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import tensorflow as tf
+
+x = tf.constant([[1, 1, 1], [1, 1, 1]])
+tf.math.reduce_sum(x, axis=0) # Compliant: the reduction will happen only on the axis 0, resulting in `[2,2,2]` 
+----
+
+
+== How to fix it in PyTorch
+
+To fix this issue provide the dim argument when using a PyTorch reduction operation such as ``torch.sum``, ``torch.prod``, ``torch.mean``, etc...
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import torch
+
+x = torch.tensor([[1, 1, 1], [1, 1, 1]])
+torch.sum(x) # Noncompliant: the dim argument defaults to None
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import torch
+
+x = torch.tensor([[1, 1, 1], [1, 1, 1]])
+torch.sum(x, dim=None) # Compliant: all dimensions will be reduced
+----
+
+== Resources
+=== Documentation
+
+* TensorFlow Documentation - https://www.tensorflow.org/api_docs/python/tf/math/reduce_max[tf.math.reduce_max reference]
+* TensorFlow Documentation - https://www.tensorflow.org/api_docs/python/tf/math/reduce_mean[tf.math.reduce_mean reference]
+* TensorFlow Documentation - https://www.tensorflow.org/api_docs/python/tf/math/reduce_min[tf.math.reduce_min reference]
+* TensorFlow Documentation - https://www.tensorflow.org/api_docs/python/tf/math/reduce_prod[tf.math.reduce_prod reference]
+* TensorFlow Documentation - https://www.tensorflow.org/api_docs/python/tf/math/reduce_std[tf.math.reduce_std reference]
+* TensorFlow Documentation - https://www.tensorflow.org/api_docs/python/tf/math/reduce_sum[tf.math.reduce_sum reference]
+* TensorFlow Documentation - https://www.tensorflow.org/api_docs/python/tf/math/reduce_variance[tf.math.reduce_variance reference]
+
+* PyTorch Documentation - https://pytorch.org/docs/stable/torch.html#reduction-ops[Reduction operations]
+
+=== Articles & blog posts
+
+* Vahidk Developers Guide - https://github.com/vahidk/EffectiveTensorflow?tab=readme-ov-file#broadcasting-the-good-and-the-ugly[Broadcasting the good and the ugly]

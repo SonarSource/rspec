@@ -2,36 +2,199 @@
 
 Copy assignment operators and move assignment operators can return anything, including ``++void++``.
 
+However, if you decide to declare them yourself (don't forget the "Rule-of-Zero" described in S3624),
+it is a recommended practice to return a non-const reference to the assigned object (left-operand).
+It allows the developer to chain the assignment operations, increasing consistency with what other types do and, in some cases, enabling the writing of concise code.
 
-However, if you decide to declare them yourself (don't forget the "Rule-of-Zero", S4963), it is a recommended practice to return a non-const reference to the left-operand. It allows the developer to chain the assignment operations, increasing consistency with what other types do, and in some cases enabling writing concise code.
+This rule will raise for assignment operators that deviate from the above expectation.
 
+=== Using an unconventional return type
 
-=== Noncompliant code example
+This rule will raise an issue if the return type of the copy or move assignment operator,
+is different from mutable reference to the class type.
 
-[source,cpp]
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class A {
+class Clazz {
 public:
-  ~A() = default;
-  A(A const &) = default;
-  A(A&&) = default;
-  const A& operator=(const A& other) ; // Noncompliant
-  A operator=(A&& other) noexcept; // Noncompliant
+  const Clazz& operator=(const Clazz& other); // Noncompliant, returns const reference
+  Clazz operator=(Clazz&& other) noexcept;    // Noncompliant, returns by value
 };
 ----
 
+==== Compliant solution
 
-=== Compliant solution
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+class Clazz {
+public:
+  Clazz& operator=(const Clazz& other);      // Compliant
+  Clazz& operator=(Clazz&& other) noexcept;  // Compliant
+};
+----
+
+=== Returning an object different from ``++*this++``
+
+An assignment operator should return a reference to the assigned object.
+Conventionally, such return is expressed as ``++return *this++``, and the rule will mark any return statement as deviating from this convention.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+class Clazz {
+public:
+  Clazz& set(Clazz& other);
+  Clazz& operator=(Clazz const& other) {
+    return set(other); // Noncompliant: depends on return of `set` member function
+  }
+
+  Clazz&& operator=(Clazz&& other) noexcept {
+    return other;      // Noncompliant, also return type is non-compliant
+  }
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class Clazz {
+public:
+  Clazz& set(Clazz& other);
+  Clazz& operator=(Clazz const& other) {
+    set(other);
+    return *this;      // Compliant
+  }
+
+  Clazz& operator=(Clazz&& other) noexcept {
+    return *this;      // Compliant
+  }
+};
+----
+
+In {cpp}23, if the assignment operator is declared using an explicit object argument,
+the rule will mark any return statement that does not return the object parameter directly.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+class Clazz {
+public:
+  Clazz& set(Clazz& other);
+  Clazz& operator=(this Clazz& self, Clazz const& other) {
+    return self.set(other); // Noncompliant: depends on the return of `set` member function
+  }
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+class Clazz {
+public:
+  Clazz& set(Clazz& other);
+  Clazz& operator=(this Clazz& self, Clazz const& other) {
+    self.set(other);
+    return self;      // Compliant
+  }
+};
+----
+
+=== Declaring assignment operation as non-mutating
+
+The assignment operation is designed to change the value of the target object,
+to the same one as the source.
+Such operation is mutating and thus should not be declared with a `const` qualifier.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+class Clazz {
+public:
+  Clazz& operator=(Clazz const& other) const { // Noncompliant: also leads to noncompliant return statement
+    return const_cast<Clazz&>(*this);
+  }
+  Class& operator=(Clazz&& other) const; // Noncompliant
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+class Clazz {
+public:
+  Clazz& operator=(Clazz const& other) { // Compliant
+    return *this;
+  }
+  Clazz& operator=(Clazz&& other); // Compliant
+};
+----
+
+When declaring an assignment operator with {cpp}23 explicit object argument,
+the object argument should not be passed:
+
+* by const reference - this is equivalent to declaring the implicit object parameter method as `const`,
+                       as described above;
+* by value - in this case a temporary object will be created, and modified by the assignment operator,
+             instead of the left-hand side of the assignment operator
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=5,diff-type=noncompliant]
+----
+class Clazz {
+  int val;
+public:
+  Clazz& operator=(this Clazz const& self, Clazz const& other) const { // Noncompliant: also leads to non-compliant return
+    return const_cast<Clazz&>(self);
+  }
+  void operator=(this Clazz self, Clazz&& other) { // Noncompliant
+    self.val = other.val; // Modifies temporary object
+  }
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+class Clazz {
+  int val;
+public:
+  Clazz& operator=(this Clazz& self, Clazz const& other) { // Compliant
+    self.val = other.val;
+    return self;
+  }
+  Clazz& operator=(this Clazz& self, Clazz&& other) { // Compliant
+    self.val = other.val; // Modifies referenced object
+    return self;
+  }
+};
+----
+
+=== Exceptions
+
+This rule will not raise an issue when the assignment operator's return type is declared `void.`
+That syntax is commonly used when assignment operator chaining is not desired.
+The issue will still be raised if such an assignment operator is declared as non-mutating.
 
 [source,cpp]
 ----
-class A {
+class Clazz {
+  int val;
 public:
-  ~A() = default;
-  A(A const &) = default;
-  A(A&&) = default;
-  A& operator=(const A& other);
-  A& operator=(A&& other) noexcept;
+  void operator=(Clazz const& other) { // Compliant
+    self.val = other.val;
+    return self;
+  }
+  void operator=(Clazz&& other) const; // Noncompliant: declared as const
 };
 ----
 
@@ -39,5 +202,5 @@ public:
 == Resources
 
 * {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c60-make-copy-assignment-non-virtual-take-the-parameter-by-const-and-return-by-non-const[C.60: Make copy assignment non-`virtual`, take the parameter by `const&`, and return by non-`const&`]
-* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c63-make-move-assignment-non-virtual-take-the-parameter-by--and-return-by-non-const[C.63: Make move assignment non-`virtual`, take the parameter by `&&`, and return by non-`const&`]
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c63-make-move-assignment-non-virtual-take-the-parameter-by\--and-return-by-non-const[C.63: Make move assignment non-`virtual`, take the parameter by `&&`, and return by non-`const&`]
 

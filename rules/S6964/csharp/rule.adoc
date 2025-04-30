@@ -1,0 +1,141 @@
+https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/model-validation-in-aspnet-web-api#data-annotations["Under-posting"] refers to a situation where a client sends less data than expected to the server during an HTTP request, for example when the client omits some properties from the request body that the server expects to receive.
+
+== Why is this an issue?
+
+One of the main issues that under-posting can cause is data inconsistency. If the client sends less data than expected, the application might fill any value type properties with their default values, leading to inaccurate or inconsistent data in your database. Additionally, there might be unexpected behavior if there are certain data expected that are not provided and even security issues; for example, if a user omits a role or permission field from a POST request, and the server fills in a default value, it could inadvertently grant more access than intended.
+
+A https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-model[model class] (in this case the `Product` class) can be an input of an HTTP handler method:
+
+[source,csharp]
+----
+public class ProductsController : Controller
+{
+    [HttpPost]
+    public IActionResult Create([FromBody]Product product)
+    {
+        // Process product data...
+    }
+}
+----
+
+=== Exceptions
+
+This rule does not raise an issue when properties are decorated with the following attributes:
+
+* https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNever]
+* https://www.newtonsoft.com/json/help/html/JsonPropertyRequired.htm[JsonProperty(Required = Required.Always)]
+* https://www.newtonsoft.com/json/help/html/JsonPropertyRequired.htm[JsonProperty(Required = Required.AllowNull)]
+* https://www.newtonsoft.com/json/help/html/PropertyJsonIgnore.htm[Newtonsoft.Json.JsonIgnore]
+* https://www.newtonsoft.com/json/help/html/t_newtonsoft_json_jsonrequiredattribute.htm[Newtonsoft.Json.JsonRequired]
+* https://learn.microsoft.com/en-us/dotnet/api/system.text.json.serialization.jsonrequiredattribute[System.Text.Json.Serialization.JsonRequired]
+* https://learn.microsoft.com/en-us/dotnet/api/system.text.json.serialization.jsonignoreattribute[System.Text.Json.Serialization.JsonIgnore]
+* https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations.rangeattribute[Range]
+* https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.bindneverattribute[BindNever]
+
+Additionally, this rule does not raise for properties in model classes that are not in the same project as the Controller class that references them. This is due to a limitation of Roslyn (see https://github.com/SonarSource/sonar-dotnet/issues/9243[here]).
+
+== How to fix it
+
+You should mark any model value-type property as https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[nullable], https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/required[required] or https://learn.microsoft.com/en-us/dotnet/api/system.text.json.serialization.jsonrequiredattribute[JsonRequired]. Thus when a client underposts, you ensure that the missing properties can be detected on the server side rather than being auto-filled, and therefore, incoming data meets the application's expectations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public class Product
+{
+    public int Id { get; set; }             // Noncompliant
+    public string Name { get; set; }
+    public int NumberOfItems { get; set; }  // Noncompliant
+    public decimal Price { get; set; }      // Noncompliant
+}
+----
+
+If the client sends a request without setting the `NumberOfItems` or `Price` properties, they will default to `0`.
+In the request handler method, there's no way to determine whether they were intentionally set to `0` or omitted by mistake.
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+public class Product
+{
+    public required int Id { get; set; }
+    public string Name { get; set; }
+    public int? NumberOfItems { get; set; }            // Compliant - property is optional
+    [JsonRequired] public decimal Price { get; set; }  // Compliant - property must have a value
+}
+----
+
+In this example, the request handler method can
+
+* manually check whether `NumberOfItems` was filled out through the `HasValue` property
+* rely on Model Validation to make sure `Price` is not missing
+
+[source,csharp]
+----
+public class ProductsController : Controller
+{
+    [HttpPost]
+    public IActionResult Create(Product product)
+    {
+        if (!ModelState.IsValid)    // if product.Price is missing then the model state will not be valid
+        {
+            return View(product);
+        }
+
+        if (product.NumberOfItems.HasValue)
+        {
+            // ...
+        }
+        // Process input...
+    }
+}
+----
+
+== Recommended Secure Coding Practices
+
+* Client-Side Validation: While server-side validation is crucial, implementing client-side validation can provide immediate feedback to the user when certain fields are not filled out, which helps to avoid under-posting.
+* Comprehensive Testing: Include testing scenarios that specifically check for under-posting vulnerabilities to ensure that all required data is correctly validated and processed.
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/mvc/overview[Overview of ASP.NET Core MVC]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/mvc/overview/getting-started/introduction/getting-started[Overview of ASP.NET MVC 5]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/razor-pages[Overview of ASP.NET Razor Pages]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-model[Model Classes in ASP.NET MVC]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding[Model Binding in ASP.NET Core]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/model-validation-in-aspnet-web-api[Model Validation in ASP.NET Web API]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-value-types[Nullable Value Types in .NET]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/web-api/overview/formats-and-model-binding/model-validation-in-aspnet-web-api#data-annotations[Data Annotations]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.routing.httpmethodattribute[RequiredAttribute Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.validation.validateneverattribute[ValidateNeverAttribute Class]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Property used as input in a controller action should be nullable or annotated with the Required attribute to avoid under-posting.
+
+=== Highlighting
+
+* Primary location: The property declaration
+
+=== Implementation Details
+
+A class is considered a model class, and must be checked for value type properties if it's an input to an HTTP handler:
+
+* ASP.NET Core MVC Controller: a method inside a ControllerBase subclass (or a class decorated with the Controller attribute) that's marked with the HttpGet/HttpPost/etc. attribute
+* ASP.NET Core Web API ApiController: a method named Get/Post/etc. inside a class marked with ApiController attribute
+
+Only properties of value type need to be checked in these classes. Fields don't participate in Model Binding.
+
+endif::env-github,rspecator-view[]
