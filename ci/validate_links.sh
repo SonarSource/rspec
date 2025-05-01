@@ -12,7 +12,7 @@ ls -al $CACHE_PATH
 
 # validate the links in asciidoc
 cd rspec-tools
-if pipenv install && pipenv run rspec-tools check-links --d ../out ; then
+if pipenv install && pipenv run rspec-tools check-links --d ../out --history-file ./link_probes.history ; then
     EXIT_CODE=0
 else
     EXIT_CODE=1
