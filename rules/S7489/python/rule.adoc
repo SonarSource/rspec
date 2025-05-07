@@ -1,0 +1,143 @@
+This rule raises an issue when synchronous OS calls like `os.wait()` are used within asynchronous functions.
+
+== Why is this an issue?
+
+Using synchronous operating system calls like `os.wait()`, `os.waitpid()`, or similar functions in asynchronous code blocks the entire event loop. This undermines the primary advantage of asynchronous programming - the ability to perform concurrent operations without blocking execution.
+
+When an async function makes a synchronous OS call:
+
+* The event loop is completely blocked until the OS operation completes
+* No other coroutines can run during this time, even if they're ready to execute
+* The responsiveness of the application is degraded
+* In server applications, this can cause timeouts or failures for other concurrent requests
+
+Instead, async libraries provide mechanisms to run blocking operations in separate threads without blocking the event loop:
+
+* `asyncio.loop.run_in_executor()` for asyncio
+* `trio.to_thread.run_sync()` for Trio
+* `anyio.to_thread.run_sync()` for AnyIO
+
+Using these constructs allows other tasks to continue executing while waiting for the blocking OS call to complete.
+
+== How to fix it in asyncio
+
+Use `asyncio.loop.run_in_executor()` to run blocking OS calls in a separate thread pool.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import os
+
+async def wait_for_child_process(pid):
+    pid, status = os.waitpid(pid, 0)  # Noncompliant
+    return status
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import asyncio
+import os
+
+async def wait_for_child_process(pid):
+    loop = asyncio.get_running_loop()
+    pid, status = await loop.run_in_executor(
+        None,
+        os.waitpid, pid, 0
+    )
+    return status
+----
+
+== How to fix it in Trio
+
+Use `trio.to_thread.run_sync()` to run blocking OS calls in a worker thread.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import os
+
+async def wait_for_child_process(pid):
+    pid, status = os.waitpid(pid, 0)  # Noncompliant
+    return status
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import trio
+import os
+
+async def wait_for_child_process(pid):
+    pid, status = await trio.to_thread.run_sync(
+        os.waitpid, pid, 0
+    )
+    return status
+----
+
+== How to fix it in AnyIO
+
+Use `anyio.to_thread.run_sync()` to run blocking OS calls in a worker thread.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import os
+
+async def wait_for_child_process(pid):
+    pid, status = os.waitpid(pid, 0)  # Noncompliant
+    return status
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import anyio
+import os
+
+async def wait_for_child_process(pid):
+    pid, status = await anyio.to_thread.run_sync(
+        os.waitpid, pid, 0
+    )
+    return status
+----
+
+== Resources
+
+=== Documentation
+* Python asyncio - https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.run_in_executor[run_in_executor() documentation]
+* Trio - https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync[to_thread.run_sync() documentation]
+* AnyIO - https://anyio.readthedocs.io/en/stable/threads.html[Thread handling]
+* Python OS - https://docs.python.org/3/library/os.html#os.waitpid[os.waitpid() documentation]
+
+=== Articles & blog posts
+* Python - https://realpython.com/python-concurrency/[Concurrency and Parallelism in Python]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+Use a thread executor to wrap blocking OS calls in this async function.
+
+=== Highlighting
+* Primary locations: the blocking OS call within an async function
+* Secondary locations: the enclosing async function `aync` keyword (message: "this is an asynchronous function")
+
+endif::env-github,rspecator-view[]
+
+
