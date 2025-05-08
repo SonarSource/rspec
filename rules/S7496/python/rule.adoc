@@ -1,20 +1,45 @@
 This rule raises an issue when calls to `tuple()`, `list()`, `set()`, or `dict()` 
-are done with an argument that is already a literal of the target type, a literal of a compatible type that could be expressed more directly, or a comprehension that directly produces the target type. 
+are done with an argument that is already a collection literal or a comprehension that produces either the target type or an intermediate type. 
 
 == Why is this an issue?
 
 Python provides direct ways to create common data structures like tuples, lists, and dictionaries using literals (e.g., `()`, `(1,2)`, `[]`, `[1,2]`, `{}`, `{'a':1}`) 
 and comprehensions (e.g., `[x for x in y]`, `{k:v for k,v in y}`).
-Wrapping these direct forms in their corresponding type constructors (e.g., `tuple((1,2))`, `list([1,2])`, `list([x for x in y])`, `dict({'a':1})`, `dict({k:v for k,v in y})`) is unnecessary. 
-Such constructs add verbosity without providing any additional functionality and can slightly mislead readers or imply a more complex operation than what is actually occurring.
+Wrapping these direct forms in a type constructors, for example:
+
+[source, python]
+----
+tuple((1,2))
+
+list([1,2])
+list([x for x in [1,2]])
+
+set({})
+set({for k in [1,2]})
+
+dict({'a':1})
+dict({k:v for k,v in [1,2]})
+dict([(1,"a"), (2, "b")]) 
+----
+is unnecessary. 
+
+Such constructs:
+* add overhead by creating an intermediate collections
+* add verbosity without providing any additional functionality
+* add ambiguity and may mislead readers or imply a more complex operation than what is actually occurring
+
+=== Exceptions
+
+When using comprehensions this rule will only raise issues when the comprehension filter or modify the elements.
 
 == How to fix it
 
-To fix this remove the redundant `tuple()`, `list()`, `set()` or `dict()` calls and use the direct literal or comprehension syntax.
+To fix this remove the constructor call and use the literal or comprehension syntax of the target type.
+As an exception, for a list or comprehension inside of a `tuple` constructor replace the comprehension by a generator.
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-t1 = tuple([1, 2]) # Noncompliant: the tuple creation can be done directly
+t1 = tuple([1, 2]) # Noncompliant: the tuple creation can be done directly without the intermediate list
 ----
 
 [source,python,diff-id=1,diff-type=compliant]
@@ -37,6 +62,21 @@ def foo(x):
 l1 = [foo(x) for x in [1,2,3]] # Compliant
 ----
 
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+def foo(x):
+    return x * 2
+
+s1 = set([foo(x) for x in [1,2,3]]) # Noncompliant: the set creation can be done with a set comprehension.
+----
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+def foo(x):
+    return x * 2
+s1 = {foo(x) for x in [1,2,3]} # Compliant
+----
+
 == Resources
 
 === Documentation
@@ -50,10 +90,21 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Remove the redundant {tuple|list|set|dict} constructor call.
+When the inner type is the same as the constructor:
+* Remove the redundant {tuple|list|set|dict} constructor call.
 
-Exception for `tuple([1,2])`: Replace this tuple constructor call by a tuple literal.
+When the inner type is different than the constructor:
+For literals:
+* Replace this {tuple|list|set|dict} constructor call by a {tuple|list|set|dict} literal.
+For comprehensions:
+* Replace this {list|set|dict} constructor call by a {list|set|dict} literal.
+
+Exception for tuple with a list/set-comprehension `tuple([foo(x) in [1,2]])` 
+* Replace this list/set comprehension by a generator.
 
 === Highlighting
 The list/set/dict/tuple constructor call.
+
+Exception for tuple with a list/set-comprehension `tuple([foo(x) in [1,2]])`:
+We should highlight the list/set-comprehension 
 endif::env-github,rspecator-view[]
