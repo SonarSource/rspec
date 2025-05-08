@@ -1,0 +1,136 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+== Recommended Secure Coding Practices
+
+=== Disable JavaScript
+
+If it is possible to disable JavaScript in the WebView, this is the most secure option. 
+
+When using the https://pub.dev/packages/webview_flutter[`webview_flutter` package] v4 and above, by default 
+JavaScript is disabled in every https://pub.dev/documentation/webview_flutter/latest/webview_flutter/WebViewController-class.html[`WebViewController`]
+instance. Therefore, https://pub.dev/documentation/webview_flutter/latest/webview_flutter/WebViewController/setJavaScriptMode.html[`setJavaScriptMode`]
+does not need to be explicitly called with https://pub.dev/documentation/webview_flutter/latest/webview_flutter/JavaScriptMode.html[`JavaScriptMode.disabled`]. 
+
+The same applies to https://pub.dev/documentation/webview_flutter/3.0.4/webview_flutter/WebView-class.html[`WebView`] 
+instances in https://pub.dev/packages/webview_flutter[`webview_flutter` package] v3 and below: there is no
+need to explicitly set the named constructor parameter `javascriptMode` to https://pub.dev/documentation/webview_flutter/3.0.4/webview_flutter/JavascriptMode.html[`JavascriptMode.disabled`].
+
+When using the https://pub.dev/packages/flutter_inappwebview[`flutter_inappwebview` package], on the other hand,
+the default behavior is to enable JavaScript. Therefore, it is necessary to set the `enableJavaScript` parameter
+to `false` in https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/InAppWebViewSettings-class.html[InAppWebViewSettings] 
+and https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/InAppWebViewOptions-class.html[InAppWebViewOptions] 
+instances.
+
+Of course, sometimes it is necessary to enable, or keep enabled, JavaScript, in which case the following 
+recommendations should be considered.
+
+=== Remove JavaScript interface when loading untrusted content
+
+JavaScript interfaces can be removed at a later point. It is recommended to remove the JavaScript
+interface when it is no longer needed. If it is needed for a longer time, consider removing it before
+loading untrusted content. This can be done by calling `webViewController.removeJavaScriptChannel('channelName')`.
+
+A good place to do this in Flutter is inside navigation callbacks like https://pub.dev/documentation/webview_flutter/latest/webview_flutter/NavigationDelegate/onNavigationRequest.html[`NavigationDelegate.onNavigationRequest`] 
+for the https://pub.dev/packages/webview_flutter[`webview_flutter` package] or https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/PlatformInAppBrowserEvents/shouldOverrideUrlLoading.html[`WebViewClient.shouldOverrideUrlLoading`] 
+for the https://pub.dev/packages/flutter_inappwebview[`flutter_inappwebview` package] package, where you can check the URL being loaded and remove the JavaScript channel 
+if the content is untrusted.
+
+=== Alternative methods to implement native bridges
+
+If a native channel has to be added to the web view or its controller, and it is impossible to remove it 
+at a later point, consider using an alternative method that offers more control over the communication flow.
+
+For the `webview_flutter` package, use a more controlled approach with https://pub.dev/documentation/webview_flutter/latest/webview_flutter/WebViewController/runJavaScript.html[`runJavaScript`] 
+with origin validation in your message handling code.
+
+For the `flutter_inappwebview` package, use https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/InAppWebViewController/evaluateJavascript.html[`evaluateJavascript`] 
+combined with https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/WebMessageListener-class.html[`WebMessageListener`] 
+which allows you to restrict the origins that can send messages to your application.
+
+== Sensitive Code Example
+
+[source,dart]
+----
+final _controller = WebViewController()
+    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    ..addJavaScriptChannel("channel", onMessageReceived: (m) {}); // Sensitive
+----
+
+== Compliant Solution
+
+The most secure option is to not enable, or disable, JavaScript entirely. S6362 further explains why it should not 
+be enabled unless absolutely necessary.
+
+[source,dart]
+----
+final _controller = WebViewController();
+----
+
+If possible, remove the JavaScript channel after it is no longer needed, or before loading any untrusted content.
+
+[source,dart]
+----
+_controller.removeJavaScriptChannel("channel");
+----
+
+If a JavaScript channel must be used, consider using `runJavascript` (in the case of `flutter_webview`, and 
+`evaluateJavascript` in the case of `flutter_inappwebview`) instead. This allows you to restrict the origins that 
+can send messages to the JavaScript bridge.
+
+[source,dart]
+----
+import 'package:webview_flutter/webview_flutter.dart';
+
+class _SecureWebViewExampleState extends State<SecureWebViewExample> {
+  late final WebViewController _controller;
+
+  // List of trusted origins
+  final Set<String> _trustedOrigins = {
+    'https://example.com',
+    'https://yourtrustedsite.com',
+  };
+
+  void _setupJavaScriptMessageReceiver() {
+    // Inject JavaScript code that sets up a message handler
+    _controller.runJavaScript('''
+      window.addEventListener('message', function(event) {
+        // Origin validation happens on the JavaScript side
+        if (${_trustedOrigins.map((origin) => "event.origin === '$origin'").join(' || ')}) {
+          // Process message from trusted origin
+          window.flutter_inappwebview?.callHandler('messageHandler', 
+            JSON.stringify({
+              origin: event.origin,
+              data: event.data
+            })
+          );
+        } else {
+          console.warn('Blocked message from untrusted origin: ' + event.origin);
+        }
+      }, false);
+    ''');
+  }
+
+  // Method to receive and process messages from WebView with validation
+  Future<void> _processMessageFromWebView() async {
+    // Getting the document's origin to validate it's trusted
+    final String originScript = 'window.location.origin';
+    final String origin = await _controller.runJavaScriptReturningResult(originScript) as String;
+    
+    if (_trustedOrigins.contains(origin)) {
+      // Safe to get and process messages as we've validated the origin
+      final String messageScript = 'window.getLatestMessage()'; // Assuming such a function exists
+      final String messageJson = await _controller.runJavaScriptReturningResult(messageScript) as String;
+      
+      // Process the message
+      debugPrint('Received valid message from $origin: $messageJson');
+      // Process messageJson as needed...
+    } else {
+      debugPrint('Blocked processing message from untrusted origin: $origin');
+    }
+  }
+}
+----
+
+include::../see.adoc[]
