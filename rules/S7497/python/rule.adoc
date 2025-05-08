@@ -1,16 +1,37 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when a cancellation excception is caught without re-raising it.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Asynchronous frameworks like `asyncio`, `trio`, and `anyio` use special exceptions to signal that a task or operation should be cancelled.
+These exceptions are not typical errors indicating a logical flaw in the task but are directives for the task to terminate its execution prematurely and perform necessary cleanup.
 
-//=== What is the potential impact?
+When a task is cancelled, the framework typically injects this cancellation exception into it. The task is expected to:
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+-  Catch this specific cancellation exception.
+-  Perform any urgent and brief cleanup actions (e.g., releasing locks or other resources).
+-  Re-raise the cancellation exception.
+
+If a cancellation exception is caught and not re-raised (e.g., it's suppressed with a `pass` statement, only logged, the handler returns normally, or a different exception is raised instead), the cancellation signal is effectively "swallowed".
+
+This prevents the framework and any calling code from knowing that the task has acknowledged the cancellation and is stopping. The task might even continue running parts of its code after the `except` block, which is contrary to the purpose of cancellation.
+
+Properly propagating cancellation exceptions is crucial for the cooperative multitasking model these frameworks rely on.
+
+=== What is the potential impact?
+
+Suppressing cancellation exceptions can lead to significant problems:
+
+- **Unresponsive Applications**: Tasks ignoring cancellation may run indefinitely, making the application unresponsive to shutdown signals.
+- **Resource Leaks**: Tasks not stopping properly can leave resources (files, connections, locks) unreleased, leading to resource exhaustion.
+- **Incorrect State**: Partial execution of cancelled operations can leave the application in an inconsistent state, risking data corruption.
+- **Debugging Difficulties**: Troubleshooting why tasks continue running or why shutdown fails becomes challenging.
+- **Broken Abstractions**: Reliable cancellation is essential for async patterns and libraries; ignoring it breaks timeouts and task groups.
+
+
+== How to fix it in Asyncio
+If you need to catch cancellation exceptions for cleanup purposes, make sure to re-raise them after your cleanup code.
+
+Alternatively, you could add a specific handler for cancellation exceptions before your general exception handler.
 
 === Code examples
 
@@ -18,27 +39,136 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+import asyncio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except Exception:  # Noncompliant
+        return
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+import asyncio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except asyncio.CancelledError:  # Compliant
+        raise
 ----
 
-//=== How does this work?
+== How to fix it in Trio
 
-//=== Pitfalls
+If you need to catch cancellation exceptions for cleanup purposes, make sure to re-raise them after your cleanup code.
 
-//=== Going the extra mile
+Alternatively, you could add a specific handler for cancellation exceptions before your general exception handler.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import trio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except Exception:  # Noncompliant
+        return
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import trio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except trio.Cancelled:  # Compliant
+        raise
+----
+
+== How to fix it in AnyIO
+
+If you need to catch cancellation exceptions for cleanup purposes, make sure to re-raise them after your cleanup code.
+
+Alternatively, you could add a specific handler for cancellation exceptions before your general exception handler.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import anyio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except anyio.Cancelled:  # Noncompliant
+        return
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import anyio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except anyio.Cancelled:  # Compliant
+        raise
+----
+
+=== Pitfalls
+
+Asynchronous cleanup operations in `except CancelledError` or `finally` blocks can themselves be interrupted by cancellation. While `asyncio.shield()` (or library equivalents) can protect critical cleanup code, use it sparingly as it may delay shutdown.
+
+== Resources
+=== Documentation
+
+* Asyncio documentation - https://docs.python.org/3/library/asyncio-task.html#task-cancellation[Task Cancellation]
+* Trio documentation - https://trio.readthedocs.io/en/latest/reference-core.html#trio.Cancelled[Exceptions and warnings]
+* AnyIO documentation - https://anyio.readthedocs.io/en/stable/cancellation.html#timeouts[Timeouts]
 
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ifdef::env-github,rspecator-view[]
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Ensure that the `asyncio.CancelledError/trio.Cancelled/anyio.Cancelled` exception is re-raised after your cleanup code.
+
+=== Highlighting
+Primary: the `except` block.
+Secondary: the async keyword of the function definition.
+
+endif::env-github,rspecator-view[]
