@@ -1,0 +1,103 @@
+This rule raises an issue when PyTorch `optimizer.step()` and `loss.backward()` is used without `optimizer.zero_grad()`.
+
+== Why is this an issue?
+
+In PyTorch the training loop of a neural network is comprised of several steps, not necessarily in this order: 
+* Forward pass, to pass the data through the model and output predictions
+* Loss computation, to compute the loss based on the predictions and the ground truth
+* Backward pass, to compute the gradient loss with the `loss.backward()` method
+* Weights update, to update the model weights with the `optimizer.step()` method
+* Gradients zeroed out, to prevent the gradients to accumulate with the `optimizer.zero_grad()` method
+
+When training a model it is important to reset gradients for each training loop. 
+Failing to do so will accumulate the gradients which could skew the results and lead to poor performance.
+
+
+== How to fix it
+
+To fix the issue, call the `optimizer.zero_grad()` method.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch
+from my_dataset import trainset
+from my_model import NeuralNetwork
+from torch.utils.data import DataLoader
+
+trainloader = DataLoader(trainset, batch_size=64, shuffle=True)
+
+model = NeuralNetwork()
+
+loss_fn = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+
+for epoch in range(100): 
+  for data, labels in trainloader: 
+      output = model(data)
+      loss = loss_fn(output, labels)
+      loss.backward()
+      optimizer.step() # Noncompliant: optimizer.zero_grad() was not called in the training loop
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch
+from my_dataset import trainset
+from my_model import NeuralNetwork
+from torch.utils.data import DataLoader
+
+trainloader = DataLoader(trainset, batch_size=64, shuffle=True)
+
+model = NeuralNetwork()
+
+loss_fn = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+
+for epoch in range(100): 
+  for data, labels in trainloader: 
+      optimizer.zero_grad()
+      output = model(data)
+      loss = loss_fn(output, labels)
+      loss.backward()
+      optimizer.step()
+----
+
+== Resources
+=== Documentation
+
+* PyTorch Documentation - https://pytorch.org/tutorials/beginner/introyt/trainingyt.html#the-training-loop[The Training Loop]
+* PyTorch Documentation - https://pytorch.org/tutorials/recipes/recipes/zeroing_out_gradients.html#zeroing-out-gradients-in-pytorch[Zeroing out gradients in PyTorch]
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.optim.Optimizer.zero_grad.html#torch-optim-optimizer-zero-grad[torch.optim.Optimizer.zero_grad - reference]
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.optim.Optimizer.step.html#torch-optim-optimizer-step[torch.optim.Optimizer.step - reference] 
+* PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.Tensor.backward.html#torch-tensor-backward[torch.Tensor.backward - reference]
+
+
+ifdef::env-github,rspecator-view[]
+
+(visible only on this page)
+
+== Implementation specification 
+
+Only in a loop if an optimizer.step() is called and loss.backward() is called, we shall raise the issue.
+
+=== Message 
+
+Primary: Call the {optimizer name}.zero_grad() method
+
+
+=== Issue location
+
+Primary : The {optimizer name}.step() method
+
+=== Quickfix
+
+No
+
+endif::env-github,rspecator-view[]
+
