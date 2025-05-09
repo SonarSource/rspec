@@ -1,11 +1,11 @@
 This rule raises an issue when calls to `tuple()`, `list()`, `set()`, or `dict()` 
-are done with an argument that is already a collection literal or a comprehension that produces either the target type or an intermediate type. 
+are done with an argument that is either already a collection literal or a comprehension.
 
 == Why is this an issue?
 
-Python provides direct ways to create common data structures like tuples, lists, and dictionaries using literals (e.g., `()`, `(1,2)`, `[]`, `[1,2]`, `{}`, `{'a':1}`) 
-and comprehensions (e.g., `[x for x in y]`, `{k:v for k,v in y}`).
-Wrapping these direct forms in a type constructors, for example:
+Python provides direct ways to create common data structures like tuples, lists, and dictionaries using literals, e.g., `()`, `(1,2)`, `[]`, `[1,2]`, `{}`, `{'a':1}`
+and comprehensions e.g., `[x for x in y]`, `{k:v for k,v in y}`.
+Wrapping these direct forms in a type constructors is unnecessary, as shown in the following examples:
 
 [source, python]
 ----
@@ -21,20 +21,21 @@ dict({'a':1})
 dict({k:v for k,v in [1,2]})
 dict([(1,"a"), (2, "b")]) 
 ----
-is unnecessary. 
 
 Such constructs:
+
 * add overhead by creating an intermediate collections
 * add verbosity without providing any additional functionality
 * add ambiguity and may mislead readers or imply a more complex operation than what is actually occurring
 
 === Exceptions
 
-When using comprehensions this rule will only raise issues when the comprehension filter or modify the elements.
+If there are no modification in the comprehension such as `list([x for x in [1,2]])` which is the same as `[1,2]`, this rule will not raise an issue;
+instead rule S7500 - Comprehensions only used to copy should be replaced with the respective constructor calls, will raise an issue.
 
 == How to fix it
 
-To fix this remove the constructor call and use the literal or comprehension syntax of the target type.
+To fix this, remove the constructor call and use the literal or comprehension syntax of the target type.
 As an exception, for a list or comprehension inside of a `tuple` constructor replace the comprehension by a generator.
 
 [source,python,diff-id=1,diff-type=noncompliant]
@@ -49,37 +50,29 @@ t1 = (1, 2) # Compliant
 
 [source,python,diff-id=2,diff-type=noncompliant]
 ----
-def foo(x):
-    return x * 2
 
-l1 = list([foo(x) for x in [1,2,3]]) # Noncompliant: list is redundant.
+l1 = list([x * 2 for x in [1,2,3]]) # Noncompliant: list is redundant.
 ----
 
 [source,python,diff-id=2,diff-type=compliant]
 ----
-def foo(x):
-    return x * 2
-l1 = [foo(x) for x in [1,2,3]] # Compliant
+l1 = [x * 2 for x in [1,2,3]] # Compliant
 ----
 
 [source,python,diff-id=3,diff-type=noncompliant]
 ----
-def foo(x):
-    return x * 2
-
-s1 = set([foo(x) for x in [1,2,3]]) # Noncompliant: the set creation can be done with a set comprehension.
+s1 = set([x * 2 for x in [1,2,3]]) # Noncompliant: the set creation can be done with a set comprehension.
 ----
 
 [source,python,diff-id=3,diff-type=compliant]
 ----
-def foo(x):
-    return x * 2
-s1 = {foo(x) for x in [1,2,3]} # Compliant
+s1 = {x * 2 for x in [1,2,3]} # Compliant
 ----
 
 == Resources
 
 === Documentation
+
 * Python Documentation - https://docs.python.org/3/tutorial/datastructures.html#list-comprehensions[List Comprehensions]
 * Python Documentation - https://docs.python.org/3/tutorial/datastructures.html#dictionaries[Dictionaries]
 * Python Documentation - https://docs.python.org/3/tutorial/datastructures.html#sets[Sets]
@@ -88,18 +81,25 @@ s1 = {foo(x) for x in [1,2,3]} # Compliant
 ifdef::env-github,rspecator-view[]
 == Implementation Specification
 
+We should be careful to not raise issue if there are no modification. This means no function call,
+no filtering (if), no multiple `for`s and no switch of keys and values in dict comprehensions.
+
 === Message
 
 When the inner type is the same as the constructor:
+
 * Remove the redundant {tuple|list|set|dict} constructor call.
 
 When the inner type is different than the constructor:
 For literals:
+
 * Replace this {tuple|list|set|dict} constructor call by a {tuple|list|set|dict} literal.
 For comprehensions:
+
 * Replace this {list|set|dict} constructor call by a {list|set|dict} literal.
 
 Exception for tuple with a list/set-comprehension `tuple([foo(x) in [1,2]])` 
+
 * Replace this list/set comprehension by a generator.
 
 === Highlighting
