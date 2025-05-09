@@ -1,0 +1,87 @@
+This rule raises an issue when `asyncio.create_task()` or `asyncio.ensure_future()` is called without properly awaiting the returned task.
+
+== Why is this an issue?
+
+When creating asyncio tasks with `asyncio.create_task()` or `asyncio.ensure_future()`, you create independent units of work that execute concurrently. However, there are two common mistakes when working with tasks:
+
+=== 1. Task not referenced and awaited
+
+When a task is created but not stored in a variable or otherwise referenced, it may be garbage collected prematurely. The event loop only maintains a weak reference to tasks, so without a strong reference:
+
+* Tasks may be terminated unpredictably before completion
+* Application behavior becomes inconsistent and difficult to debug
+
+=== 2. Task not awaited
+
+When a task is created but never awaited, several issues can arise:
+
+* Exceptions raised within the task are silently ignored
+* The task may not complete before the program exits
+* Results of the task execution are lost
+* Resources may not be properly released
+
+The key issue with both cases is that tasks need to be awaited to ensure proper completion and exception handling.
+
+== How to fix it
+
+To properly handle asyncio tasks:
+
+1. Store the task in a variable (or collection)
+2. Await the task, either directly or using `asyncio.gather()`, `asyncio.wait()`, or similar functions
+3. For intentionally detached tasks, implement proper error handling with `add_done_callback()`
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import asyncio
+
+async def fetch_data():
+    # Noncompliant: task not referenced, may be garbage collected
+    asyncio.create_task(process_data())
+
+async def process_data():
+    await asyncio.sleep(1)
+    return {"result": "processed"}
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import asyncio
+
+async def fetch_data():
+    # Store task in variable and await it
+    task = asyncio.create_task(process_data())
+    await task
+
+async def process_data():
+    await asyncio.sleep(1)
+    return {"result": "processed"}
+----
+
+== Resources
+
+=== Documentation
+* Python asyncio - https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task[create_task() documentation]
+* Python asyncio - https://docs.python.org/3/library/asyncio-future.html#asyncio.ensure_future[ensure_future() documentation]
+* Python asyncio - https://docs.python.org/3/library/asyncio-dev.html#asyncio-dev[Developing with asyncio]
+* Python asyncio - https://docs.python.org/3/library/asyncio-task.html#task-object[Task Object]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Messages
+1. Await this task to ensure proper completion and exception handling.
+
+=== Highlighting
+* Primary locations: the `asyncio.create_task()` or `asyncio.ensure_future()` call
+* Secondary locations: none
+
+endif::env-github,rspecator-view[]
