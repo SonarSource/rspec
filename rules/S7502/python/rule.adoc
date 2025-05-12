@@ -1,34 +1,26 @@
-This rule raises an issue when `asyncio.create_task()` or `asyncio.ensure_future()` is called without properly awaiting the returned task.
+This rule raises an issue when `asyncio.create_task()` or `asyncio.ensure_future()` is called without saving the returned task.
 
 == Why is this an issue?
 
-When creating asyncio tasks with `asyncio.create_task()` or `asyncio.ensure_future()`, you create independent units of work that execute concurrently. However, there are two common mistakes when working with tasks:
+When creating asyncio tasks with `asyncio.create_task()` or `asyncio.ensure_future()`, you create independent units of work that execute concurrently. However, if you don't save the returned task object in a variable or collection, the task may be garbage collected at any time, even before it's done.
 
-=== 1. Task not referenced and awaited
-
-When a task is created but not stored in a variable or otherwise referenced, it may be garbage collected prematurely. The event loop only maintains a weak reference to tasks, so without a strong reference:
+This happens because the event loop only maintains a weak reference to tasks. Without a strong reference:
 
 * Tasks may be terminated unpredictably before completion
 * Application behavior becomes inconsistent and difficult to debug
-
-=== 2. Task not awaited
-
-When a task is created but never awaited, several issues can arise:
-
 * Exceptions raised within the task are silently ignored
-* The task may not complete before the program exits
 * Results of the task execution are lost
 * Resources may not be properly released
 
-The key issue with both cases is that tasks need to be awaited to ensure proper completion and exception handling.
+For a task to run to completion and handle exceptions properly, you must save the task reference and eventually await it.
 
 == How to fix it
 
 To properly handle asyncio tasks:
 
-1. Store the task in a variable (or collection)
-2. Await the task, either directly or using `asyncio.gather()`, `asyncio.wait()`, or similar functions
-3. For intentionally detached tasks, implement proper error handling with `add_done_callback()`
+1. Store the task in a variable or collection
+2. Eventually await the task, either directly or using `asyncio.gather()`, `asyncio.wait()`, or similar functions
+3. Consider using `asyncio.TaskGroup` (available in Python 3.11+) for structured concurrency with better cancellation semantics and error handling
 
 === Code examples
 
@@ -39,8 +31,7 @@ To properly handle asyncio tasks:
 import asyncio
 
 async def fetch_data():
-    # Noncompliant: task not referenced, may be garbage collected
-    asyncio.create_task(process_data())
+    asyncio.create_task(process_data()) # Noncompliant: task may be garbage collected before completion
 
 async def process_data():
     await asyncio.sleep(1)
@@ -54,9 +45,24 @@ async def process_data():
 import asyncio
 
 async def fetch_data():
-    # Store task in variable and await it
-    task = asyncio.create_task(process_data())
+    task = asyncio.create_task(process_data()) # Compliant
     await task
+
+async def process_data():
+    await asyncio.sleep(1)
+    return {"result": "processed"}
+----
+
+Or, using TaskGroup (Python 3.11+):
+
+[source,python]
+----
+import asyncio
+
+async def fetch_data():
+    async with asyncio.TaskGroup() as tg:
+        # Tasks are managed by the TaskGroup and won't be garbage collected
+        tg.create_task(process_data())
 
 async def process_data():
     await asyncio.sleep(1)
@@ -70,6 +76,7 @@ async def process_data():
 * Python asyncio - https://docs.python.org/3/library/asyncio-future.html#asyncio.ensure_future[ensure_future() documentation]
 * Python asyncio - https://docs.python.org/3/library/asyncio-dev.html#asyncio-dev[Developing with asyncio]
 * Python asyncio - https://docs.python.org/3/library/asyncio-task.html#task-object[Task Object]
+* Python asyncio - https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup[TaskGroup documentation]
 
 ifdef::env-github,rspecator-view[]
 
@@ -78,7 +85,7 @@ ifdef::env-github,rspecator-view[]
 (visible only on this page)
 
 === Messages
-1. Await this task to ensure proper completion and exception handling.
+1. Save this task in a variable to prevent premature garbage collection.
 
 === Highlighting
 * Primary locations: the `asyncio.create_task()` or `asyncio.ensure_future()` call
