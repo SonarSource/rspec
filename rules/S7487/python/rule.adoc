@@ -1,0 +1,127 @@
+This rule raises an issue when synchronous subprocess calls are used within asynchronous functions.
+
+== Why is this an issue?
+
+Using synchronous subprocess calls like `subprocess.Popen` or similar functions in asynchronous code blocks the entire event loop. This undermines the primary advantage of asynchronous programming - the ability to perform concurrent operations without blocking execution.
+
+When an async function makes a synchronous call to create a subprocess:
+
+* The event loop is completely blocked until the subprocess operation completes
+* No other coroutines can run during this time, even if they're ready to execute
+* The responsiveness of the application is degraded
+* In server applications, this can cause timeouts or failures for other concurrent requests
+
+Instead, async libraries provide dedicated APIs for running subprocesses in a non-blocking way:
+
+* `asyncio.create_subprocess_exec()` and `asyncio.create_subprocess_shell()` for asyncio
+* `trio.run_process()` for Trio
+* `anyio.run_process()` for AnyIO
+
+Using these APIs allows other tasks to continue executing while waiting for the subprocess to complete.
+
+== How to fix it in Asyncio
+
+Replace synchronous subprocess calls with `asyncio.create_subprocess_exec()` or `asyncio.create_subprocess_shell()` depending on whether you need to run a specific command with arguments or a shell command string.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import subprocess
+
+async def process_data():
+    subprocess.run(["wget", "https://example.com/file.zip"])  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import asyncio
+
+async def process_data():
+    proc = await asyncio.create_subprocess_exec("wget", "https://example.com/file.zip")
+    result = await proc.wait()
+----
+
+== How to fix it in Trio
+
+Replace synchronous subprocess calls with `trio.run_process()`, which handles both command arrays and shell commands.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import trio
+import subprocess
+
+async def download_files():
+    result = subprocess.run(["wget", "https://example.com/file.zip"])  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import trio
+
+async def download_files():
+    result = await trio.run_process(["wget", "https://example.com/file.zip"])
+----
+
+== How to fix it in AnyIO
+
+Replace synchronous subprocess calls with `anyio.run_process()`, which works similar to Trio's API and supports both command arrays and shell commands.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import subprocess
+
+async def process_image():
+    result = subprocess.run(["wget", "https://example.com/file.zip"])  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import anyio
+
+async def process_image():
+    result = await anyio.run_process(["wget", "https://example.com/file.zip"])
+----
+
+== Resources
+
+=== Documentation
+* Python asyncio - https://docs.python.org/3/library/asyncio-subprocess.html[Subprocess]
+* Trio - https://trio.readthedocs.io/en/stable/reference-io.html#trio.run_process[run_process() documentation]
+* AnyIO - https://anyio.readthedocs.io/en/stable/subprocesses.html[Subprocesses]
+
+=== Articles & blog posts
+* Python - https://realpython.com/python-concurrency/[Concurrency and Parallelism in Python]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+Use an async subprocess call in this async function instead of a synchronous one.
+
+=== Highlighting
+* Primary locations: the `subprocess` callee within an async function
+* Secondary locations: the enclosing async function `aync` keyword (message: "this is an asynchronous function")
+
+endif::env-github,rspecator-view[]
+
+
