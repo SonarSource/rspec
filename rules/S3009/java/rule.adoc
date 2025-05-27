@@ -19,9 +19,101 @@ sb.append("a"); // Noncompliant
 ----
 StringBuilder sb = new StringBuilder();
 
-sb.append('a'); // Noncompliant
+sb.append('a'); // Compliant
 ----
 
+=== Benchmarks
+
+[options="header"]
+|===
+| Benchmark                           | Average time    | Error margin
+| BenchmarkS3009.baseline             | 14.17 ns/op     | ±0.881 ns/op
+| BenchmarkS3009.compliant            | 22.30 ns/op     | ±0.520 ns/op
+| BenchmarkS3009.noncompliant         | 23.13 ns/op     | ±0.784 ns/op
+|===
+
+The difference between compliant and noncompliant is small and close to the error margin.
+The difference would be clearer if the `String` and `char` where variable, as shown in the next table.
+However, the rule doesn't apply to that case.
+
+|===
+| BenchmarkS3009.compliantVar         | 30.83 ns/op     | ±2.184 ns/op
+| BenchmarkS3009.noncompliantVar      | 48.89 ns/op     | ±1.971 ns/op
+|===
+
+*Benchmarking code*
+
+The data for the table above was obtained using JMH on the following benchmarking class.
+
+[source,java]
+----
+@State(Scope.Thread)
+@BenchmarkMode({Mode.Throughput, Mode.AverageTime})
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
+public class BenchmarkS3009 {
+  StringBuilder builder;
+  String stringVar;
+  char charVar;
+  Random random;
+
+  @Setup(Level.Invocation)
+  public  void setupInvocation() {
+    charVar = (char) random.nextInt(Character.MAX_VALUE);
+    stringVar = String.valueOf(charVar);
+    builder = new StringBuilder();
+  }
+
+  @Setup(Level.Iteration)
+  public void setup() {
+    random = new Random();
+  }
+
+  @Benchmark
+  public void baseline(Blackhole blackhole) {
+    blackhole.consume(builder);
+  }
+
+  @Benchmark
+  public void compliant(Blackhole blackhole) {
+    builder.append('a');
+    builder.append('a');
+    builder.append('a');
+    builder.append('a');
+    builder.append('a');
+    blackhole.consume(builder);
+  }
+
+  @Benchmark
+  public void noncompliant(Blackhole blackhole) {
+    builder.append("a");
+    builder.append("a");
+    builder.append("a");
+    builder.append("a");
+    builder.append("a");
+    blackhole.consume(builder);
+  }
+
+  @Benchmark
+  public void noncompliantVar(Blackhole blackhole) {
+    builder.append(stringVar);
+    builder.append(stringVar);
+    builder.append(stringVar);
+    builder.append(stringVar);
+    builder.append(stringVar);
+    blackhole.consume(builder);
+  }
+
+  @Benchmark
+  public void compliantVar(Blackhole blackhole) {
+    builder.append(charVar);
+    builder.append(charVar);
+    builder.append(charVar);
+    builder.append(charVar);
+    builder.append(charVar);
+    blackhole.consume(builder);
+  }
+}
+----
 
 ifdef::env-github,rspecator-view[]
 
