@@ -6,14 +6,13 @@ on:
 
 jobs:
   update_coverage:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-large
     permissions:
       id-token: write # required by SonarSource/vault-action-wrapper
       contents: write
-      checks: read # required by fountainhead/action-wait-for-check
       actions: write # required by andymckay/cancel-action
     env:
-      TMP_BRANCH: temporary/coverage_update
+      TMP_BRANCH: coverage-update
 
     steps:
     - name: 'get secrets'
@@ -30,10 +29,11 @@ jobs:
         fetch-depth: 0
         path: 'rspec'
         token: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
+        ref: 'master'
 
     - uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.12'
 
     - name: 'Install Pipenv'
       run: pip install pipenv
@@ -41,7 +41,7 @@ jobs:
     - name: 'Install coverage script dependencies'
       working-directory: 'rspec/rspec-tools'
       run: |
-        pipenv --python python3.9 install
+        pipenv install
 
     - name: 'Regenerate coverage information'
       env:
@@ -61,8 +61,8 @@ jobs:
       if: steps.gen-coverage.outputs.new_coverage != 'true'
       uses: andymckay/cancel-action@0.2
 
-    - name: 'Push the updated coverage file to a new branch'
-      id: create-temp-branch
+    - name: 'Push the updated coverage file to the coverage branch'
+      id: push-to-branch
       if: steps.gen-coverage.outputs.new_coverage == 'true'
       working-directory: 'rspec'
       run: |
@@ -71,42 +71,8 @@ jobs:
         git checkout -b $TMP_BRANCH
         git add frontend/public/covered_rules.json
         git commit -m "update coverage information"
-        git push --force-with-lease origin $TMP_BRANCH
-
-    - name: 'Wait for CI to succeed'
-      if: steps.gen-coverage.outputs.new_coverage == 'true'
-      uses: fountainhead/action-wait-for-check@v1.0.0
-      id: wait-for-build
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        checkName: all_required_checks
-        ref: ${{ env.TMP_BRANCH }}
-        timeoutSeconds: 2400
-        intervalSeconds: 30
-
-    - name: 'Push the updated coverage to master'
-      if: |
-        steps.gen-coverage.outputs.new_coverage == 'true' &&
-        steps.wait-for-build.outputs.conclusion == 'success' &&
-        (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
-      working-directory: 'rspec'
-      run: |
-        git checkout master
-        git merge $TMP_BRANCH
-        git push origin master
-
-    - name: 'Delete the temporary branch'
-      if: always() && steps.create-temp-branch.conclusion == 'success'
-      uses: dawidd6/action-delete-branch@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branches: ${{ env.TMP_BRANCH}}
-
-    - name: 'Fail if the change breaks CI'
-      if: |
-        steps.gen-coverage.outputs.new_coverage == 'true' &&
-        steps.wait-for-build.outputs.conclusion != 'success'
-      run: exit 1
+        git push --force-with-lease origin $TMP_BRANCH:$TMP_BRANCH
+        git push --force-with-lease origin $TMP_BRANCH:dogfood/$TMP_BRANCH
 
     - name: 'Notify on slack about the failure'
       if: ${{ failure() }}

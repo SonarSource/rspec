@@ -1,16 +1,16 @@
 == Why is this an issue?
 
-A method annotated with Spring's `@Async` or `@Transactional` annotations will not work as expected
+A method annotated with Spring's `@Async`, `@Cacheable` or `@Transactional` annotations will not work as expected
 if invoked directly from within its class.
 
-This is because Spring generates a proxy class with wrapper code to manage the method's asynchronicity (`@Async`)
+This is because Spring generates a proxy class with wrapper code to manage the method's asynchronicity (`@Async`), to cache methods invocations (`@Cacheable`),
 or to handle the transaction (`@Transactional`).
 However, when called using `this`, the proxy instance is bypassed, and the method is invoked directly
 without the required wrapper code.
 
 == How to fix it
 
-Replace calls to `@Async` or `@Transactional` methods via `this`
+Replace calls to `@Async`, `@Cacheable` or `@Transactional` methods via `this`
 with calls on an instance that was injected by Spring (`@Autowired`, `@Resource` or `@Inject`).
 The injected instance is a proxy on which the methods can be invoked safely.
 
@@ -26,12 +26,19 @@ public class AsyncNotificationProcessor implements NotificationProcessor {
   @Override
   public void process(Notification notification) {
     processAsync(notification); // Noncompliant, call bypasses proxy
+    retrieveNotification(notification.id); // Noncompliant, call bypasses proxy and will not be cached
   }
 
   @Async
   public processAsync(Notification notification) {
     // ...
   }
+
+  @Cacheable
+  public Notification retrieveNotification(Long id) {
+    // ...
+  }
+
 }
 ----
 
@@ -43,15 +50,21 @@ public class AsyncNotificationProcessor implements NotificationProcessor {
 public class AsyncNotificationProcessor implements NotificationProcessor {
 
   @Resource
-  private AsyncNotificationProcessor
+  private AsyncNotificationProcessor asyncNotificationProcessor;
 
   @Override
   public void process(Notification notification) {
     asyncNotificationProcessor.processAsync(notification); // Compliant, call via injected proxy
+    asyncNotificationProcessor.retrieveNotification(notification.id); // Compliant, the call will be cached
   }
 
   @Async
   public processAsync(Notification notification) {
+    // ...
+  }
+
+  @Cacheable
+  public Notification retrieveNotification(Long id) {
     // ...
   }
 }
@@ -63,9 +76,11 @@ public class AsyncNotificationProcessor implements NotificationProcessor {
 
 - https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/scheduling/annotation/Async.html[Spring Framework API - Annotation Interface Async]
 - https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html[Spring Framework API - Annotation Interface Transactional]
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/cache/annotation/Cacheable.html[Spring Framework API - Annotation Interface Cacheable]
 
 === Articles & blog posts
 
 - https://www.baeldung.com/spring-async[Baeldung - How To Do @Async in Spring]
 - https://stackoverflow.com/questions/22561775/spring-async-ignored[Stack Overflow - Spring @Async ignored]
 - https://stackoverflow.com/questions/4396284/does-spring-transactional-attribute-work-on-a-private-method[Stack Overflow - Does Spring @Transactional attribute work on a private method?]
+- https://docs.spring.io/spring-framework/reference/integration/cache/annotations.html#cache-annotations-cacheable[Spring docs, The @Cacheable Annotation]

@@ -1,0 +1,56 @@
+== How to fix it in Spring Data MongoDB
+
+=== Code examples
+
+The following code is an example of a simple API endpoint designed to read public messages. It is vulnerable to NoSQL injection because user-controlled data is inserted directly into a query string. The application assumes that incoming data always has a specific range of characters and ignores that some characters may change the query logic to a malicious one.
+
+In this particular case, the query can be exploited with the following values:
+
+ * ``++username=user1', private:true}},{a:'++``
+
+By adapting and inserting these values, an attacker can bypass the `private = false` condition and get access to private messages.
+
+==== Noncompliant code example
+
+[source,kotlin,diff-id=3,diff-type=noncompliant]
+----
+import com.mongodb.client.MongoClient
+import org.springframework.data.mongodb.core.MongoTemplate
+import org.springframework.data.mongodb.core.query.BasicQuery
+
+@RestController
+class ApiController(private val mongoClient: MongoClient) {
+    @GetMapping("/read")
+    @ResponseBody
+    fun readPublicOnly(@RequestParam(value = "username") username: String): List<String> {
+        val template = MongoTemplate(mongoClient, "demo")
+        val query = BasicQuery("{ username:'$username', private: false }") // Noncompliant
+        return template.find(query, String::class.java, "messages")
+    }
+}
+----
+
+==== Compliant solution
+
+[source,kotlin,diff-id=3,diff-type=compliant]
+----
+import com.mongodb.client.MongoClient
+import org.springframework.data.mongodb.core.MongoTemplate
+import org.springframework.data.mongodb.core.query.Criteria
+import org.springframework.data.mongodb.core.query.Query
+
+@RestController
+class ApiController(private val mongoClient: MongoClient) {
+    @GetMapping("/read")
+    @ResponseBody
+    fun readPublicOnly(@RequestParam(value = "username") username: String): List<String> {
+        val template = MongoTemplate(mongoClient, "demo")
+        val query = Query.query(Criteria.where("username").`is`(username).and("private").`is`(false))
+        return template.find(query, String::class.java, "messages")
+    }
+}
+----
+
+=== How does this work?
+
+The compliant solution uses the `Query` and `Critera` objects to build the query syntax safely.

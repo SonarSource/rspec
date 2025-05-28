@@ -158,17 +158,18 @@ const languageToJiraProject = new Map(Object.entries({
   'HTML': 'SONARHTML',
   'PHP': 'SONARPHP',
   'PLI': 'SONARPLI',
-  'PLSQL': 'SONARPLSQL',
+  'PLSQL': 'PLSQL',
   'RPG': 'SONARRPG',
   'APEX': 'SONARAPEX',
   'RUBY': 'SONARRUBY',
+  'RUST': 'SKUNK',
   'KOTLIN': 'SONARKT',
   'SCALA': 'SONARSCALA',
   'GO': 'SONARGO',
   'SECRETS': 'SONARTEXT',
   'SWIFT': 'SONARSWIFT',
-  'TSQL': 'SONARTSQL',
-  'VB6': 'SONARVBSIX',
+  'TSQL': 'TSQL',
+  'VB6': 'VB6',
   'XML': 'SONARXML',
   'CLOUDFORMATION': 'SONARIAC',
   'TERRAFORM': 'SONARIAC',
@@ -191,6 +192,7 @@ const languageToGithubProject = new Map(Object.entries({
   'GO': 'sonar-go',
   'SCALA': 'sonar-scala',
   'RUBY': 'sonar-ruby',
+  'RUST': 'sonar-rust',
   'APEX': 'sonar-apex',
   'HTML': 'sonar-html',
   'COBOL': 'sonar-cobol',
@@ -318,7 +320,7 @@ function usePageMetadata(ruleid: string, language: string, classes: UsedStyles):
 
   if (coverage !== 'Not Covered') {
     prUrl = undefined;
-    branch = 'master'; 
+    branch = 'master';
   }
 
   return {
