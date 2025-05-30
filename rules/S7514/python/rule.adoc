@@ -1,0 +1,161 @@
+This rule raises when a control flow statement (`return`, `break`, `continue`) is used inside a TaskGroup or Nursery context manager.
+
+== Why is this an issue?
+
+Using control flow statements like `return`, `break`, or `continue` inside async TaskGroup or Nursery blocks leads to counterintuitive behavior that can confuse developers and introduce bugs.
+
+=== What is the potential impact?
+
+==== Deferred execution in TaskGroup
+In asyncio's TaskGroup, control flow statements don't take immediate effect. Instead, they wait for all tasks in the group to complete before executing. This can lead to:
+
+* Unexpected delays when tasks run longer than anticipated
+* Code that appears to exit early but actually continues running
+* Potential infinite loops if background tasks never complete
+
+==== Lost return values in Nurseries
+In Trio and AnyIO nurseries, return values can be lost if other tasks in the nursery raise exceptions:
+
+* When a background task raises an exception, the return value from the main flow is discarded
+* The nursery's exception handling takes precedence over return values
+* Silent data loss that's difficult to debug
+
+== How to fix it in Asyncio
+
+Move the control flow statement outside the TaskGroup or Nursery block, and use the appropriate cancellation mechanism before exiting the block.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import asyncio
+
+async def process():
+    async with asyncio.TaskGroup() as tg:
+        tg.create_task(background_task())
+
+        if condition():
+            return "result"  # Noncompliant: waits for background_task() to complete
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import asyncio
+
+async def process():
+    result = None
+    async with asyncio.TaskGroup() as tg:
+        task = tg.create_task(background_task())
+
+        if condition():
+            result = "result"
+            task.cancel()
+
+    return result
+----
+
+== How to fix it in Trio
+
+Move the control flow statement outside the Nursery block, and use the appropriate cancellation mechanism before exiting the block.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import trio
+
+async def process():
+    async with trio.open_nursery() as nursery:
+        nursery.start_soon(background_task)
+
+        if condition():
+            return "result"  # Noncompliant: value may be lost
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import trio
+
+async def process():
+    result = None
+    async with trio.open_nursery() as nursery:
+        nursery.start_soon(background_task)
+
+        if condition():
+            result = "result"
+            nursery.cancel_scope.cancel()
+
+    return result
+----
+
+== How to fix it in AnyIO
+
+Move the control flow statement outside the TaskGroup block, and use the appropriate cancellation mechanism before exiting the block.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import anyio
+
+async def process():
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(background_task)
+
+        if condition():
+            return "result"  # Noncompliant: waits for background_task
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import anyio
+
+async def process():
+    result = None
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(background_task)
+
+        if condition():
+            result = "result"
+            tg.cancel_scope.cancel()
+
+    return result
+----
+
+== Resources
+
+=== Documentation
+
+
+* Asyncio documentation - https://docs.python.org/3/library/asyncio-task.html#task-groups[Task Groups]
+* Trio documentation - https://trio.readthedocs.io/en/latest/reference-core.html#nurseries-and-spawning[Nurseries and spawning]
+* AnyIO documentation - https://anyio.readthedocs.io/en/stable/tasks.html#creating-and-managing-tasks[Creating and managing tasks]
+* Trio issue #1493 - https://github.com/python-trio/trio/issues/1493[Returning a value from inside a nursery block behaves counterintuitively]
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* Refactor the code to move the control flow statement outside the TaskGroup or Nursery block, and use the appropriate cancellation mechanism before exiting the block.
+
+=== Highlighting
+
+* Primary location: The control flow statement (return/break/continue)
+* Secondary locations: The TaskGroup/Nursery block declaration and the async keyword of the function
+
+endif::env-github,rspecator-view[]
