@@ -1,0 +1,58 @@
+== Why is this an issue?
+
+When a method uses a `Gatherer.of(...)` factory and provides a combiner function that always throws an exception, this implicitly signals that the gatherer is designed for sequential processing.
+The `java.util.stream.Gatherer` API provides `Gatherer.ofSequential(...)` factories which clearly indicates that the gatherer is intended for sequential streams.
+Using such a factory improves code clarity, makes the intended processing model explicit, and avoids the need for a dummy or throwing combiner.
+
+== How to fix it
+
+Use `Gatherer.ofSequential` instead of `Gatherer.of`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+  public static List<Integer> diffWithFirstPositive(List<Integer> list) {
+    Gatherer<Integer, AtomicInteger, Integer> gatherer = Gatherer.of(
+      () -> new AtomicInteger(-1),
+      (state, number, downstream) -> {
+        if (state.get() < 0) {
+          state.set(number);
+          return true;
+        }
+        return downstream.push(number - state.get());
+      },
+      (_, _) -> {
+        throw new IllegalStateException();
+      },
+      Gatherer.defaultFinisher());
+    return list.stream().gather(gatherer).toList();
+  }
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+  public static List<Integer> diffWithFirstPositive(List<Integer> list) {
+    Gatherer<Integer, AtomicInteger, Integer> gatherer = Gatherer.ofSequential(
+      () -> new AtomicInteger(-1),
+      (state, number, downstream) -> {
+        if (state.get() < 0) {
+          state.set(number);
+          return true;
+        }
+        return downstream.push(number - state.get());
+      },
+      Gatherer.defaultFinisher());
+    return list.stream().gather(gatherer).toList();
+  }
+----
+
+
+== Resources
+
+* https://docs.oracle.com/en/java/javase/24/docs/api/java.base/java/util/stream/Gatherer.html[Gatherer API]
+* https://docs.oracle.com/en/java/javase/24/core/stream-gatherers.html[Stream gatherers documentation]
