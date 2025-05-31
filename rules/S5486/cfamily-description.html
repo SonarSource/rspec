@@ -1,0 +1,280 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>pthread_mutex_t</code> should not be locked when already locked, or unlocked when already unlocked.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><em>Mutexes</em> are synchronization primitives that allow to manage concurrency.
+This is the most fundamental building block for creating <em>safe</em> concurrent applications.
+By using a <em>mutex</em>, one can ensure that a block of code is executed by a single thread concurrently.
+Data structures are designed to maintain their invariants between member-function calls.
+If a data structure is accessed concurrently, and one of the accesses is a write operation, then it has a <em>data race</em>.
+Having <em>data races</em> is <em>undefined behavior</em>.</p>
+</div>
+<div class="paragraph">
+<p>Adversaries actively exploit <em>data races</em> to take over systems, but <em>data races</em>
+are also a common source of <em>data corruption</em> in concurrent applications
+resulting in dormant and hard-to-find bugs.</p>
+</div>
+<div class="paragraph">
+<p>To prevent <em>data races</em>, the shared resource (usually memory) must be protected
+by obtaining mutual access to the data during both reading and writing.
+Such mutual exclusion is generally achieved by using a <em>mutex</em>, which is
+frequently referred to as a <em>lock</em>.</p>
+</div>
+<div class="paragraph">
+<p>A <em>mutex</em> has two states: <em>released</em> - which is the initial state, or <em>acquired</em>.
+These two states are frequently called <em>unlocked</em> and <em>locked</em> as well.</p>
+</div>
+<div class="paragraph">
+<p>To effectively protect the shared resource from concurrent accesses, all such accesses should be guarded by the same <em>mutex</em>.
+They need to <em>lock</em> the <em>mutex</em> to gain <em>safe</em> exclusive access to the resource and <em>unlock</em> it after they are done mutating or reading it.</p>
+</div>
+<div class="paragraph">
+<p>You can abstract away the concurrent threads sharing the mutex and think of it as owned by the current thread.
+It never spontaneously changes between <em>acquired</em> and <em>released</em>.</p>
+</div>
+<div class="paragraph">
+<p>In this view, these are the possible transitions when calling <code>lock</code> or <code>unlock</code> on a <em>mutex</em> in a given state:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><em>released</em> + <code>lock()</code>   &#8658; <em>acquired</em></p>
+</li>
+<li>
+<p><em>acquired</em> + <code>unlock()</code> &#8658; <em>released</em></p>
+</li>
+<li>
+<p><em>acquired</em> + <code>lock()</code>   &#8658; <em>deadlock</em></p>
+</li>
+<li>
+<p><em>released</em> + <code>unlock()</code> &#8658; <em>undefined behavior</em></p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>When a thread locks a mutex, another thread trying to <em>acquire</em> the same mutex will be <em>blocked</em> and have to wait for the first thread to <em>release</em> it.
+This waiting period can take some time.
+If a thread attempts to lock a mutex it has already acquired, it will <em>deadlock</em> because it would need to release it to lock it again.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Locking an <em>acquired</em> mutex leads to a <em>deadlock</em>, as a mutex can only be obtained once.
+Unlocking a <em>released</em> mutex is <em>undefined behavior</em>.
+Removing synchronization can cause <em>data races</em>, leading to <em>data corruption</em>,
+which adversaries might leverage to take over the system.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>There are <em>recursive mutexes</em> that can be <em>acquired</em> multiple times by the same
+thread, given that just as many times we also <em>release</em> the <em>mutex</em>.
+They are rare in practice and usually signal design problems in the code.
+Thus we assume <code>pthread_mutex_t</code> refers to <em>non-recursive</em> mutexes.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Never lock an <em>acquired</em> mutex.
+Lock the mutexes in a strict order that is followed throughout the project.
+Unlock operations should be done the same way but in reversed order.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;pthread.h&gt;
+
+pthread_mutex_t m1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t m2 = PTHREAD_MUTEX_INITIALIZER;
+
+void locks() {
+  pthread_mutex_lock(&amp;m1);
+  pthread_mutex_lock(&amp;m1); // Noncompliant: 'm1' is already acquired
+}
+
+void unlocks() {
+  pthread_mutex_unlock(&amp;m1);
+  pthread_mutex_unlock(&amp;m1); // Noncompliant: 'm1' is already released
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;pthread.h&gt;
+
+pthread_mutex_t m1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t m2 = PTHREAD_MUTEX_INITIALIZER;
+
+void locks() {
+  pthread_mutex_lock(&amp;m1);
+  pthread_mutex_lock(&amp;m2); // Compliant: we acquired both 'm1' and 'm2' for the first time.
+}
+
+void unlocks() {
+  pthread_mutex_unlock(&amp;m2);
+  pthread_mutex_unlock(&amp;m1); // Compliant: we released both 'm1' and 'm2' for the first time.
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>Calling arbitrary functions while holding a lock should be avoided,
+as the function might also want to lock the resource we already acquired,
+causing a deadlock. One particular example of such functions is callbacks.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;pthread.h&gt;
+
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+void handle_callback(void (*callback)(void)) {
+  pthread_mutex_lock(&amp;m);
+  callback(); // If tries to lock mutex 'm', then we have a deadlock.
+  pthread_mutex_unlock(&amp;m);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>The section of code for which the <em>mutex</em> is <em>acquired</em> is called the <em>critical section</em>.
+Inside the <em>critical section</em>, we are the only ones with access to the shared resource.
+Thus we are free to mutate or read it without considering what other threads are doing
+concurrently. However, having large <em>critical sections</em> can prevent other threads
+from making progress if they want to also <em>acquire</em> the same <em>mutex</em> and access
+the shared resource.
+Consequently, <em>critical sections</em> are supposed to be as small as possible.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;pthread.h&gt;
+#include &lt;stdbool.h&gt;
+
+int input;
+int result;
+bool isFib;
+
+// Guards both 'num1' and 'num2'.
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+int fibonacci(int n);
+int factorial(int n);
+
+void locks(bool calcFib, int n) {
+  // Do the calculations without taking the lock.
+  int res;
+  if (calcFib) {
+    res = fibonacci(n);
+  } else {
+    res = factorial(n);
+  }
+
+  pthread_mutex_lock(&amp;m);
+  // Critical section starts
+  input = n;
+  result = res;
+  isFib = calcFib;
+  // Critical section ends.
+  pthread_mutex_unlock(&amp;m);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/764">CWE-764 Multiple Locks of a Critical Resource</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/362">CWE-362 Multiple Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567">Application Security and Development: V-222567</a> - The application must not be vulnerable to race conditions.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5487" class="rspec-auto-link">S5487</a> enforces proper initialization and destruction of <code>pthread</code> mutexes.</p>
+</li>
+<li>
+<p><a data-rspec-id="S5489" class="rspec-auto-link">S5489</a> enforces unlocking held <code>pthread</code> mutexes in reverse order.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>The Open Group - <a href="https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_mutex_init.html"><code>pthread_mutex_init</code>, <code>pthread_mutex_destroy</code></a></p>
+</li>
+<li>
+<p>The Open Group - <a href="https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_mutex_lock.html"><code>pthread_mutex_lock</code>, <code>pthread_mutex_unlock</code></a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5487">relates to: <a data-rspec-id="S5487" class="rspec-auto-link">S5487</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5489">relates to: <a data-rspec-id="S5489" class="rspec-auto-link">S5489</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5487">is related to: <a data-rspec-id="S5487" class="rspec-auto-link">S5487</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5489">is related to: <a data-rspec-id="S5489" class="rspec-auto-link">S5489</a></h3>
+
+</div>
+</div>
+</div>
