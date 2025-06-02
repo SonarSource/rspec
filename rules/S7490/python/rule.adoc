@@ -1,0 +1,135 @@
+This rule raises an issue when a cancellation scope (timeout context) is used without any checkpoints making the timeout functionality ineffective.
+
+
+== Why is this an issue?
+
+When using asynchronous programming with libraries like `trio` or `anyio`, cancellation scopes (timeout contexts) are used to implement timeouts and cancellation.
+However, these mechanisms only work when there are checkpoints within the scope where cancellation can occur. Without any checkpoints, the timeout will never be triggered, making it ineffective.
+
+A checkpoint is a point in the code where cancellation can be detected and acted upon. Common checkpoints include:
+
+- Explicit calls to the checkpoint method of the used framework
+- `yield` statements
+- `await` statements
+
+=== What is the potential impact?
+
+Without proper checkpoints in cancel scopes:
+
+- Timeouts won't work as expected
+- Resources might be held longer than intended
+- The application might become unresponsive or hang
+- Cancellation operations won't be honored
+
+
+== How to fix it in Asyncio
+
+There is no direct checkpoint method in `asyncio`, but you can use `await asyncio.sleep(0)` as a workaround.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import asyncio
+
+async def process_data(data):
+    try:
+        async with asyncio.timeout(1.0):  # Noncompliant
+            result = expensive_computation(data)
+            return result
+    except asyncio.TimeoutError:
+        return None
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import asyncio
+
+async def process_data(data):
+    try:
+        async with asyncio.timeout(1.0):  # Compliant
+            result = expensive_computation(data)
+            await asyncio.sleep(0)
+            return result
+    except asyncio.TimeoutError:
+        return None
+----
+
+== How to fix it in Trio
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import trio
+
+async def process_data(data):
+    async with trio.move_on_after(1.0):  # Noncompliant
+        result = expensive_computation(data)
+        return result
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import trio
+
+async def process_data(data):
+    async with trio.move_on_after(1.0):  # Compliant
+        result = expensive_computation(data)
+        await trio.lowlevel.checkpoint()
+        return result
+----
+
+== How to fix it in AnyIO
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import anyio
+
+async def process_data(data):
+    async with anyio.move_on_after(1.0):  # Noncompliant
+        result = expensive_computation(data)
+        return result
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import anyio
+
+async def process_data(data):
+    async with anyio.move_on_after(1.0):  # Compliant
+        result = expensive_computation(data)
+        await anyio.lowlevel.checkpoint()
+        return result
+----
+
+== Resources
+=== Documentation
+* Trio documentation - https://trio.readthedocs.io/en/stable/reference-core.html#cancellation-and-timeouts[Cancellation and timeouts]
+* AnyIO documentation - https://anyio.readthedocs.io/en/stable/cancellation.html#timeouts[Timeouts]
+
+ifdef::env-github,rspecator-view[]
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+Add a checkpoint to the cancel scope.
+
+=== Highlighting
+The async with statement
+
+endif::env-github,rspecator-view[]
