@@ -1,0 +1,91 @@
+This rule raises when using a regular `with` statement with an asynchronous context manager.
+
+== Why is this an issue?
+
+In Python, asynchronous context managers are designed to manage resources that require asynchronous setup or teardown operations. These context managers implement the `+__aenter__+` and `+__aexit__+` methods, which are coroutines that need to be awaited.
+
+Using a regular `with` statement with an asynchronous context manager will fail because:
+
+* The `with` statement expects synchronous `+__enter__+` and `+__exit__+` methods
+* It cannot await the coroutines returned by `+__aenter__+` and `+__aexit__+`
+* This results in a `TypeError` or bypasses necessary async operations
+
+=== What is the potential impact?
+
+Using the wrong context manager statement can lead to:
+
+* **Resource leaks**: Asynchronous cleanup operations may not be executed properly
+* **Incomplete initialization**: Asynchronous setup operations may be skipped
+* **Unpredictable behavior**: The resource may not be in the expected state
+
+== How to fix it
+
+Use the `async with` statement when working with asynchronous context managers.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+class AsyncResource:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        ...
+
+async def main():
+    resource = AsyncResource()
+    with resource:  # Noncompliant: using 'with' with async context manager
+        ...
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+class AsyncResource:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        ...
+
+async def main():
+    async with AsyncResource() as resource:  # Compliant: using 'async with'
+        ...
+----
+
+=== How does this work?
+
+The `async with` statement:
+
+1. Calls the `+__aenter__+` method and awaits its result
+2. Assigns the returned value to the variable after `as` (if specified)
+3. Executes the code block within the context
+4. Calls the `+__aexit__+` method and awaits its completion, even if an exception occurs
+
+This ensures that all asynchronous setup and cleanup operations are properly handled.
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Use "async with" for asynchronous context managers
+
+=== Highlighting
+
+* Primary location: The `with` keyword when used with an asynchronous context manager
+* Secondary location: The `async` keyword of the enclosing function
+endif::env-github,rspecator-view[]
+
+== Resources
+
+=== Documentation
+
+* Python Documentation - https://docs.python.org/3/reference/datamodel.html#asynchronous-context-managers[Asynchronous Context Managers]
+* Python Documentation - https://docs.python.org/3/reference/compound_stmts.html#the-async-with-statement[The async with statement]
