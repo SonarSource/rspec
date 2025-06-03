@@ -1,22 +1,18 @@
-This rule raises when using a regular `with` statement with an asynchronous context manager.
+This rule raises when using a regular `with` statement inside an async function with a context manager that implements the asynchronous context manager protocol.
 
 == Why is this an issue?
 
-In Python, asynchronous context managers are designed to manage resources that require asynchronous setup or teardown operations. These context managers implement the `+__aenter__+` and `+__aexit__+` methods, which are coroutines that need to be awaited.
+When working within an async function, it is important to maintain consistency with the asynchronous programming model. If a context manager implements the asynchronous context manager protocol (defining `+__aenter__+` and `+__aexit__+` methods), it should be used with the `async with` statement rather than the regular `with` statement.
 
-Using a regular `with` statement with an asynchronous context manager will fail because:
-
-* The `with` statement expects synchronous `+__enter__+` and `+__exit__+` methods
-* It cannot await the coroutines returned by `+__aenter__+` and `+__aexit__+`
-* This results in a `TypeError` or bypasses necessary async operations
+The asynchronous context manager protocol is specifically designed to handle resources that may require asynchronous setup or teardown operations. Using the regular `with` statement in an async context bypasses this intended asynchronous behavior.
 
 === What is the potential impact?
 
-Using the wrong context manager statement can lead to:
+Not following the proper async pattern can lead to:
 
-* **Resource leaks**: Asynchronous cleanup operations may not be executed properly
-* **Incomplete initialization**: Asynchronous setup operations may be skipped
-* **Unpredictable behavior**: The resource may not be in the expected state
+* **Inconsistent async usage**: Mixing synchronous and asynchronous patterns reduces code clarity
+* **Missed async opportunities**: Asynchronous setup and cleanup operations may not be utilized
+* **Maintenance issues**: Future developers may not understand the intended async behavior
 
 == How to fix it
 
@@ -28,7 +24,13 @@ Use the `async with` statement when working with asynchronous context managers.
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-class AsyncResource:
+class Resource:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        ...
+
     async def __aenter__(self):
         return self
 
@@ -36,8 +38,8 @@ class AsyncResource:
         ...
 
 async def main():
-    resource = AsyncResource()
-    with resource:  # Noncompliant: using 'with' with async context manager
+    resource = Resource()
+    with resource:  # Noncompliant: using 'with' in async function when async protocol is available
         ...
 ----
 
@@ -45,7 +47,13 @@ async def main():
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-class AsyncResource:
+class Resource:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        ...
+
     async def __aenter__(self):
         return self
 
@@ -53,20 +61,20 @@ class AsyncResource:
         ...
 
 async def main():
-    async with AsyncResource() as resource:  # Compliant: using 'async with'
+    async with Resource() as resource:  # Compliant: using 'async with' in async function
         ...
 ----
 
 === How does this work?
 
-The `async with` statement:
+The `async with` statement provides the proper way to use asynchronous context managers:
 
-1. Calls the `+__aenter__+` method and awaits its result
+1. It calls the `+__aenter__+` method and awaits its result
 2. Assigns the returned value to the variable after `as` (if specified)
 3. Executes the code block within the context
 4. Calls the `+__aexit__+` method and awaits its completion, even if an exception occurs
 
-This ensures that all asynchronous setup and cleanup operations are properly handled.
+This ensures consistency with the async programming model and allows the context manager to perform any necessary asynchronous operations during setup and cleanup.
 
 ifdef::env-github,rspecator-view[]
 
@@ -76,6 +84,8 @@ ifdef::env-github,rspecator-view[]
 === Message
 
 Use "async with" for asynchronous context managers
+
+Quickfix should be considered for implementation.
 
 === Highlighting
 
