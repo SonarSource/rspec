@@ -1,0 +1,112 @@
+This rule raises an issue when a synchronous `for` loop is used with an iterator implementing both synchronous and asynchronous iteration protocols.
+
+== Why is this an issue?
+
+Some iterators implement both synchronous and asynchronous iteration protocols, meaning they provide both:
+- `+__iter__+`/`+__next__+` methods for synchronous iteration
+- `+__aiter__+`/`+__anext__+` methods for asynchronous iteration
+
+When working with such iterators inside `async` functions, a standard `for` loop bypasses their asynchronous capabilities. This can lead to missed opportunities for concurrent execution and inconsistent async/await patterns within your asynchronous code.
+
+Using `async for` ensures that the asynchronous capabilities of the iterator are utilized, maintaining consistency with the asynchronous programming model and potentially allowing for better performance through concurrent operations.
+
+=== What is the potential impact?
+
+Using a standard `for` loop with these iterators in async functions can lead to:
+
+* **Missed Concurrency**: The asynchronous iteration protocol may allow for concurrent operations or non-blocking I/O that are bypassed when using synchronous iteration.
+* **Inconsistent Async Patterns**: Mixing synchronous iteration with asynchronous code makes the codebase less consistent and harder to reason about.
+* **Performance Degradation**: Potential performance benefits from asynchronous iteration (such as yielding control to the event loop during I/O operations) are lost.
+* **Code Clarity Issues**: Other developers may be confused about why an object with async capabilities is being used synchronously in an async context.
+
+== How to fix it
+
+Use the `async for` statement when iterating over such iterators within `async` functions. This ensures that the asynchronous iteration protocol is used, maintaining consistency with the async programming model.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import asyncio
+
+class DualProtocolIterator:
+    def __init__(self):
+        ...
+
+    # Synchronous iteration protocol
+    def __iter__(self):
+        ...
+
+    def __next__(self):
+        ...
+
+    # Asynchronous iteration protocol
+    def __aiter__(self):
+        ...
+
+    async def __anext__(self):
+        ...
+
+async def process_data():
+    iterator = DualProtocolIterator()
+
+    for item in iterator: # Noncompliant
+        ...
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import asyncio
+
+class DualProtocolIterator:
+    def __init__(self):
+        ...
+
+    # Synchronous iteration protocol
+    def __iter__(self):
+        ...
+
+    def __next__(self):
+        ...
+
+    # Asynchronous iteration protocol
+    def __aiter__(self):
+        ...
+
+    async def __anext__(self):
+        ...
+
+async def process_data():
+    iterator = DualProtocolIterator()
+
+    async for item in iterator: # Compliant
+        ...
+----
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Use 'async for' to iterate over dual-protocol iterators in 'async' functions.
+Quickfix should be considered for implementation
+
+=== Highlighting
+
+* Primary location: The `for` keyword of the loop when used with a dual-protocol iterator inside an `async` function.
+* Secondary locations: The `async` keyword of the enclosing function
+endif::env-github,rspecator-view[]
+
+== Resources
+
+=== Documentation
+
+* Python Documentation - https://docs.python.org/3/reference/compound_stmts.html#the-async-for-statement[The async for statement]
+* Python Documentation - https://docs.python.org/3/reference/datamodel.html#the-iterator-protocol[The iterator protocol]
+* Python Documentation - https://docs.python.org/3/reference/datamodel.html#asynchronous-iterators[Asynchronous Iterators]
