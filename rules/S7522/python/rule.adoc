@@ -55,36 +55,46 @@ Identify the expressions or statements within the loop that depend only on const
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-import os
-
-def check_files(filenames, base_dir):
+def check_files(filenames):
     results = []
     for fname in filenames:
-        # os.path.join(base_dir, "data") is invariant
-        data_dir = os.path.join(base_dir, "data") # # Noncompliant
-        full_path = os.path.join(data_dir, fname)
-
         # len(filenames) is invariant
-        if len(filenames) < 100: # # Noncompliant
-             print(f"Processing {fname} in small batch")
-
-        # os.path.exists is invariant in terms of lookup path
-        if os.path.exists(full_path): # # Noncompliant (the lookup path, not the result)
-             results.append(full_path)
-    return results
-
-files = ["a.txt", "b.txt"]
-base = "/tmp"
-check_files(files, base)
+        if len(filenames) < 100: # Noncompliant
+             print(f"Processing {fname}")
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
+def check_files(filenames):
+    is_small_batch = len(filenames) < 100 # Calculated once
+    for fname in filenames:
+        if is_small_batch:
+             print(f"Processing {fname}")
+----
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
 import os
-from os.path import join as path_join # Hoist lookup further
-from os.path import exists as path_exists # Hoist lookup further
+
+def check_files(filenames):
+    results = []
+    for fname in filenames:
+        # os.path.exists is invariant in terms of lookup path
+        if os.path.exists(fname): # Noncompliant
+             results.append(fname)
+    return results
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import os
+from os.path import exists as path_exists
 
 def check_files(filenames, base_dir):
     results = []
@@ -94,21 +104,37 @@ def check_files(filenames, base_dir):
     # -------------------------
 
     for fname in filenames:
-        # Use hoisted variable
-        full_path = path_join(data_dir, fname)
-
-        # Use hoisted variable
-        if is_small_batch:
-             print(f"Processing {fname} in small batch")
-
         # Use hoisted function directly
-        if path_exists(full_path):
-             results.append(full_path)
+        if path_exists(fname):
+             results.append(fname)
     return results
+----
 
-files = ["a.txt", "b.txt"]
-base = "/tmp"
-check_files(files, base)
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import os
+
+def check_files(filenames, base_dir):
+    for fname in filenames:
+        # os.path.join(base_dir, "data") is invariant
+        data_dir = os.path.join(base_dir, "data") # Noncompliant
+        full_path = os.path.join(data_dir, fname)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import os
+from os.path import join as path_join
+
+def check_files(filenames, base_dir):
+    data_dir = path_join(base_dir, "data")
+    for fname in filenames:
+        full_path = path_join(data_dir, fname)
 ----
 
 == Resources
