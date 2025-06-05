@@ -1,44 +1,134 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when statement executions or expressions evaluations inside a loop have results which remain constant across all iterations. This is inefficient and they should be moved outside the loop.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+A loop-invariant statement or expression is one whose value or outcome does not depend on the changing variables within the loop's iterations. Examples include:
+* Calculations involving only constants or variables defined outside the loop and not modified within it (e.g., `len(my_list_defined_outside)`, `FACTOR * 10`).
+* Attribute lookups on objects that are not mutated within the loop (e.g., `os.path.exists`).
+* Function calls whose results solely depend on loop-invariant inputs.
+* Conditional checks (`if`) where the condition itself is loop-invariant.
 
-//=== What is the potential impact?
+Repeatedly executing such invariant code inside a loop forces the Python interpreter to perform the same computation or lookup over and over again. This is redundant work that can significantly slow down loops, especially those with many iterations or computationally intensive invariant expressions.
+
+Consider the following example where `len(x)` and `len(x) * i` are invariant:
+
+[source,python]
+----
+def process(x, i):
+    results = []
+    # x and i are defined outside and not changed inside the loop
+    invariant_product = len(x) * i # Should be calculated once
+
+    for j in range(5): # Loop depends on 'j'
+        # Noncompliant: len(x) * i re-calculated every time
+        value = len(x) * i + j # # Noncompliant (sub-expression len(x) * i is invariant)
+        results.append(value)
+
+        # Noncompliant: len(x) > 2 evaluated every time
+        if len(x) > 2: # # Noncompliant (condition is invariant)
+            # Noncompliant: invariant_product calculated unnecessarily inside branch
+            print(invariant_product)
+
+    return results
+
+my_list = [10, 20, 30, 40]
+my_factor = 6
+process(my_list, my_factor)
+----
+
+By "hoisting" these invariant calculations out of the loop, the computation is done only once, improving performance.
+
+=== What is the potential impact?
+
+The performance impact depends on the complexity of the invariant expression and the number of loop iterations. For simple expressions or few iterations, the difference might be negligible. However, for complex calculations, expensive function calls (like I/O or complex lookups), or loops running millions of times, hoisting invariants can lead to substantial speedups.
+
+=== Caveats
+
+The analysis usually treats method calls as potentially having side effects, meaning `my_obj.some_method()` might change `my_obj`, preventing subsequent uses from being considered invariant. Also, be aware that hoisting might slightly change behavior if the invariant expression could raise an exception – hoisting makes the exception occur *before* the loop instead of potentially *during* it.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Identify the expressions or statements within the loop that depend only on constants or variables unchanged by the loop. Move these calculations *before* the loop starts, store their results in new local variables, and use these local variables inside the loop.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,python,diff-id=1,diff-type=noncompliant]
+[source,python]
 ----
-FIXME
+import os
+
+def check_files(filenames, base_dir):
+    results = []
+    for fname in filenames:
+        # os.path.join(base_dir, "data") is invariant
+        data_dir = os.path.join(base_dir, "data") # # Noncompliant
+        full_path = os.path.join(data_dir, fname)
+
+        # len(filenames) is invariant
+        if len(filenames) < 100: # # Noncompliant
+             print(f"Processing {fname} in small batch")
+
+        # os.path.exists is invariant in terms of lookup path
+        if os.path.exists(full_path): # # Noncompliant (the lookup path, not the result)
+             results.append(full_path)
+    return results
+
+files = ["a.txt", "b.txt"]
+base = "/tmp"
+check_files(files, base)
 ----
 
 ==== Compliant solution
 
-[source,python,diff-id=1,diff-type=compliant]
+[source,python]
 ----
-FIXME
+import os
+from os.path import join as path_join # Hoist lookup further
+from os.path import exists as path_exists # Hoist lookup further
+
+def check_files(filenames, base_dir):
+    results = []
+    # --- Hoisted Invariants ---
+    data_dir = path_join(base_dir, "data") # Calculated once
+    is_small_batch = len(filenames) < 100 # Calculated once
+    # -------------------------
+
+    for fname in filenames:
+        # Use hoisted variable
+        full_path = path_join(data_dir, fname)
+
+        # Use hoisted variable
+        if is_small_batch:
+             print(f"Processing {fname} in small batch")
+
+        # Use hoisted function directly
+        if path_exists(full_path):
+             results.append(full_path)
+    return results
+
+files = ["a.txt", "b.txt"]
+base = "/tmp"
+check_files(files, base)
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+* link:https://wiki.python.org/moin/PythonSpeed/PerformanceTips#MovingCalculationoutofLoops[Python Wiki: Performance Tips - Moving Calculation out of Loops]
 
+== Implementation details
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+Several kinds of invariant can be identified. Each of them should be a separated ticket:
+- Assigning a computed invariant value to a variable inside a loop 
+- Assigning an invariant coming from a function call inside a loop
+- Invariant if-condition inside a loop.
+
+=== Highlight
+
+The invariant expression which should be moved outside the loop should be highlighted.
+
+=== Message
+
+Extract this invariant from the loop.
