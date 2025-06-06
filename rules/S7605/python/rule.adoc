@@ -1,0 +1,122 @@
+This rule raises an issue when multiple independent asynchronous operations are awaited sequentially instead of concurrently.
+
+== Why is this an issue?
+
+Awaiting multiple independent asynchronous operations sequentially negates the potential concurrency gains that asynchronous programming provides. If Task B doesn't depend on the result of Task A, running them one after the other is inefficient and wastes the opportunity for concurrent execution.
+
+This applies to all major Python async frameworks: `asyncio`, `Trio`, and `AnyIO`. Each provides mechanisms to run independent operations concurrently.
+
+When independent async operations are awaited sequentially:
+
+* Total execution time is the sum of all individual operation times
+* The event loop cannot interleave execution of the operations
+* Application responsiveness is reduced unnecessarily
+* System resources are underutilized
+
+
+== How to fix it in Asyncio
+
+Use `asyncio.gather()` to run operations concurrently.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+# Noncompliant: Sequential awaiting
+result_a = await first_task()
+result_b = await second_task()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+# Compliant: Concurrent execution
+results = await asyncio.gather(
+    first_task(),
+    second_task()
+)
+----
+
+== How to fix it in Trio
+
+Use nurseries to manage concurrent execution. Nurseries provide structured concurrency where all spawned tasks are automatically managed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+# Noncompliant: Sequential awaiting
+result_a = await first_task()
+result_b = await second_task()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+# Compliant: Concurrent execution with nursery
+async with trio.open_nursery() as nursery:
+    nursery.start_soon(first_task)
+    nursery.start_soon(second_task)
+----
+
+== How to fix it in AnyIO
+
+Use task groups to manage concurrent execution. Task groups provide similar functionality to asyncio.gather() but with structured concurrency.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+# Noncompliant: Sequential awaiting
+result_a = await first_task()
+result_b = await second_task()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+# Compliant: Concurrent execution with task group
+async with anyio.create_task_group() as tg:
+    tg.start_soon(first_task)
+    tg.start_soon(second_task)
+----
+
+== Resources
+
+=== Documentation
+* Python asyncio - https://docs.python.org/3/library/asyncio-task.html#asyncio.gather[asyncio.gather()]
+* Python asyncio - https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task[asyncio.create_task()]
+* Trio - https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning[Nurseries and spawning]
+* AnyIO - https://anyio.readthedocs.io/en/stable/tasks.html#creating-and-managing-tasks[Creating and managing tasks]
+
+=== Articles & blog posts
+* Real Python - https://realpython.com/python-concurrency/[Concurrency and Parallelism in Python]
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+Await these independent operations concurrently using {`asyncio.gather()`, nurseries, task groups}.
+
+If framework can be detected:
+- For asyncio: Await these independent operations concurrently using `asyncio.gather()`.
+- For trio: Use Nursery to run these operations concurrently.
+- For anyio: Use TaskGroup to run these operations concurrently.
+
+=== Highlighting
+* Primary location: First sequential await of independent operations
+* Secondary locations: Additional sequential awaits in the same context
+* Secondary locations: The async keyword of the enclosing function
+
+endif::env-github,rspecator-view[]
