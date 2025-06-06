@@ -1,0 +1,101 @@
+This rule raises when using a regular `with` statement inside an async function with a context manager that implements the asynchronous context manager protocol.
+
+== Why is this an issue?
+
+When working within an async function, it is important to maintain consistency with the asynchronous programming model. If a context manager implements the asynchronous context manager protocol (defining `+__aenter__+` and `+__aexit__+` methods), it should be used with the `async with` statement rather than the regular `with` statement.
+
+The asynchronous context manager protocol is specifically designed to handle resources that may require asynchronous setup or teardown operations. Using the regular `with` statement in an async context bypasses this intended asynchronous behavior.
+
+=== What is the potential impact?
+
+Not following the proper async pattern can lead to:
+
+* **Inconsistent async usage**: Mixing synchronous and asynchronous patterns reduces code clarity
+* **Missed async opportunities**: Asynchronous setup and cleanup operations may not be utilized
+* **Maintenance issues**: Future developers may not understand the intended async behavior
+
+== How to fix it
+
+Use the `async with` statement when working with asynchronous context managers.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+class Resource:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        ...
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        ...
+
+async def main():
+    resource = Resource()
+    with resource:  # Noncompliant: using 'with' in async function when async protocol is available
+        ...
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+class Resource:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        ...
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        ...
+
+async def main():
+    async with Resource() as resource:  # Compliant: using 'async with' in async function
+        ...
+----
+
+=== How does this work?
+
+The `async with` statement provides the proper way to use asynchronous context managers:
+
+1. It calls the `+__aenter__+` method and awaits its result
+2. Assigns the returned value to the variable after `as` (if specified)
+3. Executes the code block within the context
+4. Calls the `+__aexit__+` method and awaits its completion, even if an exception occurs
+
+This ensures consistency with the async programming model and allows the context manager to perform any necessary asynchronous operations during setup and cleanup.
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Use "async with" for asynchronous context managers
+
+Quickfix should be considered for implementation.
+
+=== Highlighting
+
+* Primary location: The `with` keyword when used with an asynchronous context manager
+* Secondary location: The `async` keyword of the enclosing function
+endif::env-github,rspecator-view[]
+
+== Resources
+
+=== Documentation
+
+* Python Documentation - https://docs.python.org/3/reference/datamodel.html#asynchronous-context-managers[Asynchronous Context Managers]
+* Python Documentation - https://docs.python.org/3/reference/compound_stmts.html#the-async-with-statement[The async with statement]
