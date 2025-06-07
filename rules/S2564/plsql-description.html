@@ -1,0 +1,102 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The performance of DML queries in loops can be improved by placing them in a <code>FORALL</code> statement. This way, queries will be sent in bulk, minimizing the number of context switches between PL/SQL and SQL.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET SERVEROUTPUT ON
+
+CREATE TABLE largeTable(
+  foo VARCHAR2(42)
+);
+
+BEGIN
+  FOR i IN 1 .. 100000 LOOP
+    INSERT INTO largeTable VALUES('bar' || i); -- Non-compliant
+  END LOOP;
+END;
+/
+
+SET TIMING ON
+DECLARE
+  TYPE largeTableRowArrayType IS TABLE OF largeTable%ROWTYPE;
+  largeTableRowArray largeTableRowArrayType;
+BEGIN
+  SELECT * BULK COLLECT INTO largeTableRowArray FROM largeTable;
+
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE largeTable';
+  FOR i IN largeTableRowArray.FIRST .. largeTableRowArray.LAST LOOP
+    INSERT INTO largeTable (foo) VALUES (largeTableRowArray(i).foo); -- Non-compliant
+  END LOOP;
+END;
+/
+SET TIMING OFF
+
+DROP TABLE largeTable;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET SERVEROUTPUT ON
+
+CREATE TABLE largeTable(
+  foo VARCHAR2(42)
+);
+
+BEGIN
+  FOR i IN 1 .. 100000 LOOP
+    INSERT INTO largeTable VALUES('bar' || i); -- Non-compliant
+  END LOOP;
+END;
+/
+
+SET TIMING ON
+DECLARE
+  TYPE largeTableRowArrayType IS TABLE OF largeTable%ROWTYPE;
+  largeTableRowArray largeTableRowArrayType;
+BEGIN
+  SELECT * BULK COLLECT INTO largeTableRowArray FROM largeTable;
+
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE largeTable';
+  FORALL i IN largeTableRowArray.FIRST .. largeTableRowArray.LAST
+    INSERT INTO largeTable (foo) VALUES (largeTableRowArray(i).foo); -- Compliant
+
+  INSERT INTO largeTable (foo) VALUES ('baz'); -- Compliant, not in a loop
+END;
+/
+SET TIMING OFF
+
+DROP TABLE largeTable;</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use "FORALL" instead of this DML query in a loop.</p>
+</div>
+</div>
+</div>
+</div>
