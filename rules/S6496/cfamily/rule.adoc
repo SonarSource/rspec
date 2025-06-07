@@ -1,0 +1,89 @@
+Small objects whose types are trivially copy-constructible and destructible should be passed by value.
+Copy constructor and destructor are trivial, if they are not user-provided, the respective type does not declare virtual function members, and these properties hold recursively for all its members and its base class.
+In other words, they do not run any code but are only copying bytes.
+
+
+Passing small objects by value comes with the following benefits:
+
+. Aliasing in the call target is eliminated
++
+Aliasing describes the situation in which the same piece of memory can be accessed via a different pointer or reference variables.
+Internally, the compiler treats references like pointers.
+Aliasing, however, oftentimes hinders the compiler from producing efficient code.
+Consider the following code example:
++
+[source,cpp]
+----
+int add(int& x, const int& y) {
+  if (y == 42) {
+    x = 9001; // can potentially change y's value, if x and y alias
+  }
+  return x + y; // need to load y again
+}
+----
+Not only needs the compiler to generate a second load for `y`, but it is also not immediately clear that variable `y` may be changed by the store to `x`, which breaks local reasoning and thus may confuse programmers.
+Parameters passed by value cannot alias with any pointer/reference parameter or global variable and, therefore, eliminate the aforementioned problems.
+
+. No extra indirection required to access from the callee
++
+Passing a reference-typed variable is like passing a pointer-typed variable, since the compiler treats references like pointers.
+To access memory using a reference (or pointer) hence incurs an additional indirection.
+Objects passed by value may not even be stored in memory at all and can be passed via registers (Scalar Replacement of Aggregates) instead, or they are not passed at all, if the object is empty.
+
+. No additional function-call overhead
++
+Creating a copy of a trivially copy-constructible object does not require a call to a constructor (i.e., functional call) and hence has similar costs to copying one or only very few pointer/reference parameters.
+
+
+This rule raises an issue when a small object (up to `2 * sizeof(void*)` bytes) with trivial copy operations and a trivial destructor is passed by reference.
+
+
+== Noncompliant Code Example
+
+[source,cpp]
+----
+struct Point {
+  int x;
+  int y;
+};
+
+void f1(const int& i); // Noncompliant, pass by value is more efficient
+void f2(const double& d); // Noncompliant, pass by value is more efficient
+void f3(const Point& p); // Noncompliant, pass by value is more efficient
+void add(int& x, const int& y) {
+  // Noncompliant, even worse: compiler has to assume that the memory referred
+  // to by y can change, too, since x and y could alias and effectively refer
+  // to the same memory location.
+  if (y == 42) {
+    x = 9001;
+  }
+  return x + y;
+}
+----
+
+== Compliant Solution
+
+[source,cpp]
+----
+struct Point {
+  int x;
+  int y;
+};
+
+void f1(int i);
+void f2(double d);
+void f3(Point p);
+// Compliant, pass by reference to const; pass by value is potentially expensive
+void f4(const std::string &s);
+void add(int& x, int y) {
+  if (y == 42) {
+    x = 9001;
+  }
+  return x + y;
+}
+----
+
+
+== See
+
+* https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#f16-for-in-parameters-pass-cheaply-copied-types-by-value-and-others-by-reference-to-const[{cpp} Core Guidelines F.16] - For "in" parameters, pass cheaply-copied types by value and other by reference to const
