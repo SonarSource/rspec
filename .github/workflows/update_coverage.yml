@@ -6,13 +6,13 @@ on:
 
 jobs:
   update_coverage:
-    runs-on: sonar-runner-large
+    runs-on: ubuntu-latest-large
     permissions:
       id-token: write # required by SonarSource/vault-action-wrapper
       contents: write
       actions: write # required by andymckay/cancel-action
     env:
-      TMP_BRANCH: temporary/coverage_update
+      TMP_BRANCH: coverage-update
 
     steps:
     - name: 'get secrets'
@@ -51,19 +51,9 @@ jobs:
       run: |
         pipenv run rspec-tools update-coverage --rulesdir ../rules
         mv ./covered_rules.json ../frontend/public/covered_rules.json
-        if git diff --exit-code ../frontend/public/covered_rules.json; then
-          echo "new_coverage=false" >> "$GITHUB_OUTPUT"
-        else
-          echo "new_coverage=true" >> "$GITHUB_OUTPUT"
-        fi
 
-    - name: 'Cancel if coverage did not change'
-      if: steps.gen-coverage.outputs.new_coverage != 'true'
-      uses: andymckay/cancel-action@0.2
-
-    - name: 'Push the updated coverage file to a new branch'
-      id: create-temp-branch
-      if: steps.gen-coverage.outputs.new_coverage == 'true'
+    - name: 'Push the updated coverage file to the coverage branch'
+      id: push-to-branch
       working-directory: 'rspec'
       run: |
         git config --global user.name "SonarTech"
@@ -71,64 +61,8 @@ jobs:
         git checkout -b $TMP_BRANCH
         git add frontend/public/covered_rules.json
         git commit -m "update coverage information"
-        git push --force-with-lease origin $TMP_BRANCH
-
-    - name: 'Create a PR'
-      id: create-github-pr
-      working-directory: 'rspec'
-      env:
-        GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
-      run: |
-        PR_URL=$(gh pr create --head ${{ env.TMP_BRANCH }} --title "Update coverage information" --body "" --label "rspec system")
-        gh pr merge $PR_URL
-
-    - name: 'Wait until the PR is merged'
-      id: wait-for-pr-to-merge
-      env:
-        GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
-      working-directory: 'rspec'
-      run: |
-        set -ueo pipefail
-
-        # Implicitly referring to the PR corresponding to current branch
-
-        # Set timeout (20 minutes in seconds)
-        TIMEOUT=1200 # seconds
-        START_TIME=$(date +%s)
-        INTERVAL=20 # seconds
-
-        while true; do
-          # Check if the PR is merged
-          PR_STATE=$(gh pr view --json state,mergedAt -q '.state')
-          MERGED_AT=$(gh pr view --json state,mergedAt -q '.mergedAt')
-
-          if [[ "${PR_STATE}" == "MERGED" ]]; then
-            echo "PR merged at: $MERGED_AT"
-            exit 0
-          fi
-          echo "PR state is ${PR_STATE}"
-
-          # Check for timeout
-          CURRENT_TIME=$(date +%s)
-          ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
-
-          if [[ "${ELAPSED_TIME}" -gt "${TIMEOUT}" ]]; then
-            echo "Timeout waiting for PR to merge."
-            exit 1
-          fi
-
-          # Wait for $INTERVAL seconds before checking again
-          sleep "$INTERVAL"
-        done
-
-    - name: 'Close PR and delete branch upon failure to merge'
-      if: ${{ failure() }}
-      env:
-        GH_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).coverage_github_token }}
-      working-directory: 'rspec'
-      run: |
-        PR_URL=$(gh pr view --json url --jq '.url')
-        gh pr close "$PR_URL" --delete-branch
+        git push --force-with-lease origin $TMP_BRANCH:$TMP_BRANCH
+        git push --force-with-lease origin $TMP_BRANCH:dogfood/$TMP_BRANCH
 
     - name: 'Notify on slack about the failure'
       if: ${{ failure() }}
