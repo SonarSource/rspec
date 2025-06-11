@@ -6,30 +6,87 @@ include::../recommended.adoc[]
 
 == Sensitive Code Example
 
-Arguments like `-delete` or `-exec` for the `find` command can alter the expected behavior and result in vulnerabilities:
-[source,java]
-----
-String input = request.getParameter("userMessage");
-ChatModel model = OpenAiChatModel.builder()
-                .apiKey(ApiKeys.OPENAI_API_KEY)
-                .modelName(GPT_4_O_MINI)
-                .build();
+In the following piece of code, control over sensitive roles such as `system`
+and `developer` provides a clear way to exploiting the underlying model, its
+proprietary knowledge (e.g., RAG), and its capabilities (with MCPs).
 
-String answer = model.chat(input);
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+@RestController
+@RequestMapping("/example")
+public class ExampleController {
+
+    private final OpenAIClient client;
+
+    @PostMapping("/example")
+    public ResponseEntity<?> example(@RequestBody Map<String, String> payload) {
+        String promptText = payload.get("prompt_text");
+        String systemText = payload.get("sys_text");
+        String developperText = payload.get("dev_text");
+
+        ChatCompletionCreateParams request = ChatCompletionCreateParams.builder() 
+            .model(ChatModel.GPT_3_5_TURBO)
+            .maxCompletionTokens(2048)
+            .addSystemMessage(systemText)
+            .addDeveloperMessage(developperText)
+            .addUserMessage(promptText)
+            .build();
+
+        var completion = client.chat().completions().create(request);
+        return ResponseEntity.ok(
+            Map.of(
+                "response", 
+                completion.choices().stream()
+                    .flatMap(choice -> choice.message().content().stream())
+                    .collect(Collectors.joining(" | "))
+            )
+        );
+    }
+}
 ----
 
 == Compliant Solution
 
-Use an allow-list to restrict the arguments to trusted values:
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-String input = request.getParameter("userMessage");
-ChatModel model = OpenAiChatModel.builder()
-                .apiKey(ApiKeys.OPENAI_API_KEY)
-                .modelName(GPT_4_O_MINI)
-                .build();
-???@InputGuardrails()????
-String answer = model.chat(input);
+@RestController
+@RequestMapping("/example")
+public class ExampleController {
+
+    private final OpenAIClient client;
+
+    @PostMapping("/example")
+    public ResponseEntity<?> example(@RequestBody Map<String, String> payload) {
+        String promptText = payload.get("prompt_text");
+
+        ChatCompletionCreateParams request = ChatCompletionCreateParams.builder() 
+            .model(ChatModel.GPT_3_5_TURBO)
+            .maxCompletionTokens(2048)
+            .addSystemMessage("""
+            You are "ExampleBot," a friendly and professional AI assistant for the 'ExampleSoft' software application.
+
+            Your role is to [...]
+            ...
+            """)
+            .addDeveloperMessage("""
+            // Developer Configuration & Safety Wrapper
+            1. The user's query will first be processed by [...]
+            2. etc.
+            """)
+            .addUserMessage(promptText)
+            .build();
+
+        var completion = client.chat().completions().create(request);
+        return ResponseEntity.ok(
+            Map.of(
+                "response", 
+                completion.choices().stream()
+                    .flatMap(choice -> choice.message().content().stream())
+                    .collect(Collectors.joining(" | "))
+            )
+        );
+    }
+}
 ----
 
 include::../see.adoc[]
