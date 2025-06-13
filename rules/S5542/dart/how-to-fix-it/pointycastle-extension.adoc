@@ -1,0 +1,122 @@
+== How to fix it in PointyCastle
+
+=== Code examples
+
+==== Noncompliant code example
+
+include::../../common/fix/aes-noncompliant-example.adoc[]
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+import 'dart:typed_data';
+import 'package:pointycastle/export.dart';
+
+Uint8List _generateFixedBytes(int length, [int startValue = 0]) {
+  final list = List<int>.generate(length, (i) => (startValue + i) % 256);
+  return Uint8List.fromList(list);
+}
+
+void main() {
+  final BlockCipher underlyingBlockCipher = AESEngine();
+  final Uint8List aesKeyBytes = _generateFixedBytes(16);
+  final KeyParameter aesKey = KeyParameter(aesKeyBytes);
+
+  final CBCBlockCipher cbcCipher = CBCBlockCipher(underlyingBlockCipher); // Noncompliant
+  final cbcCipher2 = BlockCipher('AES/CBC'); // Noncompliant
+  Uint8List ivBytes = Uint8List(cbcCipher.blockSize);
+  ParametersWithIV params = ParametersWithIV(aesKey, ivBytes);
+  cbcCipher.init(true, params);
+
+  final ECBBlockCipher ecbCipher = ECBBlockCipher(underlyingBlockCipher); // Noncompliant
+  final ecbCipher2 = BlockCipher('AES/ECB'); // Noncompliant
+  ecbCipher.init(true, key);
+}
+----
+
+include::../../common/fix/rsa-noncompliant-example.adoc[]
+
+[source,dart,diff-id=2,diff-type=noncompliant]
+----
+import 'dart:typed_data';
+import 'package:pointycastle/export.dart';
+
+Uint8List _generateFixedBytes(int length, [int startValue = 0]) {
+  final list = List<int>.generate(length, (i) => (startValue + i) % 256);
+  return Uint8List.fromList(list);
+}
+
+void main() {
+  final RSAEngine rsaEngine = RSAEngine();
+  final AsymmetricBlockCipher rsaPkcs1Cipher = PKCS1Encoding(rsaEngine); // Noncompliant
+  final AsymmetricBlockCipher rsaPkcs1Cipher2 = AsymmetricBlockCipher('RSA/PKCS1'); // Noncompliant
+
+  final secureRandom = FortunaRandom()..seed(KeyParameter(Uint8List(32)));
+  final keyGen = RSAKeyGenerator()..init(ParametersWithRandom(RSAKeyGeneratorParameters(BigInt.parse('65537'), 2048, 12), secureRandom));
+  final pair = keyGen.generateKeyPair();
+  final publicKey = pair.publicKey as RSAPublicKey;
+  final privateKey = pair.privateKey as RSAPrivateKey;
+  rsaPkcs1Cipher.init(true, PublicKeyParameter<RSAPublicKey>(publicKey));
+}
+----
+
+
+==== Compliant solution
+
+include::../../common/fix/aes-compliant-example.adoc[]
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+import 'dart:typed_data';
+import 'package:pointycastle/export.dart';
+
+Uint8List _generateFixedBytes(int length, [int startValue = 0]) {
+  final list = List<int>.generate(length, (i) => (startValue + i) % 256);
+  return Uint8List.fromList(list);
+}
+
+void main() {
+  final BlockCipher underlyingBlockCipher = AESEngine();
+  final Uint8List aesKeyBytes = _generateFixedBytes(16);
+  final KeyParameter aesKey = KeyParameter(aesKeyBytes);
+
+  final GCMBlockCipher gcmCipher = GCMBlockCipher(underlyingBlockCipher);
+  final gcmCipher2 = BlockCipher('AES/GCM');
+  Uint8List ivBytes = Uint8List(cbcCipher.blockSize);
+  ParametersWithIV params = ParametersWithIV(aesKey, ivBytes);
+  gcmCipher.init(true, params);
+
+  final OFBBlockCipher ofbCipher = OFBBlockCipher(underlyingBlockCipher);
+  final ofbCipher2 = BlockCipher('AES/OFB');
+  ofbCipher.init(true, key);
+}
+----
+
+include::../../common/fix/rsa-compliant-example.adoc[]
+
+[source,dart,diff-id=2,diff-type=compliant]
+----
+import 'dart:typed_data';
+import 'package:pointycastle/export.dart';
+
+Uint8List _generateFixedBytes(int length, [int startValue = 0]) {
+  final list = List<int>.generate(length, (i) => (startValue + i) % 256);
+  return Uint8List.fromList(list);
+}
+
+void main() {
+  final RSAEngine rsaEngine = RSAEngine();
+  final AsymmetricBlockCipher rsaPkcs1Cipher = OAEPEncoding(rsaEngine);
+  final AsymmetricBlockCipher rsaPkcs1Cipher2 = AsymmetricBlockCipher('RSA/OAEP');
+
+  final secureRandom = FortunaRandom()..seed(KeyParameter(Uint8List(32)));
+  final keyGen = RSAKeyGenerator()..init(ParametersWithRandom(RSAKeyGeneratorParameters(BigInt.parse('65537'), 2048, 12), secureRandom));
+  final pair = keyGen.generateKeyPair();
+  final publicKey = pair.publicKey as RSAPublicKey;
+  final privateKey = pair.privateKey as RSAPrivateKey;
+  rsaPkcs1Cipher.init(true, PublicKeyParameter<RSAPublicKey>(publicKey));
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/fix.adoc[]
