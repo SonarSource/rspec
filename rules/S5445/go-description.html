@@ -1,0 +1,274 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Temporary files are considered insecurely created when the file existence check
+is performed separately from the actual file creation. Such a situation can
+occur when creating temporary files using normal file handling functions or when
+using dedicated temporary file handling functions that are not atomic.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Creating temporary files in a non-atomic way introduces race condition issues
+in the application&#8217;s behavior. Indeed, a third party can create a given file
+between when the application chooses its name and when it creates it.</p>
+</div>
+<div class="paragraph">
+<p>In such a situation, the application might use a temporary file that it does not
+entirely control. In particular, this file&#8217;s permissions might be different than
+expected. This can lead to trust boundary issues.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Attackers with control over a temporary file used by a vulnerable application
+will be able to modify it in a way that will affect the application&#8217;s logic.
+By changing this file&#8217;s Access Control List or other operating system-level
+properties, they could prevent the file from being deleted or emptied. They
+may also alter the file&#8217;s content before or while the application uses it.</p>
+</div>
+<div class="paragraph">
+<p>Depending on why and how the affected temporary files are used, the exploitation
+of a race condition in an application can have various consequences. They can
+range from sensitive information disclosure to more serious application or
+hosting infrastructure compromise.</p>
+</div>
+<div class="sect3">
+<h4 id="_information_disclosure">Information disclosure</h4>
+<div class="paragraph">
+<p>Because attackers can control the permissions set on temporary files and prevent
+their removal, they can read what the application stores in them. This might be
+especially critical if this information is sensitive.</p>
+</div>
+<div class="paragraph">
+<p>For example, an application might use temporary files to store users'
+session-related information. In such a case, attackers controlling those files
+can access session-stored information. This might allow them to take over
+authenticated users' identities and entitlements.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_attack_surface_extension">Attack surface extension</h4>
+<div class="paragraph">
+<p>An application might use temporary files to store technical data for further
+reuse or as a communication channel between multiple components. In that case,
+it might consider those files part of the trust boundaries and use their content
+without additional security validation or sanitation. In such a case, an
+attacker controlling the file content might use it as an attack vector for
+further compromise.</p>
+</div>
+<div class="paragraph">
+<p>For example, an application might store serialized data in temporary files for
+later use. In such a case, attackers controlling those files' content can change
+it in a way that will lead to an insecure deserialization exploitation. It might
+allow them to execute arbitrary code on the application hosting server and
+take it over.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code example is vulnerable to a race condition attack because it
+creates a temporary file using an unsafe API function.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Creating a temporary filename under a publicly writable path may allow an attacker to read and modify the file contents. See also <a data-rspec-id="S5443" class="rspec-auto-link">S5443</a> - Using publicly writable directories is security-sensitive.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">fname := filepath.Join(os.TempDir(), "example.conf") // Noncompliant: fname=/tmp/example.conf
+os.WriteFile(fname, []byte("hello world"), 0644)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Similarly, constructing a temporary directory using predictable paths should be avoided:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">dname := filepath.Join(os.TempDir(), "example") // Noncompliant: dname=/tmp/example/
+os.MkdirAll(dname, 0700)
+fname := filepath.Join(dname, "example.conf")
+os.WriteFile(fname, []byte("hello world"), 0600) // Writes to /tmp/example/example.conf</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Using <code>os.CreateTemp</code> creates a temporary file with an unpredictable filename and limited permissions:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">file, _ := os.CreateTemp("", "example-pattern-*")
+// Example file=/tmp/example-pattern-3425235234
+file.WriteString("hello world")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you need a temporary directory for multiple files, you can use <code>os.MkdirTemp()</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">dname, _ := os.MkdirTemp("", "example-*")
+fname := filepath.Join(dname, "example.conf")
+os.WriteFile(fn, []byte("hello world"), 0600)  // Writes to /tmp/example-243556/example.conf</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>Applications should create temporary files so that no third party can read or
+modify their content. It requires that the files' name, location, and
+permissions are carefully chosen and set. This can be achieved in multiple ways
+depending on the applications' technology stacks.</p>
+</div>
+<div class="sect3">
+<h4 id="_use_a_secure_api_function">Use a secure API function</h4>
+<div class="paragraph">
+<p>Temporary files handling APIs generally provide secure functions to create
+temporary files. In most cases, they operate in an atomical way, creating and
+opening a file with a unique and unpredictable name in a single call. Those
+functions can often be used to replace less secure alternatives without
+requiring important development efforts.</p>
+</div>
+<div class="paragraph">
+<p>Here, the example compliant code uses the more secure
+<code>os.CreateTemp</code> function to handle the temporary file creation.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_strong_security_controls">Strong security controls</h4>
+<div class="paragraph">
+<p>Temporary files can be created using unsafe functions and API as long as strong
+security controls are applied. Non-temporary file-handling functions and APIs
+can also be used for that purpose.</p>
+</div>
+<div class="paragraph">
+<p>In general, applications should ensure that attackers can not create a file
+before them. This turns into the following requirements when creating the files:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Files should be created in a non-public directory.</p>
+</li>
+<li>
+<p>File names should be unique.</p>
+</li>
+<li>
+<p>File names should be unpredictable. They should be generated using a
+cryptographically secure random generator.</p>
+</li>
+<li>
+<p>File creation should fail if a target file already exists.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Moreover, when possible, it is recommended that applications destroy temporary
+files after they have finished using them.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://owasp.org/www-community/vulnerabilities/Insecure_Temporary_File">OWASP</a> - Insecure Temporary File</p>
+</li>
+<li>
+<p><a href="https://pkg.go.dev/os#CreateTemp">os.CreateTemp()</a> - documentation</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/377">CWE-377 - Insecure Temporary File</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/379">CWE-379 - Creation of Temporary File in Directory with Incorrect Permissions</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567">Application Security and Development: V-222567</a> - The application must not be vulnerable to race conditions.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s2976">deprecates: <a data-rspec-id="S2976" class="rspec-auto-link">S2976</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5443">relates to: <a data-rspec-id="S5443" class="rspec-auto-link">S5443</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_16_nov_2020_095132_pierre_loup_tristant_wrote">on 16 Nov 2020, 09:51:32 Pierre-Loup Tristant wrote:</h3>
+<div class="paragraph">
+<p>PHP offers two built-in function to create temporary files:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>https://www.php.net/manual/en/function.tmpfile.php</p>
+</li>
+<li>
+<p>https://www.php.net/manual/en/function.tempnam.php
+Both function create a file with a unique filename, with access permission set to 0600.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule doesn&#8217;t make sens for PHP because built-in functions protect against insecure temporary file.</p>
+</div>
+</div>
+</div>
+</div>
