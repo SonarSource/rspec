@@ -1,0 +1,311 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Creating a Variable Length Array (VLA) with a size that is not greater than zero leads to undefined behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Variable length arrays are used to allocate a stack size for the number of elements that are known at the runtime,
+for example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void merge(int* tab, int size, int first) {
+  int res[size]; // allocate buffer for merging on stack
+  /* Code that merges two sorted ranges [tab, tab + first) and [tab + first, tab + last)
+   * into res buffer.
+   * ....
+   */
+  // copy merged data into input
+  memcpy(tab, res, size * sizeof(int));
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The syntax follows the one used by an array with static size (where size is a constant),
+and the value placed in the square brackets (<code>[size]</code> in the above example) determines the size of the array.
+For both static and runtime-sized arrays, the size is required to be greater than zero.
+However, in the case of VLAs, this cannot be checked by the compiler,
+and any program that creates such an array with a size that has a value of zero or is negative,
+has undefined behavior.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void example() {
+  int s = -1;
+  int vla[s];  // program compiles, and have undefined behavior
+  int arr[-1]; // program is ill-formed
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This defect may also manifest when the variable used as size is not initialized.
+Uninitialized variables might have zero, negative, or any value at each time the program executes.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void uninitialized() {
+  int s;      // uninitialized, the value is not determined
+  int vla[s]; // program compiles, have undefined behavior if the value read from s is negative or zero
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A non-positive size of the VLAs may also result from using a value loaded by the program from a file or other external resources used as size without previous validation.
+Such values as usually referred to as being <em>tainted</em>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void loadFromInput() {
+  int size = -1;
+  scanf("%d", &amp;size); // loads size from input
+  char bytes[size];   // size may be negative
+  /* ... */
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The above code will lead to undefined behavior when the value of the <code>size</code> load from the input is not greater than zero.
+This may happen due to source data corruption, accidental user mistake, or malicious action.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Creating a variable length array with a size smaller or equal to zero leads to undefined behavior.
+This means the compiler is not bound by the language standard anymore, and your program has no meaning assigned to it.</p>
+</div>
+<div class="paragraph">
+<p>Practically this can lead to a wide range of effects and may lead to the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>crashes, in particular segmentation faults, when the program access memory that it is not allowed to,</p>
+</li>
+<li>
+<p>memory corruption and data losses, when the program overwrites bytes responsible for storing data or executable code,</p>
+</li>
+<li>
+<p>stack overflow, when negative size is interpreted as a large positive number.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Furthermore, in a situation when VLA size is dependent on the user input, it can lead to vulnerabilities in the program.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ensure that the size of the variable length array is always greater than zero.
+In case of value that depends on user input (is <em>tainted</em>), prefer to allocate the memory on heap,
+or if that is not possible, include appropriate checks to ensure that value is positive and constrained before using it as size for VLA.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Zero size VLA is created due of by-one error.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void zeroSize() {
+  for (int i = 0; i &lt;= 5; ++i) {
+    int buffer[5 - i]; // Noncompliant: buffer size is zero for last iteration
+    /* ... */
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void zeroSize() {
+  for (int i = 0; i &lt; 5; ++i) {
+    int buffer[5 - i]; // Complaint
+    /* ... */
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Size is not initialized in one of code paths.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int countGrapheneClusters(int codeUnits, int bytesInCodeUnit) {
+  int size;
+  if (bytesInCodeUnit &gt; 0) {
+    size = codeUnits * bytesInCodeUnit;
+  }
+  char buffer[size]; // Noncomplaint: size may not be initialized
+  // ....
+  return  0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int countGrapheneClusters(int codeUnits, int bytesInCodeUnit) {
+  int size;
+  if (bytesInCodeUnit &gt; 0) {
+    size = codeUnits * bytesInCodeUnit;
+  } else {
+    return -1;
+  }
+  char buffer[size]; // Complaint: size is always initialized
+  // ....
+  return  0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int taintedSize() {
+  int size = 0;
+  scanf("%d", &amp;size); // size value is loaded from input, value is tainted here
+  char bytes[size];   // Noncomplaint: size may be negative
+  /* ... */
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="paragraph">
+<p>Allocate memory on heap, instead of using variable lenght array.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int taintedSize() {
+  int size = 0;
+  scanf("%d", &amp;size);
+  if (size &lt;= 0 || size &gt; 1000) {
+    return -1;
+  }
+
+  char* bytes = (char*)malloc(size); // Complaint: uses heap allocation
+  /* ... */
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>Variable length arrays are allocated on the stack, so in situations when a large value of the size is used,
+creating such an array may lead to stack overflow and undefined behavior:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void largeVLA() {
+  int s = INT_MAX;
+  int vla[s][100]; // requires allocation of the INT_MAX * 100
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In addition, the language does not provide a way to query available stack space, nor the possibility of reporting failure in the creation of such an array.</p>
+</div>
+<div class="paragraph">
+<p>When applicable, it is recommended to replace the VLA with heap-allocated memory.
+In contrast to VLA, heap allocation functions report in a situation when sufficient memory cannot be provided, by returning <code>NULL</code> or throwing an exception (in C&#43;&#43;).
+Furthermore, the C&#43;&#43; standard library provides containers like <code>std::vector</code>, that manage the heap-allocated memory.</p>
+</div>
+<div class="paragraph">
+<p>Moreover, the C11 language standard and above only optionally supports VLAs (with <code>__STDC_NO_VLA__</code>),
+and the C&#43;&#43; standard never supported it, however, they are commonly accepted as extensions.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/c/language/array#Variable-length_arrays">Variable-length arrays</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/container/vector"><code>std::vector</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/c/ARR32-C.+Ensure+size+arguments+for+variable+length+arrays+are+in+a+valid+range">ARR32-C. Ensure size arguments for variable length arrays are in a valid range</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222612">Application Security and Development: V-222612</a> - The application must not be vulnerable to overflow attacks.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>zero size</p>
+</div>
+<div class="paragraph">
+<p>negative size</p>
+</div>
+<div class="paragraph">
+<p>garbage as size</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_11_mar_2019_183742_ann_campbell_wrote">on 11 Mar 2019, 18:37:42 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Is "strictly positive" a <a href="https://www.merriam-webster.com/dictionary/term%20of%20art">term of art</a>? If not, I suggest a re-word</p>
+</div>
+</div>
+</div>
+</div>
