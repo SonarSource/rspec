@@ -1,16 +1,44 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when AWS Lambda handlers return values that are not JSON serializable.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
-
-//=== What is the potential impact?
+For synchronous AWS Lambda invocations, like via API Gateway or direct SDK calls, the value returned by the handler is automatically serialized into a JSON string before being sent back in the response. If the return value contains objects that are not native JSON types like `datetime` objects, sets, or custom class instances, the serialization will fail, causing a `TypeError`. This will prevent the Lambda from returning a valid response to the client.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Convert non-JSON-serializable objects to their string representation or to JSON-serializable types before returning them:
+
+* For `datetime` objects: Convert to ISO format strings using `.isoformat()`
+* For sets: Convert to lists using `list(set_object)`
+* For custom objects: convert them to dictionaries using the `++__dict__++` field, `dataclasses.asdict(...)` for dataclasses or a custom `todict()` method.
+
+See the following examples for more details on how to handle custom classes: 
+
+[source,python]
+----
+import json
+import dataclasses
+
+# A custom class representing a user
+@dataclasses.dataclass
+class User:
+    name: str
+    age: int
+    
+    def to_dict(self) -> dict:
+        return { "name": self.name, "age": self.age }
+
+user = User("Alice", 30)
+
+# Method 1: Using __dict__ field
+json.dumps(user.__dict__)  
+
+# Method 2: Using dataclasses.asdict()
+json.dumps(dataclasses.asdict(user))
+
+# Method 3: Using custom to_dict() method
+json.dumps(user.to_dict()) 
+----
 
 === Code examples
 
@@ -18,27 +46,77 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+import datetime
+
+def lambda_handler(event, context):
+    return {
+        "message": "Request processed successfully",
+        "timestamp": datetime.datetime.now()  # Noncompliant: not JSON serializable
+    }
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+import datetime
+
+def lambda_handler(event, context):
+    return {
+        "message": "Request processed successfully",
+        "timestamp": datetime.datetime.now().isoformat()  # Compliant: converted to string
+    }
 ----
 
-//=== How does this work?
 
-//=== Pitfalls
+== Resources
 
-//=== Going the extra mile
+=== Documentation
 
+* AWS Documentation - https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html#python-handler-return[Define Lambda function handler in Python
+]
+* Python Documentation - https://docs.python.org/3/library/json.html[json — JSON encoder and decoder]
+* Python Documentation - https://docs.python.org/3/reference/datamodel.html#object.__dict__[object.++__dict__++ field]
+* Python Documentation - https://docs.python.org/3/library/datetime.html#datetime.date.isoformat[datetime.date.isoformat()]
+* Python Documentation - https://docs.python.org/3/library/dataclasses.html#dataclasses.asdict[dateclasses.asdict()]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ifdef::env-github,rspecator-view[]
+== Implementation Specification
+visible only on this page
+
+The implementation should check for these common non-serializable types:
+* `datetime.datetime`, `datetime.date`, `datetime.time`
+* `set`, `frozenset`
+* `bytes`, `bytearray`
+* `complex` numbers
+* Custom class instances without proper serialization methods
+* `decimal.Decimal` objects
+* File objects
+* Functions and methods
+* Module objects
+* `re.Pattern` objects
+
+Since business logic and the handler should be separated, it is possible that the lambda handler as the last statement class a function and returns its result. If this is detect, it might be worth also checking the return type of the function. 
+
+Furthermore, it is common that the lambda handler has early returns which return a different JSON in case an error occurs. In this case, the rule should also check the return type of the handler in all branches.
+
+[source,python]
+----
+def process_event(event):
+    if not event.get("valid"):
+        return {"error": "Invalid event"}  
+
+    result = {"status": "success", "data": event["data"]}
+    return result  
+
+def lambda_handler(event, context):
+    return process_event(event)
+----
+
+=== Message
+Lambda handler returns a value that is not JSON serializable.
+
+=== Highlighting
+The non-serializable value or object in the return statement.
+
+endif::env-github,rspecator-view[]
