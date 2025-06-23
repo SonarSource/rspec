@@ -1,0 +1,98 @@
+== How to fix it in OpenAI
+
+=== Code examples
+
+In the following piece of code, control over sensitive roles such as `system`
+and `developer` provides a clear way to exploit the underlying model, its
+proprietary knowledge (e.g., RAG), and its capabilities (with MCPs).
+
+The compliant solution revokes any external possibility of controlling
+sensitive roles by just hardcoding the system and developer messages.
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+@RestController
+@RequestMapping("/example")
+public class ExampleController {
+    private final OpenAIClient client;
+    @PostMapping("/example")
+    public ResponseEntity<?> example(@RequestBody Map<String, String> payload) {
+        String promptText = payload.get("prompt_text");
+        String systemText = payload.get("sys_text");
+        String developerText = payload.get("dev_text");
+        ChatCompletionCreateParams request = ChatCompletionCreateParams.builder() 
+            .model(ChatModel.GPT_3_5_TURBO)
+            .maxCompletionTokens(2048)
+            .addSystemMessage(systemText)
+            .addDeveloperMessage(developerText)
+            .addUserMessage(promptText)
+            .build();
+        var completion = client.chat().completions().create(request);
+        return ResponseEntity.ok(
+            Map.of(
+                "response", 
+                completion.choices().stream()
+                    .flatMap(choice -> choice.message().content().stream())
+                    .collect(Collectors.joining(" | "))
+            )
+        );
+    }
+}
+----
+
+== Compliant Solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@RestController
+@RequestMapping("/example")
+public class ExampleController {
+    private final OpenAIClient client;
+    @PostMapping("/example")
+    public ResponseEntity<?> example(@RequestBody Map<String, String> payload) {
+        String promptText = payload.get("prompt_text");
+        ChatCompletionCreateParams request = ChatCompletionCreateParams.builder() 
+            .model(ChatModel.GPT_3_5_TURBO)
+            .maxCompletionTokens(2048)
+            .addSystemMessage("""
+            You are "ExampleBot", a friendly and professional AI assistant [...]
+            Your role is to [...]
+            """)
+            .addDeveloperMessage("""
+            // Developer Configuration & Safety Wrapper
+            1. The user's query will first be processed by [...]
+            2. etc.
+            """)
+            .addUserMessage(promptText)
+            .build();
+        var completion = client.chat().completions().create(request);
+        return ResponseEntity.ok(
+            Map.of(
+                "response", 
+                completion.choices().stream()
+                    .flatMap(choice -> choice.message().content().stream())
+                    .collect(Collectors.joining(" | "))
+            )
+        );
+    }
+}
+----
+
+=== How does this work?
+
+==== Explicitly stem the LLM context
+
+While designing an LLM application, and particularly at the stage where you
+create the "screenplay" of the intended dialogues between model, user(s),
+third-parties, tools, keep the **least privilege** principle in mind.
+
+Start by providing any external third-party or user with the least amount of
+capabilities or information, and only level up their privileges
+**intentionally**, e.g. when a situation (like tool calls) requires it.
+
+Another short-term hardening approach is to add AI guardrails to your LLM, but
+keep in mind that deny-list-based filtering is hard to maintain in the long-term
+**and** can always be bypassed. Attackers can be very creative with bypass
+payloads.
