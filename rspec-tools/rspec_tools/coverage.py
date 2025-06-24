@@ -23,6 +23,7 @@ REPOS = [
     "sonar-html",
     "sonar-iac-enterprise",
     "sonar-java",
+    "sonar-java-symbolic-execution",
     "SonarJS",
     "sonar-kotlin",
     "sonar-php",
