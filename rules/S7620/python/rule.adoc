@@ -1,44 +1,80 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when AWS Lambda handlers write to the /tmp directory without properly cleaning up temporary files before function completion.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+AWS Lambda provides a temporary file system at /tmp for each execution environment. However, the contents of /tmp can persist across multiple invocations of the same Lambda function instance during "warm starts." When temporary files are not cleaned up, they remain available to subsequent invocations of the same function instance.
 
-//=== What is the potential impact?
+=== What is the potential impact?
+
+This can lead to serious security and reliability issues: sensitive data from one invocation might leak to unrelated subsequent invocations, disk space can be exhausted causing function failures, and stale data from previous runs can cause unexpected behavior and hard-to-debug issues.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Always clean up temporary files before your Lambda function completes. Use a try...finally block to ensure cleanup happens even if errors occur during processing. Check if the file exists before attempting to remove it to avoid errors.
 
 === Code examples
 
 ==== Noncompliant code example
-
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+import json
+import os
+
+def process_data(event, context):
+    file_path = '/tmp/temp_data.txt'  # Noncompliant
+    with open(file_path, 'w') as f:
+        f.write(json.dumps(event))
+    
+    # ... processing logic that uses the file ...
+    
+    return {
+        'statusCode': 200,
+        'body': 'Data processed successfully.'
+    }
 ----
 
 ==== Compliant solution
-
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+import json
+import os
+
+def process_data(event, context):
+    file_path = '/tmp/temp_data.txt'
+    try:
+        with open(file_path, 'w') as f:
+            f.write(json.dumps(event))
+        
+        # ... processing logic that uses the file ...
+        
+        return {
+            'statusCode': 200,
+            'body': 'Data processed successfully.'
+        }
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
+* https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html[AWS Lambda Python Handler Documentation]
+* https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html[AWS Lambda File System Configuration]
 
-//=== Going the extra mile
 
+ifdef::env-github,rspecator-view[]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Clean up this temporary file before the Lambda function completes.
+
+=== Highlighting
+
+* Primary location: the file write operation to /tmp directory
+* Secondary location: the Lambda function definition
+
+endif::env-github,rspecator-view[]
