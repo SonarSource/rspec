@@ -1,0 +1,101 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+:setJavaScriptEnabledSnippet: webSettings.javaScriptEnabled = false
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+[source,kotlin]
+----
+class ExampleActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val webView = WebView(this)
+        webView.settings.javaScriptEnabled = true
+        webView.addJavascriptInterface(JavaScriptBridge(), "androidBridge")  // Sensitive
+    }
+
+    inner class JavaScriptBridge {
+        @JavascriptInterface
+        fun accessUserData(userId): String {
+            return getUserData(userId)
+        }
+    }
+}
+----
+
+== Compliant Solution
+
+The most secure option is to disable JavaScript entirely. S6362 further explains why it should not be enabled
+unless absolutely necessary.
+
+[source,kotlin]
+----
+class ExampleActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val webView = WebView(this)
+        webView.settings.javaScriptEnabled = false
+    }
+}
+----
+
+If possible, remove the JavaScript interface after it is no longer needed, or before loading any untrusted content.
+
+[source,kotlin]
+----
+class ExampleActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val webView = WebView(this)
+        webView.settings.javaScriptEnabled = true
+
+        webView.addJavascriptInterface(JavaScriptBridge(), "androidBridge")
+
+        // Sometime later, before unsafe content is loaded, remove the JavaScript interface
+        webView.removeJavascriptInterface("androidBridge")
+    }
+}
+----
+
+If a JavaScript bridge must be used, consider using ``WebViewCompat.addWebMessageListener`` instead. This allows you to restrict
+the origins that can send messages to the JavaScript bridge.
+
+[source,kotlin]
+----
+class ExampleActivity : AppCompatActivity() {
+    private val ALLOWED_ORIGINS = setOf("https://example.com")
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val webView = WebView(this)
+        webView.settings.javaScriptEnabled = true
+
+        WebViewCompat.addWebMessageListener(
+            webView, 
+            "androidBridge", 
+            ALLOWED_ORIGINS,  // Only allow messages from these origins
+            object : WebViewCompat.WebMessageListener {
+                override fun onPostMessage(
+                    view: WebView,
+                    message: WebMessageCompat,
+                    sourceOrigin: Uri,
+                    isMainFrame: Boolean,
+                    replyProxy: JavaScriptReplyProxy
+                ) {
+                    // Handle the message
+                }
+            }
+        )
+    }
+}
+----
+
+include::../see.adoc[]

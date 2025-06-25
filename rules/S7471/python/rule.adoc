@@ -1,0 +1,76 @@
+This rule raises an issue when a PySpark `SparkContext` or `SparkSession` is initialized without explicitly specifying both the `master` URL and `appName` parameters.
+
+== Why is this an issue?
+
+When initializing a new `SparkContext` in PySpark, it is essential to specify both the master URL and the application name. The master URL determines the cluster to connect to, while the application name is used to identify your application on the cluster. Since when creating a `SparkSession` the `SparkContext` can be created implicitly, it is also important to set these parameters when creating a new `SparkSession`.
+
+Failing to set these parameters can lead to unexpected behavior, such as connecting to an unintended cluster or having difficulty identifying your application in the Spark UI.
+
+A good default for the master URL for local development is `local[*]`, which uses all available cores on your machine. Alternatively, you can use `local[n]`, where `n` is the specific number of cores you want to allocate. However, in production environments, you should specify the actual cluster URL (e.g., `spark://host:port` or `yarn`).
+
+=== Exceptions
+When using PySpark with AWS Glue, the master and name parameters are usually not set, since AWS Glue manages these configurations automatically. 
+Because of this, the rule doesn't raise if `awsglue` has been imported.
+
+[source,python]
+----
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+
+sc = SparkContext() # Compliant: used in the context of awsglue code
+glueContext = GlueContext(sc)
+----
+
+== How to fix it
+
+To fix this issue, always provide both the `master` and `appName` parameters when creating a `SparkContext` or `SparkSession`, either directly or through a `SparkConf` object.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from pyspark import SparkContext
+
+sparkContext = SparkContext() # Noncompliant: neither master nor appName are specified
+
+sparkSession = SparkSession.builder.getOrCreate() # Noncompliant: neither master nor appName are specified
+----
+
+===== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pyspark import SparkContext 
+
+sparkContext = SparkContext(master="local[2]", appName="MySparkApplication") # Compliant: providing both parameters explicitly
+
+sparkSession = SparkSession.builder\
+    .master("local[2]")\
+    .appName("MySparkApplication")\
+    .getOrCreate() 
+----
+
+
+== Resources
+=== Documentation
+* PySpark Documentation - https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.SparkContext.html[pyspark.SparkContext]
+* PySpark Documentation - https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.SparkConf.html[pyspark.SparkConf]
+* PySpark Documentation - https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.SparkSession.html[pyspark.sql.SparkSession]
+* Apache Spark Documentation - https://spark.apache.org/docs/latest/submitting-applications.html#master-urls[Master URLs]
+
+ifdef::env-github,rspecator-view[]
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+Specify both "master" and "appName" parameters when initializing a SparkContext.
+
+=== Highlighting
+The SparkContext constructor call.
+
+=== Quickfix
+* For a missing master: add master="local[*]" as parameter.
+* For a missing appName: add appName="SparkApplication" as parameter.
+endif::env-github,rspecator-view[]
