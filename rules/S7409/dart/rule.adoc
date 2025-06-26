@@ -1,0 +1,108 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+== Recommended Secure Coding Practices
+
+=== Disable JavaScript
+
+If it is possible to disable JavaScript in the WebView, this is the most secure option. 
+
+When using the https://pub.dev/packages/webview_flutter[`webview_flutter` package], JavaScript is disabled by default. Therefore, https://pub.dev/documentation/webview_flutter/latest/webview_flutter/WebViewController/setJavaScriptMode.html[`setJavaScriptMode`] does not need to be explicitly called with https://pub.dev/documentation/webview_flutter/latest/webview_flutter/JavaScriptMode.html[`JavaScriptMode.disabled`] on https://pub.dev/documentation/webview_flutter/latest/webview_flutter/WebViewController-class.html[`WebViewController`] (v4 and above) or https://pub.dev/documentation/webview_flutter/3.0.4/webview_flutter/WebView-class.html[`WebView`] (v3 and below). 
+
+When using the https://pub.dev/packages/flutter_inappwebview[`flutter_inappwebview` package], on the other hand,
+the default behavior is to enable JavaScript. Therefore, it is necessary to set the `enableJavaScript` parameter
+to `false` in instances of https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/InAppWebViewSettings-class.html[InAppWebViewSettings] 
+and https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/InAppWebViewOptions-class.html[InAppWebViewOptions].
+
+Of course, sometimes it is necessary to enable JavaScript, in which case the following 
+recommendations should be considered.
+
+=== Remove JavaScript interface when loading untrusted content
+
+JavaScript interfaces can be removed at a later point. It is recommended to remove the JavaScript
+interface when it is no longer needed. If it is needed for a longer time, consider removing it before
+loading untrusted content. This can be done by calling `webViewController.removeJavaScriptChannel('channelName')` for the https://pub.dev/packages/webview_flutter[`webview_flutter` package] or `webViewController.removeJavaScriptHandler('channelName')` for the https://pub.dev/packages/flutter_inappwebview[`flutter_inappwebview` package].
+
+A good place to do this in Flutter is inside navigation callbacks like https://pub.dev/documentation/webview_flutter/latest/webview_flutter/NavigationDelegate/onNavigationRequest.html[`NavigationDelegate.onNavigationRequest`] 
+for the https://pub.dev/packages/webview_flutter[`webview_flutter` package] or https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/PlatformInAppBrowserEvents/shouldOverrideUrlLoading.html[`WebViewClient.shouldOverrideUrlLoading`] 
+for the https://pub.dev/packages/flutter_inappwebview[`flutter_inappwebview` package] package, where you can check the URL being loaded and remove the JavaScript channel 
+if the content is untrusted.
+
+=== Alternative methods to implement native bridges
+
+If a native channel has to be added to the WebView or its controller, and it is impossible to remove it 
+at a later point, consider using an alternative method that offers more control over the communication flow.
+
+For the `webview_flutter` package, there is currently no way to know the origin of an incoming JavaScript message. Therefore using JavaScript communication with `webview_flutter` is discouraged.
+
+For the `flutter_inappwebview` package, use https://pub.dev/documentation/flutter_inappwebview/latest/flutter_inappwebview/WebMessageListener-class.html[`WebMessageListener`] which allows you to restrict the origins that can send messages to your application.
+
+== Sensitive Code Example
+
+https://pub.dev/packages/webview_flutter[`webview_flutter`] 
+[source,dart]
+----
+final _controller = WebViewController()
+    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    ..addJavaScriptChannel("channel", onMessageReceived: (m) {}); // Sensitive
+----
+
+https://pub.dev/packages/flutter_inappwebview[`flutter_inappwebview`]
+[source,dart]
+----
+InAppWebView(
+  onWebViewCreated: (controller) {
+    controller?.addJavaScriptHandler( // Sensitive
+      handlerName: "channel",
+      callback: (args) {}
+    );
+  },
+);
+----
+
+== Compliant Solution
+
+The most secure option is to not enable, or disable, JavaScript entirely. S6362 further explains why it should not 
+be enabled unless absolutely necessary.
+
+https://pub.dev/packages/webview_flutter[`webview_flutter`] 
+[source,dart]
+----
+final _controller = WebViewController();
+----
+
+If possible, remove the JavaScript channel after it is no longer needed, or before loading any untrusted content.
+
+https://pub.dev/packages/webview_flutter[`webview_flutter`] 
+[source,dart]
+----
+_controller.removeJavaScriptChannel("channel");
+----
+
+https://pub.dev/packages/flutter_inappwebview[`flutter_inappwebview`]
+[source,dart]
+----
+_controller.removeJavaScriptHandler("channel");
+----
+
+If a JavaScript channel must be used, consider using `flutter_inappwebview` instead of `webview_flutter`. The Web Message API allows you to restrict the origins that can send messages to the JavaScript bridge.
+
+[source,dart]
+----
+InAppWebView(
+  onWebViewCreated: (controller) async {
+    await inAppController.addWebMessageListener(
+      WebMessageListener(
+        jsObjectName: "channel",
+          allowedOriginRules: {
+            "https://secure-origin",
+          }, // Restrict to specific origin
+          onPostMessage: (message, origin, isMainFrame, replyProxy) {},
+        ),
+      );
+  },
+);
+----
+
+include::../see.adoc[]
