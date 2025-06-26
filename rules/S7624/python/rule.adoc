@@ -1,16 +1,16 @@
-This rule raises an issue when AWS Lambda functions create files in /tmp without cleaning them up before the function completes.
+This rule raises an issue when AWS Lambda functions create files in the /tmp directory without properly cleaning them up before the function completes.
 
 == Why is this an issue?
 
-AWS Lambda provides a temporary file system at /tmp for each execution environment. However, the contents of /tmp can persist across multiple invocations when Lambda reuses the same execution environment (called a "warm start"). When Lambda functions create temporary files without cleaning them up, these files remain accessible to subsequent invocations of the same function instance.
+AWS Lambda provides a temporary file system at /tmp for each execution environment. The /tmp directory persists across multiple invocations of the same Lambda function instance during 'warm starts'. When Lambda functions create temporary files but don't clean them up, the files remain accessible to subsequent invocations. This creates several problems: sensitive data from one invocation might leak to unrelated future invocations, the limited /tmp storage space can fill up causing function failures, and subsequent invocations might accidentally use stale data from previous runs leading to unpredictable behavior.
 
 === What is the potential impact?
 
-Failing to clean up temporary files can lead to data leakage where sensitive information from one invocation becomes accessible to unrelated subsequent invocations. Additionally, it can cause disk space exhaustion since /tmp has limited storage capacity, potentially causing function failures. Finally, subsequent invocations might accidentally use stale data from previous runs, leading to unpredictable behavior and hard-to-debug issues.
+Data leakage between function invocations can expose sensitive information to unauthorized contexts. Disk space exhaustion will cause Lambda functions to fail with storage errors. Using stale data from previous invocations can lead to incorrect processing results and hard-to-debug application issues.
 
 == How to fix it
 
-Always clean up temporary files after use by implementing proper file cleanup logic. Use a try...finally block to ensure files are removed even when exceptions occur during processing. Check if the file exists before attempting to remove it to avoid errors.
+Always clean up temporary files created in /tmp before the Lambda function completes. Use a try...finally block to ensure cleanup happens even if errors occur during processing. Check if the file exists before attempting to remove it to avoid errors. For complex scenarios with multiple files or directories, consider using Python's tempfile module along with proper cleanup.
 
 === Code examples
 
@@ -25,7 +25,7 @@ def process_data(event, context):
     with open(file_path, 'w') as f:
         f.write(json.dumps(event))
     
-    # ... processing logic that uses the file ...
+    # ... processing logic ...
     
     return {
         'statusCode': 200,
@@ -45,7 +45,7 @@ def process_data(event, context):
         with open(file_path, 'w') as f:
             f.write(json.dumps(event))
         
-        # ... processing logic that uses the file ...
+        # ... processing logic ...
         
         return {
             'statusCode': 200,
@@ -59,9 +59,8 @@ def process_data(event, context):
 == Resources
 
 === Documentation
-* https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html[AWS Lambda - Using Amazon EFS with Lambda]
-* https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html[AWS Lambda - Define Lambda function handler in Python]
-* https://docs.python.org/3/library/tempfile.html[Python documentation - tempfile module]
+* https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html[AWS Lambda Python Handler Documentation]
+* https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html[AWS Lambda Temporary File System Configuration]
 
 
 ifdef::env-github,rspecator-view[]
@@ -75,7 +74,7 @@ Clean up this temporary file before the Lambda function completes.
 
 === Highlighting
 
-* Primary location: the file creation or write operation in /tmp
-* Secondary location: the Lambda function definition
+* Primary location: the file creation operation in /tmp
+* Secondary location: the Lambda handler function signature
 
 endif::env-github,rspecator-view[]
