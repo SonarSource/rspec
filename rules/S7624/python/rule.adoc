@@ -1,99 +1,67 @@
-This rule raises an issue when S3 operations are performed without verifying bucket ownership using the ExpectedBucketOwner parameter.
+This rule raises an issue when AWS Lambda functions create files in /tmp without cleaning them up before the function completes.
 
 == Why is this an issue?
 
-When working with S3 buckets in AWS applications, verifying bucket ownership is essential for security and data integrity. Without proper bucket owner verification, applications may inadvertently interact with unintended S3 buckets due to configuration errors, naming conflicts, or security misconfigurations. This is particularly critical in multi-account AWS environments where bucket names might be similar across different accounts, or when bucket names are dynamically constructed based on configuration values. The ExpectedBucketOwner parameter provides a safeguard by ensuring that S3 operations are only performed against buckets owned by the expected AWS account.
+AWS Lambda provides a temporary file system at /tmp for each execution environment. However, the contents of /tmp can persist across multiple invocations when Lambda reuses the same execution environment (called a "warm start"). When Lambda functions create temporary files without cleaning them up, these files remain accessible to subsequent invocations of the same function instance.
 
 === What is the potential impact?
 
-Failing to verify S3 bucket ownership can lead to serious security vulnerabilities and data integrity issues. Applications might accidentally write sensitive production data to incorrect buckets, read from unintended data sources, or interact with malicious buckets that have similar names. This could result in data breaches, compliance violations, data corruption, or unauthorized access to sensitive information. In serverless environments where functions are stateless and rely heavily on external services, such misconfigurations can be particularly dangerous as they may go unnoticed for extended periods.
+Failing to clean up temporary files can lead to data leakage where sensitive information from one invocation becomes accessible to unrelated subsequent invocations. Additionally, it can cause disk space exhaustion since /tmp has limited storage capacity, potentially causing function failures. Finally, subsequent invocations might accidentally use stale data from previous runs, leading to unpredictable behavior and hard-to-debug issues.
 
-== How to fix it in boto3
+== How to fix it
 
-Add the ExpectedBucketOwner parameter to your S3 operations to verify bucket ownership before performing any actions. This parameter should contain the AWS account ID of the expected bucket owner.
+Always clean up temporary files after use by implementing proper file cleanup logic. Use a try...finally block to ensure files are removed even when exceptions occur during processing. Check if the file exists before attempting to remove it to avoid errors.
 
 === Code examples
 
 ==== Noncompliant code example
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-import boto3
+import json
+import os
 
-def lambda_handler(event, context):
-    s3_client = boto3.client('s3')
-    bucket_name = 'my-production-bucket'
+def process_data(event, context):
+    file_path = '/tmp/temp_data.txt'  # Noncompliant
+    with open(file_path, 'w') as f:
+        f.write(json.dumps(event))
     
-    response = s3_client.get_object(  # Noncompliant
-        Bucket=bucket_name,
-        Key='data.json'
-    )
+    # ... processing logic that uses the file ...
+    
+    return {
+        'statusCode': 200,
+        'body': 'Data processed successfully.'
+    }
 ----
 
 ==== Compliant solution
 [source,python,diff-id=1,diff-type=compliant]
 ----
-import boto3
+import json
+import os
 
-def lambda_handler(event, context):
-    s3_client = boto3.client('s3')
-    bucket_name = 'my-production-bucket'
-    expected_owner = '123456789012'  # AWS account ID
-    
-    response = s3_client.get_object(
-        Bucket=bucket_name,
-        Key='data.json',
-        ExpectedBucketOwner=expected_owner
-    )
-----
-
-== How to fix it in aiobotocore
-
-When using aiobotocore for asynchronous S3 operations, include the ExpectedBucketOwner parameter to ensure bucket ownership verification in async contexts.
-
-=== Code examples
-
-==== Noncompliant code example
-[source,python,diff-id=2,diff-type=noncompliant]
-----
-import aiobotocore.session
-
-async def lambda_handler(event, context):
-    session = aiobotocore.session.get_session()
-    async with session.create_client('s3') as s3_client:
-        bucket_name = 'my-production-bucket'
+def process_data(event, context):
+    file_path = '/tmp/temp_data.txt'
+    try:
+        with open(file_path, 'w') as f:
+            f.write(json.dumps(event))
         
-        response = await s3_client.get_object(  # Noncompliant
-            Bucket=bucket_name,
-            Key='data.json'
-        )
-----
-
-==== Compliant solution
-[source,python,diff-id=2,diff-type=compliant]
-----
-import aiobotocore.session
-
-async def lambda_handler(event, context):
-    session = aiobotocore.session.get_session()
-    async with session.create_client('s3') as s3_client:
-        bucket_name = 'my-production-bucket'
-        expected_owner = '123456789012'  # AWS account ID
+        # ... processing logic that uses the file ...
         
-        response = await s3_client.get_object(
-            Bucket=bucket_name,
-            Key='data.json',
-            ExpectedBucketOwner=expected_owner
-        )
+        return {
+            'statusCode': 200,
+            'body': 'Data processed successfully.'
+        }
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 ----
 
 == Resources
 
 === Documentation
-* https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.get_object[boto3 S3 get_object documentation with ExpectedBucketOwner parameter]
-* https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-owner-condition.html[AWS S3 bucket owner condition documentation]
-
-=== Standards
-* AWS Well-Architected Framework - Security Pillar
+* https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html[AWS Lambda - Using Amazon EFS with Lambda]
+* https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html[AWS Lambda - Define Lambda function handler in Python]
+* https://docs.python.org/3/library/tempfile.html[Python documentation - tempfile module]
 
 
 ifdef::env-github,rspecator-view[]
@@ -103,10 +71,11 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Add 'ExpectedBucketOwner' parameter to verify S3 bucket ownership.
+Clean up this temporary file before the Lambda function completes.
 
 === Highlighting
 
-* Primary location: the S3 client method call without ExpectedBucketOwner parameter
+* Primary location: the file creation or write operation in /tmp
+* Secondary location: the Lambda function definition
 
 endif::env-github,rspecator-view[]
