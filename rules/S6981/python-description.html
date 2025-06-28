@@ -1,0 +1,161 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when an unscaled loss is used for the backward pass and when the forward pass happened in a mixed-precision context</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When using mixed precision training, tensors can be cast to lower precision variants to save memory and computing power.
+The gradients accumulated during the forward pass might also be cast to a lower precision variant. If the resulting gradients have a small enough magnitude, they might underflow.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>If the gradients underflow, the model might not learn properly and the training might be unstable.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue, you can use the relevant implementation of <code>GradScaler</code>, depending on the <code>autocast</code> context and device you are using.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch
+
+model = torch.nn.Linear(28*28, 10)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+
+x = torch.randn(1, 1*28*28)
+y = torch.rand(1, 10)
+
+optimizer.zero_grad()
+with torch.autocast(device_type="cuda"):
+    output = model(x)
+    loss = torch.nn.functional.cross_entropy(output, y)
+loss.backward() # Noncompliant: The loss is used without being scaled
+optimizer.step()</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch
+
+model = torch.nn.Linear(28*28, 10)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+scaler = torch.cuda.amp.GradScaler()
+
+x = torch.randn(1, 1*28*28)
+y = torch.rand(1, 10)
+
+optimizer.zero_grad()
+with torch.autocast(device_type="cuda"):
+    output = model(x)
+    loss = torch.nn.functional.cross_entropy(output, y)
+scaler.scale(loss).backward()
+scaler.step(optimizer)
+scaler.update()</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>The <code>GradScaler</code> class is used to scale the loss before calling the <code>backward</code> method. This ensures that the gradients are not underflowing.
+The calls to <code>backward()</code> and <code>step()</code> are replaced by <code>scaler.scale(loss).backward()</code> and <code>scaler.step(optimizer)</code> respectively.
+We also need to add a call to <code>scaler.update()</code> to correctly update the scaler.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Pytorch documentation - <a href="https://pytorch.org/docs/stable/amp.html#gradient-scaling">Gradient Scaling</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Tough implementation, with lots of false negatives in sight.</p>
+</div>
+<div class="paragraph">
+<p>There are multiple ways to have an autocast context, with the context manager or with a decorator on the <code>forward</code> method of the model.</p>
+</div>
+<div class="paragraph">
+<p>I think the implementation should not try too hard to find the issue.</p>
+</div>
+<div class="paragraph">
+<p>Find one function that has the properties :
+ - Has the autocast context manager, which contains a call to a subclass of <code>nn.Module</code>
+ OR
+ - Contains a call to a subclass of <code>nn.Module</code>, with the <code>@autocast</code> decorator on the <code>forward</code> method.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Has a call to the <code>backward</code> method of a tensor</p>
+</li>
+<li>
+<p>Has a call to the <code>step</code> method, (possibly filter to an object in the optimizer module ?)</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Primary : Use a GradScaler to avoid underflows</p>
+</div>
+<div class="paragraph">
+<p>Secondary:  Autocast context started here, The optimizer step should be proxied by a GradScaler</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_issue_location">Issue location</h3>
+<div class="paragraph">
+<p>Primary : on the entire .backward() call</p>
+</div>
+<div class="paragraph">
+<p>Secondary : The autocast context or decorator</p>
+</div>
+<div class="paragraph">
+<p>Secondary : The optimizer.step() call</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_quickfix">Quickfix</h3>
+<div class="paragraph">
+<p>No</p>
+</div>
+</div>
+</div>
+</div>
