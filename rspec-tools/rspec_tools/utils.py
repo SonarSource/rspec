@@ -47,6 +47,8 @@ LANG_TO_LABEL = {
     "cloudformation": "iac",
     "terraform": "iac",
     "kubernetes": "iac",
+    "json": "json",
+    "yaml": "yaml",
     "xml": "xml",
 }
 
@@ -65,6 +67,7 @@ LANG_TO_SOURCE = {
     "jcl": "jcl",
     "javascript": "javascript",
     "json": "json",
+    "yaml": "yaml",
     "kotlin": "kotlin",
     "kubernetes": "yaml",
     "php": "php",
