@@ -20,7 +20,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'ruby': ['RUBY'],
   'go': ['GO'],
   'java': ['JAVA'],
-  'javascript': ['JAVASCRIPT', 'JS', 'TYPESCRIPT'],
+  'javascript': ['js', 'ts'],
   'jcl': ['JCL'],
   'php': ['PHP'],
   'pli': ['PLI'],

@@ -1,0 +1,85 @@
+== How to fix it in archive/tar
+
+=== Code examples
+
+:canonicalization_function1: filepath.Clean
+:canonicalization_function2: filepath.Abs
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,go,diff-id=2,diff-type=noncompliant]
+----
+import (
+	"archive/tar"
+	"io"
+	"os"
+	"path/filepath"
+)
+
+func Extract(tarReader *tar.Reader, targetDirectory string) {
+	for {
+		header, err := tarReader.Next()
+		if err != nil {
+			break
+		}
+
+		outFilename := filepath.Join(targetDirectory, header.Name)
+		outFile, _ := os.Create(outFilename)
+		io.Copy(outFile, tarReader)
+	}
+}
+
+func Example() {
+	tarFile, _ := os.Open("testdata/example.tar")
+	tarReader := tar.NewReader(tarFile)
+	Extract(tarReader, "/tmp/uploads")
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=2,diff-type=compliant]
+----
+import (
+	"archive/tar"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+func Extract(tarReader *tar.Reader, targetDirectory string) {
+	for {
+		header, err := tarReader.Next()
+		if err != nil {
+			break
+		}
+
+		outFilename := filepath.Join(targetDirectory, header.Name)
+		if !strings.HasPrefix(filepath.Clean(outFilename), filepath.Clean(targetDirectory)) {
+			continue // zip slip detected
+		}
+
+		outFile, _ := os.Create(outFilename)
+		io.Copy(outFile, tarReader)
+	}
+}
+
+func Example() {
+	tarFile, _ := os.Open("testdata/example.tar")
+	tarReader := tar.NewReader(tarFile)
+	Extract(tarReader, "/tmp/uploads/") // Note the trailing slash
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/how-does-this-work.adoc[]
+
+=== Pitfalls
+
+include::../../common/pitfalls/partial-path-traversal.adoc[]
+
+include::go-pitfall-example.adoc[]

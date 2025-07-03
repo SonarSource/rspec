@@ -1,49 +1,130 @@
 == Why is this an issue?
 
-When a loop is filtering, selecting or aggregating, those functions can be handled with a clearer, more concise LINQ expression instead.
+Using explicit loops for filtering, selecting, or aggregating elements can make code more verbose and harder to read. LINQ expressions provide a more concise and expressive way to perform these operations, improving code clarity and maintainability.
 
+=== Performance Considerations
 
-=== Noncompliant code example
-
-[source,csharp]
-----
-var result = new List<string>();
-foreach (var element in collection)  // Noncompliant
-{
-  if (condition(element))
-  {
-    result.Add(element);
-  }
-}
-
-foreach (var element in collection2) // Noncompliant
-{
-  var someValue = element.Property;
-  if (someValue != null)
-  {
-    result.Add(someValue);
-  }
-}
-----
-
-
-=== Compliant solution
+If the affected code is part of a performance-critical hot path and that the fix would negatively impact performance, you can self-declare the `PerformanceSensitiveAttribute` in your codebase, or use the one provided by https://www.nuget.org/packages/Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers[Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers]:
 
 [source,csharp]
 ----
-var result = new List<string>();
+[AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = true, Inherited = false)]
+public sealed class PerformanceSensitiveAttribute() : Attribute;
 
-foreach (var element in collection.Where(x => condition(x)))
+[PerformanceSensitiveAttribute]
+List<string> Method(IEnumerable<string> collection, Predicate<string> condition)
 {
-  result.Add(element);
-}
-
-foreach (var someValue in collection2.Select(x => x.Property).Where(y => y != null))
-{
-  result.Add(someValue);
+  var result = new List<string>();
+  foreach (var element in collection)  // Without the attribute, this would raise an issue
+  {
+    if (condition(element))
+    {
+      result.Add(element);
+    }
+  }
+  return result;
 }
 ----
 
+The rule will respect the https://github.com/dotnet/roslyn-analyzers/blob/b924542a1b526322929725a1aaa9586c21b1b231/nuget/PerformanceSensitiveAnalyzers/PerformanceSensitiveAttribute.cs#L68-L72[`AllowGenericEnumeration`] property:
+
+[source,csharp]
+----
+[PerformanceSensitive("Enumeration", AllowGenericEnumeration = true)]
+List<string> Method(IEnumerable<string> collection, Predicate<string> condition) { }
+----
+
+In this case, the rule will not be disabled even if the method is marked with the `PerformanceSensitiveAttribute` attribute.
+
+== How to fix it
+
+Replace explicit loops and conditional blocks with equivalent LINQ expressions.
+
+Use the https://www.nuget.org/packages/System.Linq.Async[System.Linq.Async] package to enable LINQ operations on https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iasyncenumerable-1[IAsyncEnumerable] prior to .NET 10.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+List<string> Method(IEnumerable<string> collection, Predicate<string> condition)
+{
+  var result = new List<string>();
+  foreach (var element in collection)  // Noncompliant
+  {
+    if (condition(element))
+    {
+      result.Add(element);
+    }
+  }
+  return result;
+}
+----
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+List<string> Method(IEnumerable<MyDto> collection)
+{
+  var result = new List<string>();
+  foreach (var element in collection) // Noncompliant
+  {
+    var someValue = element.Property;
+    if (someValue != null)
+    {
+      result.Add(someValue);
+    }
+  }
+  return result;
+}
+----
+
+[source,csharp,diff-id=3,diff-type=noncompliant]
+----
+async Task<List<string>> Method(IAsyncEnumerable<string> collection)
+{
+  var result = new List<string>();
+  await foreach (var element in collection) // Noncompliant
+  {
+    if (element != null)
+    {
+      result.Add(element);
+    }
+  }
+  return result;
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+List<string> Method(IEnumerable<string> collection, Predicate<string> condition) =>
+  collection.Where(x => condition(x)).ToList();
+----
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+List<string> Method(IEnumerable<MyDto> collection) =>
+  collection.Select(x => x.Property).Where(y => y != null).ToList();
+----
+
+[source,csharp,diff-id=3,diff-type=compliant]
+----
+List<string> Method(IAsyncEnumerable<string> collection) =>
+  collection.Where(x => x != null).ToList();
+----
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/csharp/linq[Language Integrated Query (LINQ)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iasyncenumerable-
+1[IAsyncEnumerable<T> Interface]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/core/compatibility/core-libraries/10.0/asyncenumerable[System.Linq.AsyncEnumerable in .NET 10]
+* NuGet - https://www.nuget.org/packages/System.Linq.Async[System.Linq.Async]
+* NuGet - https://www.nuget.org/packages/Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers[Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers]
 
 ifdef::env-github,rspecator-view[]
 
