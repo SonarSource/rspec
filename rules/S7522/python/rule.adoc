@@ -1,0 +1,138 @@
+This rule raises an issue when statement executions or expressions evaluations inside a loop have results which remain constant across all iterations. This is inefficient and they should be moved outside the loop.
+
+== Why is this an issue?
+
+A loop-invariant statement or expression is one whose value or outcome does not depend on the changing variables within the loop's iterations. Examples include:
+* Calculations involving only constants or variables defined outside the loop and not modified within it e.g., `len(my_list_defined_outside)`, `FACTOR * 10`.
+* Attribute lookups on objects that are not mutated within the loop e.g., `os.path.exists`.
+* Function calls whose results solely depend on loop-invariant inputs.
+* Conditional checks (`if`) where the condition itself is loop-invariant.
+
+Repeatedly executing such invariant code inside a loop forces the Python interpreter to perform the same computation or lookup over and over again. This is redundant work that can significantly slow down loops, especially those with many iterations or computationally intensive invariant expressions.
+
+Consider the following example where `len(x)` and `len(x) * i` are invariant:
+
+[source,python]
+----
+def process(x: list, i: int):
+    results = []
+    # x and i are defined outside and not changed inside the loop
+    invariant_product = len(x) * i # Should be calculated once
+
+    for j in range(5): # Loop depends on 'j'
+        value = len(x) * i + j # Noncompliant: len(x) * i re-calculated every time
+        results.append(value)
+
+        if len(x) > 2: # Noncompliant: len(x) > 2 evaluated every time
+            print(invariant_product)
+
+    return results
+----
+
+By "hoisting" these invariant calculations out of the loop, the computation is done only once, improving performance.
+
+=== What is the potential impact?
+
+The performance impact depends on the complexity of the invariant expression and the number of loop iterations. For simple expressions or few iterations, the difference might be negligible. However, for complex calculations, expensive function calls like I/O or complex lookups, or loops running millions of times, hoisting invariants can lead to substantial speedups.
+
+=== Caveats
+
+The analysis usually treats method calls as potentially having side effects, meaning `my_obj.some_method()` might change `my_obj`, preventing subsequent uses from being considered invariant. Also, be aware that hoisting might slightly change behavior if the invariant expression could raise an exception – hoisting makes the exception occur *before* the loop instead of potentially *during* it.
+
+== How to fix it
+
+Identify the expressions or statements within the loop that depend only on constants or variables unchanged by the loop. Move these calculations *before* the loop starts, store their results in new local variables, and use these local variables inside the loop.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+def check_files(filenames):
+    for fname in filenames:
+    
+        if len(filenames) < 100: # Noncompliant: len(filenames) is invariant
+             print(f"Processing {fname}")
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+def check_files(filenames):
+    is_small_batch = len(filenames) < 100 # Calculated once
+    for fname in filenames:
+        if is_small_batch:
+             print(f"Processing {fname}")
+----
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import os
+
+def check_files(filenames):
+    for fname in filenames:
+        if os.path.exists(fname): # Noncompliant: os.path.exists is invariant in terms of lookup path
+             ...
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from os.path import exists as path_exists
+
+def check_files(filenames, base_dir):
+    for fname in filenames:
+        if path_exists(fname):  # Use hoisted function directly
+             ...
+----
+
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import os
+
+def check_files(filenames, base_dir):
+    for fname in filenames:
+        data_dir = os.path.join(base_dir, "data") # Noncompliant: os.path.join(base_dir, "data") is invariant
+        full_path = os.path.join(data_dir, fname)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from os.path import join as path_join
+
+def check_files(filenames, base_dir):
+    data_dir = path_join(base_dir, "data")
+    for fname in filenames:
+        full_path = path_join(data_dir, fname)
+----
+
+== Resources
+
+=== Documentation
+
+* Python wiki - https://wiki.python.org/moin/PythonSpeed/PerformanceTips#MovingCalculationoutofLoops[Python Wiki: Performance Tips - Moving Calculation out of Loops]
+
+== Implementation details
+
+Several kinds of invariant can be identified. Each of them should be a separated ticket:
+- Assigning a computed invariant value to a variable inside a loop 
+- Assigning an invariant coming from a function call inside a loop
+- Invariant if-condition inside a loop.
+
+=== Highlight
+
+The invariant expression which should be moved outside the loop should be highlighted.
+
+=== Message
+
+Extract this invariant from the loop.
