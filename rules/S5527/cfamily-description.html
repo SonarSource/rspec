@@ -1,0 +1,449 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This vulnerability allows attackers to impersonate a trusted host.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Transport Layer Security (TLS) provides secure communication between systems
+over the internet by encrypting the data sent between them. In this process,
+the role of hostname validation, combined with certificate validation, is to
+ensure that a system is indeed the one it claims to be, adding an extra layer
+of trust and security.</p>
+</div>
+<div class="paragraph">
+<p>When hostname validation is disabled, the client skips this critical check.
+This creates an opportunity for attackers to pose as a trusted entity and
+intercept, manipulate, or steal the data being transmitted.</p>
+</div>
+<div class="paragraph">
+<p>To do so, an attacker would obtain a valid certificate
+authenticating <code>example.com</code>, serve it using a different hostname, and
+the application code would still accept it.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Establishing trust in a secure way is a non-trivial task. When you disable
+hostname validation, you are removing a key mechanism designed to build this
+trust in internet communication, opening your system up to a number of
+potential threats.</p>
+</div>
+<div class="sect3">
+<h4 id="_identity_spoofing">Identity spoofing</h4>
+<div class="paragraph">
+<p>If a system does not validate hostnames, it cannot confirm the identity of
+the other party involved in the communication. An attacker can exploit this by
+creating a fake server and masquerading it as a legitimate one. For example,
+they might set up a server that looks like your bank&#8217;s server, tricking your
+system into thinking it is communicating with the bank. This scenario, called
+identity spoofing, allows the attacker to collect any data your system sends
+to them, potentially leading to significant data breaches.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_botan">How to fix it in Botan</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code contains examples of disabled hostname validation.</p>
+</div>
+<div class="paragraph">
+<p>The hostname validation gets disabled by overriding <code>tls_verify_cert_chain</code>
+with an empty implementation. It is highly recommended to use the original
+implementation.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;botan/tls_client.h&gt;
+#include &lt;botan/tls_callbacks.h&gt;
+#include &lt;botan/tls_session_manager.h&gt;
+#include &lt;botan/tls_policy.h&gt;
+#include &lt;botan/auto_rng.h&gt;
+#include &lt;botan/certstor.h&gt;
+#include &lt;botan/certstor_system.h&gt;
+
+class Callbacks : public Botan::TLS::Callbacks
+{
+    virtual void tls_verify_cert_chain(
+              const std::vector&lt;Botan::X509_Certificate&gt; &amp;cert_chain,
+              const std::vector&lt;std::shared_ptr&lt;const Botan::OCSP::Response&gt;&gt; &amp;ocsp_responses,
+              const std::vector&lt;Botan::Certificate_Store *&gt; &amp;trusted_roots,
+              Botan::Usage_Type usage,
+              const std::string &amp;hostname,
+              const Botan::TLS::Policy &amp;policy)
+    override  { }
+};
+
+class Client_Credentials : public Botan::Credentials_Manager { };
+
+void connect() {
+    Callbacks callbacks;
+    Botan::AutoSeeded_RNG rng;
+    Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+    Client_Credentials creds;
+    Botan::TLS::Strict_Policy policy;
+
+    Botan::TLS::Client client(callbacks, session_mgr, creds, policy, rng,
+                              Botan::TLS::Server_Information("example.com", 443),
+                              Botan::TLS::Protocol_Version::TLS_V12); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;botan/tls_client.h&gt;
+#include &lt;botan/tls_callbacks.h&gt;
+#include &lt;botan/tls_session_manager.h&gt;
+#include &lt;botan/tls_policy.h&gt;
+#include &lt;botan/auto_rng.h&gt;
+#include &lt;botan/certstor.h&gt;
+#include &lt;botan/certstor_system.h&gt;
+
+class Callbacks : public Botan::TLS::Callbacks { };
+
+class Client_Credentials : public Botan::Credentials_Manager { };
+
+void connect() {
+    Callbacks callbacks;
+    Botan::AutoSeeded_RNG rng;
+    Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+    Client_Credentials creds;
+    Botan::TLS::Strict_Policy policy;
+
+    Botan::TLS::Client client(callbacks, session_mgr, creds, policy, rng,
+                              Botan::TLS::Server_Information("example.com", 443),
+                              Botan::TLS::Protocol_Version::TLS_V12);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>To fix the vulnerability of disabled hostname validation, it is strongly
+recommended to first re-enable the default validation and fix the root cause: the validity of the certificate.</p>
+</div>
+<div class="sect3">
+<h4 id="_use_valid_certificates">Use valid certificates</h4>
+<div class="paragraph">
+<p>If a hostname validation failure prevents connecting to the target server, keep
+in mind that <strong>one system&#8217;s code should not work around another system&#8217;s problems</strong>,
+as this creates unnecessary dependencies and can lead to reliability issues.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, the first solution is to change the remote host&#8217;s certificate to
+match its identity. If the remote host is not under your control, consider replicating its
+service to a server whose certificate you can change yourself.</p>
+</div>
+<div class="paragraph">
+<p>In case the contacted host is located on a development machine, and if there
+is no other choice, try following this solution:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a self-signed certificate for that machine.</p>
+</li>
+<li>
+<p>Add this self-signed certificate to the system&#8217;s trust store.</p>
+</li>
+<li>
+<p>If the hostname is not <code>localhost</code>, add the hostname in the <code>/etc/hosts</code> file.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_curl">How to fix it in cURL</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>The following code contains examples of disabled hostname validation.</p>
+</div>
+<div class="paragraph">
+<p>The hostname validation gets disabled by setting <code>CURLOPT_SSL_VERIFYHOST</code> to
+<code>0L</code>. To enable validation set the value to
+<code>1L</code> or do not set <code>CURLOPT_SSL_VERIFYHOST</code> at all to
+use the secure default value.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;curl/curl.h&gt;
+
+void connect() {
+    CURL *curl;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L); // Noncompliant
+
+    curl_easy_perform(curl);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;curl/curl.h&gt;
+
+void connect() {
+    CURL *curl;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+
+    curl_easy_perform(curl);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>To fix the vulnerability of disabled hostname validation, it is strongly
+recommended to first re-enable the default validation and fix the root cause: the validity of the certificate.</p>
+</div>
+<div class="sect3">
+<h4 id="_use_valid_certificates_2">Use valid certificates</h4>
+<div class="paragraph">
+<p>If a hostname validation failure prevents connecting to the target server, keep
+in mind that <strong>one system&#8217;s code should not work around another system&#8217;s problems</strong>,
+as this creates unnecessary dependencies and can lead to reliability issues.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, the first solution is to change the remote host&#8217;s certificate to
+match its identity. If the remote host is not under your control, consider replicating its
+service to a server whose certificate you can change yourself.</p>
+</div>
+<div class="paragraph">
+<p>In case the contacted host is located on a development machine, and if there
+is no other choice, try following this solution:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a self-signed certificate for that machine.</p>
+</li>
+<li>
+<p>Add this self-signed certificate to the system&#8217;s trust store.</p>
+</li>
+<li>
+<p>If the hostname is not <code>localhost</code>, add the hostname in the <code>/etc/hosts</code> file.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_openssl">How to fix it in OpenSSL</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="paragraph">
+<p>The following code contains examples of disabled hostname validation.</p>
+</div>
+<div class="paragraph">
+<p>The hostname validation gets disabled because <code>SSL_set1_host</code> is omitted.
+To enable validation, set it to <code>the name of the expected host</code>.</p>
+</div>
+<div class="paragraph">
+<p>In case the hostnames are expected not to be prealably known, it is important
+to still check the hostnames depending on what is presented in their
+certificates.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;openssl/ssl.h&gt;
+
+void connect() {
+    const SSL_METHOD *method = TLS_method();
+    SSL_CTX *ctx = SSL_CTX_new(method);
+    SSL *ssl = SSL_new(ctx);
+
+    SSL_connect(ssl); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;openssl/ssl.h&gt;
+
+void connect() {
+    const SSL_METHOD *method = TLS_method();
+    SSL_CTX *ctx = SSL_CTX_new(method);
+    SSL *ssl = SSL_new(ctx);
+
+    SSL_set1_host(ssl, "smtp.example.com");
+    SSL_connect(ssl);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_3">How does this work?</h3>
+<div class="paragraph">
+<p>To fix the vulnerability of disabled hostname validation, it is strongly
+recommended to first re-enable the default validation and fix the root cause: the validity of the certificate.</p>
+</div>
+<div class="sect3">
+<h4 id="_use_valid_certificates_3">Use valid certificates</h4>
+<div class="paragraph">
+<p>If a hostname validation failure prevents connecting to the target server, keep
+in mind that <strong>one system&#8217;s code should not work around another system&#8217;s problems</strong>,
+as this creates unnecessary dependencies and can lead to reliability issues.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, the first solution is to change the remote host&#8217;s certificate to
+match its identity. If the remote host is not under your control, consider replicating its
+service to a server whose certificate you can change yourself.</p>
+</div>
+<div class="paragraph">
+<p>In case the contacted host is located on a development machine, and if there
+is no other choice, try following this solution:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a self-signed certificate for that machine.</p>
+</li>
+<li>
+<p>Add this self-signed certificate to the system&#8217;s trust store.</p>
+</li>
+<li>
+<p>If the hostname is not <code>localhost</code>, add the hostname in the <code>/etc/hosts</code> file.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://botan.randombit.net/handbook/">Botan</a> - Handbook</p>
+</li>
+<li>
+<p><a href="https://www.feistyduck.com/books/openssl-cookbook/">OpenSSL</a> - Cookbook</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/">Top 10 2021 Category A2 - Cryptographic Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/">Top 10 2021 Category A5 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/">Top 10 2021 Category A7 - Identification and Authentication Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/297">CWE-297 - Improper Validation of Certificate with Host Mismatch</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222550">Application Security and Development: V-222550</a> - The application must validate certificates by constructing a certification path to an accepted trust anchor.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Enable server hostname verification on this SSL/TLS connection</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s3510">deprecates: <a data-rspec-id="S3510" class="rspec-auto-link">S3510</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4499">deprecates: <a data-rspec-id="S4499" class="rspec-auto-link">S4499</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s5326">deprecates: <a data-rspec-id="S5326" class="rspec-auto-link">S5326</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s4830">is related to: <a data-rspec-id="S4830" class="rspec-auto-link">S4830</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_5_nov_2020_113949_pierre_loup_tristant_wrote">on 5 Nov 2020, 11:39:49 Pierre-Loup Tristant wrote:</h3>
+<div class="paragraph">
+<p>.NET API offers <a href="https://docs.microsoft.com/en-us/dotnet/api/system.net.security.remotecertificatevalidationcallback">a single callback</a> to override TLS certificates chain and hostname validation. <a data-rspec-id="S4830" class="rspec-auto-link">RSPEC-4830</a> already detects that this callback always accept the server certificate without validation. There is no easy way to detects code that validates the certificate chain and fails to validate the server hostname in this callback.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, this will not be implemented for .NET langauges.</p>
+</div>
+</div>
+</div>
+</div>
