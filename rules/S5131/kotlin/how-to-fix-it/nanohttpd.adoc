@@ -1,0 +1,106 @@
+== How to fix it in a NanoHTTPD
+
+=== Code examples
+
+The following code is vulnerable to cross-site scripting because it returns an HTML response that contains user input.
+
+Third-party data, such as user input, is not to be trusted. If embedded in HTML code, it should be HTML-encoded to prevent the injection of additional code.
+This can be done with the https://owasp.org/www-project-java-encoder/[OWASP Java Encoder] or similar libraries.
+
+==== Noncompliant code example
+
+[source,kotlin,diff-id=41,diff-type=noncompliant]
+----
+import fi.iki.elonen.NanoHTTPD
+
+class App : NanoHTTPD() {
+
+    @Override
+    fun serve(session: IHTTPSession): Response {
+        val name = session.getParms().get("input");
+        return newFixedLengthResponse( // Noncompliant
+            "<html><body><h1> Hello, $name!</h1></body></html>"
+        );
+    }
+}
+----
+
+==== Compliant solution
+
+[source,kotlin,diff-id=41,diff-type=compliant]
+----
+import fi.iki.elonen.NanoHTTPD
+import org.owasp.encoder.Encode
+
+class App : NanoHTTPD() {
+
+    @Override
+    fun serve(session: IHTTPSession): Response {
+        val name = session.getParms().get("input");
+        return newFixedLengthResponse(
+            "<html><body><h1> Hello, ${Encode.forHtml(name)}!</h1></body></html>"
+        );
+    }
+}
+----
+
+If you do not intend to send HTML code to clients, the vulnerability can be fixed by specifying the type of data returned in the response with the Content-Type header.
+
+For example, setting the Content-Type to `text/plain` allows to safely reflect user input.
+In this case, browsers will not try to parse and execute the response.
+
+==== Noncompliant code example
+
+[source,kotlin,diff-id=42,diff-type=noncompliant]
+----
+import fi.iki.elonen.NanoHTTPD
+
+class App : NanoHTTPD() {
+
+    @Override
+    fun serve(session: IHTTPSession): Response {
+        val name = session.getParms().get("input");
+        return newFixedLengthResponse( // Noncompliant - text/html by default
+            "Hello, $name!"
+        );
+    }
+}
+----
+
+==== Compliant solution
+
+[source,kotlin,diff-id=42,diff-type=compliant]
+----
+import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoHTTPD.Response.Status
+
+class App : NanoHTTPD() {
+
+    @Override
+    fun serve(session: IHTTPSession): Response {
+        val name = session.getParms().get("input");
+        return newFixedLengthResponse(
+            Status.OK,
+            "text/plain",
+            "Hello, $name!"
+        );
+    }
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/data_encoding.adoc[]
+
+`org.owasp.encoder.Encode.forHtml` is the recommended method to encode HTML entities.
+
+=== Pitfalls
+
+include::../../common/pitfalls/content-types.adoc[]
+
+include::../../common/pitfalls/validation.adoc[]
+
+=== Going the extra mile
+
+include::../../common/extra-mile/csp.adoc[]
+
