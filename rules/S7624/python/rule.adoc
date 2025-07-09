@@ -1,66 +1,101 @@
-This rule raises an issue when AWS Lambda handlers write to the /tmp directory without cleaning up temporary files before completing invocation.
+This rule raises an issue when network calls in AWS Lambda functions are made without explicit timeout configurations.
 
 == Why is this an issue?
 
-AWS Lambda provides a temporary file system at /tmp for each execution environment. While useful for ephemeral storage, the contents of /tmp can persist across multiple invocations of the same Lambda function instance during "warm starts". When Lambda reuses an execution environment, temporary files from previous invocations remain accessible to new invocations.
+AWS Lambda functions frequently make network calls to external services like APIs, databases, or other AWS services. When these calls don't have explicit timeouts, they can hang indefinitely if the remote service becomes unresponsive due to network issues, service overload, or firewall blocks.
+
+In the Lambda environment, this creates a perfect storm of problems. The function will continue consuming billed compute time while waiting for a response that may never come. Since Lambda functions have their own maximum execution timeout (up to 15 minutes), a hanging network call will eventually be terminated by the Lambda service itself, but only after wasting significant resources.
+
+This behavior makes debugging extremely difficult because it's hard to distinguish between actual functional errors and network stalls. The failure point becomes unpredictable - it might occur after 30 seconds, 1 minute, or even 15 minutes depending on your Lambda's configured timeout.
 
 === What is the potential impact?
 
-Failing to clean up temporary files can lead to data leakage where sensitive information from one invocation becomes accessible to subsequent unrelated invocations. Additionally, it can cause disk space exhaustion since /tmp has limited size, leading to function failures. Stale data from previous runs may also cause unexpected behavior and hard-to-trace bugs.
+Without explicit timeouts, Lambda functions face increased costs from wasted compute time, unpredictable failure behavior that complicates debugging, abrupt terminations that prevent graceful error handling, potential connection pool exhaustion, and cascading failures in upstream services that depend on timely responses.
 
-== How to fix it
+== How to fix it in requests
 
-Always clean up temporary files after use by implementing proper cleanup logic. Use a try...finally block to ensure files are removed even if errors occur during processing. For complex scenarios with multiple temporary files, consider using Python's tempfile module combined with proper cleanup.
+For HTTP requests using the requests library, use the timeout parameter to specify both connection and read timeouts. You can pass a single float value for both timeouts or a tuple (connect_timeout, read_timeout) for more granular control. Always wrap the call in try-except blocks to handle timeout exceptions gracefully.
 
 === Code examples
 
 ==== Noncompliant code example
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-import json
-import os
+import requests
 
-def process_data(event, context):
-    file_path = '/tmp/temp_data.txt'
-    with open(file_path, 'w') as f:  # Noncompliant
-        f.write(json.dumps(event))
-    
-    # ... processing logic ...
-    
-    return {
-        'statusCode': 200,
-        'body': 'Data processed successfully.'
-    }
+def lambda_handler(event, context):
+    response = requests.get('https://api.example.com/data')  # Noncompliant
+    return response.json()
 ----
 
 ==== Compliant solution
 [source,python,diff-id=1,diff-type=compliant]
 ----
-import json
+import requests
 import os
 
-def process_data(event, context):
-    file_path = '/tmp/temp_data.txt'
+def lambda_handler(event, context):
+    connect_timeout = float(os.environ.get('HTTP_CONNECT_TIMEOUT', 3.0))
+    read_timeout = float(os.environ.get('HTTP_READ_TIMEOUT', 10.0))
+    
     try:
-        with open(file_path, 'w') as f:
-            f.write(json.dumps(event))
-        
-        # ... processing logic ...
-        
-        return {
-            'statusCode': 200,
-            'body': 'Data processed successfully.'
-        }
-    finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        response = requests.get(
+            'https://api.example.com/data',
+            timeout=(connect_timeout, read_timeout)
+        )
+        return response.json()
+    except requests.exceptions.Timeout as e:
+        print(f"Request timed out: {e}")
+        return {'error': 'External service timed out'}
+----
+
+== How to fix it in boto3
+
+For AWS service calls using boto3, create a Config object with connect_timeout and read_timeout parameters, then pass it when creating the client. This ensures all operations with that client respect the timeout settings.
+
+=== Code examples
+
+==== Noncompliant code example
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import boto3
+
+def lambda_handler(event, context):
+    s3 = boto3.client('s3')  # Noncompliant
+    response = s3.get_object(Bucket='my-bucket', Key='file.txt')
+    return response['Body'].read()
+----
+
+==== Compliant solution
+[source,python,diff-id=2,diff-type=compliant]
+----
+import boto3
+from botocore.config import Config
+import os
+
+def lambda_handler(event, context):
+    config = Config(
+        connect_timeout=float(os.environ.get('AWS_CONNECT_TIMEOUT', 3.0)),
+        read_timeout=float(os.environ.get('AWS_READ_TIMEOUT', 10.0))
+    )
+    
+    s3 = boto3.client('s3', config=config)
+    
+    try:
+        response = s3.get_object(Bucket='my-bucket', Key='file.txt')
+        return response['Body'].read()
+    except Exception as e:
+        print(f"S3 operation failed: {e}")
+        return {'error': 'AWS service request failed'}
 ----
 
 == Resources
 
 === Documentation
-* https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html[AWS Lambda Python handler documentation]
-* https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html[AWS Lambda file system configuration]
+* https://requests.readthedocs.io/en/latest/user/advanced/#timeouts[Requests library timeout documentation]
+* https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html[Boto3 retries and timeouts configuration]
+* https://docs.aws.amazon.com/wellarchitected/latest/serverless-applications-lens/cost-and-performance-optimization.html[AWS Well-Architected Serverless Applications Lens]
+* https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/[AWS Builder's Library on timeouts and retries]
 
 
 ifdef::env-github,rspecator-view[]
@@ -70,11 +105,11 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Clean up this temporary file in /tmp before the Lambda function completes.
+Configure explicit timeouts for this network call to prevent hanging executions.
 
 === Highlighting
 
-* Primary location: the file creation operation in /tmp directory
-* Secondary location: the Lambda handler function signature
+* Primary location: the network call expression without timeout parameters
+* Secondary location: the client or session creation if applicable
 
 endif::env-github,rspecator-view[]
