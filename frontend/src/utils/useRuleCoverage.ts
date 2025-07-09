@@ -42,6 +42,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'ansible': ['ANSIBLE'],
   'json': ['JSON'],
   'yaml': ['YAML'],
+  'shell': ['SHELL'],
 }));
 
 export function useRuleCoverage() {

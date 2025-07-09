@@ -178,6 +178,7 @@ const languageToJiraProject = new Map(Object.entries({
   'ANSIBLE': 'SONARIAC',
   'JSON': 'SONARIAC',
   'YAML': 'SONARIAC',
+  'SHELL': 'SKUNK'
 }));
 
 const languageToGithubProject = new Map(Object.entries({
@@ -219,6 +220,7 @@ const languageToGithubProject = new Map(Object.entries({
   'ANSIBLE': 'sonar-iac-enterprise',
   'JSON': 'sonar-iac-enterprise',
   'YAML': 'sonar-iac-enterprise',
+  'SHELL': 'sonar-skunk',
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {

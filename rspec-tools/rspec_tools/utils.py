@@ -50,6 +50,7 @@ LANG_TO_LABEL = {
     "json": "json",
     "yaml": "yaml",
     "xml": "xml",
+    "shell": "shell",
 }
 
 LANG_TO_SOURCE = {
@@ -84,6 +85,7 @@ LANG_TO_SOURCE = {
     "objectivec": "objectivec",
     "vb": "vb",
     "ansible": "yaml",
+    "shell": "bash",
     # these languages are not supported by highlight.js as the moment:
     "apex": "apex",
     "azureresourcemanager": "bicep",
