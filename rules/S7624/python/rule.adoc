@@ -1,16 +1,16 @@
-This rule raises an issue when AWS Lambda functions create files in the /tmp directory without properly cleaning them up before the function completes.
+This rule raises an issue when AWS Lambda handlers write to the /tmp directory without cleaning up temporary files before completing invocation.
 
 == Why is this an issue?
 
-AWS Lambda provides a temporary file system at /tmp for each execution environment. The /tmp directory persists across multiple invocations of the same Lambda function instance during 'warm starts'. When Lambda functions create temporary files but don't clean them up, the files remain accessible to subsequent invocations. This creates several problems: sensitive data from one invocation might leak to unrelated future invocations, the limited /tmp storage space can fill up causing function failures, and subsequent invocations might accidentally use stale data from previous runs leading to unpredictable behavior.
+AWS Lambda provides a temporary file system at /tmp for each execution environment. While useful for ephemeral storage, the contents of /tmp can persist across multiple invocations of the same Lambda function instance during "warm starts". When Lambda reuses an execution environment, temporary files from previous invocations remain accessible to new invocations.
 
 === What is the potential impact?
 
-Data leakage between function invocations can expose sensitive information to unauthorized contexts. Disk space exhaustion will cause Lambda functions to fail with storage errors. Using stale data from previous invocations can lead to incorrect processing results and hard-to-debug application issues.
+Failing to clean up temporary files can lead to data leakage where sensitive information from one invocation becomes accessible to subsequent unrelated invocations. Additionally, it can cause disk space exhaustion since /tmp has limited size, leading to function failures. Stale data from previous runs may also cause unexpected behavior and hard-to-trace bugs.
 
 == How to fix it
 
-Always clean up temporary files created in /tmp before the Lambda function completes. Use a try...finally block to ensure cleanup happens even if errors occur during processing. Check if the file exists before attempting to remove it to avoid errors. For complex scenarios with multiple files or directories, consider using Python's tempfile module along with proper cleanup.
+Always clean up temporary files after use by implementing proper cleanup logic. Use a try...finally block to ensure files are removed even if errors occur during processing. For complex scenarios with multiple temporary files, consider using Python's tempfile module combined with proper cleanup.
 
 === Code examples
 
@@ -21,8 +21,8 @@ import json
 import os
 
 def process_data(event, context):
-    file_path = '/tmp/temp_data.txt'  # Noncompliant
-    with open(file_path, 'w') as f:
+    file_path = '/tmp/temp_data.txt'
+    with open(file_path, 'w') as f:  # Noncompliant
         f.write(json.dumps(event))
     
     # ... processing logic ...
@@ -59,8 +59,8 @@ def process_data(event, context):
 == Resources
 
 === Documentation
-* https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html[AWS Lambda Python Handler Documentation]
-* https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html[AWS Lambda Temporary File System Configuration]
+* https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html[AWS Lambda Python handler documentation]
+* https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem.html[AWS Lambda file system configuration]
 
 
 ifdef::env-github,rspecator-view[]
@@ -70,11 +70,11 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Clean up this temporary file before the Lambda function completes.
+Clean up this temporary file in /tmp before the Lambda function completes.
 
 === Highlighting
 
-* Primary location: the file creation operation in /tmp
+* Primary location: the file creation operation in /tmp directory
 * Secondary location: the Lambda handler function signature
 
 endif::env-github,rspecator-view[]
