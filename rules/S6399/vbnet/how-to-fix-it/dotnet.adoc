@@ -1,0 +1,105 @@
+== How to fix it
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+Imports System.Xml
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Async Sub Example(username As String)
+        Dim writer As XmlWriter = XmlWriter.Create("data.xml")
+        Await writer.WriteRawAsync(
+            $"<user>
+                <username>{username}</username> <!-- Noncompliant -->
+                <role>user</role>
+            </user>"
+        )
+        Await writer.DisposeAsync()
+    End Sub
+End Class
+----
+
+[source,vbnet,diff-id=2,diff-type=noncompliant]
+----
+Imports System.Xml
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Async Sub Example(username As String)
+        Dim doc As New XmlDocument()
+        Dim user As XmlElement = doc.CreateElement("user")
+        doc.AppendChild(user)
+
+        user.InnerXml = $"
+            <username>{username}</username> <!-- Noncompliant -->
+            <role>user</role>"
+        doc.Save("data.xml")
+    End Sub
+End Class
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Imports System.Xml
+Imports System.Security
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Async Sub Example(username As String)
+        Dim writer As XmlWriter = XmlWriter.Create("data.xml")
+        Await writer.WriteRawAsync(
+            $"<user>
+                <username>{SecurityElement.Escape(username)}</username>
+                <role>user</role>
+            </user>"
+        )
+        Await writer.DisposeAsync()
+    End Sub
+End Class
+----
+
+[source,vbnet,diff-id=2,diff-type=compliant]
+----
+Imports System.Xml
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Async Sub Example(username As String)
+        Dim doc As New XmlDocument()
+        Dim user As XmlElement = doc.CreateElement("user")
+        doc.AppendChild(user)
+
+        Dim username_element As XmlElement = doc.CreateElement("username")
+        user.AppendChild(username_element)
+        username_element.InnerText = username
+
+        Dim role As XmlElement = doc.CreateElement("role")
+        user.AppendChild(role)
+        role.InnerText = "user"
+        doc.Save("data.xml")
+    End Sub
+End Class
+----
+
+=== How does this work?
+
+In most cases, building XML strings with a direct concatenation of user input
+is discouraged. While not always possible, a strong pattern-based validation can
+help sanitize tainted inputs. Likewise, converting to a harmless type can
+sometimes be a solution.
+
+include::../../common/fix/object.adoc[]
+
+include::../../common/fix/casting.adoc[]
