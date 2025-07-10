@@ -1,0 +1,77 @@
+== How to fix it in .NET
+
+=== Code examples
+
+The following code is vulnerable to arbitrary code execution because it compiles
+and runs HTTP data.
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+Imports System.CodeDom.Compiler
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Sub Run(message As String)
+        Const code As String = "
+            Imports System
+            Public Class MyClass
+                Public Sub MyMethod()
+                    Console.WriteLine(""" + message + """)
+                End Sub
+            End Class
+        "
+
+        Dim provider = CodeDomProvider.CreateProvider("VisualBasic")
+        Dim compilerParameters As New CompilerParameters With {
+            .ReferencedAssemblies = {"System.dll", "System.Runtime.dll"}
+        }
+        Dim compilerResults = provider.CompileAssemblyFromSource(compilerParameters, code) ' Noncompliant
+
+        Dim myInstance As Object = compilerResults.CompiledAssembly.CreateInstance("MyClass")
+        myInstance.GetType().GetMethod("MyMethod").Invoke(myInstance, New Object() {})
+    End Sub
+End Class
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Imports System.CodeDom.Compiler
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Sub Run(message As String)
+        Const code As String = "
+            Imports System
+            Public Class MyClass
+                Public Sub MyMethod(input As String)
+                    Console.WriteLine(input)
+                End Sub
+            End Class
+        "
+
+        Dim provider = CodeDomProvider.CreateProvider("VisualBasic")
+        Dim compilerParameters As New CompilerParameters With {
+            .ReferencedAssemblies = {"System.dll", "System.Runtime.dll"}
+        }
+        Dim compilerResults = provider.CompileAssemblyFromSource(compilerParameters, code)
+        Dim myInstance As Object = compilerResults.CompiledAssembly.CreateInstance("MyClass")
+        myInstance.GetType().GetMethod("MyMethod").Invoke(myInstance, New Object() {message}) ' Pass message to dynamic method
+    End Sub
+End Class
+----
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+include::../../common/fix/parameters.adoc[]
+
+The compliant code example uses such an approach.
+
+include::../../common/fix/allowlist.adoc[]

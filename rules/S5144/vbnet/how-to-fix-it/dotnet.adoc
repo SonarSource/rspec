@@ -1,0 +1,68 @@
+== How to fix it in ASP.NET
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+Imports System.Web
+Imports System.Web.Mvc
+
+Public Class ExampleController
+    Inherits Controller
+
+    <HttpGet>
+    Public Async Function ImageFetch(location As String) As Task(Of IActionResult)
+        Using stream As Stream = Await client.GetStreamAsync(location) ' Noncompliant
+            Dim exampleImage = Await JsonSerializer.DeserializeAsync(Of ExampleImage)(stream)
+
+            Return Ok(If(example, New ExampleImage()))
+        End Using
+    End Function
+End Class
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Imports System.Web
+Imports System.Web.Mvc
+
+Public Class ExampleController
+    Inherits Controller
+
+    Private ReadOnly allowedSchemes() As String = {"https"}
+    Private ReadOnly allowedDomains() As String = {"trusted1.example.com", "trusted2.example.com"}
+
+    <HttpGet>
+    Public Async Function ImageFetch(location As String) As Task(Of IActionResult)
+        Dim uri As New Uri(location)
+
+        If Not allowedDomains.Contains(uri.Host) AndAlso Not allowedSchemes.Contains(uri.Scheme) Then
+            Return BadRequest()
+        End If
+
+        Using stream As Stream = Await client.GetStreamAsync(location)
+            Dim exampleImage = Await JsonSerializer.DeserializeAsync(Of ExampleImage)(stream)
+
+            Return Ok(If(example, New ExampleImage()))
+        End Using
+    End Function
+End Class
+----
+
+=== How does this work?
+
+include::../../common/fix/pre-approved-list.adoc[]
+
+include::../../common/fix/blacklist.adoc[]
+
+=== Pitfalls
+
+include::../../common/pitfalls/starts-with.adoc[]
+
+include::../../common/pitfalls/blacklist-toctou.adoc[]
