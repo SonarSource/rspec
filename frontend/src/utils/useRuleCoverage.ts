@@ -18,6 +18,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'kotlin': ['KOTLIN'],
   'scala': ['SCALA'],
   'ruby': ['RUBY'],
+  'githubactions': ['GITHUB_ACTIONS'],
   'go': ['GO'],
   'java': ['JAVA'],
   'javascript': ['js', 'ts'],
