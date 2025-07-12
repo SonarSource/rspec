@@ -1,0 +1,246 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This vulnerability allows forging of JSON Web Tokens to impersonate other users.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>JSON Web Tokens (JWTs), a popular method of securely transmitting information
+between parties as a JSON object, can become a significant security risk when
+they are not properly signed with a robust cipher algorithm, left unsigned
+altogether, or if the signature is not verified.
+This vulnerability class allows malicious actors to craft fraudulent tokens,
+effectively impersonating user identities. In essence, the integrity of a JWT
+hinges on the strength and presence of its signature.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When a JSON Web Token is not appropriately signed with a strong cipher
+algorithm or if the signature is not verified, it becomes a significant threat
+to data security and the privacy of user identities.</p>
+</div>
+<div class="sect3">
+<h4 id="_impersonation_of_users">Impersonation of users</h4>
+<div class="paragraph">
+<p>JWTs are commonly used to represent user authorization claims. They contain
+information about the user&#8217;s identity, user roles, and access rights. When these
+tokens are not securely signed, it allows an attacker to forge them. In essence,
+a weak or missing signature gives an attacker the power to craft a token that
+could impersonate any user. For instance, they could create a token for an
+administrator account, gaining access to high-level permissions and sensitive
+data.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_unauthorized_data_access">Unauthorized data access</h4>
+<div class="paragraph">
+<p>When a JWT is not securely signed, it can be tampered with by an attacker, and
+the integrity of the data it carries cannot be trusted. An attacker can
+manipulate the content of the token and grant themselves permissions they should
+not have, leading to unauthorized data access.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following example uses the <code>SigningMethodNone</code> method to sign a token. This method does not sign the token, which means that the token is not protected against tampering.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+
+func signToken() {
+	token := jwt.NewWithClaims(jwt.SigningMethodNone,
+		jwt.MapClaims{
+			"foo": "bar",
+		})
+	token.SignedString(jwt.UnsafeAllowNoneSignatureType) // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following example uses the <code>UnsafeAllowNoneSignatureType</code> method to verify a token. This method does not verify the token, which means that the token is not protected against tampering.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+
+func verifyToken(string tokenString) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return jwt.UnsafeAllowNoneSignatureType, nil // Noncompliant
+	})
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>The following example uses the <code>HS256</code> method to sign a token. This method signs the token using the HMAC algorithm with the secret key.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+var hmacSecret = ...
+
+func signToken() {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
+		jwt.MapClaims{
+			"foo": "bar",
+		})
+	token.SignedString(hmacSecret)
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following example first checks that the signing method is HMAC and then returns the secret key to verify the token.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">import (
+	jwt "github.com/golang-jwt/jwt/v5"
+)
+var hmacSecret = ...
+
+func verifyToken(string tokenString) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Check the signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return hmacSecret, nil
+	})
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_verify_the_signature_of_your_tokens">Verify the signature of your tokens</h4>
+<div class="paragraph">
+<p>Resolving a vulnerability concerning the validation of JWT token signatures is
+mainly about incorporating a critical step into your process: validating the
+signature every time a token is decoded. Just having a signed token using a
+secure algorithm is not enough. If you are not validating signatures, they are
+not serving their purpose.</p>
+</div>
+<div class="paragraph">
+<p>Every time your application receives a JWT, it needs to decode the token to
+extract the information contained within. It is during this decoding process
+that the signature of the JWT should also be checked.</p>
+</div>
+<div class="paragraph">
+<p>To resolve the issue, follow these instructions:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Use framework-specific functions for signature verification: Most programming
+frameworks that support JWTs provide specific functions to not only decode a
+token but also validate its signature simultaneously. Make sure to use these
+functions when handling incoming tokens.</p>
+</li>
+<li>
+<p>Handle invalid signatures appropriately: If a JWT&#8217;s signature does not
+validate correctly, it means the token is not trustworthy, indicating potential
+tampering. The action to take when encountering an invalid token should be denying
+the request carrying it and logging the event for further investigation.</p>
+</li>
+<li>
+<p>Incorporate signature validation in your tests: When you are writing tests
+for your application, include tests that check the signature validation
+functionality. This can help you catch any instances where signature
+verification might be unintentionally skipped or bypassed.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>By following these practices, you can ensure the security of your application&#8217;s
+JWT handling process, making it resistant to attacks that rely on tampering with
+tokens. Validation of the signature needs to be an integral and non-negotiable
+part of your token handling process.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="sect3">
+<h4 id="_securely_store_your_secret_keys">Securely store your secret keys</h4>
+<div class="paragraph">
+<p>Ensure that your secret keys are stored securely. They should not be hard-coded
+into your application code or checked into your version control system. Instead,
+consider using environment variables, secure key management systems, or vault
+services.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_rotate_your_secret_keys">Rotate your secret keys</h4>
+<div class="paragraph">
+<p>Even with the strongest cipher algorithms, there is a risk that your secret keys
+may be compromised. Therefore, it is a good practice to periodically rotate your
+secret keys. By doing so, you limit the amount of time that an attacker can
+misuse a stolen key. When you rotate keys, be sure to allow a grace period where
+tokens signed with the old key are still accepted to prevent service disruptions.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/">Top 10 2021 Category A2 - Cryptographic Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/347">CWE-347 - Improper Verification of Cryptographic Signature</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use only strong cipher algorithms when [signing|verifying the signature of] this JWT.</p>
+</div>
+</div>
+</div>
+</div>
