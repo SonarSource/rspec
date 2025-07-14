@@ -1,44 +1,164 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Script injections in GitHub Actions occur when any step of a workflow uses untrusted data in a script.
 
-//=== What is the potential impact?
+GitHub Actions workflows can access various sources of untrusted data through the GitHub context, such as:
+
+* Pull request titles, descriptions, and commit messages
+* Issue titles and comments
+* Branch names and tag names
+* User-provided inputs
+* Repository names and other metadata
+
+When this untrusted data is directly interpolated into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to command injection vulnerabilities. An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.
+
+For instance, if a pull request title contains shell metacharacters like `$(whoami)` or `; rm -rf /`, these will be executed as commands when the workflow runs, potentially compromising the build environment or exposing sensitive information.
+
+=== What is the potential impact?
+
+OS command injection vulnerabilities in GitHub Actions can have severe consequences:
+
+==== Information disclosure
+Attackers can extract sensitive information from the runner environment, including:
+
+* Repository secrets and environment variables
+* Authentication tokens and API keys
+* Source code and proprietary data
+* Build artifacts and deployment credentials
+
+==== System compromise
+Successful command injection allows attackers to:
+
+* Execute arbitrary commands on the runner
+* Install malware or backdoors
+* Modify the file system and running processes
+* Access other resources available to the runner
+
+==== Supply chain attacks
+Compromised workflows can be used to:
+
+* Inject malicious code into build artifacts
+* Modify dependencies or packages being published
+* Compromise downstream systems that consume the artifacts
+* Steal credentials for package repositories or deployment targets
+
+==== Repository manipulation
+Attackers may be able to:
+
+* Modify repository contents or history
+* Create unauthorized releases or tags
+* Access or modify other repositories the workflow has access to
+* Escalate privileges within the organization
+
+The impact is particularly severe because GitHub Actions runners often have elevated privileges and access to sensitive resources, making them attractive targets for attackers.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
 === Code examples
 
 ==== Noncompliant code example
 
+The following GitHub Action is vulnerable to command injections because it is using untrusted input in a run command:
+
 [source,yaml,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example Step
+        run: |
+          echo "PR title: ${{ github.event.pull_request.title }}" # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,yaml,diff-id=1,diff-type=compliant]
 ----
-FIXME
+name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example Step
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "PR title: $PR_TITLE"
+
 ----
 
-//=== How does this work?
+=== How does this work?
 
-//=== Pitfalls
+The most effective way to prevent command injection is to pass untrusted data through environment variables. GitHub Actions will safely handle the data without executing it as shell commands.
 
-//=== Going the extra mile
+Set the untrusted data as an environment variable using the `env` key, then reference it using standard shell variable syntax (`$VARIABLE_NAME` or `${VARIABLE_NAME}`) instead of GitHub's expression syntax (`${{ ... }}`).
 
+Environment variables are processed by the shell as data, not as commands. Even if the PR title contains malicious shell syntax, it will be treated as a literal string when accessed through the environment variable, effectively neutralizing any injection attempts.
 
-//== Resources
-//=== Documentation
+=== Pitfalls
+
+include::../../../shared_content/githubactions/pitfalls/fixing_only_main.adoc[]
+
+==== Accessing environment variables through GitHub expressions
+
+While storing untrusted data in environment variables is the correct approach, it is important to reference them properly. Simply putting the data in an environment variable but then accessing it through GitHub's expression syntax (`${{ env.VARIABLE_NAME }}`) will still result in command injection vulnerabilities.
+
+The following example demonstrates this common mistake:
+
+[source,yaml]
+----
+name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example Pitfall
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Printing the title of the PR: ${{ env.PR_TITLE }}" # Noncompliant
+----
+
+=== Going the extra mile
+
+include::../../../shared_content/githubactions/extra_mile/hardening.adoc[]
+
+==== Advanced input validation
+
+For enhanced security, implement comprehensive input validation:
+
+* **Allowlists**: Instead of just avoiding dangerous characters, use allowlists to only accept inputs that match expected patterns (e.g., valid branch names, semantic version formats).
+* **Custom validation actions**: Create reusable composite actions that encapsulate input validation logic, making it easier to apply consistent security controls across workflows.
+* **Input sanitization**: When possible, sanitize inputs by removing or escaping potentially dangerous characters before processing them.
+
+== Resources
+
+=== Documentation
+* GitHub Docs - https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections[Understanding the risk of script injections]
+
+include::../common/resources/standards.adoc[]
+
 //=== Articles & blog posts
 //=== Conference presentations
-//=== Standards
 //=== External coding guidelines
 //=== Benchmarks
