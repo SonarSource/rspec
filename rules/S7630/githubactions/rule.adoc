@@ -8,7 +8,6 @@ GitHub Actions workflows can access various sources of untrusted data through th
 * Issue titles and comments
 * Branch names and tag names
 * User-provided inputs
-* Repository names and other metadata
 
 When this untrusted data is directly interpolated into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to command injection vulnerabilities. An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.
 
@@ -16,14 +15,13 @@ For instance, if a pull request title contains shell metacharacters like `$(whoa
 
 === What is the potential impact?
 
-OS command injection vulnerabilities in GitHub Actions can have severe consequences:
+Script injection vulnerabilities in GitHub Actions can have severe consequences:
 
 ==== Information disclosure
 Attackers can extract sensitive information from the runner environment, including:
 
 * Repository secrets and environment variables
 * Authentication tokens and API keys
-* Source code and proprietary data
 * Build artifacts and deployment credentials
 
 ==== System compromise
@@ -31,7 +29,6 @@ Successful command injection allows attackers to:
 
 * Execute arbitrary commands on the runner
 * Install malware or backdoors
-* Modify the file system and running processes
 * Access other resources available to the runner
 
 ==== Supply chain attacks
@@ -40,7 +37,6 @@ Compromised workflows can be used to:
 * Inject malicious code into build artifacts
 * Modify dependencies or packages being published
 * Compromise downstream systems that consume the artifacts
-* Steal credentials for package repositories or deployment targets
 
 ==== Repository manipulation
 Attackers may be able to:
@@ -48,17 +44,20 @@ Attackers may be able to:
 * Modify repository contents or history
 * Create unauthorized releases or tags
 * Access or modify other repositories the workflow has access to
-* Escalate privileges within the organization
 
 The impact is particularly severe because GitHub Actions runners often have elevated privileges and access to sensitive resources, making them attractive targets for attackers.
 
 == How to fix it
 
+To prevent command injection in GitHub Actions workflows, avoid directly interpolating untrusted data into shell commands. Instead, use environment variables to safely pass untrusted data without risk of code execution.
+
+The recommended approach is to assign untrusted data to environment variables using the `env` key, then reference these variables using standard shell variable syntax (`$VARIABLE_NAME` or `${VARIABLE_NAME}`) rather than GitHub's expression syntax (`${{ ... }}`).
+
 === Code examples
 
 ==== Noncompliant code example
 
-The following GitHub Action is vulnerable to command injections because it is using untrusted input in a run command:
+The following GitHub Action is vulnerable to command injections as it uses untrusted input directly in a run command:
 
 [source,yaml,diff-id=1,diff-type=noncompliant]
 ----
@@ -103,11 +102,13 @@ jobs:
 
 === How does this work?
 
-The most effective way to prevent command injection is to pass untrusted data through environment variables. GitHub Actions will safely handle the data without executing it as shell commands.
+The key difference lies in when and how the untrusted data is processed:
 
-Set the untrusted data as an environment variable using the `env` key, then reference it using standard shell variable syntax (`$VARIABLE_NAME` or `${VARIABLE_NAME}`) instead of GitHub's expression syntax (`${{ ... }}`).
+* **Direct interpolation**: When using `${{ github.event.pull_request.title }}` directly in a shell command, GitHub Actions first substitutes the expression with the actual PR title, then passes the resulting string to the shell. If the title contains shell metacharacters, they become part of the command syntax and get executed.
 
-Environment variables are processed by the shell as data, not as commands. Even if the PR title contains malicious shell syntax, it will be treated as a literal string when accessed through the environment variable, effectively neutralizing any injection attempts.
+* **Environment variable approach**: When the untrusted data is assigned to an environment variable, the shell receives it as a pre-existing variable value. The shell treats environment variable contents as literal data, not as executable code, regardless of what characters they contain.
+
+This separation ensures that malicious shell syntax in the untrusted data cannot be interpreted as commands, effectively neutralizing injection attempts.
 
 === Pitfalls
 
@@ -136,7 +137,7 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          echo "Printing the title of the PR: ${{ env.PR_TITLE }}" # Noncompliant
+          echo "PR title: ${{ env.PR_TITLE }}" # Noncompliant
 ----
 
 === Going the extra mile
