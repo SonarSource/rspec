@@ -1,0 +1,72 @@
+== How to fix it in MongoDB
+
+=== Code examples
+
+The following code is vulnerable to NoSQL injections because untrusted data is
+used to find data in a database.
+Such cases can be encountered when client-side code crafts the query, such as 
+``++[{ '$match': { 'Username': 'John Doe' } }]++``.
+
+Note that `Find` and `FindAsync` are not the only constructs whose input should be
+verified. Multiple
+https://mongodb.github.io/mongo-csharp-driver/2.4/reference/driver/definitions/[definitions]
+can be built from a string and allow attackers to leak or tamper with data.
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+<ApiController>
+<Route("Example")>
+Public Class ExampleController
+    Inherits ControllerBase
+
+    Private ConnectionString As String
+
+    <Route("Example")>
+    Public Async Function Example() As Task(Of String)
+        Dim Client As New MongoClient(ConnectionString)
+        Dim Database = Client.GetDatabase("example")
+        Dim Collection = Database.GetCollection(Of Message)("messages")
+
+        Dim FilterDefinitionBson = Request.Query("filterDefinition")
+        Dim FilterDefinition = MongoDB.Bson.Serialization.BsonSerializer.Deserialize(Of BsonDocument)(FilterDefinitionBson)
+
+        return Await Collection.FindAsync(FilterDefinition)
+    End Function
+End Class
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+<ApiController>
+<Route("Example")>
+Public Class ExampleController
+    Inherits ControllerBase
+
+    Private ConnectionString As String
+
+    <Route("Example")>
+    Public Async Function Example() As Task(Of String)
+        Dim Client = New MongoClient(ConnectionString)
+        Dim Database As Client.GetDatabase("example")
+        Dim Collection = Database.GetCollection(Of Message)("messages")
+
+        Dim FilterDefinition = Builders(Of Message).Filter.Eq(Function(m) m.Username, "Example")
+
+        return Await Collection.FindAsync(FilterDefinition)
+    End Function
+End Class
+----
+
+=== How does this work?
+
+include::../../common/fix/builder-pattern.adoc[]
+
+If using a builder pattern is not possible, follow the instructions below:
+
+include::../../common/fix/pre-approved-list.adoc[]
+
+include::../../common/fix/dangerous-operators.adoc[]
