@@ -1,0 +1,322 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Transparent function objects are function-like types that support heterogeneous operations. There are essentially two kinds of such types: transparent comparators and transparent hashers. For instance, a transparent comparator for strings would support comparing a <code>std::string<code> with string-like types (such as </code>char const*<code> or </code>std::string_view`</code>).</p>
+</div>
+<div class="paragraph">
+<p>These transparent function objects are interesting for search-optimized containers such as <code>std::set</code> and <code>std::map</code>, including their <code>multi</code> and <code>unordered</code> variants. When transparent comparators/hashers are used, the containers enable additional overloads for many operations that support types different from their <code>key_type</code>.</p>
+</div>
+<div class="paragraph">
+<p>For example, <code>std::set&lt;std::string&gt;</code> is <em>not</em> using transparent comparators. Invoking many member functions with a non-<code>std::string</code> argument leads to, implicitly or explicitly, creating a temporary <code>std::string</code> object because the functions only support an argument of the <code>key_type</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Given a container c with a non-transparent comparator:
+std::set&lt;std::string&gt; c = ...;
+
+// Calling "find" with a C-style string (char const*)
+auto it = c.find("Nemo");
+// is equivalent to
+auto it = c.find(std::string{"Nemo"});
+
+// Calling C++20 "contains" with a std::string_view sv
+// does not compile since conversion has to be explicit:
+//   if (c.contains(sv)) { ... }
+// It has to be rewritten like this:
+if (c.contains(std::string(sv))) { ... }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Using heterogeneous comparison and hashing directly benefits the application performance since unnecessary temporaries can be avoided. An excellent and very common example of when transparent functions objects are beneficial is when the <code>key_type</code> is <code>std::string</code>.</p>
+</div>
+<div class="paragraph">
+<p>Starting from C&#43;&#43;14, transparent function objects can enable additional overloads for these containers: <code>std::set</code>, <code>std::map</code>, <code>std::unordered_set</code>, <code>std::unordered_map</code>, <code>std::multiset</code>, <code>std::multimap</code>, <code>std::unordered_multiset</code>, and <code>std::unordered_multimap</code>.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the C&#43;&#43; version and the container type, the overloads are available for these operations:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Lookup functions, such as: <code>find</code>, <code>count</code>, <code>lower_bound</code>, <code>upper_bound</code>, <code>equal_range</code>, <code>contains</code>.</p>
+</li>
+<li>
+<p>Mutation functions, such as: <code>erase</code>, <code>extract</code>, <code>insert</code>, <code>insert_or_assign</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For this reason, this rule detects using <code>std::string</code> as the key for the associative container types mentioned previously when heterogeneous operations are disabled.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You should prefer using transparent comparators and hashers with associative containers over <code>std::string</code> to avoid creating costly temporaries.</p>
+</div>
+<div class="paragraph">
+<p>Transparent comparators introduced in C&#43;&#43;14 include: <code>std::less&lt;&gt;</code>, <code>std::less_equal&lt;&gt;</code>, <code>std::equal_to&lt;&gt;</code>, etc. (This syntax leverages the default template parameter, which is <code>void</code>.) However, there are no standard transparent hashers.</p>
+</div>
+<div class="paragraph">
+<p>You can override the default comparator and hasher for the type family of <code>std::set</code> and <code>std::map</code> by explicitly providing the corresponding template parameter.</p>
+</div>
+<div class="sect2">
+<h3 id="_working_with_tree_based_containers">Working with tree-based containers</h3>
+<div class="paragraph">
+<p><code>std::set</code>, <code>std::map</code>, <code>std::multiset</code>, and <code>std::multimap</code> are tree-based data structures that, by default, use <code>&lt;</code> to compare the keys. Under the hood, they use <code>std::less&lt;key_type&gt;</code> to invoke the <code>operator&lt;</code> on the keys.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example() {
+  std::set&lt;std::string&gt; sea = { // Noncompliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+  sea.find("Nemo"); // This leads to a temporary std::string{"Nemo"}.
+
+  std::string_view hero{"Nemo"};
+  sea.contains(std::string(hero)); // Extra temporary std::string.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The default comparator for <code>std::set&lt;std::string&gt;</code> is <code>std::less&lt;std::string&gt;</code>, which is not transparent.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Instead, <code>std::less&lt;&gt;</code> should be used:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example() {
+  std::set&lt;std::string, std::less&lt;&gt;&gt; sea = { // Compliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  sea.find("Nemo"); // No more temporary std::string{"Nemo"}.
+
+  std::string_view hero{"Nemo"};
+  sea.contains(hero); // No need to create the std::string anymore.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When <code>find</code> is called, the STL essentially invokes</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::less&lt;void&gt;::operator(std::string const&amp; lhs, const char* rhs);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This results in <code>lhs &lt; rhs</code>. In other words, it compares the <code>std::string</code> against a C-style string with no undesired temporaries.</p>
+</div>
+<div class="paragraph">
+<p>It works equivalently for <code>std::map</code>: <code>std::map&lt;std::string, SomeType&gt;</code> should be rewritten as <code>std::map&lt;std::string, SomeType, std::less&lt;&gt;&gt;</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_working_with_tree_based_containers_and_custom_comparators">Working with tree-based containers and custom comparators</h3>
+<div class="paragraph">
+<p>Sometimes, it is useful to use a custom comparator, for example, to implement a case-insensitive string comparison.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct CaseInsensitiveCompare {
+  bool operator()(const std::string&amp; lhs, const std::string&amp; rhs) const {
+    return std::ranges::lexicographical_compare(lhs, rhs, [](char l, char r) {
+      return std::tolower(l) &lt; std::tolower(r);
+    });
+  }
+};
+
+void example() {
+  std::set&lt;std::string, CaseInsensitiveCompare&gt; m = { // Noncompliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  m.lower_bound("nemo"); // This leads to a temporary std::string{"Nemo"}.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>However, like <code>std::less&lt;std::string&gt;</code>, <code>CaseInsensitiveCompare</code> is not transparent, and the code triggers the construction of undesired temporary strings.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>A comparator needs to explicitly declare itself as transparent. This is achieved by having an inner type named <code>is_transparent</code> in the comparator. The type itself does not matter.</p>
+</div>
+<div class="paragraph">
+<p>Furthermore, the comparator needs to provide heterogeneous comparisons. There are multiple ways to achieve this:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Its <code>operator()</code> could be templated and written in a generic way, like <code>std::less&lt;void&gt;</code> does.</p>
+</li>
+<li>
+<p>It could provide the relevant overloads for the software.</p>
+</li>
+<li>
+<p>It can provide one overload whose lightweight parameter type can be constructed from key-like types.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>For instance, to implement a transparent case-insensitive comparator for strings, we can leverage the fact that <code>string_view</code> offers lightweight conversions. Furthermore, since <code>string_view</code> and <code>string</code> have very similar interfaces, the implementation of the comparator can remain unchanged:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct CaseInsensitiveCompare {
+  using is_transparent = void; // Enables heterogeneous operations.
+
+  bool operator()(const std::string_view&amp; lhs, const std::string_view&amp; rhs) const {
+    return std::ranges::lexicographical_compare(lhs, rhs, [](char l, char r) {
+      return std::tolower(l) &lt; std::tolower(r);
+    });
+  }
+};
+
+void example() {
+  std::set&lt;std::string, CaseInsensitiveCompare&gt; m = { // Compliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  m.lower_bound("nemo"); // No more temporary std::string{"nemo"}.
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_working_with_hash_based_containers">Working with hash-based containers</h3>
+<div class="paragraph">
+<p><code>std::unordered_set</code>, <code>std::unordered_map</code>, <code>std::unordered_multiset</code>, and <code>std::unordered_multimap</code> are hash-based data structures that, by default, use <code>std::hash&lt;key_type&gt;</code> to compute the hash of a key, and <code>==</code> to compare the keys. Under the hood, they use <code>std::equals_to&lt;key_type&gt;</code> to invoke the <code>operator==</code> on the keys.</p>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;20 extends support for heterogeneous operations to these unordered associative containers: they provide additional overloads when the equality functor and the hasher are both transparent.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example() {
+  std::unordered_set&lt;std::string&gt; sea = { // Noncompliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  sea.erase("Darla"); // This leads to a temporary std::string{"Darla"}.
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="paragraph">
+<p>C&#43;&#43;14 provides transparent equality functors in the form <code>std::equal_to&lt;&gt;</code>. However, there is no standard transparent hasher object.</p>
+</div>
+<div class="paragraph">
+<p>You can apply the same strategies to create custom hashers as the ones presented above for custom comparators. When the key is <code>std::string</code>, you can essentially leverage <code>std::string_view</code> and the implementation of <code>std::hash</code> for this lightweight type:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct StringHash {
+  using is_transparent = void; // Enables heterogeneous operations.
+
+  std::size_t operator()(std::string_view sv) const {
+    std::hash&lt;std::string_view&gt; hasher;
+    return hasher(sv);
+  }
+};
+
+void example() {
+  std::unordered_set&lt;std::string, StringHash, std::equal_to&lt;&gt;&gt; sea = { // Compliant
+    "Dory", "Marlin", "Nemo", "Emo", "Darla"
+  };
+
+  sea.erase("Darla"); // No more temporary std::string{"Darla"}.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Finally, working with a custom equality comparator for hash-based containers is similar.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>Transparent comparators/hashers are strongly discouraged when used with types that are not directly comparable or expensive to create. For example, in the example above, if <code>CaseInsensitiveCompare</code> had the inner type <code>is_transparent</code> but its <code>operator()</code> still had <code>std::string</code> arguments, each internal comparison performed by <code>lower_bound</code> would create a temporary <code>std::string</code>. This would be significantly worse than the original version, which creates only one temporary object.</p>
+</div>
+<div class="paragraph">
+<p>The standard comparator types existed before C&#43;&#43;14, but their type parameter had to be provided. C&#43;&#43;14 introduced a default value for the template parameter, <code>void</code>, alongside a template specialization that is the transparent comparator. Therefore, when creating an object of such type, it is essential to write <code>std::less&lt;&gt;</code> and not <code>std::less&lt;std::string&gt;</code>, for example.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/functional#Transparent_function_objects">Transparent function objects</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/functional/less_void"><code>std::less&lt;void&gt;</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/functional/equal_to_void"><code>std::equal_to&lt;void&gt;</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/hash"><code>std::hash</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/container/set"><code>std::set</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/container/map"><code>std::map</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/container/unordered_set"><code>std::unordered_set</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/container/unordered_map"><code>std::unordered_map</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/string/basic_string_view"><code>std::string_view</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6021" class="rspec-auto-link">S6021</a> Heterogeneous sorted containers should only be used with types that support heterogeneous comparison</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

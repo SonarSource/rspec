@@ -1,0 +1,115 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a regular, non-<code>void</code> function flows off the end of its body without returning a value, the behavior is undefined.
+With a coroutine, when flowing off the end of its body, <code>return_void()</code> is invoked on the promise for the said coroutine.
+If such invocation is not possible (e.g., because the function is not defined), the behavior is undefined.</p>
+</div>
+<div class="paragraph">
+<p>In other words, a coroutine should either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>have all its execution paths reach a <code>co_return</code> statement or throw an exception;</p>
+</li>
+<li>
+<p>or its promise type should provide <code>return_void()</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue on coroutines that do not meet the above criteria.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct IsPrimeTask {
+  struct promise_type {
+    // ... no return_void() definition ...
+    void return_value(bool answer) { /* ... */ }
+  };
+  // ...
+};
+
+IsPrimeTask isPrime(long n) {
+  std::optional&lt;bool&gt; result = co_await Oracle::IsPrime(n);
+  if (result.has_value()) {
+    co_return result.value();
+  }
+  // Noncompliant
+}
+
+struct UploadFileTask {
+  struct promise_type {
+    // No return_void() definition.
+    // ...
+  };
+  // ...
+};
+
+UploadFileTask upload(ServerHandle server, File file) {
+  co_await server.transfert(file);
+  // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum class Tristate { TRUE, FALSE, UNKNOWN };
+Tristate toTristate(bool value);
+struct IsPrimeTask {
+  struct promise_type {
+    // ...
+    void return_value(Tristate answer) { /* ... */ }
+  };
+  // ...
+};
+
+IsPrimeTask isPrime(long n) {
+  std::optional&lt;bool&gt; result = co_await Oracle::IsPrime(n);
+  if (result.has_value()) {
+    co_return toTristate(result.value());
+  }
+  co_return Tristate::UNKNOWN;
+}
+
+struct UploadFileTask {
+  struct promise_type {
+    void return_void() { /* ... */ }
+    // ...
+  };
+  // ...
+};
+
+UploadFileTask upload(ServerHandle server, File file) {
+  co_await server.transfert(file);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S935" class="rspec-auto-link">S935</a> - function exit paths should have appropriate return values</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
