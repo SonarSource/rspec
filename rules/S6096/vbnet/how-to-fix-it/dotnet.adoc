@@ -1,0 +1,85 @@
+== How to fix it in .NET
+
+=== Code examples
+
+:canonicalization_function1: System.IO.Path.GetFullPath
+:canonicalization_function2: System.IO.Path.GetFileName
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+Public Class ExampleController
+    Inherits Controller
+
+    Private Shared TargetDirectory As String = "/example/directory/"
+
+    Public Sub ExtractEntry(EntriesEnumerator As IEnumerator(Of ZipArchiveEntry))
+        Dim Entry As ZipArchiveEntry = EntriesEnumerator.Current
+        Dim DestinationPath As String = Path.Combine(TargetDirectory, Entry.FullName)
+
+        Entry.ExtractToFile(DestinationPath)
+    End Sub
+End Class
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Public Class ExampleController
+    Inherits Controller
+
+    Private Shared TargetDirectory As String = "/example/directory/"
+    
+    Public Sub ExtractEntry(EntriesEnumerator As IEnumerator(Of ZipArchiveEntry))
+        Dim Entry As ZipArchiveEntry = EntriesEnumerator.Current
+        Dim DestinationPath As String = Path.Combine(TargetDirectory, Entry.FullName)
+        Dim CanonicalDestinationPath As String = Path.GetFullPath(DestinationPath)
+
+        If CanonicalDestinationPath.StartsWith(TargetDirectory, StringComparison.Ordinal) Then
+            Entry.ExtractToFile(CanonicalDestinationPath)
+        End If
+    End Sub
+End Class
+----
+
+=== How does this work?
+
+include::../../common/fix/how-does-this-work.adoc[]
+
+=== Pitfalls
+
+include::../../common/pitfalls/partial-path-traversal.adoc[]
+
+For example, the following code is vulnerable to partial path injection. Note
+that the string `TargetDirectory` does not end with a path separator:
+
+
+[source, vbnet]
+----
+Private Shared TargetDirectory As String = "/Users/John"
+
+Public Sub ExtractEntry(entriesEnumerator As IEnumerator(Of ZipArchiveEntry))
+    Dim entry As ZipArchiveEntry = entriesEnumerator.Current
+    Dim canonicalDestinationPath As String = Path.GetFullPath(TargetDirectory)
+
+    If canonicalDestinationPath.StartsWith(TargetDirectory, StringComparison.Ordinal) Then
+        entry.ExtractToFile(canonicalDestinationPath)
+    End If
+End Sub
+----
+
+This check can be bypassed because `"/Users/Johnny".startsWith("/Users/John")`
+returns `true`. Thus, for validation, `"/Users/John"` should actually be
+`"/Users/John/"`.
+
+**Warning**: Some functions remove the terminating path separator in their
+return value. +
+The validation code should be tested to ensure that it cannot be impacted by this
+issue.
+
+https://github.com/aws/aws-sdk-java/security/advisories/GHSA-c28r-hw5m-5gv3[Here is a real-life example of this vulnerability.]
+
