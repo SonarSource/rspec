@@ -1,115 +1,83 @@
-This rule raises an issue when network calls in AWS Lambda functions are made without explicit timeout configurations.
+This rule raises an issue when print() statements are found in Python code that may be deployed to production environments.
 
 == Why is this an issue?
 
-AWS Lambda functions frequently make network calls to external services like APIs, databases, or other AWS services. When these calls don't have explicit timeouts, they can hang indefinitely if the remote service becomes unresponsive due to network issues, service overload, or firewall blocks.
+Print statements are commonly used during development for quick debugging, but they become problematic in production code for several reasons.
 
-In the Lambda environment, this creates a perfect storm of problems. The function will continue consuming billed compute time while waiting for a response that may never come. Since Lambda functions have their own maximum execution timeout (up to 15 minutes), a hanging network call will eventually be terminated by the Lambda service itself, but only after wasting significant resources.
+First, print statements send output directly to stdout, which can expose sensitive information like user data, API keys, or internal system details in production logs. This creates security risks and potential compliance violations.
 
-This behavior makes debugging extremely difficult because it's hard to distinguish between actual functional errors and network stalls. The failure point becomes unpredictable - it might occur after 30 seconds, 1 minute, or even 15 minutes depending on your Lambda's configured timeout.
+Second, print statements cannot be easily controlled or filtered. Unlike proper logging, you cannot adjust their verbosity level or disable them without modifying the code. This makes it difficult to manage output in different environments.
+
+Third, print statements can impact application performance, especially when they output large amounts of data or run frequently in loops. They also clutter production logs with information that may not be useful for monitoring or troubleshooting.
+
+Finally, print statements make code less maintainable. They create inconsistent logging practices and make it harder to implement proper log management, monitoring, and alerting systems.
 
 === What is the potential impact?
 
-Without explicit timeouts, Lambda functions face increased costs from wasted compute time, unpredictable failure behavior that complicates debugging, abrupt terminations that prevent graceful error handling, potential connection pool exhaustion, and cascading failures in upstream services that depend on timely responses.
+Print statements in production can expose sensitive data in logs, create security vulnerabilities, impact application performance, and make log management and monitoring more difficult.
 
-== How to fix it in requests
+=== How to fix?
 
-For HTTP requests using the requests library, use the timeout parameter to specify both connection and read timeouts. You can pass a single float value for both timeouts or a tuple (connect_timeout, read_timeout) for more granular control. Always wrap the call in try-except blocks to handle timeout exceptions gracefully.
 
-=== Code examples
+Remove print statements that were used for debugging purposes. If the information is needed for monitoring or troubleshooting, replace print statements with proper logging using Python's logging module.
 
-==== Noncompliant code example
+==== Non-compliant code example
+
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-import requests
-
-def lambda_handler(event, context):
-    response = requests.get('https://api.example.com/data')  # Noncompliant
-    return response.json()
+def process_user_data(user_id, email):
+    print(f"Processing user: {user_id}")  # Noncompliant
+    print(f"Email: {email}")  # Noncompliant
+    
+    # Process user data
+    result = perform_processing(user_id)
+    
+    print(f"Result: {result}")  # Noncompliant
+    return result
 ----
 
-==== Compliant solution
+==== Compliant code example
+
 [source,python,diff-id=1,diff-type=compliant]
 ----
-import requests
-import os
+import logging
 
-def lambda_handler(event, context):
-    connect_timeout = float(os.environ.get('HTTP_CONNECT_TIMEOUT', 3.0))
-    read_timeout = float(os.environ.get('HTTP_READ_TIMEOUT', 10.0))
+logger = logging.getLogger(__name__)
+
+def process_user_data(user_id, email):
+    logger.info("Processing user: %s", user_id)
+    logger.debug("Email: %s", email)
     
-    try:
-        response = requests.get(
-            'https://api.example.com/data',
-            timeout=(connect_timeout, read_timeout)
-        )
-        return response.json()
-    except requests.exceptions.Timeout as e:
-        print(f"Request timed out: {e}")
-        return {'error': 'External service timed out'}
-----
-
-== How to fix it in boto3
-
-For AWS service calls using boto3, create a Config object with connect_timeout and read_timeout parameters, then pass it when creating the client. This ensures all operations with that client respect the timeout settings.
-
-=== Code examples
-
-==== Noncompliant code example
-[source,python,diff-id=2,diff-type=noncompliant]
-----
-import boto3
-
-def lambda_handler(event, context):
-    s3 = boto3.client('s3')  # Noncompliant
-    response = s3.get_object(Bucket='my-bucket', Key='file.txt')
-    return response['Body'].read()
-----
-
-==== Compliant solution
-[source,python,diff-id=2,diff-type=compliant]
-----
-import boto3
-from botocore.config import Config
-import os
-
-def lambda_handler(event, context):
-    config = Config(
-        connect_timeout=float(os.environ.get('AWS_CONNECT_TIMEOUT', 3.0)),
-        read_timeout=float(os.environ.get('AWS_READ_TIMEOUT', 10.0))
-    )
+    # Process user data
+    result = perform_processing(user_id)
     
-    s3 = boto3.client('s3', config=config)
-    
-    try:
-        response = s3.get_object(Bucket='my-bucket', Key='file.txt')
-        return response['Body'].read()
-    except Exception as e:
-        print(f"S3 operation failed: {e}")
-        return {'error': 'AWS service request failed'}
+    logger.info("Processing completed for user: %s", user_id)
+    return result
 ----
-
-== Resources
 
 === Documentation
-* https://requests.readthedocs.io/en/latest/user/advanced/#timeouts[Requests library timeout documentation]
-* https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html[Boto3 retries and timeouts configuration]
-* https://docs.aws.amazon.com/wellarchitected/latest/serverless-applications-lens/cost-and-performance-optimization.html[AWS Well-Architected Serverless Applications Lens]
-* https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/[AWS Builder's Library on timeouts and retries]
 
+ * Python Logging Documentation - https://docs.python.org/3/library/logging.html[Official Python documentation for the logging module]
+ * Python Logging HOWTO - https://docs.python.org/3/howto/logging.html[Comprehensive guide on how to use Python's logging module effectively]
+ * Logging Best Practices - https://docs.python.org/3/howto/logging.html#logging-best-practices[Best practices for logging in Python applications]
+
+=== Standards
+
+ * CWE-532: Insertion of Sensitive Information into Log File - https://cwe.mitre.org/data/definitions/532.html[Information about the security risks of logging sensitive data]
+ * OWASP Top 10:2021-A09-Security Logging and Monitoring Failures - https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/[OWASP guidance on proper logging and monitoring practices]
+
+=== Related Rules
+
+ * RSPEC-2228 - https://rules.sonarsource.com/python/RSPEC-2228[Console logging should not be used]
 
 ifdef::env-github,rspecator-view[]
 
 == Implementation Specification
-(visible only on this page)
 
-=== Message
+Remove this print statement or replace it with proper logging.
 
-Configure explicit timeouts for this network call to prevent hanging executions.
+==== Highlighting
 
-=== Highlighting
-
-* Primary location: the network call expression without timeout parameters
-* Secondary location: the client or session creation if applicable
+Primary: The entire print() function call
 
 endif::env-github,rspecator-view[]
