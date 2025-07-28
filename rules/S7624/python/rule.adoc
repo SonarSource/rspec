@@ -1,83 +1,100 @@
-This rule raises an issue when print() statements are found in Python code that may be deployed to production environments.
+This rule raises an issue when empty destructuring patterns (like `{}` or `[]`) are used in Vue template expressions without extracting any values.
 
 == Why is this an issue?
 
-Print statements are commonly used during development for quick debugging, but they become problematic in production code for several reasons.
+Empty destructuring patterns in Vue templates serve no functional purpose and often indicate incomplete or mistaken code. When you write `const {} = user` or `const [] = items`, you're creating a destructuring assignment that extracts nothing from the source object or array.
 
-First, print statements send output directly to stdout, which can expose sensitive information like user data, API keys, or internal system details in production logs. This creates security risks and potential compliance violations.
+In Vue templates, these patterns can appear in v-for directives, computed properties, or other template expressions. They create unnecessary code that doesn't contribute to the template's functionality and may confuse other developers.
 
-Second, print statements cannot be easily controlled or filtered. Unlike proper logging, you cannot adjust their verbosity level or disable them without modifying the code. This makes it difficult to manage output in different environments.
+Empty destructuring patterns typically occur when:
+- A developer starts writing a destructuring assignment but forgets to specify the properties to extract
+- Code is refactored and the destructured variables are removed but the empty pattern remains
+- Copy-paste errors where the destructuring pattern is not properly updated
 
-Third, print statements can impact application performance, especially when they output large amounts of data or run frequently in loops. They also clutter production logs with information that may not be useful for monitoring or troubleshooting.
-
-Finally, print statements make code less maintainable. They create inconsistent logging practices and make it harder to implement proper log management, monitoring, and alerting systems.
+These patterns make the code harder to understand and maintain, as they suggest that some operation is being performed when nothing actually happens.
 
 === What is the potential impact?
 
-Print statements in production can expose sensitive data in logs, create security vulnerabilities, impact application performance, and make log management and monitoring more difficult.
+While empty destructuring patterns don't cause runtime errors, they reduce code clarity and may indicate incomplete implementations. They can mislead developers during code reviews and maintenance, potentially masking real bugs where destructuring was intended but not properly implemented.
 
-=== How to fix?
+=== How to fix in Vue.js?
 
 
-Remove print statements that were used for debugging purposes. If the information is needed for monitoring or troubleshooting, replace print statements with proper logging using Python's logging module.
+Remove the empty destructuring pattern entirely if no values need to be extracted. If you intended to destructure specific properties, add the property names you want to extract.
 
 ==== Non-compliant code example
 
-[source,python,diff-id=1,diff-type=noncompliant]
+[source,javascript,diff-id=1,diff-type=noncompliant]
 ----
-def process_user_data(user_id, email):
-    print(f"Processing user: {user_id}")  # Noncompliant
-    print(f"Email: {email}")  # Noncompliant
-    
-    # Process user data
-    result = perform_processing(user_id)
-    
-    print(f"Result: {result}")  # Noncompliant
-    return result
+<template>
+  <div v-for="{} in users" :key="user.id"> // Noncompliant
+    {{ user.name }}
+  </div>
+  <div>{{ (() => { const [] = items; return items.length; })() }}</div> // Noncompliant
+</template>
 ----
 
 ==== Compliant code example
 
-[source,python,diff-id=1,diff-type=compliant]
+[source,javascript,diff-id=1,diff-type=compliant]
 ----
-import logging
+<template>
+  <div v-for="user in users" :key="user.id">
+    {{ user.name }}
+  </div>
+  <div>{{ (() => { const [first, ...rest] = items; return items.length; })() }}</div>
+</template>
+----
 
-logger = logging.getLogger(__name__)
+=== How to fix in Vue.js?
 
-def process_user_data(user_id, email):
-    logger.info("Processing user: %s", user_id)
-    logger.debug("Email: %s", email)
-    
-    # Process user data
-    result = perform_processing(user_id)
-    
-    logger.info("Processing completed for user: %s", user_id)
-    return result
+
+In v-for directives, either use the item directly or destructure the specific properties you need from each item.
+
+==== Non-compliant code example
+
+[source,javascript,diff-id=2,diff-type=noncompliant]
+----
+<template>
+  <li v-for="({}, index) in products" :key="index"> // Noncompliant
+    {{ product.name }} - {{ product.price }}
+  </li>
+</template>
+----
+
+==== Compliant code example
+
+[source,javascript,diff-id=2,diff-type=compliant]
+----
+<template>
+  <li v-for="(product, index) in products" :key="index">
+    {{ product.name }} - {{ product.price }}
+  </li>
+  <!-- Or destructure specific properties -->
+  <li v-for="({name, price}, index) in products" :key="index">
+    {{ name }} - {{ price }}
+  </li>
+</template>
 ----
 
 === Documentation
 
- * Python Logging Documentation - https://docs.python.org/3/library/logging.html[Official Python documentation for the logging module]
- * Python Logging HOWTO - https://docs.python.org/3/howto/logging.html[Comprehensive guide on how to use Python's logging module effectively]
- * Logging Best Practices - https://docs.python.org/3/howto/logging.html#logging-best-practices[Best practices for logging in Python applications]
-
-=== Standards
-
- * CWE-532: Insertion of Sensitive Information into Log File - https://cwe.mitre.org/data/definitions/532.html[Information about the security risks of logging sensitive data]
- * OWASP Top 10:2021-A09-Security Logging and Monitoring Failures - https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/[OWASP guidance on proper logging and monitoring practices]
+ * ESLint no-empty-pattern rule - https://eslint.org/docs/rules/no-empty-pattern[Official ESLint documentation for the core no-empty-pattern rule]
+ * Vue.js Template Syntax - https://vuejs.org/guide/essentials/template-syntax.html[Vue.js official guide on template syntax and expressions]
+ * JavaScript Destructuring Assignment - https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring_assignment[MDN documentation on destructuring assignment syntax]
 
 === Related Rules
 
- * RSPEC-2228 - https://rules.sonarsource.com/python/RSPEC-2228[Console logging should not be used]
+ * RSPEC-1481 - https://rules.sonarsource.com/javascript/RSPEC-1481[Unused local variables should be removed]
 
 ifdef::env-github,rspecator-view[]
 
 == Implementation Specification
 
-Remove this print statement or replace it with proper logging.
+Remove this empty destructuring pattern.
 
 ==== Highlighting
 
-Primary: The entire print() function call
+Primary: The empty destructuring pattern (e.g., `{}` or `[]`)
 
 endif::env-github,rspecator-view[]
