@@ -1,0 +1,330 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Throwing an exception from a destructor may result in a call to <code>std::terminate</code>.</p>
+</div>
+<div class="paragraph">
+<p>By default, compilers implicitly declare destructors as <code>noexcept</code>, so <code>std::terminate</code> is called when they exit with an exception.
+Destructors may still propagate an exception if they are explicitly declared as <code>noexcept(false)</code>.
+However, even a destructor declared as <code>noexcept(false)</code> calls <code>std::terminate</code> when it throws during stack unwinding.</p>
+</div>
+<div class="paragraph">
+<p>The following example illustrates the severity of the underlying problem:</p>
+</div>
+<div class="paragraph">
+<p>The destructor of a container needs to call the destructors for all managed objects.
+Suppose a call to an object&#8217;s destructor throws an exception.
+In that case, there are only two <em>conceptual</em> ways to proceed:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Abort the destruction.
+This results in a partially destroyed object and possibly many more objects whose destructors are never called.</p>
+</li>
+<li>
+<p>Ignore the exception and proceed with destroying the remaining objects.
+However, this potentially results in more partially destroyed objects if further destructors throw an exception.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Because both options are undesired, destructors should never <code>throw</code> exceptions.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In most cases, throwing exceptions in destructors makes the program unreliable:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If <code>std::terminate</code> is called, the program terminates in an implementation-defined, abrupt, and unclean manner.</p>
+</li>
+<li>
+<p>The program&#8217;s behavior is undefined if a standard library component (a container, an algorithm, &#8230;&#8203;) manages a user-defined object that throws an exception from its destructor.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when an exception is thrown from within a destructor or from a function transitively called by a destructor.</p>
+</div>
+<div class="paragraph">
+<p>Such an exception should be caught and handled before the destructor exits.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>In the following example, an exception is thrown inside the <code>Builder</code> destructor when calling <code>std::optional::value</code> on an empty optional.
+It follows that the program abruptly terminates when <code>b</code> gets destroyed during stack unwinding in <code>application()</code> if the user name lookup fails.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void logBuilderDestruction(int userId);
+
+class Builder {
+  std::optional&lt;int&gt; _id;
+
+ public:
+  void setId(int userId) { _id = userId; }
+
+  ~Builder() {
+    auto userId = _id.value(); // Noncompliant: may throw std::bad_optional_access
+    logBuilderDestruction(userId);
+  }
+};
+
+std::unordered_map&lt;std::string, int&gt;&amp; getDatabase();
+
+int lookupUserId(std::string const&amp; name) {
+  return getDatabase().at(name); // May throw std::out_of_range.
+}
+
+void application(std::string const&amp; name) {
+  Builder b;
+  b.setId(lookupUserId(name));
+  // lookupUserId throws an exception when the name is unknown.
+  // This causes the stack to unwind: local variables alive at
+  // this point, such a "b", are destroyed. This happens before
+  // the invocation of "b.setId()" so "b._id" is still empty
+  // when its destructor is executed.
+
+  // ...
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>The solution below uses <code>std::optional::value_or</code> to ensure no exceptions are thrown from the destructor.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void logBuilderDestruction(int userId);
+
+class Builder {
+  std::optional&lt;int&gt; _id;
+
+ public:
+  void setId(int userId) { _id = userId; }
+
+  ~Builder() {
+    auto userId = _id.value_or(-1); // Compliant: never throws.
+    logBuilderDestruction(userId);
+  }
+};
+
+std::unordered_map&lt;std::string, int&gt;&amp; getDatabase();
+
+int lookupUserId(std::string const&amp; name) {
+  return getDatabase().at(name); // May throw std::out_of_range.
+}
+
+void application(std::string const&amp; name) {
+  Builder b;
+  b.setId(lookupUserId(name));
+  // lookupUserId throws an exception when the name is unknown.
+  // This causes the stack to unwind: local variables alive at
+  // this point, such a "b", are destroyed. This happens before
+  // the invocation of "b.setId()" so "b._id" is still empty
+  // when its destructor is executed.
+
+  // ...
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>How to deal with exceptions in destructors highly depends on the application.
+Below, we present another way to solve the issue with an RAII-based class representing a temporary directory.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Delete the given directory; throws OSException on failure.
+void deleteDirectory(Path path) noexcept(false) {
+  // ...
+}
+
+class TemporaryDirectory {
+  Path tmp;
+
+public:
+  TemporaryDirectory(); // Create a new temporary directory.
+
+  TemporaryDirectory(TemporaryDirectory const&amp;) = delete;
+  TemporaryDirectory(TemporaryDirectory&amp;&amp;) = delete;
+  TemporaryDirectory&amp; operator=(TemporaryDirectory const&amp;) = delete;
+  TemporaryDirectory&amp; operator=(TemporaryDirectory&amp;&amp;) = delete;
+
+  ~TemporaryDirectory() {
+    deleteDirectory(tmp); // Noncompliant: may throw.
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>Depending on the use case for those temporary directories, applying some remedial actions to avoid leaking secrets may be essential.
+Yet, it may be reasonable to simply log and silence the exception, for example, in the context of unit tests.</p>
+</div>
+<div class="paragraph">
+<p>It is possible to redesign the class:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Add a <code>remove</code> member function for scenarios that must carefully and reliably handle any <code>OSException</code>.
+In sensitive contexts, the application should not solely rely on the destructor.</p>
+</li>
+<li>
+<p>Call this <code>remove</code> function from the destructor and catch any exception.
+This preserves the original class intent: an attempt to delete the directory is made.</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Delete the given directory; throws OSException on failure.
+void deleteDirectory(Path path) noexcept(false) {
+  // ...
+}
+
+class TemporaryDirectory {
+  Path tmp;
+
+public:
+  TemporaryDirectory(); // Create a new temporary directory.
+
+  TemporaryDirectory(TemporaryDirectory const&amp;) = delete;
+  TemporaryDirectory(TemporaryDirectory&amp;&amp;) = delete;
+  TemporaryDirectory&amp; operator=(TemporaryDirectory const&amp;) = delete;
+  TemporaryDirectory&amp; operator=(TemporaryDirectory&amp;&amp;) = delete;
+
+  void remove() { deleteDirectory(tmp); }
+
+  ~TemporaryDirectory() {
+    try {
+      remove();
+    } catch (OSException const&amp; e) {
+      logFailureToRemoveDirectory(e);
+    }
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>Using a <em>function-try-block</em> in a destructor does not prevent the destructor from exiting with an exception.</p>
+</div>
+<div class="paragraph">
+<p>For example, the following destructor does not prevent the exception from escaping.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">~TemporaryDirectory() try {
+  remove();
+} catch (OSException const&amp; e) {
+  logFailureToRemoveDirectory(e);
+}
+// `e` is automatically rethrow as if `throw;` was used.</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Instead, a <em>try-block</em> should be used within the destructor&#8217;s body.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>It is possible to detect whether a destructor is executed during stack unwinding and act accordingly; for example, to implement a transaction rollback action.</p>
+</div>
+<div class="paragraph">
+<p>The C&#43;&#43;17 <a href="https://en.cppreference.com/w/cpp/error/uncaught_exception"><code>std::uncaught_exceptions</code></a> function can be used for this purpose, as explained in <a href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4152.pdf">N4152</a>.
+This function ends with an <code>s</code> and should not be confused with <code>std::uncaught_exception</code>, which got removed in C&#43;&#43;20 for the reasons exposed in the paper.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/try.html#Function_try_block">Function try block</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c36-a-destructor-must-not-fail">C.36: A destructor must not fail</a></p>
+</li>
+<li>
+<p>C&#43;&#43; Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c37-make-destructors-noexcept">C.37: Make destructors <code>noexcept</code></a></p>
+</li>
+<li>
+<p>MISRA C&#43;&#43;:2008, 15-5-1 - A class destructor shall not exit with an exception.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S3654" class="rspec-auto-link">S3654</a> - Destructors should be "noexcept"</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5403">relates to: <a data-rspec-id="S5403" class="rspec-auto-link">S5403</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_31_mar_2015_190211_evgeny_mandrikov_wrote">on 31 Mar 2015, 19:02:11 Evgeny Mandrikov wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] implementation seems more complete (SQALE, description) than this spec.</p>
+</div>
+</div>
+</div>
+</div>

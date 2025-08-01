@@ -1,0 +1,100 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>One of the principles of a unit test is that it must have full control of the system under test. This is problematic when production code includes calls to static methods, which cannot be changed or controlled. Date/time functions are usually provided by system libraries as static methods.</p>
+</div>
+<div class="paragraph">
+<p>This can be improved by wrapping the system calls in an object or service that can be controlled inside the unit test.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Public Class Foo
+    Public Function HelloTime() As String
+        Return $"Hello at {DateTime.UtcNow}"
+    End Function
+End Class</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="paragraph">
+<p>There are different approaches to solve this problem. One of them is suggested below. There are also open source libraries (such as NodaTime) which already implement an <code>IClock</code> interface and a <code>FakeClock</code> testing class.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Public Interface IClock
+    Function UtcNow() As Date
+End Interface
+
+Public Class Foo
+    Public Function HelloTime(clock As IClock) As String
+        Return $"Hello at {clock.UtcNow()}"
+    End Function
+End Class
+
+Public Class FooTest
+    Public Class TestClock
+        Implements IClock
+        ' implement
+    End Class
+
+    &lt;Fact&gt;
+    Public Sub HelloTime_Gives_CorrectTime()
+        Dim dateTime = New DateTime(2017, 06, 11)
+        Assert.Equal((New Foo()).HelloTime(New TestClock(dateTime)), $"Hello at {dateTime}")
+    End Sub
+End Class</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Another possible solution is using an adaptable module, ideally supports an IDisposable method, that not only adjusts the time behaviour for the current thread only, but also for scope of the using.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Public Module Clock
+    Public Function UtcNow() As Date
+    End Function
+
+    Public Function SetTimeForCurrentThread(time As Func(Of Date)) As IDisposable
+    End Function
+End Module
+
+Public Class Foo
+    Public Function HelloTime() As String
+        Return $"Hello at {Clock.UtcNow()}"
+    End Function
+End Class
+
+Public Class FooTest
+    &lt;Fact&gt;
+    Public Sub HelloTime_Gives_CorrectTime()
+        Dim dateTime = New DateTime(2017, 06, 11)
+
+        Using SetTimeForCurrentThread(Function() dateTime)
+            Assert.Equal((New Foo()).HelloTime(), $"Hello at {dateTime}")
+        End Using
+    End Sub
+End Class</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://nodatime.org/3.0.x/api/NodaTime.Testing.html">NodaTime testing</a></p>
+</div>
+</div>
+</div>

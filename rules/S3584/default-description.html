@@ -1,0 +1,415 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Memory allocated dynamically with <code>calloc</code>, <code>malloc</code>, <code>realloc</code>, or <code>new</code> should be released when it is not needed anymore.
+Failure to do so will result in a memory leak that could severely hinder application performance or abort it or the entire host machine.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Memory is a limited resource shared between all the applications running on the same host machine.</p>
+</div>
+<div class="paragraph">
+<p>C and C&#43;&#43; do not automatically reclaim unused memory.
+The developer has to release the memory claimed for their application that is no longer needed.
+Unlike the stack that automatically allocates local variables on a function call
+and deallocates them on a function return, the heap offers no automatic memory management.
+The developer has to make sure to deallocate the memory they allocate dynamically on the heap.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when memory is allocated dynamically and not freed within the same function.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Neglecting to free the memory leads to a memory leak.</p>
+</div>
+<div class="paragraph">
+<p>The application that leaks memory will consume more and more of it over time,
+eventually claiming all the memory available on the host machine.
+When this happens and the system runs out of memory, it typically does one of the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The operating system (if any) terminates the application.</p>
+</li>
+<li>
+<p>The operating system (if any) terminates some other application,
+and the problem reoccurs when the reclaimed memory gets used up by the leaking application.</p>
+</li>
+<li>
+<p>The operating system (if any) starts offloading some of the memory pages to disk and slows down some memory accesses by orders of magnitude.</p>
+</li>
+<li>
+<p>The entire system crashes as a whole and reboots automatically or hangs waiting for a manual reboot.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Moreover, memory leaks can help an attacker to take over the system.
+An attacker could use a memory leak to fill the memory with malicious code.
+This facilitates remote code execution through another chained vulnerability.</p>
+</div>
+<div class="paragraph">
+<p>Even if the attacker cannot take over the system she can
+intentionally trigger the condition leading to a memory leak
+to make use of the issue above and cause denial-of-service (DoS) of the system.</p>
+</div>
+<div class="paragraph">
+<p>A memory leak can have a significant impact on the energy footprint of an application.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If an application demands more memory than necessary,
+the user will have to install more memory banks than necessary.
+Each memory bank consumes additional power.</p>
+</li>
+<li>
+<p>As the application continues to reserve more and more memory,
+it places an increased load on the memory management subsystem.
+This increased load can lead to a larger computation demand,
+which in turn translates to higher power consumption by the CPU.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Finally, memory leaks degrade the user experience.
+The user often experiences a system slowdown
+caused by the uncontrolled memory use of an application.
+Delayed response time, system freezes, and crashes degrade the user experience
+and discourage the further use of the application.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>If a function <code>return</code>s a pointer to the caller or stores it in an external structure,
+this pointer is said to <em>escape</em> (it is now accessible outside of function, and no longer local to it).
+This includes storing the pointer in a static or global variable,
+passing it to a function that can potentially do that,
+or returning the pointer directly or as part of an aggregate object.</p>
+</div>
+<div class="paragraph">
+<p>The memory pointed to by an escaping pointer might be used somewhere else in the program.
+For that reason, the analyzer cannot proclaim a leak for an escaping pointer
+by only looking at a function scope.</p>
+</div>
+<div class="paragraph">
+<p>While in some cases the leak might be detectable in the scope of a caller,
+in others, the analyzer would need to simulate the entire program to verify
+that the memory is not used anywhere, which is not feasible.</p>
+</div>
+<div class="paragraph">
+<p>For this technical reason, this rule often ignores escaping pointers.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ask yourself whether you need to allocate memory on the heap.
+If your object is small enough,
+in many cases allocating it as a local variable on the stack is a better choice
+as it simplifies memory management.</p>
+</div>
+<div class="paragraph">
+<p>If you do need to allocate it on the heap,
+the direct fix for a memory leak is to make sure you always deallocate memory.</p>
+</div>
+<div class="paragraph">
+<p>In C&#43;&#43; you should use RAII (resource acquisition is initialization) idiom.
+See <a href="#_going_the_extra_mile">Going the extra mile</a>.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively,
+you have to manually make sure that every exit of the scope of the pointer to the allocated memory
+is prepended by the deallocation of that pointer.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool fire(Point pos, Direction dir, State const&amp; s) {
+  Bullet *bullet = new Bullet{pos, dir};
+  if (auto affected = bullet-&gt;hitAnyone(s)) {
+    affected-&gt;takeHit();
+    return true; // Noncompliant, the memory pointed to by bullet is not deleted
+  }
+  delete bullet;
+  return false;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Use a local object</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool fire(Point pos, Direction dir, State const&amp; s) {
+  Bullet bullet{pos, dir};
+  if (auto affected = bullet.hitAnyone(s)) {
+    affected-&gt;takeHit();
+    return true; // Compliant: bullet is destroyed and deallocated automatically
+  }
+  return false; // Compliant: bullet is destroyed and deallocated automatically
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you cannot use RAII or a local object,
+manually make sure memory is freed on every exit of the scope of the pointer.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int fun() {
+  char* name = (char *) malloc (size);
+  if (!name) {
+    return 1;
+  }
+  if (condition()) {
+    return 2; // Noncompliant: memory pointed to by "name" has not been released
+  }
+  // ...
+  return 0; // Noncompliant: memory pointed to by "name" has not been released
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int fun() {
+  char* name = (char *) malloc (size);
+  if (!name) {
+    return 1; // Memory wasn't allocated, no need to free it
+  }
+  if (condition()) {
+    free(name);
+    return 2; // Compliant: memory is freed
+  }
+  // ...
+  free(name);
+  return 0; // Compliant: memory is freed
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>Note that the execution can exit the scope in different ways:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>return</code> from the function</p>
+</li>
+<li>
+<p><code>break</code> from a <code>switch</code> statement or a loop</p>
+</li>
+<li>
+<p><code>goto</code> out of a code block (compound statement)</p>
+</li>
+<li>
+<p><code>throw</code> a C&#43;&#43; exception</p>
+</li>
+<li>
+<p><code>co_return</code> from an C&#43;&#43; coroutine</p>
+</li>
+<li>
+<p>End of the scope (<code>}</code>)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In the following example,
+even though the function frees memory before the explicit <code>return</code>,
+the memory remains allocated when the execution leaves the <code>while</code> body
+via many other ways.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void fire(Point pos, Direction dir, State const&amp; s) {
+  while (condition()) {
+    Bullet *bullet = new Bullet{pos, dir};
+    if (bullet-&gt;misfired()) break; // Noncompliant: memory is not freed
+    if (!condition()) {
+      delete bullet;
+      return;
+    }
+    // Noncompliant: memory is not freed
+    if (s.tooManyBullets()) throw Exception("Too many bullets");
+    if (bullet-&gt;timeIsUp(s)) goto end; // Noncompliant: memory is not freed
+  } // Noncompliant: at the end of iteration bullet leaks
+
+end: // Memory allocated in the loop is not freed
+  std::cout &lt;&lt;"Bullet is lost\n";
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This is why it is very difficult to avoid leaks when managing memory manually.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>In C&#43;&#43;, manually allocating and deallocating memory is considered a code smell.</p>
+</div>
+<div class="paragraph">
+<p>It is recommended to follow the <em>RAII</em> idiom and create a class that manages the memory by allocating it when the object is constructed and freeing it when it is destroyed.
+Furthermore, copy and move operations on such objects are designed such that this object can be passed by value between functions (either as an argument or by being returned)
+in place of raw pointers.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the type, passing an <em>RAII</em> object operations may either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Allocate a new block of memory and copy the elements (<code>std::vector</code>).</p>
+</li>
+<li>
+<p>Transfer ownership of the memory to constructed object (<code>std::unique_ptr</code>).</p>
+</li>
+<li>
+<p>Use shared ownership and free memory when the last object is destroyed (<code>std::shared_ptr</code>).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The RAII object will take care of the deallocation of the memory when it is no longer used.</p>
+</div>
+<div class="paragraph">
+<p>To correct the noncompliant example, use <code>std::unique_ptr</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool fire(Point pos, Direction dir, State const&amp; s) {
+  auto bullet = std::make_unique&lt;Bullet&gt;(pos, dir);
+  if (auto affected = bullet-&gt;hitAnything(s)) {
+    affected-&gt;takeHit();
+    return true; // Compliant: unique_ptr&lt;Bullet&gt; automatically frees memory
+  }
+  return false; // Compliant: unique_ptr&lt;Bullet&gt; automatically frees memory
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Memory_leak">Memory leak</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/raii">RAII</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/401">CWE-401 Improper Release of Memory Before Removing Last Reference ('Memory Leak')</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/FtYxBQ">MEM00-C. Allocate and free memory in the same module, at the same level of abstraction</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/GNYxBQ">MEM31-C. Free dynamically allocated memory when no longer needed</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5025" class="rspec-auto-link">S5025</a> discourages manual memory management, which helps to avoid memory leaks.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Review the data-flow; this memory allocation might not have been released when reaching exit point at line <code>line</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary: the allocation call - [m|c|re]alloc|new</p>
+</li>
+<li>
+<p>Additional: statement exiting the function</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Message: Exit point</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_30_mar_2016_170339_ann_campbell_wrote">on 30 Mar 2016, 17:03:39 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~massimo.paladin] I&#8217;ve expanded the description, and added an "issue raised when" section. It describes what seems like a reasonable scope for the rule, but may not match the scope you had in mind.</p>
+</div>
+<div class="paragraph">
+<p>Also, I&#8217;ve greatly expanded the references section based on the standards' titles.</p>
+</div>
+</div>
+</div>
+</div>
