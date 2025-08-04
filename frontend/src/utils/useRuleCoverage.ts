@@ -18,6 +18,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'kotlin': ['KOTLIN'],
   'scala': ['SCALA'],
   'ruby': ['RUBY'],
+  'githubactions': ['GITHUB_ACTIONS'],
   'go': ['GO'],
   'java': ['JAVA'],
   'javascript': ['js', 'ts'],
@@ -39,7 +40,10 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'terraform': ['TERRAFORM'],
   'kubernetes': ['KUBERNETES'],
   'text': ['TEXT'],
-  'ansible': ['ANSIBLE']
+  'ansible': ['ANSIBLE'],
+  'json': ['JSON'],
+  'yaml': ['YAML'],
+  'shell': ['SHELL'],
 }));
 
 export function useRuleCoverage() {

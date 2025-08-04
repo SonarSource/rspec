@@ -22,6 +22,7 @@ LANG_TO_LABEL = {
     "dart": "dart",
     "docker": "iac",
     "flex": "flex",
+    "githubactions": "iac",
     "go": "go",
     "html": "html",
     "java": "java",
@@ -47,7 +48,10 @@ LANG_TO_LABEL = {
     "cloudformation": "iac",
     "terraform": "iac",
     "kubernetes": "iac",
+    "json": "json",
+    "yaml": "yaml",
     "xml": "xml",
+    "shell": "shell",
 }
 
 LANG_TO_SOURCE = {
@@ -59,12 +63,14 @@ LANG_TO_SOURCE = {
     "css": "css",
     "dart": "dart",
     "docker": "docker",
+    "githubactions": "yaml",
     "go": "go",
     "html": "html",
     "java": "java",
     "jcl": "jcl",
     "javascript": "javascript",
     "json": "json",
+    "yaml": "yaml",
     "kotlin": "kotlin",
     "kubernetes": "yaml",
     "php": "php",
@@ -81,6 +87,7 @@ LANG_TO_SOURCE = {
     "objectivec": "objectivec",
     "vb": "vb",
     "ansible": "yaml",
+    "shell": "bash",
     # these languages are not supported by highlight.js as the moment:
     "apex": "apex",
     "azureresourcemanager": "bicep",
