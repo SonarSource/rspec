@@ -1,0 +1,97 @@
+This rule raises an issue when resources are recreated on every Lambda function invocation instead of being reused.
+
+== Why is this an issue?
+
+Resources that can be reused across multiple invocations of the Lambda function should be initialized at module level, outside the handler function. When the same Lambda container is reused for multiple function invocations, existing instances including SDK clients and database connections can be reused without recreating them. It is a good practice to initialize AWS clients, like boto3, and database connections outside the handler function to avoid recreating them on every Lambda invocation. Failing to do so can lead to performance degradation, increased latency, and even higher AWS costs.
+
+=== What is the potential impact?
+
+Performance degradation is the primary concern, as recreating resources adds significant latency to each Lambda invocation. This can result in slower response times and higher costs due to increased execution duration.
+
+Availability risks may also emerge under high load scenarios, as the additional overhead from resource recreation can cause functions to timeout more frequently or hit concurrency limits sooner than necessary.
+
+Increased API throttling is another potential issue, as recreating resources may lead to more frequent authentication requests and connection establishments, potentially triggering rate limits.
+
+=== Exceptions
+
+If the resource contains sensitive information that should not be shared across invocations, it may be necessary to initialize it within the handler function. However, this should be done cautiously and only when absolutely necessary.
+
+== How to fix it
+
+Move the resource initialization outside the Lambda handler function to the module level. This ensures resources are created once when the Lambda environment is initialized and reused across invocations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import boto3
+
+def lambda_handler(event, context):
+    s3_client = boto3.client('s3')  # Noncompliant: Client created inside handler
+    
+    response = s3_client.get_object(Bucket='my-bucket', Key='my-key')
+    return response['Body'].read() 
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import boto3
+
+s3_client = boto3.client('s3')  # Compliant
+
+def lambda_handler(event, context):
+    response = s3_client.get_object(Bucket='my-bucket', Key='my-key')
+    return response['Body'].read()
+----
+
+== Resources
+
+* AWS Documentation - https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html#python-handler-best-practices[Python handler best practices]
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+If the following functions are found in a lambda handler (or a function called by a lambda handler), the rule raises an issue. The rule should also consider functions which were called by the lambda handler.
+
+* AWS SDK (boto3)
+** `boto3.client`
+** `boto3.resource`
+** `boto3.session.Session`
+* Database Connections
+** `pymysql.connect`
+** `mysql.connector.connect`
+** `psycopg2.connect`
+** `pymongo.MongoClient`
+** `sqlite3.connect`
+** `redis.Redis`
+** `redis.StrictRedis`
+* ORM Connections
+** `sqlalchemy.orm.sessionmaker`
+** `peewee.PostgresqlDatabase`
+** `peewee.MySQLDatabase`
+** `peewee.SqliteDatabase`
+** `mongoengine.connect`
+
+=== Message
+
+Initialize this AWS client or database connection outside the Lambda handler function.
+
+
+=== Highlighting
+
+Client/Database connection creation
+
+
+'''
+== Comments And Links
+(visible only on this page)
+
+endif::env-github,rspecator-view[]
