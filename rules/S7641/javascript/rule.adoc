@@ -1,27 +1,25 @@
-This rule raises an issue when Angular lifecycle methods are implemented in class types where they won't be executed by the framework.
+This rule raises an issue when Angular lifecycle methods are implemented in classes where they won't be called by the framework.
 
 == Why is this an issue?
 
-Angular lifecycle methods are only called by the framework in specific contexts. Each lifecycle hook has a designated purpose and is only executed for certain types of Angular classes.
+Angular lifecycle methods are only called by the framework in specific contexts. Each decorator type (@Component, @Directive, @Injectable, @NgModule, @Pipe) supports different lifecycle methods.
 
-For example, view-related lifecycle methods like `ngAfterViewInit` are only called for Components and Directives that have associated views. Content-related methods like `ngAfterContentInit` are only relevant for classes that support content projection.
+Using lifecycle methods in the wrong context creates several problems:
 
-When these methods are implemented in inappropriate contexts (like using `ngAfterViewInit` in an Injectable service), they become dead code that will never execute. This can mislead developers into thinking the lifecycle logic will run when it won't, potentially causing bugs or unexpected behavior.
+* The methods will never be called by Angular, making the code ineffective
+* It misleads other developers about when the code will execute
+* It can indicate a misunderstanding of Angular's architecture
+* It adds unnecessary code that serves no purpose
 
-The framework simply ignores these methods when they're in the wrong context, making debugging difficult since there's no error - the code just silently doesn't work.
+For example, view-related lifecycle methods like `ngAfterViewInit` only work in Components and Directives that have templates. Using them in Services or Pipes is meaningless since these don't have views.
 
 === What is the potential impact?
 
-Using lifecycle methods in wrong contexts creates dead code that never executes, leading to:
-
-* Logic that developers expect to run but doesn't
-* Difficult debugging sessions when expected behavior doesn't occur
-* Misleading code that suggests functionality that isn't actually active
-* Potential memory leaks if cleanup code in inappropriate lifecycle methods doesn't run
+The code will not behave as expected since the lifecycle methods won't be called. This can lead to initialization logic not running, cleanup not happening, or change detection not working properly. It may also confuse team members about the application's behavior.
 
 === How to fix in Angular?
 
-Move lifecycle methods to appropriate Angular class types. Use `ngOnDestroy` in services for cleanup, and view/content lifecycle methods only in Components and Directives.
+Remove lifecycle methods that are not supported in the current context, or move the logic to an appropriate lifecycle method or initialization pattern.
 
 ==== Non-compliant code example
 
@@ -29,7 +27,11 @@ Move lifecycle methods to appropriate Angular class types. Use `ngOnDestroy` in 
 ----
 @Injectable()
 class UserService {
-  ngAfterViewInit() { // Noncompliant - services don't have views
+  ngOnInit() { // Noncompliant - Services don't support ngOnInit
+    this.loadUsers();
+  }
+  
+  ngAfterViewInit() { // Noncompliant - Services don't have views
     console.log('View initialized');
   }
 }
@@ -41,31 +43,29 @@ class UserService {
 ----
 @Injectable()
 class UserService {
-  ngOnDestroy() { // Correct - services can use ngOnDestroy for cleanup
-    console.log('Service destroyed');
+  constructor() {
+    this.loadUsers(); // Use constructor for initialization
   }
-}
-
-@Component({
-  template: '<div>Content</div>'
-})
-class UserComponent {
-  ngAfterViewInit() { // Correct - components have views
-    console.log('View initialized');
+  
+  ngOnDestroy() { // Only ngOnDestroy is supported in services
+    this.cleanup();
   }
 }
 ----
 
-Use `ngDoBootstrap` only in NgModules where it's designed to work for manual bootstrapping.
+Use ngDoBootstrap only in NgModule classes, not in Components or other contexts.
 
 ==== Non-compliant code example
 
 [source,typescript,diff-id=2,diff-type=noncompliant]
 ----
-@Component()
+@Component({
+  selector: 'app-root',
+  template: '<div>App</div>'
+})
 class AppComponent {
-  ngDoBootstrap() { // Noncompliant - components don't bootstrap
-    // This will never be called
+  ngDoBootstrap() { // Noncompliant - Components don't support ngDoBootstrap
+    console.log('Bootstrapping');
   }
 }
 ----
@@ -75,17 +75,18 @@ class AppComponent {
 [source,typescript,diff-id=2,diff-type=compliant]
 ----
 @NgModule({
-  declarations: [AppComponent]
+  declarations: [AppComponent],
+  imports: [BrowserModule]
 })
 class AppModule {
-  ngDoBootstrap() { // Correct - modules handle bootstrapping
-    // Manual bootstrap logic
+  ngDoBootstrap() { // Correct - NgModules support ngDoBootstrap
+    console.log('Bootstrapping');
   }
 }
 ----
 
 === Documentation
 
- * Angular Lifecycle Hooks Guide - https://angular.dev/guide/components/lifecycle[Official Angular documentation explaining when and where to use lifecycle hooks]
- * Angular Services and Dependency Injection - https://angular.dev/guide/di[Guide explaining the lifecycle of Angular services and appropriate cleanup patterns]
+ * Angular Lifecycle Hooks - https://angular.dev/guide/components/lifecycle[Official Angular documentation on lifecycle hooks and their usage contexts]
+ * Angular Services and Dependency Injection - https://angular.dev/guide/di[Guide on Angular services and their lifecycle]
 
