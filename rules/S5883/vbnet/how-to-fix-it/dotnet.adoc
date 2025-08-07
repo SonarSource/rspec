@@ -1,0 +1,61 @@
+== How to fix it in .NET
+
+=== Code examples
+
+The following code uses the `find` command and expects the user to enter the
+name of a file to find on the system.
+
+It is vulnerable to arguments injection because untrusted data is inserted
+directly into the arguments of a process call without sanitization. +
+The application assumes that incoming data always consists of a specific range
+of characters and ignores that some characters might force the `find` command
+to start a shell.
+
+In this particular case, an attacker may remove files in `/some/folder` with the following string:
+
+----
+'*' -exec rm -rf {} \; 
+----
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=1,diff-type=noncompliant]
+----
+Public Class ExampleController
+    Inherits Controller
+
+    Public Sub Run(Args As String)
+        Dim P As New Process()
+        P.StartInfo.FileName = "/usr/bin/find"
+        P.StartInfo.Arguments = "/some/folder -iname " & Args
+        P.Start()
+    End Sub
+End Class
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=1,diff-type=compliant]
+----
+Public Class ExampleController
+    Inherits Controller
+
+    Public Sub Run(Args As String)
+        Dim P As New Process()
+        P.StartInfo.FileName = "/usr/bin/find"
+        P.StartInfo.ArgumentList.Add("/some/folder")
+        P.StartInfo.ArgumentList.Add("-iname")
+        P.StartInfo.ArgumentList.Add(Args)
+        P.Start()
+    End Sub
+End Class
+----
+
+=== How does this work?
+
+include::../../common/fix/introduction.adoc[]
+
+Here `ArgumentList` takes care of escaping the passed arguments and internally
+creates a single string given to the operating system when `System.Diagnostics.Process.Start()` is
+called.
+

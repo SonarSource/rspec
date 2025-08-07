@@ -1,0 +1,68 @@
+== How to fix it in Foundation
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+The certificate validation is disabled by implementing the `urlSession(_:didReceive:completionHandler:)` delegate method of `URLSessionDelegate` to unconditionally trust the server, without proper validation.
+
+This means that a certificate initially rejected by the system will be accepted, regardless of its origin.
+
+==== Noncompliant code example
+
+[source,swift,diff-id=1,diff-type=noncompliant]
+----
+import Foundation
+
+class MyURLSessionDelegate: NSObject, URLSessionDelegate {
+    func urlSession(_ session: URLSession,
+                    didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            // Noncompliant: the server certificate is not validated
+            let credential = URLCredential(trust: challenge.protectionSpace.serverTrust!)
+            completionHandler(.useCredential, credential)
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+The `serverTrust` object has to be validated. Based on the validation result, `completionHandler` should be called with either `.useCredential` to proceed with the connection, or `.cancelAuthenticationChallenge` to block it.
+
+[source,swift,diff-id=1,diff-type=compliant]
+----
+import Foundation
+
+class MyURLSessionDelegate: NSObject, URLSessionDelegate {
+    func urlSession(_ session: URLSession,
+                    didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let serverTrust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        if isServerCertificateValid(serverTrust) {
+            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+        } else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+        }
+    }
+
+    private func isServerCertificateValid(_ serverTrust: SecTrust) -> Bool {
+        // Implement the server certificate validation logic here.
+        // For instance, by using SecTrustEvaluateWithError or by doing certificate pinning.
+        var error: CFError?
+        return SecTrustEvaluateWithError(serverTrust, &error)
+    }
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/validation.adoc[]
