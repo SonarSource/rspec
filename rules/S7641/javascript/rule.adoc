@@ -1,31 +1,25 @@
-This rule raises an issue when Angular lifecycle methods are used in classes with decorators that don't support those specific lifecycle hooks.
+This rule raises an issue when Angular lifecycle methods are implemented in classes where they won't be called by the framework.
 
 == Why is this an issue?
 
-Angular provides different types of classes for different purposes, and each type supports only certain lifecycle methods.
-
-Components (`@Component`) and Directives (`@Directive`) are the primary building blocks that interact with the DOM and have a full lifecycle. They support most lifecycle hooks like `ngOnInit`, `ngOnChanges`, `ngDoCheck`, `ngAfterContentInit`, `ngAfterContentChecked`, `ngAfterViewInit`, `ngAfterViewChecked`, and `ngOnDestroy`.
-
-Services (`@Injectable`) are typically stateless and don't have a DOM representation. They only support `ngOnDestroy` for cleanup purposes when the service is destroyed.
-
-Pipes (`@Pipe`) are pure functions for data transformation and only support `ngOnDestroy` for cleanup.
-
-Modules (`@NgModule`) are configuration classes that only support `ngDoBootstrap` for custom bootstrapping logic.
+Angular lifecycle methods are only called by the framework in specific contexts. Each decorator type (@Component, @Directive, @Injectable, @NgModule, @Pipe) supports different lifecycle methods.
 
 Using lifecycle methods in the wrong context creates several problems:
 
-* The methods will never be called by Angular, leading to dead code
-* It indicates a misunderstanding of Angular's architecture
-* It can confuse other developers about the class's purpose and behavior
-* It may suggest that the class should have a different decorator or be restructured
+* The methods will never be called by Angular, making the code ineffective
+* It misleads other developers about when the code will execute
+* It can indicate a misunderstanding of Angular's architecture
+* It adds unnecessary code that serves no purpose
+
+For example, view-related lifecycle methods like `ngAfterViewInit` only work in Components and Directives that have templates. Using them in Services or Pipes is meaningless since these don't have views.
 
 === What is the potential impact?
 
-Using lifecycle methods in incorrect contexts results in dead code that never executes, potentially causing bugs when developers expect the lifecycle logic to run. It also indicates architectural misunderstandings that can lead to poorly structured applications and maintenance difficulties.
+The code will not behave as expected since the lifecycle methods won't be called. This can lead to initialization logic not running, cleanup not happening, or change detection not working properly. It may also confuse team members about the application's behavior.
 
 === How to fix in Angular?
 
-Remove lifecycle methods that are not supported by the class type, or change the class decorator to one that supports the lifecycle method.
+Remove lifecycle methods that are not supported in the current context, or move the logic to an appropriate lifecycle method or initialization pattern.
 
 ==== Non-compliant code example
 
@@ -33,8 +27,12 @@ Remove lifecycle methods that are not supported by the class type, or change the
 ----
 @Injectable()
 class UserService {
-  ngOnInit() { // Noncompliant
-    console.log('Service initialized');
+  ngOnInit() { // Noncompliant - Services don't support ngOnInit
+    this.loadUsers();
+  }
+  
+  ngAfterViewInit() { // Noncompliant - Services don't have views
+    console.log('View initialized');
   }
 }
 ----
@@ -45,23 +43,29 @@ class UserService {
 ----
 @Injectable()
 class UserService {
-  // Remove ngOnInit - services don't support this lifecycle
   constructor() {
-    console.log('Service initialized');
+    this.loadUsers(); // Use constructor for initialization
+  }
+  
+  ngOnDestroy() { // Only ngOnDestroy is supported in services
+    this.cleanup();
   }
 }
 ----
 
-For view-related lifecycle methods, use them only in Components and Directives that actually have views.
+Use ngDoBootstrap only in NgModule classes, not in Components or other contexts.
 
 ==== Non-compliant code example
 
 [source,typescript,diff-id=2,diff-type=noncompliant]
 ----
-@Pipe({ name: 'transform' })
-class TransformPipe {
-  ngAfterViewInit() { // Noncompliant
-    console.log('View initialized');
+@Component({
+  selector: 'app-root',
+  template: '<div>App</div>'
+})
+class AppComponent {
+  ngDoBootstrap() { // Noncompliant - Components don't support ngDoBootstrap
+    console.log('Bootstrapping');
   }
 }
 ----
@@ -70,49 +74,19 @@ class TransformPipe {
 
 [source,typescript,diff-id=2,diff-type=compliant]
 ----
-@Pipe({ name: 'transform' })
-class TransformPipe {
-  // Remove ngAfterViewInit - pipes don't have views
-  ngOnDestroy() {
-    console.log('Pipe destroyed');
-  }
-}
-----
-
-Use ngDoBootstrap only in NgModule classes for custom application bootstrapping.
-
-==== Non-compliant code example
-
-[source,typescript,diff-id=3,diff-type=noncompliant]
-----
-@Component({
-  selector: 'app-root'
-})
-class AppComponent {
-  ngDoBootstrap() { // Noncompliant
-    console.log('Bootstrapping');
-  }
-}
-----
-
-==== Compliant code example
-
-[source,typescript,diff-id=3,diff-type=compliant]
-----
 @NgModule({
   declarations: [AppComponent],
-  entryComponents: [AppComponent]
+  imports: [BrowserModule]
 })
 class AppModule {
-  ngDoBootstrap(appRef: ApplicationRef) {
-    appRef.bootstrap(AppComponent);
+  ngDoBootstrap() { // Correct - NgModules support ngDoBootstrap
+    console.log('Bootstrapping');
   }
 }
 ----
 
 === Documentation
 
- * Angular Lifecycle Hooks - https://angular.io/guide/lifecycle-hooks[Official Angular documentation explaining all lifecycle hooks and their proper usage]
- * Angular Architecture Overview - https://angular.io/guide/architecture[Overview of Angular's architecture including components, services, and modules]
- * Angular Bootstrapping - https://angular.io/guide/bootstrapping[Guide to bootstrapping Angular applications including ngDoBootstrap usage]
+ * Angular Lifecycle Hooks - https://angular.dev/guide/components/lifecycle[Official Angular documentation on lifecycle hooks and their usage contexts]
+ * Angular Services and Dependency Injection - https://angular.dev/guide/di[Guide on Angular services and their lifecycle]
 
