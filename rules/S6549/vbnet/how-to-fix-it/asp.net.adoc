@@ -1,0 +1,98 @@
+== How to fix it in ASP.NET
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,vbnet,diff-id=2,diff-type=noncompliant]
+----
+Imports Microsoft.AspNetCore.Mvc
+
+<ApiController>
+<Route("Example")>
+Public Class ExampleController
+    Inherits ControllerBase
+
+    Private Const TargetDirectory As String = "/path/to/target/directory"
+
+    Public Function FileExists() As IActionResult
+        Dim File As String = Request.Query("file")
+        Dim Path As String = TargetDirectory & File
+        If Not IO.File.Exists(Path) Then ' Noncompliant
+            Return NotFound("File not found")
+        End If
+        Return Ok("File found")
+    End Function
+End Class
+----
+
+==== Compliant solution
+
+[source,vbnet,diff-id=2,diff-type=compliant]
+----
+Imports Microsoft.AspNetCore.Mvc
+
+<ApiController>
+<Route("Example")>
+Public Class ExampleController
+    Inherits ControllerBase
+
+    Private Const TargetDirectory As String = "/path/to/target/directory"
+
+    Public Function FileExists() As IActionResult
+        Dim File As String = Request.Query("file")
+        Dim CanonicalPath As String = Path.GetFullPath(TargetDirectory & File)
+        If Not CanonicalPath.StartsWith(TargetDirectory) Then
+            Return NotFound("Entry is outside of the target directory")
+        ElseIf Not IO.File.Exists(CanonicalPath) Then
+            Return NotFound("File not found")
+        End If
+        Return Ok("File found")
+    End Function
+End Class
+----
+
+=== How does this work?
+
+:canonicalization_function: Path.GetFullPath
+
+include::../../common/fix/canonical-path-validation.adoc[]
+
+=== Pitfalls
+
+include::../../common/pitfalls/partial-path-traversal.adoc[]
+
+For example, the following code is vulnerable to partial path injection. Note
+that the string `targetDirectory` does not end with a path separator:
+
+
+[source, vbnet]
+----
+Imports Microsoft.AspNetCore.Mvc
+
+<ApiController>
+<Route("Example")>
+Public Class ExampleController
+    Inherits ControllerBase
+
+    Private Const TargetDirectory As String = "/Users/John"
+
+    Public Function FileExists() As IActionResult
+        Dim File As String = Request.Query("file")
+        Dim CanonicalPath As String = Path.GetFullPath(TargetDirectory & File)
+        If Not CanonicalPath.StartsWith(TargetDirectory) Then
+            Return NotFound("Entry is outside of the target directory")
+        ElseIf Not System.IO.File.Exists(CanonicalPath) Then
+            Return NotFound("File not found")
+        End If
+        Return Ok()
+    End Function
+End Class
+----
+
+This check can be bypassed if other directories start with `John`. For instance, `"/Users/Johnny".StartsWith("/Users/John")`
+returns `true`. Thus, for validation, `"/Users/John"` should actually be
+`"/Users/John/"`.
+
