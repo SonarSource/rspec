@@ -1,0 +1,213 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are multiple ways and useful functions to determine whether a substring or a character is part of another string.
+Historically, the standard C&#43;&#43; functions provide this feature through proxies that do not directly reflect the intent of the code:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <code>find</code> functions on <code>std::string</code> and <code>std::string_view</code> return an index into the searched string.
+The substring or character is not present when the index is equal to <code>npos</code> (often spelled <code>-1</code>).</p>
+</li>
+<li>
+<p>The <code>std::strstr</code> and <code>std::strchr</code> functions (inherited from C) return a pointer into the searched string.
+When they return <code>nullptr</code>, the substring or character is not present.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>While these functions work, they complexify the code:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>They do not work at the right abstraction level.
+Instead of just returning a <code>bool</code> indicating whether the substring is present, they return a proxy from which the information can be decoded.
+This requires some boilerplate code that clouds the indent of the code.</p>
+</li>
+<li>
+<p>Their names do not reflect the performed task.
+The names of the C functions are arguably hard to read and obscure.
+They only make sense after reading their documentation.
+Furthermore, <code>find</code> also has a name unrelated to the current task.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Thankfully, C&#43;&#43;23 introduces <code>contains</code> on <code>std::string</code> and <code>std::string_view</code> to simplify this task.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when it detects code that could be improved with the use of <code>contains</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_replacing_findneedle_with_containsneedle">Replacing <code>find(needle)</code> with <code>contains(needle)</code></h3>
+<div class="paragraph">
+<p>For <code>std::string</code> and <code>std::string_view</code>, <code>contains</code> is a drop-in replacement when the returned index from <code>find</code> is compared against <code>npos</code> or the magical value <code>-1</code>.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example(std::string const&amp; haystack, std::string_view needle) {
+  if (haystack.find(needle) == std::string::npos) { // Noncompliant
+    // The needle was not found.
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example(std::string const&amp; haystack, std::string_view needle) {
+  if (!haystack.contains(needle)) {
+    // The needle was not found.
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this example, <code>haystack</code> could also be a <code>std::string_view</code>, and <code>needle</code> could be a single character, a C-string, or anything convertible to <code>std::string_view</code> such as a <code>std::string</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_replacing_stdstring_viewfindneedle_index_with_substrindex_and_containsneedle">Replacing <code>std::string_view::find(needle, index)</code> with <code>substr(index)</code> and <code>contains(needle)</code></h3>
+<div class="paragraph">
+<p>When calling <code>find</code> on a <code>std::string_view</code>, you can provide a second parameter that allows skipping some characters.
+This allows you, for example, to look for some content in a string while ignoring some prefixes.
+However, this is essentially putting two distinct actions into one and clouds the intent.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example(std::string_view haystack,
+             std::size_t skipPrefix,
+             std::string_view needle) {
+  if (haystack.find(needle, skipPrefix) == std::string::npos) { // Noncompliant
+    // The needle was not found after the prefix.
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example(std::string_view haystack,
+             std::size_t skipPrefix,
+             std::string_view needle) {
+  if (haystack.substr(skipPrefix).contains(needle)) {
+    // The needle was not found after the prefix.
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Because <code>std::string_view</code> is a lightweight class, the compliant solution remains efficient.
+Furthermore, <code>substr</code> can also take a second parameter, allowing the operation to check for a substring while also ignoring a suffix.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_replacing_stdstringfindneedle_index">Replacing <code>std::string::find(needle, index)</code></h3>
+<div class="paragraph">
+<p>Since <code>std::string::substr</code> creates a new string, which is an expensive operation, the previous solution should not be applied directly to <code>std::string</code>s.
+Here, the best option is probably to create a <code>string_view</code> from the <code>string</code> and <em>then</em> use the previous solution.</p>
+</div>
+<div class="paragraph">
+<p>This rule will not raise an issue since this is less direct, and the benefits of using <code>contains</code> become less obvious.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_replacing_strstr_and_strchr_with_contains">Replacing <code>strstr</code> and <code>strchr</code> with <code>contains</code></h3>
+<div class="paragraph">
+<p>Because the C-inherited functions <code>strstr</code> and <code>strchr</code> take null-terminated C-string as parameters, you can write equivalent yet more readable code by first converting your <code>char const*</code> into a <code>std::string_view</code>.
+Thankfully, <code>std::string_view</code> is a lightweight object that can be created inline without impacting performance.</p>
+</div>
+<div class="paragraph">
+<p>The following example illustrates how to replace <code>strstr</code> but the same process can be applied to <code>strchr</code>.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example(const char* haystack, const char* needle) {
+  if (std::strstr(haystack, needle) != nullptr) { // Noncompliant
+    // The needle was found.
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example(const char* haystack, const char* needle) {
+  if (std::string_view{haystack}.contains(needle)) {
+    // The needle was found.
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>While the previous solution works and only requires modifying a single line of code, replacing the C-strings with <code>std::string_view</code> objects throughout your program would be better.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/string/basic_string_view/contains"><code>std::string_view::contains</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/string/basic_string/contains"><code>std::string::contains</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/string/basic_string/find"><code>std::string::find</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/string/byte/strstr"><code>std::strstr</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/string/byte/strchr"><code>std::strchr</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6171" class="rspec-auto-link">S6171</a> - "contains" should be used to check if a key exists in a container</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
