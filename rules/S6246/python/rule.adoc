@@ -1,0 +1,69 @@
+This rule reports an issue when a lambda invokes another lambda synchronously.
+
+== Why is this an issue?
+
+Invoking other Lambdas synchronously from a Lambda is a scalability anti-pattern. Lambdas have a maximum execution time before they timeout (15 minutes as of June 2025). Having to wait for another Lambda to finish its execution could lead to a timeout.
+
+A better solution is to generate events that can be consumed asynchronously by other Lambdas.
+
+=== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import boto3
+
+client = boto3.client('lambda')
+
+def lambda_handler(event, context):
+    response = client.invoke(
+      FunctionName='target-lambda-function-name',
+      InvocationType='RequestResponse' # Noncompliant `RequestResponse` InvocationType means that the lambda call is synchronous
+      Payload=json.dumps(event)
+    )
+
+    return response['Payload'].read()
+----
+
+=== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import boto3
+
+client = boto3.client('lambda')
+
+def lambda_handler(event, context):
+
+    response = client.invoke(
+      FunctionName='target-lambda-function-name',
+      InvocationType='Event' # Compliant `Event` InvocationType means that the lambda call is asynchronous
+      Payload=json.dumps(event)
+    )
+    
+    return response['Payload'].read()
+----
+
+== How to fix it in Boto3
+
+Using the `client.invoke()` function, the parameter `InvocationType` should be set to `Event` to invoke the function asynchronously by sending events.
+
+== Resources
+
+* AWS docs - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html[Best practices for working with AWS Lambda functions]
+* AWS docs - https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html[Understanding the Lambda execution environment lifecycle]
+* boto3 - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/lambda/client/invoke.html[client.invoke()]
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Avoid synchronous calls to other lambdas
+
+=== Highlighting
+
+Function invocation
+
+endif::env-github,rspecator-view[]
