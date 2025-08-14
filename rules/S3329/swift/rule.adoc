@@ -1,16 +1,15 @@
-FIXME: add a description
 
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+include::../summary.adoc[]
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+include::../rationale.adoc[]
 
-//=== What is the potential impact?
+include::../impact.adoc[]
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+// How to fix it section
+
+== How to fix it in CommonCrypto
 
 === Code examples
 
@@ -18,27 +17,102 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,swift,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+import Foundation
+import CommonCrypto
+
+func encrypt(data: Data, key: Data) {
+    let iv = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10])
+    var encryptedData = Data(count: data.count)
+    var encryptedDataLength: Int = 0
+
+    let status = key.withUnsafeBytes { keyBytes in
+        iv.withUnsafeBytes { ivBytes in
+            data.withUnsafeBytes { dataBytes in
+                CCCrypt(  // Noncompliant
+                    CCOperation(kCCEncrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    keyBytes.baseAddress, kCCKeySizeAES256,
+                    ivBytes.baseAddress,
+                    dataBytes.baseAddress, data.count,
+                    encryptedData.withUnsafeMutableBytes { $0.baseAddress! },
+                    encryptedData.count,
+                    &encryptedDataLength
+                )
+            }
+        }
+    }
+}
 ----
 
 ==== Compliant solution
 
+:explicit_strong: java.security.SecureRandom
+
+include::../common/fix/explicit-fix.adoc[]
+
 [source,swift,diff-id=1,diff-type=compliant]
 ----
-FIXME
+import Foundation
+import Security
+import CommonCrypto
+
+func encrypt(data: Data, key: Data) {
+    var iv = Data(count: kCCBlockSizeAES128)
+    let status_iv = iv.withUnsafeMutableBytes { ivBytes in
+        SecRandomCopyBytes(kSecRandomDefault, kCCBlockSizeAES128, ivBytes.baseAddress!)
+    }
+
+    guard status_iv == errSecSuccess else {
+        return nil
+    }
+
+    var encryptedData = Data(count: data.count)
+    var encryptedDataLength: Int = 0
+
+    let status = key.withUnsafeBytes { keyBytes in
+        iv.withUnsafeBytes { ivBytes in
+            data.withUnsafeBytes { dataBytes in
+                CCCrypt(
+                    CCOperation(kCCEncrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    keyBytes.baseAddress, kCCKeySizeAES256,
+                    ivBytes.baseAddress,
+                    dataBytes.baseAddress, data.count,
+                    encryptedData.withUnsafeMutableBytes { $0.baseAddress! },
+                    encryptedData.count,
+                    &encryptedDataLength
+                )
+            }
+        }
+    }
+}
 ----
 
-//=== How does this work?
+=== How does this work?
 
-//=== Pitfalls
-
-//=== Going the extra mile
+include::../common/fix/fix.adoc[]
 
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+== Resources
+
+include::../common/resources/docs.adoc[]
+
+include::../common/resources/articles.adoc[]
+
+include::../common/resources/presentations.adoc[]
+
+include::../common/resources/standards-mobile.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+'''
+
+endif::env-github,rspecator-view[]
