@@ -1,0 +1,286 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Encrypting data is security-sensitive. It has led in the past to the following vulnerabilities:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2017-7902">CVE-2017-7902</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2006-1378">CVE-2006-1378</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2003-1376">CVE-2003-1376</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Proper encryption requires both the encryption algorithm and the key to be strong. Obviously the private key needs to remain secret and be renewed regularly. However these are not the only means to defeat or weaken an encryption.</p>
+</div>
+<div class="paragraph">
+<p>This rule flags function calls that initiate encryption/decryption.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>the private key might not be random, strong enough or the same key is reused for a long long time.</p>
+</li>
+<li>
+<p>the private key might be compromised. It can happen when it is stored in an unsafe place or when it was transferred in an unsafe manner.</p>
+</li>
+<li>
+<p>the key exchange is made without properly authenticating the receiver.</p>
+</li>
+<li>
+<p>the encryption algorithm is not strong enough for the level of protection required. Note that encryption algorithms strength decreases as time passes.</p>
+</li>
+<li>
+<p>the chosen encryption library is deemed unsafe.</p>
+</li>
+<li>
+<p>a nonce is used, and the same value is reused multiple times, or the nonce is not random.</p>
+</li>
+<li>
+<p>the RSA algorithm is used, and it does not incorporate an Optimal Asymmetric Encryption Padding (OAEP), which might weaken the encryption.</p>
+</li>
+<li>
+<p>the CBC (Cypher Block Chaining) algorithm is used for encryption, and it&#8217;s IV (Initialization Vector) is not generated using a secure random algorithm, or it is reused.</p>
+</li>
+<li>
+<p>the Advanced Encryption Standard (AES) encryption algorithm is used with an unsecure mode. See the recommended practices for more information.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You are at risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Generate encryption keys using secure random algorithms.</p>
+</li>
+<li>
+<p>When generating cryptographic keys (or key pairs), it is important to use a key length that provides enough entropy against brute-force attacks. For the Blowfish algorithm the key should be at least 128 bits long, while for the RSA algorithm it should be at least 2048 bits long.</p>
+</li>
+<li>
+<p>Regenerate the keys regularly.</p>
+</li>
+<li>
+<p>Always store the keys in a safe location and transfer them only over safe channels.</p>
+</li>
+<li>
+<p>If there is an exchange of cryptographic keys, check first the identity of the receiver.</p>
+</li>
+<li>
+<p>Only use strong encryption algorithms. Check regularly that the algorithm is still deemed secure. It is also imperative that they are implemented correctly. Use only encryption libraries which are deemed secure. Do not define your own encryption algorithms as they will most probably have flaws.</p>
+</li>
+<li>
+<p>When a nonce is used, generate it randomly every time.</p>
+</li>
+<li>
+<p>When using the RSA algorithm, incorporate an Optimal Asymmetric Encryption Padding (OAEP).</p>
+</li>
+<li>
+<p>When CBC is used for encryption, the IV must be random and unpredictable. Otherwise it exposes the encrypted value to crypto-analysis attacks like "Chosen-Plaintext Attacks". Thus a secure random algorithm should be used. An IV value should be associated to one and only one encryption cycle, because the IV&#8217;s purpose is to ensure that the same plaintext encrypted twice will yield two different ciphertexts.</p>
+</li>
+<li>
+<p>The Advanced Encryption Standard (AES) encryption algorithm can be used with various modes. Galois/Counter Mode (GCM) with no padding should be preferred to the following combinations which are not secured:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Electronic Codebook (ECB) mode: Under a given key, any given plaintext block always gets encrypted to the same ciphertext block. Thus, it does not hide data patterns well. In some senses, it doesn&#8217;t provide serious message confidentiality, and it is not recommended for use in cryptographic protocols at all.</p>
+</li>
+<li>
+<p>Cipher Block Chaining (CBC) with PKCS#5 padding (or PKCS#7) is susceptible to padding oracle attacks.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>Imports System
+Imports System.Security.Cryptography
+
+Namespace MyNamespace
+
+    Public Class Class1
+
+        Public Sub Main()
+
+            Dim data As Byte() = {1, 1, 1}
+
+            Dim myRSA As RSA = RSA.Create()
+            Dim padding As RSAEncryptionPadding = RSAEncryptionPadding.CreateOaep(HashAlgorithmName.SHA1)
+
+            ' Review all base RSA class' Encrypt/Decrypt calls
+            myRSA.Encrypt(data, padding)  ' Sensitive
+            myRSA.EncryptValue(data)      ' Sensitive
+            myRSA.Decrypt(data, padding)  ' Sensitive
+            myRSA.DecryptValue(data)      ' Sensitive
+
+            Dim myRSAC As RSACryptoServiceProvider = New RSACryptoServiceProvider()
+            ' Review the use of any TryEncrypt/TryDecrypt And specific Encrypt/Decrypt of RSA subclasses.
+            myRSAC.Encrypt(data, False)    ' Sensitive
+            myRSAC.Decrypt(data, False)    ' Sensitive
+
+            Dim written As Integer
+            myRSAC.TryEncrypt(data, Span&lt;byte&gt;.Empty, padding, out written) ' Sensitive
+            myRSAC.TryDecrypt(data, Span&lt;byte&gt;.Empty, padding, out written) ' Sensitive
+
+            Dim rgbKey As Byte() = {1, 2, 3}
+            Dim rgbIV As Byte() = {4, 5, 6}
+            Dim rijn = SymmetricAlgorithm.Create()
+
+            ' Review the creation of Encryptors from any SymmetricAlgorithm instance.
+            rijn.CreateEncryptor()   ' Sensitive
+            rijn.CreateEncryptor(rgbKey, rgbIV)  ' Sensitive
+            rijn.CreateDecryptor()  ' Sensitive
+            rijn.CreateDecryptor(rgbKey, rgbIV)  ' Sensitive
+        End Sub
+
+        Public Class MyCrypto
+            Inherits System.Security.Cryptography.AsymmetricAlgorithm ' Sensitive
+            ' ...
+        End Class
+
+        Public Class MyCrypto2
+            Inherits System.Security.Cryptography.SymmetricAlgorithm ' Sensitive
+            ' ...
+        End Class
+    End Class
+End Namespace</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/321">CWE-321 - Use of Hard-coded Cryptographic Key</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/322">CWE-322 - Key Exchange without Entity Authentication</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/323">CWE-323 - Reusing a Nonce, Key Pair in Encryption</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/324">CWE-324 - Use of a Key Past its Expiration Date</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/325">CWE-325 - Missing Required Cryptographic Step</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/326">CWE-326 - Inadequate Encryption Strength</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/327">CWE-327 - Use of a Broken or Risky Cryptographic Algorithm</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure that encrypting data is safe here.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>The encryption function call</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2087">is related to: <a data-rspec-id="S2087" class="rspec-auto-link">S2087</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s3329">is related to: <a data-rspec-id="S3329" class="rspec-auto-link">S3329</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s4426">is related to: <a data-rspec-id="S4426" class="rspec-auto-link">S4426</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s4432">is related to: <a data-rspec-id="S4432" class="rspec-auto-link">S4432</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2277">is related to: <a data-rspec-id="S2277" class="rspec-auto-link">S2277</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2278">is related to: <a data-rspec-id="S2278" class="rspec-auto-link">S2278</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_4_sep_2018_103610_alexandre_gigleux_wrote">on 4 Sep 2018, 10:36:10 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>LGTM</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_2_dec_2019_103736_alexandre_gigleux_wrote">on 2 Dec 2019, 10:37:36 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>Removing CWE-522 from this rule because CWE-522 maps to the "AUTH" SonarSource Security Category and this makes this RSPEC mapping to 2 SonarSource Security Category and we expect a given RSPEC to map to only one specific SonarSource Security Category. This is especially true for Security Hotspots the guided process introduced with https://jira.sonarsource.com/browse/MMF-1868.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_may_2020_164619_eric_therond_wrote">on 27 May 2020, 16:46:19 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>Deprecated because it overlaps with all the vulnerability rules we have about cryptography</p>
+</div>
+<div class="paragraph">
+<p>See for instance: https://jira.sonarsource.com/browse/MMF-1852</p>
+</div>
+</div>
+</div>
+</div>

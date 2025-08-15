@@ -1,0 +1,342 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Code injections occur when applications allow the dynamic execution of code
+instructions from untrusted data.<br>
+An attacker can influence the behavior of the targeted application and modify it
+to get access to sensitive data.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>An attacker exploiting a dynamic code injection vulnerability will be able to
+execute arbitrary code in the context of the vulnerable application.</p>
+</div>
+<div class="paragraph">
+<p>The impact depends on the access control measures taken on the target system
+OS. In the worst-case scenario, the process that executes the code runs with
+root privileges, and therefore any OS commands or programs may be affected.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_denial_of_service_and_data_leaks">Denial of service and data leaks</h4>
+<div class="paragraph">
+<p>In this scenario, the attack aims to disrupt the organization&#8217;s activities and
+profit from data leaks.</p>
+</div>
+<div class="paragraph">
+<p>An attacker could, for example:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>download the internal server&#8217;s data, most likely to sell it</p>
+</li>
+<li>
+<p>modify data, send malware</p>
+</li>
+<li>
+<p>stop services or exhaust resources (with fork bombs for example)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_root_privilege_escalation_and_pivot">Root privilege escalation and pivot</h4>
+<div class="paragraph">
+<p>In this scenario, the attacker can do everything described in the previous
+section. The difference is that the attacker also manages to elevate their
+privileges to an administrative level and attacks other servers.</p>
+</div>
+<div class="paragraph">
+<p>Here, the impact depends on how much the target company focuses on its Defense
+In Depth. For example, the entire infrastructure can be compromised by a
+combination of code injections and <strong>misconfiguration</strong> of:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Docker or Kubernetes clusters</p>
+</li>
+<li>
+<p>cloud services</p>
+</li>
+<li>
+<p>network firewalls and routing</p>
+</li>
+<li>
+<p>OS access control</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_node_js">How to fix it in Node.js</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to arbitrary code execution because it dynamically
+runs JavaScript code built from untrusted data.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">function (req, res) {
+    let operation = req.query.operation
+    eval(`product_${operation}()`) // Noncompliant
+    res.send("OK")
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const allowed = ["add", "remove", "update"]
+
+let operationId = req.query.operationId
+const operation = allowed[operationId]
+eval(`product_${operation}()`)
+res.send("OK")</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>Allowing users to execute code dynamically generally creates more problems than
+it solves.</p>
+</div>
+<div class="paragraph">
+<p>Anything that can be done via dynamic code execution can usually be done via
+a language&#8217;s native SDK and static code.<br>
+Therefore, our suggestion is to avoid executing code dynamically.<br>
+If the application requires the execution of dynamic code, additional security
+measures must be taken.</p>
+</div>
+<div class="sect3">
+<h4 id="_dynamic_parameters">Dynamic parameters</h4>
+<div class="paragraph">
+<p>When the untrusted values are only expected to be values used in standard
+processing, it is generally possible to provide them as parameters of the dynamic
+code.
+In that case, care should be taken to ensure that only the <strong>name</strong> of the
+untrusted parameter is passed to the dynamic code and not that its value is
+expanded into it. After that, the dynamic code will be able to safely access the
+untrusted parameter content and perform the processing.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_allow_list">Allow list</h4>
+<div class="paragraph">
+<p>When the untrusted parameters are expected to contain operators, function names
+or other reflection-related values, best practices would encourage using an
+allow list. This one would contain a list of accepted safe values that can be
+used as part of the dynamic code.</p>
+</div>
+<div class="paragraph">
+<p>When receiving an untrusted parameter, the application would verify its value is
+contained in the configured allow list. If it is present, the parameter is
+accepted. Otherwise, it is rejected and an error is raised.</p>
+</div>
+<div class="paragraph">
+<p>Another similar approach is using a binding between identifiers and accepted
+values. That way, users are only allowed to provide identifiers, where only valid
+ones can be converted to a safe value.</p>
+</div>
+<div class="paragraph">
+<p>The example compliant code uses such a binding approach.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_mongodb">How to fix it in MongoDB</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to arbitrary code execution because it builds
+a JavaScript code snippet from untrusted data. This piece of code is then used
+as an operand for a dangerous <strong>evaluation</strong> MongoDB operator.</p>
+</div>
+<div class="paragraph">
+<p>When performing a database query that way, the MongoDB server will interpret
+the JavaScript code as part of the data retrieval process. This might lead to
+arbitrary code execution on the database server.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const client = new MongoClient(mongoURI);
+async function run() {
+    const database = client.db('example');
+    const products = database.collection('product');
+    const query = { $where: `isString(this.${req.query.prop})`};
+    const product = await products.findOne(query); // Noncompliant
+}
+run().catch(console.dir);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const client = new MongoClient(mongoURI);
+async function run() {
+    const allowed = ["name", "price", "stock"]
+
+    let propId = req.query.propId
+    const database = client.db('example');
+    const products = database.collection('product');
+    const query = { $where: `isString(this.${allowed[propId]})`};
+    const product = await products.findOne(query);
+}
+run().catch(console.dir);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>MongoDB provides JavaScript code-aware search operators to allow developers to
+perform advanced queries. In most cases, the same result can be achieved by
+combining classical, safer, operators, or by performing additional data
+filtering on the application side.</p>
+</div>
+<div class="paragraph">
+<p>Note that MongoDB servers implement a sandboxed JavaScript engine to run the
+operator-related code. Without other vulnerabilities in the database engine,
+the execution of arbitrary code is thus not possible through the exploitation
+of evaluation operators. However, a successful injection could still lead to
+the compromise of the MongoDB server hosted data. Moreover, the discovery by
+an attacker of a way to escape the sandbox should also be considered.</p>
+</div>
+<div class="sect3">
+<h4 id="_safer_operators">Safer operators</h4>
+<div class="paragraph">
+<p>Wherever possible, safe operators that do not evaluate JavaScript
+expressions should be preferred over dangerous ones. Dangerous operators
+include:
+* <code>$where</code>
+* <code>$accumulator</code>
+* <code>$function</code></p>
+</div>
+<div class="paragraph">
+<p>If the application requires a complex logic to properly filter a query&#8217;s
+results, it might be considered to implement it on the application side rather
+than in the database itself. That way, only simple operators can be used in the
+database query.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_allow_list_2">Allow list</h4>
+<div class="paragraph">
+<p>When the untrusted parameters are expected to contain operators, function names
+or other reflection-related values, best practices would encourage using an
+allow list. This one would contain a list of accepted safe values that can be
+used as part of the dynamic code.</p>
+</div>
+<div class="paragraph">
+<p>When receiving an untrusted parameter, the application would verify its value is
+contained in the configured allow list. If it is present, the parameter is
+accepted. Otherwise, it is rejected and an error is raised.</p>
+</div>
+<div class="paragraph">
+<p>Another similar approach is using a binding between identifiers and accepted
+values. That way, users are only allowed to provide identifiers, where only valid
+ones can be converted to a safe value.</p>
+</div>
+<div class="paragraph">
+<p>The example compliant code uses such a binding approach.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>SonarSource - <a href="https://blog.sonarsource.com/moodle-remote-code-execution/">Evil Teacher: Code Injection in Moodle</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/95">CWE-95 - Improper Neutralization of Directives in Dynamically Evaluated Code ('Eval Injection')</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not dynamically execute user-controlled data.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+</div>
+</div>
