@@ -1,57 +1,52 @@
-This rule raises an issue when a Django URL pattern is defined without a `name` parameter in the `path()` or `re_path()` function call.
+This rule raises an issue when a Django template contains a form with `method="post"` that does not include the `{% csrf_token %}` template tag.
 
 == Why is this an issue?
 
-Django URL patterns without name parameters make code harder to maintain and violate the DRY (Don't Repeat Yourself) principle.
+Cross-Site Request Forgery (CSRF) is a type of attack where a malicious website tricks a user's browser into performing unwanted actions on a trusted site where the user is authenticated.
 
-When you hardcode URL paths throughout your Django application - in templates, views, and tests - you create multiple places where the same URL information is duplicated. If you need to change a URL later, you must remember to update it everywhere it appears. This is error-prone and time-consuming.
+When a Django form lacks CSRF protection, an attacker can create a malicious webpage that submits forms to your application on behalf of authenticated users without their knowledge. For example, if a user is logged into your banking application and visits a malicious site, that site could potentially transfer money or change account settings.
 
-Named URLs solve this problem by providing a single canonical location for each URL definition. Once you assign a name to a URL pattern, you can reference it using Django's `reverse()` function in Python code or the `{% url %}` template tag in templates.
+Django provides built-in CSRF protection through middleware and template tags. When you include `{% csrf_token %}` in your form, Django generates a unique token that must be present in POST requests. This token is tied to the user's session and cannot be guessed by attackers.
 
-For example, instead of hardcoding `/about/` in multiple places, you can reference it by name like `{% url 'about' %}`. If you later decide to change the URL to `/about-us/`, you only need to update the URL pattern definition - all references using the name will automatically work with the new path.
-
-Named URLs also enable powerful Django features like reverse URL resolution, which is essential for creating maintainable web applications. Many Django utilities and third-party packages expect URLs to have names to function properly.
+Without this protection, your application becomes vulnerable to unauthorized actions that could compromise user data, perform unwanted transactions, or modify critical application state.
 
 === What is the potential impact?
 
-Without named URL parameters, applications become harder to maintain and more prone to broken links. When URL paths need to change, developers must manually find and update every hardcoded reference throughout the codebase, increasing the risk of missing updates and creating 404 errors. This technical debt accumulates over time, making the application more fragile and expensive to maintain.
+Attackers can perform unauthorized actions on behalf of authenticated users, potentially leading to data breaches, unauthorized transactions, account modifications, or other malicious activities depending on the form's functionality.
 
 === How to fix?
 
 
-Add a `name` parameter to the URL pattern. Choose a descriptive name that clearly identifies the purpose of the URL.
+Add the `{% csrf_token %}` template tag inside your POST form. This generates a hidden input field with a unique token that Django validates on form submission.
 
 ==== Non-compliant code example
 
-[source,python,diff-id=1,diff-type=noncompliant]
+[source,html,diff-id=1,diff-type=noncompliant]
 ----
-# pages/urls.py
-from django.urls import path
-from .views import home_page_view, AboutPageView
-
-urlpatterns = [
-    path("about/", AboutPageView.as_view()),  # Noncompliant
-    path("", home_page_view),  # Noncompliant
-]
+<form method="post">
+    <input type="text" name="title">
+    <button type="submit">Submit</button> // Noncompliant
+</form>
 ----
 
 ==== Compliant code example
 
-[source,python,diff-id=1,diff-type=compliant]
+[source,html,diff-id=1,diff-type=compliant]
 ----
-# pages/urls.py
-from django.urls import path
-from .views import home_page_view, AboutPageView
-
-urlpatterns = [
-    path("about/", AboutPageView.as_view(), name="about"),
-    path("", home_page_view, name="home"),
-]
+<form method="post">
+    {% csrf_token %}
+    <input type="text" name="title">
+    <button type="submit">Submit</button>
+</form>
 ----
 
 === Documentation
 
- * Django URL dispatcher - https://docs.djangoproject.com/en/stable/topics/http/urls/[Official Django documentation on URL configuration and naming]
- * Django reverse() function - https://docs.djangoproject.com/en/stable/ref/urlresolvers/#reverse[Documentation for Django's reverse URL resolution function]
- * Django url template tag - https://docs.djangoproject.com/en/stable/ref/templates/builtins/#url[Documentation for the url template tag used with named URLs]
+ * Django CSRF Protection Documentation - https://docs.djangoproject.com/en/stable/ref/csrf/[Official Django documentation on Cross Site Request Forgery protection]
+ * Django Security Best Practices - https://docs.djangoproject.com/en/stable/topics/security/[Comprehensive guide to Django security features and best practices]
+
+=== Standards
+
+ * OWASP Top 10:2021-A01-Broken Access Control - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[OWASP guidance on preventing broken access control vulnerabilities]
+ * CWE-352: Cross-Site Request Forgery (CSRF) - https://cwe.mitre.org/data/definitions/352.html[Common Weakness Enumeration entry for CSRF vulnerabilities]
 
