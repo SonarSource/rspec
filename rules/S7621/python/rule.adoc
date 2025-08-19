@@ -1,0 +1,119 @@
+This rule raises an issue when custom polling loops are used instead of AWS waiters for checking resource states.
+
+== Why is this an issue?
+
+When working with AWS resources that require time to reach a desired state, such as EC2 instances starting up, S3 buckets being created, or DynamoDB tables becoming available, developers often implement custom polling loops to check the resource status repeatedly. However, this approach is inefficient and error-prone. Custom polling requires manual handling of timing intervals, retry logic, error conditions, and timeout scenarios. It also tends to be verbose and duplicates logic that AWS already provides in a more robust form. AWS SDK provides waiters, which are purpose-built abstractions specifically designed to poll AWS resources until they reach a desired state. Waiters handle the complexities of polling automatically, including appropriate delays, exponential backoff, maximum wait times, and proper error handling.
+
+=== What is the potential impact?
+
+Custom polling implementations can lead to inefficient resource usage due to inappropriate polling intervals, increased complexity and maintenance overhead, potential race conditions and timing issues, and unreliable error handling that may cause application failures or infinite loops.
+
+== How to fix it
+
+Replace custom polling loops with AWS waiters. Identify the AWS resource you need to wait for, then use the appropriate waiter method from the boto3 client. Waiters are available for most AWS services and common state transitions. Use the `get_waiter()` method on your boto3 client to obtain the waiter, then call `wait()` with the appropriate parameters.
+
+=== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import boto3
+import time
+
+ec2_client = boto3.client('ec2', region_name='us-east-1')
+
+while True: 
+  response = ec2_client.describe_instance_status(  # Noncompliant
+    InstanceIds=[instance_id],
+    IncludeAllInstances=True
+  )
+  
+  instance_status = response['Statuses'][0]['InstanceStatus']['Status']
+  if instance_status == 'ok':
+    break
+  
+  time.sleep(10)
+----
+
+=== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import boto3
+
+ec2_client = boto3.client('ec2', region_name='us-east-1')
+
+ec2_client.get_waiter('instance_status_ok').wait(
+    InstanceIds=[instance_id],
+    IncludeAllInstances=True
+)
+----
+
+== Resources
+
+* boto3 Documentation - https://boto3.amazonaws.com/v1/documentation/api/latest/guide/clients.html#waiters[Waiters]
+* AWS Documentation - https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html#python-handler-best-practices[AWS Lambda Python Handler Best Practices]
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+This rule should check if there is an while or for loop with a function call to one of the following methods. All parameters either need
+to be static or variables which are not written to in the loop body. Furthermore, there  should be a sleep or delay statement inside the loop body.
+As a baby step there is no check for a sliip of delay statement and only checks in a `while True` loop.
+
+* *EC2 (Elastic Compute Cloud)*: EC2 operations like instance and volume provisioning are classic examples of long-running tasks.
+** `describe_instances`: Used to check the status of an EC2 instance (pending, running, stopping, stopped). Waiters: `instance_running`, `instance_stopped`, `instance_terminated`.
+** `describe_instance_status`: Used to check if an instance is initialized and passing status checks. Waiters: `instance_status_ok`, `system_status_ok`.
+** `describe_volumes`: Used to check the state of an EBS volume (e.g., creating, available, in-use, deleting, deleted). Waiters: `volume_available`, `volume_in_use`, `volume_deleted`.
+** `describe_snapshots`: Used to check if an EBS snapshot has been completed. Waiter: `snapshot_completed`.
+** `describe_images`: Used to check if an AMI is available. Waiter: `image_available`.
+** `describe_vpcs`: Used to check if a VPC is available. Waiter: `vpc_available`.
+** `describe_subnets`: Used to check if a subnet is available. Waiter: `subnet_available`.
+** `describe_nat_gateways`: Used for checking NAT gateway status. Waiter: `nat_gateway_available`.
+** `describe_key_pairs`: Used to check if a key pair exists. Waiter: `key_pair_exists`.
+** `get_password_data`: Used to check if password data is available for a Windows instance. Waiter: `password_data_available`.
+
+* *S3 (Simple Storage Service)*: While S3 operations are often fast, object and bucket provisioning is asynchronous.
+** `head_bucket`: Used to check for a bucket's existence. Waiters: `bucket_exists`, `bucket_not_exists`.
+** `head_object`: Used to check if an object has been successfully uploaded or replicated. Waiters: `object_exists`, `object_not_exists`.
+
+* *RDS (Relational Database Service)*: Database instance creation, modification, and deletion can take several minutes.
+** `describe_db_instances`: Used to check the status of an RDS instance (creating, available, deleting). Waiters: `db_instance_available`, `db_instance_deleted`.
+** `describe_db_clusters`: For checking the status of Aurora clusters. Waiters: `db_cluster_available`, `db_cluster_deleted`.
+** `describe_db_snapshots`: For checking snapshot completion. Waiters: `db_snapshot_available`, `db_snapshot_completed`.
+
+* *DynamoDB*: Table creation and deletion are not instantaneous.
+** `describe_table`: Used to check a table's status (CREATING, UPDATING, DELETING, ACTIVE). Waiters: `table_exists`, `table_not_exists`.
+
+* *ECS (Elastic Container Service)*: Service deployments and task startups are asynchronous.
+** `describe_services`: Used to check if a service's deployment is stable. Waiter: `services_stable`.
+** `describe_tasks`: Used to check if tasks are running or have stopped. Waiters: `tasks_running`, `tasks_stopped`.
+
+* *ECR (Elastic Container Registry)*:
+** `describe_images` (ECR client): Used to check for the presence of a container image. Waiter: `image_scan_complete`.
+
+* *EKS (Elastic Kubernetes Service)*: Cluster and nodegroup provisioning takes a significant amount of time.
+** `describe_cluster`: Used to check the status of an EKS cluster (CREATING, ACTIVE, DELETING). Waiters: `cluster_active`, `cluster_deleted`.
+** `describe_nodegroup`: Used to check the status of a managed nodegroup. Waiters: `nodegroup_active`, `nodegroup_deleted`.
+
+* *CloudFormation*: Stack operations are fundamentally asynchronous and can be very long-running.
+** `describe_stacks`: Used to check the status of a stack operation (CREATE_IN_PROGRESS, CREATE_COMPLETE, DELETE_COMPLETE). Waiters: `stack_create_complete`, `stack_delete_complete`, `stack_update_complete`, `stack_exists`.
+** `describe_change_set`: Used to check if a change set has been created. Waiter: `change_set_create_complete`.
+
+* *Lambda*: Function updates need time to propagate.
+** `get_function_configuration`: Used to check the LastUpdateStatus and State of a Lambda function. Waiters: `function_active`, `function_updated`, `function_active_v2`, `function_updated_v2`.
+** `get_function`: Used to verify a function exists. Waiter: `function_exists`.
+
+
+=== Message
+
+Use AWS waiters instead of custom polling loops
+
+=== Highlighting
+
+* Primary location: the AWS client method call within the loop
+* Secondary location: the loop keyword (e.g., `while`, `for`)
+* Secondary location: any sleep or delay statements
+
+endif::env-github,rspecator-view[]
