@@ -1,69 +1,64 @@
-This rule raises an issue when an `import` statement references a module that is not declared as a dependency in the project's `package.json` file.
+This rule raises an issue when an `import` statement references a module that is not listed as a dependency in the project's `package.json` file.
 
 == Why is this an issue?
 
-Importing modules that are not explicitly listed in your `package.json` dependencies can lead to serious reliability issues. While your code might work locally, it can break when dependencies are reinstalled or when deployed to different environments.
+Importing modules that are not explicitly declared as dependencies in `package.json` can cause your application to work locally but fail in production environments.
 
-There are several scenarios where this becomes problematic:
+When you import a module that isn't listed in your dependencies, you might be relying on:
 
-**Missing Dependencies**: If you import a module that isn't in your `package.json`, your application will fail with a "module not found" error when the `node_modules` directory is recreated from scratch.
+* A transitive dependency (a dependency of another dependency)
+* A globally installed package
+* A package that happens to be available in your local environment
 
-**Transitive Dependencies**: Sometimes you might import a module that works because it's a dependency of one of your declared dependencies (a transitive dependency). However, this creates a fragile situation - if the parent dependency removes or changes its own dependency, your code will break without warning.
+This creates several risks:
 
-**Development vs Production**: A transitive dependency might only be available in development environments but not in production, causing runtime failures that are difficult to debug.
+* **Production failures**: The module might not be available when your code is deployed
+* **Dependency changes**: If the package providing the transitive dependency changes or removes it, your code will break
+* **Environment inconsistencies**: Different team members or CI/CD systems might have different packages available
+* **Security vulnerabilities**: Undeclared dependencies make it harder to track and audit your project's security posture
 
-**Version Conflicts**: Without explicit version control in your `package.json`, you have no control over which version of the transitive dependency gets installed, potentially leading to compatibility issues.
-
-By explicitly declaring all imported modules as dependencies, you ensure reproducible builds, predictable deployments, and better dependency management across your team and different environments.
+Even if a transitive dependency consistently works, it should be explicitly declared in your `package.json` to ensure reliability and make your project's dependencies transparent.
 
 === What is the potential impact?
 
-Applications may fail to start or crash at runtime when deployed to production environments or when dependencies are reinstalled. This can lead to service outages, failed deployments, and difficult-to-debug issues in different environments. Team members may experience inconsistent behavior when setting up the project locally.
+Applications may work in development but fail in production when undeclared dependencies are not available. This can lead to runtime errors, deployment failures, and inconsistent behavior across different environments.
 
 === How to fix?
 
 
-Add the missing module to your package.json dependencies. Use npm or yarn to install and save the dependency properly.
+Add the missing module to your package.json dependencies. Install it using npm or your package manager of choice.
 
 ==== Non-compliant code example
 
 [source,javascript,diff-id=1,diff-type=noncompliant]
 ----
-// package.json only has: { "dependencies": { "express": "^4.18.0" } }
-
-import lodash from 'lodash'; // Noncompliant - lodash not in dependencies
-import express from 'express';
+// package.json only has "lodash" as dependency
+import express from 'express'; // Noncompliant
+import { debounce } from 'lodash';
 
 const app = express();
-const result = lodash.map([1, 2, 3], x => x * 2);
 ----
 
 ==== Compliant code example
 
 [source,javascript,diff-id=1,diff-type=compliant]
 ----
-// After running: npm install lodash --save
-// package.json now has: { "dependencies": { "express": "^4.18.0", "lodash": "^4.17.21" } }
+// Add express to package.json dependencies first:
+// npm install express
 
-import lodash from 'lodash'; // Compliant - lodash now in dependencies
 import express from 'express';
+import { debounce } from 'lodash';
 
 const app = express();
-const result = lodash.map([1, 2, 3], x => x * 2);
 ----
 
 === Documentation
 
- * npm documentation - package.json dependencies - https://docs.npmjs.com/cli/v9/configuring-npm/package-json#dependencies[Official npm documentation explaining how to manage dependencies in package.json]
- * Node.js modules documentation - https://nodejs.org/api/modules.html[Official Node.js documentation on the module system and how module resolution works]
- * ESLint plugin n documentation - https://github.com/eslint-community/eslint-plugin-n[Documentation for the ESLint plugin that provides Node.js-specific linting rules]
-
-=== Standards
-
- * npm Best Practices - Dependency Management - https://docs.npmjs.com/cli/v9/using-npm/developers#keeping-files-out-of-your-package[npm best practices for managing dependencies and package.json]
+ * npm documentation - package.json dependencies - https://docs.npmjs.com/cli/v10/configuring-npm/package-json#dependencies[Official npm documentation explaining how to declare dependencies in package.json]
+ * Node.js modules documentation - https://nodejs.org/api/modules.html[Node.js official documentation on the module system and dependency resolution]
 
 === Related Rules
 
  * n/no-extraneous-require - https://github.com/eslint-community/eslint-plugin-n/blob/master/docs/rules/no-extraneous-require.md[Similar rule for CommonJS require() statements]
- * n/no-missing-import - https://github.com/eslint-community/eslint-plugin-n/blob/master/docs/rules/no-missing-import.md[Rule that checks for imports of modules that cannot be resolved]
+ * n/no-missing-import - https://github.com/eslint-community/eslint-plugin-n/blob/master/docs/rules/no-missing-import.md[Detects imports of modules that cannot be resolved]
 
