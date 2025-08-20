@@ -1,63 +1,54 @@
-This rule raises an issue when code directly assigns a value to the `exports` variable (e.g., `exports = {}`), which doesn't work as expected in Node.js CommonJS modules.
+This rule raises an issue when code directly assigns a value to the `exports` variable (e.g., `exports = {}`), except when it's part of a batch assignment that also assigns to `module.exports`.
 
 == Why is this an issue?
 
-In Node.js CommonJS modules, the `exports` variable is initially a reference to `module.exports`. When you directly assign a new value to `exports` (like `exports = {foo: 1}`), you're breaking this reference and creating a new local variable instead of modifying the actual module exports.
+In Node.js, the `exports` variable is a reference to `module.exports`. When you directly assign a new value to `exports` (like `exports = {foo: 1}`), you're breaking this reference and creating a new local variable instead of modifying the module's actual exports.
 
-This is a common source of confusion for developers because the code appears to be exporting values, but those values won't actually be available when the module is imported. The assignment `exports = {}` creates a new object and assigns it to the local `exports` variable, but this doesn't change what `module.exports` points to, which is what actually gets exported.
+This means your assigned object won't be exported from the module, leading to unexpected behavior where other modules importing this one won't receive the intended exports. The correct approach is to either assign properties to `exports` (like `exports.foo = 1`) or assign to `module.exports` directly.
 
-The correct approaches are:
-- Use `module.exports = {}` to replace the entire exports object
-- Use `exports.propertyName = value` to add individual properties
-- Use batch assignment like `module.exports = exports = {}` if you need to reassign both references
-
-This pattern is particularly problematic because it fails silently - the code runs without errors, but the expected exports are not available to consuming modules.
+The rule does allow batch assignments like `module.exports = exports = {}` because these patterns ensure that both references point to the same object, maintaining the expected export behavior.
 
 === What is the potential impact?
 
-When this pattern is used, modules will not export the intended values, leading to runtime errors in consuming code. Imported values will be `undefined`, potentially causing `TypeError` exceptions when the consuming code tries to use the expected exports. This can be especially difficult to debug because the exporting module appears to work correctly in isolation.
+Code that directly assigns to `exports` will not export the intended values, causing modules to export an empty object or undefined values. This can lead to runtime errors in dependent modules that expect certain exports to be available, potentially breaking application functionality.
 
 === How to fix?
 
 
-Replace direct assignment to `exports` with assignment to `module.exports`, or use property assignment on `exports`.
+Instead of directly assigning to `exports`, assign properties to it or use `module.exports` for object assignment.
 
 ==== Non-compliant code example
 
 [source,javascript,diff-id=1,diff-type=noncompliant]
 ----
-// This doesn't work - creates a new local variable
+// This assigned object is not exported
 exports = {
-    foo: 1,
-    bar: 2
-}; // Noncompliant
+    foo: 1
+} // Noncompliant
 ----
 
 ==== Compliant code example
 
 [source,javascript,diff-id=1,diff-type=compliant]
 ----
-// Use module.exports for object replacement
+// Assign properties to exports
+exports.foo = 1
+
+// Or use module.exports for object assignment
 module.exports = {
-    foo: 1,
-    bar: 2
-};
+    foo: 1
+}
 
-// Or assign individual properties
-exports.foo = 1;
-exports.bar = 2;
-
-// Or use batch assignment (if needed for compatibility)
+// Batch assignment is also allowed
 module.exports = exports = {
-    foo: 1,
-    bar: 2
-};
+    foo: 1
+}
 ----
 
 === Documentation
 
- * Node.js CommonJS modules documentation - https://nodejs.org/api/modules.html#modules-commonjs-modules[Official Node.js documentation explaining how CommonJS modules and exports work]
- * Understanding module.exports and exports in Node.js - https://www.freecodecamp.org/news/module-exports-how-to-export-in-node-js-and-javascript/[Detailed explanation of the difference between module.exports and exports]
+ * Node.js Modules Documentation - https://nodejs.org/api/modules.html#modules_exports_shortcut[Official Node.js documentation explaining the relationship between exports and module.exports]
+ * CommonJS Module Definition - https://nodejs.org/api/modules.html#modules_the_module_object[Documentation about the module object and how exports work in CommonJS]
 
 === Related Rules
 
