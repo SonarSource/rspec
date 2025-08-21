@@ -1,52 +1,106 @@
-This rule raises an issue when a Django template contains a form with `method="post"` that does not include the `{% csrf_token %}` template tag.
+This rule raises an issue when Jackson ObjectMapper is used with Java 8+ date/time types without proper configuration, such as missing JavaTimeModule registration or inconsistent timestamp settings.
 
 == Why is this an issue?
 
-Cross-Site Request Forgery (CSRF) is a type of attack where a malicious website tricks a user's browser into performing unwanted actions on a trusted site where the user is authenticated.
+Jackson ObjectMapper requires specific configuration to handle Java 8+ date/time types like `LocalDateTime`, `OffsetDateTime`, and `ZonedDateTime`. Without proper setup, several problems occur:
 
-When a Django form lacks CSRF protection, an attacker can create a malicious webpage that submits forms to your application on behalf of authenticated users without their knowledge. For example, if a user is logged into your banking application and visits a malicious site, that site could potentially transfer money or change account settings.
+**Missing Module Registration**
 
-Django provides built-in CSRF protection through middleware and template tags. When you include `{% csrf_token %}` in your form, Django generates a unique token that must be present in POST requests. This token is tied to the user's session and cannot be guessed by attackers.
+By default, Jackson doesn't know how to serialize or deserialize Java 8+ date/time types. When you try to use these types without registering the `JavaTimeModule`, Jackson throws an `InvalidDefinitionException` with a message like "Java 8 date/time type not supported by default".
 
-Without this protection, your application becomes vulnerable to unauthorized actions that could compromise user data, perform unwanted transactions, or modify critical application state.
+**Inconsistent Date Formats**
+
+Even when the module is registered, Jackson's default behavior is to serialize dates as timestamps (milliseconds since epoch). This creates several issues:
+
+* Timestamps are not human-readable, making debugging and API responses harder to understand
+* Different parts of your application might use different date formats
+* API consumers expect consistent, readable date formats like ISO-8601
+
+**Configuration Complexity**
+
+Proper Jackson date/time configuration involves multiple steps that must work together. Missing any step can lead to runtime failures or inconsistent behavior across your application.
 
 === What is the potential impact?
 
-Attackers can perform unauthorized actions on behalf of authenticated users, potentially leading to data breaches, unauthorized transactions, account modifications, or other malicious activities depending on the form's functionality.
+**Runtime Exceptions**
+
+Applications will crash with `InvalidDefinitionException` when trying to serialize or deserialize objects containing Java 8+ date/time fields.
+
+**Poor API Design**
+
+APIs that return timestamp numbers instead of readable date strings create a poor developer experience. API consumers must convert timestamps manually, leading to timezone confusion and parsing errors.
+
+**Maintenance Issues**
+
+Inconsistent date handling across an application makes the codebase harder to maintain and debug. Different serialization formats in different parts of the system can cause integration problems.
 
 === How to fix?
 
 
-Add the `{% csrf_token %}` template tag inside your POST form. This generates a hidden input field with a unique token that Django validates on form submission.
+Register JavaTimeModule and disable timestamp serialization for consistent, human-readable date formats. This is the recommended approach for most applications.
 
 ==== Non-compliant code example
 
-[source,html,diff-id=1,diff-type=noncompliant]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-<form method="post">
-    <input type="text" name="title">
-    <button type="submit">Submit</button> // Noncompliant
-</form>
+ObjectMapper mapper = new ObjectMapper();
+// Missing JavaTimeModule registration and timestamp configuration
+LocalDateTime date = LocalDateTime.now();
+String result = mapper.writeValueAsString(date); // Noncompliant
 ----
 
 ==== Compliant code example
 
-[source,html,diff-id=1,diff-type=compliant]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-<form method="post">
-    {% csrf_token %}
-    <input type="text" name="title">
-    <button type="submit">Submit</button>
-</form>
+ObjectMapper mapper = new ObjectMapper();
+mapper.registerModule(new JavaTimeModule());
+mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+LocalDateTime date = LocalDateTime.now();
+String result = mapper.writeValueAsString(date);
+----
+
+=== How to fix in Spring Boot?
+
+Configure Jackson globally in Spring Boot using application properties and custom configuration beans for consistent behavior across the entire application.
+
+==== Non-compliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+@RestController
+public class EventController {
+    private final ObjectMapper mapper = new ObjectMapper(); // Noncompliant
+    
+    @GetMapping("/events")
+    public String getEvent() throws JsonProcessingException {
+        return mapper.writeValueAsString(LocalDateTime.now());
+    }
+}
+----
+
+==== Compliant code example
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+@Configuration
+public class JacksonConfig {
+    @Bean
+    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
+        return builder -> builder
+            .modules(new JavaTimeModule())
+            .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    }
+}
 ----
 
 === Documentation
 
- * Django CSRF Protection Documentation - https://docs.djangoproject.com/en/stable/ref/csrf/[Official Django documentation on Cross Site Request Forgery protection]
- * Django Security Best Practices - https://docs.djangoproject.com/en/stable/topics/security/[Comprehensive guide to Django security features and best practices]
+ * Jackson Date Serialization Guide - https://www.baeldung.com/jackson-serialize-dates[Comprehensive guide on serializing dates with Jackson, including Java 8+ types]
+ * OffsetDateTime Serialization with Jackson - https://www.baeldung.com/java-jackson-offsetdatetime[Specific guide for handling OffsetDateTime and other Java 8+ date types]
+ * Spring Boot Jackson Customization - https://www.baeldung.com/spring-boot-customize-jackson-objectmapper[How to customize Jackson ObjectMapper in Spring Boot applications]
 
 === Standards
 
- * OWASP Top 10:2021-A01-Broken Access Control - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[OWASP guidance on preventing broken access control vulnerabilities]
- * CWE-352: Cross-Site Request Forgery (CSRF) - https://cwe.mitre.org/data/definitions/352.html[Common Weakness Enumeration entry for CSRF vulnerabilities]
+ * ISO 8601 - https://en.wikipedia.org/wiki/ISO_8601[International standard for date and time representation]
 
