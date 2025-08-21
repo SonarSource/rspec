@@ -1,0 +1,82 @@
+== How to fix it in CommonCrypto
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,swift,diff-id=1,diff-type=noncompliant]
+----
+import Foundation
+import CommonCrypto
+
+func encrypt(data: Data, key: Data) {
+    let iv = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10])
+    var encryptedData = Data(count: data.count + kCCBlockSizeAES128)
+    var encryptedDataLength: Int = 0
+
+    let status = key.withUnsafeBytes { keyBytes in
+        iv.withUnsafeBytes { ivBytes in
+            data.withUnsafeBytes { dataBytes in
+                CCCrypt(  // Noncompliant
+                    CCOperation(kCCEncrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    keyBytes.baseAddress, kCCKeySizeAES256,
+                    ivBytes.baseAddress,
+                    dataBytes.baseAddress, data.count,
+                    encryptedData.withUnsafeMutableBytes { $0.baseAddress! },
+                    encryptedData.count,
+                    &encryptedDataLength
+                )
+            }
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+include::../../common/fix/explicit-fix.adoc[]
+
+[source,swift,diff-id=1,diff-type=compliant]
+----
+import Foundation
+import Security
+import CommonCrypto
+
+func encrypt(data: Data, key: Data) {
+    var iv = Data(count: kCCBlockSizeAES128)
+    let status_iv = iv.withUnsafeMutableBytes { ivBytes in
+        SecRandomCopyBytes(kSecRandomDefault, kCCBlockSizeAES128, ivBytes.baseAddress!)
+    }
+
+    guard status_iv == errSecSuccess else {
+        return nil
+    }
+
+    var encryptedData = Data(count: data.count + kCCBlockSizeAES128)
+    var encryptedDataLength: Int = 0
+
+    let status = key.withUnsafeBytes { keyBytes in
+        iv.withUnsafeBytes { ivBytes in
+            data.withUnsafeBytes { dataBytes in
+                CCCrypt(
+                    CCOperation(kCCEncrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    keyBytes.baseAddress, kCCKeySizeAES256,
+                    ivBytes.baseAddress,
+                    dataBytes.baseAddress, data.count,
+                    encryptedData.withUnsafeMutableBytes { $0.baseAddress! },
+                    encryptedData.count,
+                    &encryptedDataLength
+                )
+            }
+        }
+    }
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/fix.adoc[]
