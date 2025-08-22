@@ -1,41 +1,52 @@
-This rule raises an issue when JUnit 5 tests use try-catch blocks, generic exception types, or deprecated annotation parameters for exception testing instead of the appropriate assertion methods.
+This rule raises an issue when test classes are located in the main source directory (`src/main/java`) instead of the test directory (`src/test/java`), or when test classes don't maintain the same package structure as the classes they test.
 
 == Why is this an issue?
 
-JUnit 5 provides dedicated assertion methods like `assertThrows` and `assertDoesNotThrow` that are specifically designed for exception testing. These methods offer several advantages over older approaches:
+Proper test organization is essential for maintainable Java projects. Test classes should be separated from production code and follow consistent package structures.
 
-Using try-catch blocks with `fail()` calls makes the test intent less clear and requires more boilerplate code. The test logic becomes scattered across multiple lines, making it harder to understand what behavior is being verified.
+When test classes are placed in the main source directory (`src/main/java`), they become part of the production codebase. This creates several problems:
 
-Generic exception types like `Exception.class` or `RuntimeException.class` in `assertThrows` create overly broad assertions that can hide unexpected exceptions. If the code throws a different exception than intended, the test will still pass, potentially masking real issues.
+* Test code may be accidentally included in production builds, increasing the application size unnecessarily
+* Testing dependencies (like JUnit) may be required in production environments
+* The separation of concerns between production and test code is violated
 
-JUnit 4 annotation parameters like `@Test(expected=Exception.class)` are not supported in JUnit 5 and will cause compilation errors. Additionally, these annotations don't allow for validation of exception properties like messages or causes.
+Additionally, when test classes don't follow the same package structure as the classes they test, it becomes harder to:
 
-The `assertThrows` method returns the caught exception, enabling additional assertions on the exception's properties. This capability is lost when using try-catch blocks or when ignoring the return value of `assertThrows`.
+* Locate tests for specific production classes
+* Maintain consistency across the codebase
+* Navigate between production code and its corresponding tests
+* Understand the relationship between test and production code
+
+Modern build tools like Maven and Gradle expect test classes to be in the `src/test/java` directory structure. Following this convention ensures compatibility with standard tooling and build processes.
 
 === What is the potential impact?
 
-Using outdated exception testing patterns can lead to several problems:
+Misorganized test classes can lead to:
 
-* *Reduced test reliability*: Generic exception types may allow unexpected exceptions to pass tests, hiding bugs in the application code.
-* *Poor maintainability*: Try-catch blocks with `fail()` calls create verbose, hard-to-read test code that is more difficult to maintain and understand.
-* *Compilation errors*: Using JUnit 4 annotation parameters in JUnit 5 will prevent the code from compiling.
-* *Missed validation opportunities*: Not capturing exception properties means important details like error messages or root causes go unverified, reducing test coverage quality.
+* Test code being accidentally deployed to production environments
+* Increased application size due to unnecessary test dependencies
+* Reduced code maintainability and developer productivity
+* Confusion about code organization and testing structure
+* Build tool compatibility issues
 
-=== How to fix in JUnit 5?
+=== How to fix?
 
-Replace try-catch blocks with assertThrows and capture the exception to validate its properties.
+
+Move test classes from the main source directory to the test directory while maintaining the same package structure.
 
 ==== Non-compliant code example
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-@Test
-void testException() {
-    try {
-        Integer.parseInt("1a");
-        fail("Expected NumberFormatException"); // Noncompliant
-    } catch (NumberFormatException e) {
-        assertTrue(e.getMessage().contains("For input string"));
+// File: src/main/java/com/example/math/CircleTest.java
+package com.example.math;
+
+import org.junit.Test;
+
+public class CircleTest { // Noncompliant
+    @Test
+    public void testCalculateArea() {
+        // test implementation
     }
 }
 ----
@@ -44,105 +55,22 @@ void testException() {
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-@Test
-void testException() {
-    NumberFormatException exception = assertThrows(NumberFormatException.class, () -> {
-        Integer.parseInt("1a");
-    });
-    assertTrue(exception.getMessage().contains("For input string"));
-}
-----
+// File: src/test/java/com/example/math/CircleTest.java
+package com.example.math;
 
-Use assertDoesNotThrow instead of try-catch blocks when testing that no exception is thrown.
+import org.junit.Test;
 
-==== Non-compliant code example
-
-[source,java,diff-id=2,diff-type=noncompliant]
-----
-@Test
-void testNoException() {
-    try {
-        Integer.parseInt("100");
-    } catch (Exception e) {
-        fail("Unexpected exception: " + e.getMessage()); // Noncompliant
+public class CircleTest {
+    @Test
+    public void testCalculateArea() {
+        // test implementation
     }
-}
-----
-
-==== Compliant code example
-
-[source,java,diff-id=2,diff-type=compliant]
-----
-@Test
-void testNoException() {
-    assertDoesNotThrow(() -> {
-        Integer.parseInt("100");
-    });
-}
-----
-
-Use specific exception types instead of generic ones to make tests more precise.
-
-==== Non-compliant code example
-
-[source,java,diff-id=3,diff-type=noncompliant]
-----
-@Test
-void testGenericException() {
-    assertThrows(Exception.class, () -> { // Noncompliant
-        Integer.parseInt("1a");
-    });
-}
-----
-
-==== Compliant code example
-
-[source,java,diff-id=3,diff-type=compliant]
-----
-@Test
-void testSpecificException() {
-    assertThrows(NumberFormatException.class, () -> {
-        Integer.parseInt("1a");
-    });
-}
-----
-
-Replace JUnit 4 annotation parameters with JUnit 5 assertion methods.
-
-==== Non-compliant code example
-
-[source,java,diff-id=4,diff-type=noncompliant]
-----
-@Test(timeout = 1000) // Noncompliant
-void testWithTimeout() {
-    // test code
-}
-----
-
-==== Compliant code example
-
-[source,java,diff-id=4,diff-type=compliant]
-----
-@Test
-void testWithTimeout() {
-    assertTimeout(Duration.ofMillis(1000), () -> {
-        // test code
-    });
 }
 ----
 
 === Documentation
 
- * JUnit 5 User Guide - Assertions - https://junit.org/junit5/docs/current/user-guide/#writing-tests-assertions[Official JUnit 5 documentation covering all assertion methods including exception testing]
- * Baeldung - Assert an Exception is Thrown in JUnit 4 and 5 - https://www.baeldung.com/junit-assert-exception[Comprehensive guide comparing exception testing approaches in JUnit 4 and JUnit 5]
- * JUnit 5 Migration Guide - https://junit.org/junit5/docs/current/user-guide/#migrating-from-junit4[Official migration guide from JUnit 4 to JUnit 5 covering assertion changes]
-
-=== Standards
-
- * OWASP ASVS-14.2.1: Unit Test Coverage - https://owasp.org/www-project-application-security-verification-standard/[Emphasizes the importance of comprehensive unit testing with proper assertion practices]
-
-=== Related Rules
-
- * RSPEC-5783 - https://rules.sonarsource.com/java/RSPEC-5783/[JUnit 5 @Test annotation should not have any parameters]
- * RSPEC-5785 - https://rules.sonarsource.com/java/RSPEC-5785/[JUnit 5 tests should use Assertions class for assertions]
+ * Java Unit Testing Best Practices - https://www.baeldung.com/java-unit-testing-best-practices[Comprehensive guide covering test organization and package structure best practices]
+ * Maven Standard Directory Layout - https://maven.apache.org/guides/introduction/introduction-to-the-standard-directory-layout.html[Official Maven documentation on standard project directory structure]
+ * Gradle Java Plugin - https://docs.gradle.org/current/userguide/java_plugin.html[Gradle documentation explaining the expected source set layout for Java projects]
 
