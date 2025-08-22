@@ -1,80 +1,70 @@
-This rule raises an issue when Jackson ObjectMapper is used with Java 8+ date/time types without proper configuration, such as missing JavaTimeModule registration or inconsistent timestamp settings.
+This rule raises an issue when JUnit 5 tests use try-catch blocks, generic exception types, or deprecated annotation parameters for exception testing instead of the appropriate assertion methods.
 
 == Why is this an issue?
 
-Jackson ObjectMapper requires specific configuration to handle Java 8+ date/time types like `LocalDateTime`, `OffsetDateTime`, and `ZonedDateTime`. Without proper setup, several problems occur:
+JUnit 5 provides dedicated assertion methods like `assertThrows` and `assertDoesNotThrow` that are specifically designed for exception testing. These methods offer several advantages over older approaches:
 
-**Missing Module Registration**
+Using try-catch blocks with `fail()` calls makes the test intent less clear and requires more boilerplate code. The test logic becomes scattered across multiple lines, making it harder to understand what behavior is being verified.
 
-By default, Jackson doesn't know how to serialize or deserialize Java 8+ date/time types. When you try to use these types without registering the `JavaTimeModule`, Jackson throws an `InvalidDefinitionException` with a message like "Java 8 date/time type not supported by default".
+Generic exception types like `Exception.class` or `RuntimeException.class` in `assertThrows` create overly broad assertions that can hide unexpected exceptions. If the code throws a different exception than intended, the test will still pass, potentially masking real issues.
 
-**Inconsistent Date Formats**
+JUnit 4 annotation parameters like `@Test(expected=Exception.class)` are not supported in JUnit 5 and will cause compilation errors. Additionally, these annotations don't allow for validation of exception properties like messages or causes.
 
-Even when the module is registered, Jackson's default behavior is to serialize dates as timestamps (milliseconds since epoch). This creates several issues:
-
-* Timestamps are not human-readable, making debugging and API responses harder to understand
-* Different parts of your application might use different date formats
-* API consumers expect consistent, readable date formats like ISO-8601
-
-**Configuration Complexity**
-
-Proper Jackson date/time configuration involves multiple steps that must work together. Missing any step can lead to runtime failures or inconsistent behavior across your application.
+The `assertThrows` method returns the caught exception, enabling additional assertions on the exception's properties. This capability is lost when using try-catch blocks or when ignoring the return value of `assertThrows`.
 
 === What is the potential impact?
 
-**Runtime Exceptions**
+Using outdated exception testing patterns can lead to several problems:
 
-Applications will crash with `InvalidDefinitionException` when trying to serialize or deserialize objects containing Java 8+ date/time fields.
+* *Reduced test reliability*: Generic exception types may allow unexpected exceptions to pass tests, hiding bugs in the application code.
+* *Poor maintainability*: Try-catch blocks with `fail()` calls create verbose, hard-to-read test code that is more difficult to maintain and understand.
+* *Compilation errors*: Using JUnit 4 annotation parameters in JUnit 5 will prevent the code from compiling.
+* *Missed validation opportunities*: Not capturing exception properties means important details like error messages or root causes go unverified, reducing test coverage quality.
 
-**Poor API Design**
+=== How to fix in JUnit 5?
 
-APIs that return timestamp numbers instead of readable date strings create a poor developer experience. API consumers must convert timestamps manually, leading to timezone confusion and parsing errors.
-
-**Maintenance Issues**
-
-Inconsistent date handling across an application makes the codebase harder to maintain and debug. Different serialization formats in different parts of the system can cause integration problems.
-
-=== How to fix?
-
-
-Register JavaTimeModule and disable timestamp serialization for consistent, human-readable date formats. This is the recommended approach for most applications.
+Replace try-catch blocks with assertThrows and capture the exception to validate its properties.
 
 ==== Non-compliant code example
 
 [source,java,diff-id=1,diff-type=noncompliant]
 ----
-ObjectMapper mapper = new ObjectMapper();
-// Missing JavaTimeModule registration and timestamp configuration
-LocalDateTime date = LocalDateTime.now();
-String result = mapper.writeValueAsString(date); // Noncompliant
+@Test
+void testException() {
+    try {
+        Integer.parseInt("1a");
+        fail("Expected NumberFormatException"); // Noncompliant
+    } catch (NumberFormatException e) {
+        assertTrue(e.getMessage().contains("For input string"));
+    }
+}
 ----
 
 ==== Compliant code example
 
 [source,java,diff-id=1,diff-type=compliant]
 ----
-ObjectMapper mapper = new ObjectMapper();
-mapper.registerModule(new JavaTimeModule());
-mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-LocalDateTime date = LocalDateTime.now();
-String result = mapper.writeValueAsString(date);
+@Test
+void testException() {
+    NumberFormatException exception = assertThrows(NumberFormatException.class, () -> {
+        Integer.parseInt("1a");
+    });
+    assertTrue(exception.getMessage().contains("For input string"));
+}
 ----
 
-=== How to fix in Spring Boot?
-
-Configure Jackson globally in Spring Boot using application properties and custom configuration beans for consistent behavior across the entire application.
+Use assertDoesNotThrow instead of try-catch blocks when testing that no exception is thrown.
 
 ==== Non-compliant code example
 
 [source,java,diff-id=2,diff-type=noncompliant]
 ----
-@RestController
-public class EventController {
-    private final ObjectMapper mapper = new ObjectMapper(); // Noncompliant
-    
-    @GetMapping("/events")
-    public String getEvent() throws JsonProcessingException {
-        return mapper.writeValueAsString(LocalDateTime.now());
+@Test
+void testNoException() {
+    try {
+        Integer.parseInt("100");
+    } catch (Exception e) {
+        fail("Unexpected exception: " + e.getMessage()); // Noncompliant
     }
 }
 ----
@@ -83,24 +73,76 @@ public class EventController {
 
 [source,java,diff-id=2,diff-type=compliant]
 ----
-@Configuration
-public class JacksonConfig {
-    @Bean
-    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
-        return builder -> builder
-            .modules(new JavaTimeModule())
-            .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    }
+@Test
+void testNoException() {
+    assertDoesNotThrow(() -> {
+        Integer.parseInt("100");
+    });
+}
+----
+
+Use specific exception types instead of generic ones to make tests more precise.
+
+==== Non-compliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+@Test
+void testGenericException() {
+    assertThrows(Exception.class, () -> { // Noncompliant
+        Integer.parseInt("1a");
+    });
+}
+----
+
+==== Compliant code example
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+@Test
+void testSpecificException() {
+    assertThrows(NumberFormatException.class, () -> {
+        Integer.parseInt("1a");
+    });
+}
+----
+
+Replace JUnit 4 annotation parameters with JUnit 5 assertion methods.
+
+==== Non-compliant code example
+
+[source,java,diff-id=4,diff-type=noncompliant]
+----
+@Test(timeout = 1000) // Noncompliant
+void testWithTimeout() {
+    // test code
+}
+----
+
+==== Compliant code example
+
+[source,java,diff-id=4,diff-type=compliant]
+----
+@Test
+void testWithTimeout() {
+    assertTimeout(Duration.ofMillis(1000), () -> {
+        // test code
+    });
 }
 ----
 
 === Documentation
 
- * Jackson Date Serialization Guide - https://www.baeldung.com/jackson-serialize-dates[Comprehensive guide on serializing dates with Jackson, including Java 8+ types]
- * OffsetDateTime Serialization with Jackson - https://www.baeldung.com/java-jackson-offsetdatetime[Specific guide for handling OffsetDateTime and other Java 8+ date types]
- * Spring Boot Jackson Customization - https://www.baeldung.com/spring-boot-customize-jackson-objectmapper[How to customize Jackson ObjectMapper in Spring Boot applications]
+ * JUnit 5 User Guide - Assertions - https://junit.org/junit5/docs/current/user-guide/#writing-tests-assertions[Official JUnit 5 documentation covering all assertion methods including exception testing]
+ * Baeldung - Assert an Exception is Thrown in JUnit 4 and 5 - https://www.baeldung.com/junit-assert-exception[Comprehensive guide comparing exception testing approaches in JUnit 4 and JUnit 5]
+ * JUnit 5 Migration Guide - https://junit.org/junit5/docs/current/user-guide/#migrating-from-junit4[Official migration guide from JUnit 4 to JUnit 5 covering assertion changes]
 
 === Standards
 
- * ISO 8601 - https://en.wikipedia.org/wiki/ISO_8601[International standard for date and time representation]
+ * OWASP ASVS-14.2.1: Unit Test Coverage - https://owasp.org/www-project-application-security-verification-standard/[Emphasizes the importance of comprehensive unit testing with proper assertion practices]
+
+=== Related Rules
+
+ * RSPEC-5783 - https://rules.sonarsource.com/java/RSPEC-5783/[JUnit 5 @Test annotation should not have any parameters]
+ * RSPEC-5785 - https://rules.sonarsource.com/java/RSPEC-5785/[JUnit 5 tests should use Assertions class for assertions]
 
