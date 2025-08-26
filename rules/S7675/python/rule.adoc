@@ -1,57 +1,97 @@
-This is an issue when a local Python file, directory, or package uses the same name as a well-known library or standard library module.
+This is an issue when copying existing PyTorch tensors using deprecated methods like `torch.tensor()` or `tensor.new_tensor()` instead of the recommended `tensor.clone().detach()` or `tensor.detach().clone()`.
 
 == Why is this an issue?
 
-Python's import system searches for modules in a specific order, starting with the current directory. When a local file or directory has the same name as a popular package, Python imports the local module instead of the intended library.
+PyTorch provides several ways to copy tensors, but not all methods are equally efficient or clear in their intent.
 
-This creates several problems:
+When you use `torch.tensor(existing_tensor)` or `tensor.new_tensor(existing_tensor)` to copy an existing tensor, PyTorch issues a UserWarning because these methods are not optimized for copying existing tensors. They were designed for creating new tensors from raw data, not for duplicating existing tensor objects.
 
-* *Import conflicts*: The local module is imported instead of the intended library
-* *AttributeError exceptions*: The local module lacks the expected attributes and methods
-* *Unexpected behavior*: Code that should work with the real library fails silently or crashes
-* *Debugging confusion*: Developers may spend time troubleshooting library issues when the problem is actually module shadowing
+The recommended methods `tensor.clone().detach()` and `tensor.detach().clone()` are specifically designed for tensor copying. They clearly express your intent to create a copy of an existing tensor and remove it from the computation graph. This makes your code more readable and helps other developers understand what you're trying to accomplish.
 
-For example, if you create a file named `torch.py` and then try to `import torch`, Python will import your local file instead of the PyTorch library. When you try to use PyTorch functions like `torch.device()`, you'll get an AttributeError because your local file doesn't have these methods.
+There's also a subtle performance difference between the two recommended approaches. Using `tensor.detach().clone()` is slightly more efficient than `tensor.clone().detach()` because it detaches the tensor from the computation graph first, avoiding the need to copy gradient information that will be discarded anyway.
 
-This issue is particularly common with popular data science and machine learning libraries like NumPy, Pandas, and PyTorch, as well as standard library modules like `os`, `sys`, and `json`.
+Using only `tensor.clone()` without `detach()` keeps the tensor connected to the computation graph, which may cause unexpected gradient propagation and memory usage if that's not your intention.
 
 === What is the potential impact?
 
-This can cause application crashes, unexpected behavior, and significant debugging time. In development environments, it may prevent proper testing of library integrations. In production, it could lead to runtime failures when the application tries to use library functions that don't exist in the shadowing module.
+Using deprecated tensor copying methods can lead to:
 
-=== How to fix?
+* Performance degradation due to suboptimal copying mechanisms
+* UserWarnings cluttering your application logs
+* Less readable code that doesn't clearly express the intent to copy and detach tensors
+* Potential memory leaks if tensors remain connected to computation graphs unintentionally
 
+=== How to fix in PyTorch?
 
-Rename the local file to use a more descriptive, non-conflicting name that clearly indicates its purpose.
+Replace `torch.tensor()` calls with `tensor.detach().clone()` when copying existing tensors. This approach is more efficient and avoids UserWarnings.
 
 ==== Non-compliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-# File: torch.py
-import torch  # Noncompliant: imports this file instead of PyTorch
+import torch
 
-def my_function():
-    # This will fail with AttributeError
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return device
+x = torch.randn(3, 4, requires_grad=True)
+y = torch.tensor(x)  # Noncompliant: triggers UserWarning
 ----
 
 ==== Compliant code example
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-# File: neural_network_utils.py
-import torch  # Now correctly imports PyTorch
+import torch
 
-def my_function():
-    # torch.device is available from the real PyTorch library
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return device
+x = torch.randn(3, 4, requires_grad=True)
+y = x.detach().clone()  # Creates a copy without computation graph
+----
+
+Replace `tensor.new_tensor()` calls with `tensor.detach().clone()` for better performance and clearer intent.
+
+==== Non-compliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = x.new_tensor(x)  # Noncompliant: triggers UserWarning
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = x.detach().clone()  # More efficient and explicit
+----
+
+When you need gradients on the copied tensor, use `detach().clone().requires_grad_(True)` to explicitly enable gradient computation.
+
+==== Non-compliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = torch.tensor(x, requires_grad=True)  # Noncompliant: deprecated approach
+----
+
+==== Compliant code example
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = x.detach().clone().requires_grad_(True)  # Explicit and recommended
 ----
 
 === Documentation
 
- * Python Import System - https://docs.python.org/3/reference/import.html[Official Python documentation on how the import system works]
- * Python Module Search Path - https://docs.python.org/3/tutorial/modules.html#the-module-search-path[Explanation of how Python searches for modules]
+ * PyTorch tensor.clone() documentation - https://pytorch.org/docs/stable/generated/torch.Tensor.clone.html[Official documentation for the clone() method]
+ * PyTorch tensor.detach() documentation - https://pytorch.org/docs/stable/generated/torch.Tensor.detach.html[Official documentation for the detach() method]
+ * PyTorch torch.tensor() documentation - https://pytorch.org/docs/stable/generated/torch.tensor.html[Official documentation explaining when to use torch.tensor() vs clone().detach()]
 
