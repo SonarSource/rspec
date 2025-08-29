@@ -1,25 +1,40 @@
-This rule raises an issue when `torch.log(1 + x)` is used instead of the numerically stable `torch.log1p(x)` function.
+This rule flags code that uses numerically unstable mathematical operations instead of PyTorch's specialized numerically stable functions.
 
 == Why is this an issue?
 
-When computing the logarithm of `1 + x`, using `torch.log(1 + x)` can lead to numerical precision problems, especially when `x` is close to zero.
+Mathematical operations involving floating-point arithmetic can suffer from precision loss and catastrophic cancellation, particularly when dealing with values close to critical points. Two common patterns that exhibit these issues are:
 
-In floating-point arithmetic, adding a small number to 1 can result in precision loss due to the limited number of significant digits that can be represented. For example, if `x` is very small (like `1e-15`), the computation `1 + x` might not accurately represent the true mathematical result due to rounding errors.
+1. `torch.log(1 + x)` - When `x` is close to zero, adding it to 1 can result in precision loss
+2. `torch.exp(x) - 1` - When `x` is close to zero, the subtraction can cause catastrophic cancellation
 
-The `torch.log1p(x)` function is specifically designed to compute `log(1 + x)` accurately for small values of `x`. It uses specialized algorithms that avoid the intermediate step of computing `1 + x` explicitly, thereby preserving numerical precision.
+In floating-point arithmetic, these operations can lead to significant numerical errors:
 
-This precision difference can be critical in machine learning applications where:
+* For `torch.log(1 + x)` when `x` is very small (like `1e-15`), the computation `1 + x` might not accurately represent the true mathematical result due to the limited number of significant digits that can be represented.
+* For `torch.exp(x) - 1` when `x` is close to zero, `torch.exp(x)` returns a value very close to 1.0, and subtracting 1 from this value can result in significant loss of precision.
 
-* Small numerical errors can accumulate over many iterations
-* Gradient computations depend on accurate function evaluations
-* Loss functions often involve logarithmic terms that are sensitive to precision
+PyTorch provides specialized functions that are designed to compute these expressions accurately:
 
-Using the numerically stable alternative ensures more reliable and accurate computations, particularly in scenarios involving small values or when high precision is required.
+* `torch.log1p(x)` computes `log(1 + x)` accurately for small values of `x`
+* `torch.expm1(x)` computes `exp(x) - 1` accurately for small values of `x`
+
+These functions use specialized algorithms that avoid the problematic intermediate computations, maintaining precision even when dealing with values close to critical points.
+
+This numerical instability can propagate through calculations and significantly affect the accuracy of machine learning models, particularly in scenarios involving:
+
+* Small gradients during training
+* Probability calculations with values close to critical points
+* Mathematical operations in activation functions
+* Loss function computations
+* Iterative optimization algorithms
 
 === What is the potential impact?
 
-Using `torch.log(1 + x)` instead of `torch.log1p(x)` can lead to numerical instability and reduced precision in computations. This can result in:
+Using numerically unstable mathematical operations instead of their stable counterparts can lead to:
 
+* Reduced accuracy in mathematical computations
+* Potential instability in machine learning model training
+* Incorrect results in probability calculations
+* Accumulation of numerical errors in iterative algorithms
 * Inaccurate gradient calculations during training
 * Convergence issues in optimization algorithms
 * Reduced model performance due to accumulated numerical errors
@@ -27,35 +42,46 @@ Using `torch.log(1 + x)` instead of `torch.log1p(x)` can lead to numerical insta
 
 === How to fix?
 
+Replace the numerically unstable patterns with their stable PyTorch equivalents:
 
-Replace `torch.log(1 + x)` with `torch.log1p(x)` to use the numerically stable logarithm function. The `log1p` function computes `log(1 + x)` accurately even when `x` is very small.
+* Replace `torch.log(1 + x)` with `torch.log1p(x)`
+* Replace `torch.exp(x) - 1` with `torch.expm1(x)`
 
-==== Non-compliant code example
+These specialized functions compute the same mathematical results but with better numerical stability for values near critical points.
+
+==== Non-compliant code examples
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
 import torch
 
-# Computing log(1 + x) using standard operations
-result = torch.log(1 + x)  # Noncompliant
+# Numerically unstable logarithm computation
+result1 = torch.log(1 + x)  # Noncompliant
+
+# Numerically unstable exponential computation  
+result2 = torch.exp(x) - 1  # Noncompliant
 ----
 
-==== Compliant code example
+==== Compliant code examples
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
 import torch
 
-# Using the numerically stable log1p function
-result = torch.log1p(x)
+# Numerically stable logarithm computation
+result1 = torch.log1p(x)
+
+# Numerically stable exponential computation
+result2 = torch.expm1(x)
 ----
 
 === Documentation
 
  * PyTorch torch.log1p documentation - https://pytorch.org/docs/stable/generated/torch.log1p.html[Official PyTorch documentation for the log1p function]
+ * PyTorch torch.expm1 documentation - https://pytorch.org/docs/stable/generated/torch.expm1.html[Official PyTorch documentation for the expm1 function]
  * NumPy log1p documentation - https://numpy.org/doc/stable/reference/generated/numpy.log1p.html[NumPy documentation explaining the numerical stability benefits of log1p]
+ * NumPy expm1 documentation - https://numpy.org/doc/stable/reference/generated/numpy.expm1.html[NumPy documentation explaining the numerical stability benefits of expm1]
 
 === Standards
 
- * IEEE 754: Standard for Floating-Point Arithmetic - https://standards.ieee.org/ieee/754/6210/[IEEE standard that defines floating-point arithmetic and precision considerations]
-
+ * IEEE 754: Standard for Floating-Point Arithmetic - https://standards.ieee.org/ieee/754/6210/[IEEE standard that defines floating-point arithmetic and the precision issues that specialized functions help address]
