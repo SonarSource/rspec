@@ -1,0 +1,90 @@
+This rule raises an issue when a PyTorch tensor operation that returns a new tensor is called without assigning the result to a variable.
+
+== Why is this an issue?
+
+PyTorch tensor operations like `abs()`, `clamp()`, `relu()`, and many others return new tensors rather than modifying the original tensor. When you call these methods without assigning the result, the operation is performed but the result is immediately discarded.
+
+This creates a silent bug where the code appears to perform an operation but has no actual effect on the program state. The original tensor remains unchanged, which can lead to incorrect computations in machine learning models.
+
+For example, if you call `tensor.abs()` without assignment, the tensor still contains the original values including any negative numbers. This can cause unexpected behavior in neural networks where you intended to apply the absolute value function.
+
+The confusion often arises because some operations in other libraries (like NumPy) or some PyTorch operations do modify tensors in-place by default, leading developers to assume all operations work the same way.
+
+=== What is the potential impact?
+
+This issue can cause silent logical errors in machine learning models. The tensor operations appear to execute successfully but don't actually modify the data as intended. This can lead to:
+
+* Incorrect model training with unexpected tensor values
+* Poor model performance due to unintended data preprocessing
+* Difficult-to-debug issues since the code runs without errors
+* Wasted computational resources performing operations whose results are discarded
+
+=== How to fix in PyTorch?
+
+Assign the result of the tensor operation to a variable. This ensures the transformed tensor is captured and can be used in subsequent operations.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch
+tensor = torch.tensor([-1.0, 2.0, -3.0])
+tensor.abs()  # Noncompliant: result not assigned
+print(tensor)  # Still contains negative values
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch
+tensor = torch.tensor([-1.0, 2.0, -3.0])
+tensor = tensor.abs()  # Assign result back to variable
+print(tensor)  # Now contains absolute values
+----
+
+Use the in-place variant of the operation by adding an underscore suffix. This modifies the original tensor directly and doesn't return a new tensor.
+
+==== Non-compliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import torch
+data = torch.tensor([2.5, 3.7, 1.2, 0.8])
+data.clamp(0, 1)  # Noncompliant: result not assigned
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import torch
+data = torch.tensor([2.5, 3.7, 1.2, 0.8])
+data.clamp_(0, 1)  # In-place operation modifies original tensor
+----
+
+For functional operations, assign the result to a new variable or back to the original variable.
+
+==== Non-compliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import torch
+values = torch.tensor([-2.0, 1.5, -0.5])
+torch.relu(values)  # Noncompliant: result not assigned
+----
+
+==== Compliant code example
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import torch
+values = torch.tensor([-2.0, 1.5, -0.5])
+values = torch.relu(values)  # Assign result back to variable
+----
+
+=== Documentation
+
+ * PyTorch Tensor Operations - https://pytorch.org/docs/stable/tensors.html[Official PyTorch documentation on tensor operations and their behavior]
+ * PyTorch In-place Operations - https://pytorch.org/docs/stable/notes/autograd.html#in-place-operations-with-autograd[Documentation on in-place operations and their implications for automatic differentiation]
+
