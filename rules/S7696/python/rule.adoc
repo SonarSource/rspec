@@ -1,0 +1,75 @@
+This rule raises an issue when a `Conv2d` layer with bias enabled is directly followed by a `BatchNorm2d` layer.
+
+== Why is this an issue?
+
+When a convolution layer is directly followed by batch normalization, the bias parameter in the convolution becomes redundant and wasteful.
+
+Batch normalization works by normalizing the input data by subtracting the mean and dividing by the standard deviation. The first step of this process - subtracting the mean - effectively cancels out any bias that was added by the convolution layer.
+
+Here's what happens:
+
+1. The convolution layer applies filters and adds bias: `output = conv(input) + bias`
+2. Batch normalization then subtracts the mean: `normalized = (output - mean) / std`
+3. Since the bias is a constant added to all values, it becomes part of the mean that gets subtracted
+
+This makes the bias parameter unnecessary computation and memory overhead. The model will produce identical results whether the bias is present or not, but disabling it improves performance.
+
+This optimization applies to all convolution types (Conv1d, Conv2d, Conv3d) when followed by the corresponding batch normalization layer that normalizes on the same dimension.
+
+=== What is the potential impact?
+
+Enabling bias in convolutions followed by batch normalization leads to:
+
+* *Unnecessary memory usage*: Extra parameters are stored and updated during training
+* *Wasted computation*: The bias addition is performed but immediately negated by batch normalization
+* *Slower training*: Additional operations that don't contribute to the model's functionality
+
+While the performance impact per layer may be small, it can accumulate significantly in deep networks with many convolution-batch normalization pairs.
+
+=== How to fix?
+
+
+Set the `bias` parameter to `False` when creating the convolution layer that is followed by batch normalization.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch.nn as nn
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3)  # Noncompliant
+        self.bn = nn.BatchNorm2d(out_channels)
+    
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch.nn as nn
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, bias=False)
+        self.bn = nn.BatchNorm2d(out_channels)
+    
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x
+----
+
+=== Documentation
+
+ * PyTorch Conv2d Documentation - https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html[Official documentation for PyTorch Conv2d layer including bias parameter]
+ * PyTorch BatchNorm2d Documentation - https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm2d.html[Official documentation for PyTorch BatchNorm2d layer]
+ * PyTorch Performance Tuning Guide - https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html[Comprehensive guide covering performance optimizations including disabling bias for convolutions followed by batch normalization]
+
