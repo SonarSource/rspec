@@ -1,0 +1,101 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>std::views::as_const</code> provides a constant view over a range. Using it removes the possibility of inadvertently modifying the underlying data of a range. This function is especially useful because in C&#43;&#43; <code>const</code> only applies to the top-level element, it is not deep-const.</p>
+</div>
+<div class="paragraph">
+<p>One common misunderstanding of how const works is when iterating on ranges whose element type is a pair/tuple of references. Even if the iteration variable is const-qualified, it is possible to modify the range&#8217;s underlying data through this variable:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example() {
+  std::vector&lt;int&gt; v1 = createVector1();
+  std::vector&lt;int&gt; v2 = createVector2();
+
+  for (auto const&amp;t : std::views::zip(v1, v2)) {
+    get&lt;0&gt;(t) = get&lt;1&gt;(t); // Modifies data in v1
+  }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this example, <code>zip</code> returns a view of <code>std::tuple&lt;int&amp;, int&amp;&gt;</code>, and even if <code>p</code> is const-qualified, it is still possible to change the underlying data via <code>p</code>, because the references inside the <code>tuple</code> never become const.</p>
+</div>
+<div class="paragraph">
+<p>On the other hand, if the example is rewritten this way:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void example() {
+  std::vector&lt;int&gt; v1 = createVector1();
+  std::vector&lt;int&gt; v2 = createVector2();
+
+  for (auto const &amp;t : std::views::zip(v1, v2) | std::views::as_const) {
+    get&lt;0&gt;(t) = get&lt;1&gt;(t); // Does not compile
+  }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The view is now over elements of type <code>std::tuple&lt;int const&amp;, int const&amp;&gt;</code> and can no longer be used to modify the data in <code>v1</code> or <code>v2</code>.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when iterating with a range-based for loop over a range whose elements are tuples or pairs containing non-constant references, and the iteration variable is a reference to a constant.</p>
+</div>
+<div class="paragraph">
+<p>This situation can easily happen when using <code>std::views::zip</code>, <code>std::views::enumerate</code>, <code>std::flat_map</code>&#8230;&#8203;</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void displayRanks(std::vector&lt;std::string&gt; athletes) {
+  for (auto const &amp;[rank, name] : athletes | std::views::enumerate) {
+    std::cout &lt;&lt; rank &lt;&lt; ": " &lt;&lt; name &lt;&lt; std::endl;
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void displayRanks(std::vector&lt;std::string&gt; athletes) {
+  for (auto const &amp;[rank, name] : athletes | std::views::enumerate | std::views::as_const) {
+    std::cout &lt;&lt; rank &lt;&lt; ": " &lt;&lt; name &lt;&lt; std::endl;
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/ranges/as_const_view"><code>std::ranges::views::as_const</code>, <code>std::ranges::as_const_view</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
