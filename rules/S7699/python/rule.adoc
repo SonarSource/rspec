@@ -1,64 +1,71 @@
-This is an issue when using the standard `multiprocessing` module with PyTorch operations, especially those involving CUDA tensors, which can cause runtime errors in forked subprocesses.
+This rule raises an issue when dropout layers are instantiated directly in the `forward` method instead of being defined as instance attributes in the model's `__init__` method.
 
 == Why is this an issue?
 
-The standard Python `multiprocessing` module uses fork-based process creation by default on Unix systems. When working with PyTorch and CUDA operations, this approach creates problems because CUDA contexts are tied to specific processes and cannot be safely shared or re-initialized in forked subprocesses.
+When dropout layers are created inline during the forward pass, they are not tracked by PyTorch's module system. This means they will not respond to `model.eval()` and `model.train()` calls, leading to inconsistent behavior between training and evaluation modes.
 
-When a process is forked, the child process inherits the parent's memory space, including any initialized CUDA contexts. However, CUDA drivers do not support this sharing model, leading to the error "Cannot re-initialize CUDA in forked subprocess" when the child process attempts to perform CUDA operations.
+During training, dropout randomly sets some neurons to zero to prevent overfitting. However, during evaluation or inference, dropout should be disabled to ensure consistent and deterministic predictions. When dropout layers are instantiated inline, they remain active even when the model is set to evaluation mode using `model.eval()`.
 
-This issue commonly occurs in machine learning workflows where developers use multiprocessing to parallelize data preprocessing, model inference, or training operations. The error can be particularly confusing because the same code works fine in single-process scenarios.
+This can cause several problems:
+
+* Non-deterministic predictions during evaluation
+* Reduced model performance during inference
+* Inconsistent results when the same input is processed multiple times
+* Debugging difficulties due to unpredictable behavior
+
+PyTorch's module system automatically manages the training/evaluation state of all registered modules. By defining dropout layers as instance attributes in the `__init__` method, they become part of the model's module hierarchy and will properly respond to mode changes.
 
 === What is the potential impact?
 
-Applications will crash with runtime errors when attempting to use CUDA operations in multiprocessing scenarios. This can cause:
-
-* Production systems to fail unexpectedly during parallel processing tasks
-* Development workflows to be disrupted when scaling from single-process to multi-process implementations
-* Performance degradation if developers resort to single-process solutions to avoid the error
-* Inconsistent behavior across different operating systems (the issue is more prominent on Unix-based systems)
+The application may produce inconsistent and non-deterministic results during evaluation or inference. This can lead to unreliable model predictions, reduced performance, and difficulties in debugging model behavior. In production environments, this could result in unpredictable application behavior and degraded user experience.
 
 === How to fix?
 
 
-Replace the standard `multiprocessing` import with `torch.multiprocessing` and set the start method to 'spawn' for CUDA compatibility.
+Move the dropout layer definition from the forward method to the __init__ method as an instance attribute. This ensures the dropout layer is properly tracked by the model and responds to training/evaluation mode changes.
 
 ==== Non-compliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-from multiprocessing import Pool, Process
-import torch
+import torch.nn as nn
 
-def process_tensor(data):
-    tensor = torch.tensor(data)
-    return tensor.cuda()  # Noncompliant: will fail in forked subprocess
-
-pool = Pool(processes=4)
-results = pool.map(process_tensor, data_list)
+class MyModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MyModel, self).__init__()
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x):
+        x = self.linear1(x)
+        x = nn.Dropout(p=0.3)(x)  # Noncompliant
+        x = self.linear2(x)
+        return x
 ----
 
 ==== Compliant code example
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-from torch.multiprocessing import Pool, Process, set_start_method
-import torch
+import torch.nn as nn
 
-try:
-    set_start_method('spawn')  # Required for CUDA operations
-except RuntimeError:
-    pass  # Already set
-
-def process_tensor(data):
-    tensor = torch.tensor(data)
-    return tensor.cuda()  # Safe with torch.multiprocessing
-
-pool = Pool(processes=4)
-results = pool.map(process_tensor, data_list)
+class MyModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MyModel, self).__init__()
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.dropout = nn.Dropout(p=0.3)  # Define as instance attribute
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.dropout(x)  # Use the predefined dropout layer
+        x = self.linear2(x)
+        return x
 ----
 
 === Documentation
 
- * PyTorch Multiprocessing Documentation - https://pytorch.org/docs/stable/multiprocessing.html[Official PyTorch documentation on multiprocessing best practices and CUDA compatibility]
- * PyTorch CUDA Semantics - https://pytorch.org/docs/stable/notes/cuda.html#cuda-semantics[Documentation explaining CUDA context behavior and multiprocessing considerations]
+ * PyTorch nn.Module Documentation - https://pytorch.org/docs/stable/generated/torch.nn.Module.html[Official PyTorch documentation for nn.Module, explaining how modules are tracked and managed]
+ * PyTorch Dropout Documentation - https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html[Official documentation for PyTorch's Dropout layer and its behavior in training vs evaluation mode]
+ * PyTorch Training vs Evaluation Mode - https://pytorch.org/tutorials/beginner/introyt/trainingyt.html#the-training-loop[Tutorial explaining the difference between training and evaluation modes in PyTorch]
 
