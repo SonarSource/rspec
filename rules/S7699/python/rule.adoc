@@ -1,44 +1,64 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when using the standard `multiprocessing` module with PyTorch operations, especially those involving CUDA tensors, which can cause runtime errors in forked subprocesses.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+The standard Python `multiprocessing` module uses fork-based process creation by default on Unix systems. When working with PyTorch and CUDA operations, this approach creates problems because CUDA contexts are tied to specific processes and cannot be safely shared or re-initialized in forked subprocesses.
 
-//=== What is the potential impact?
+When a process is forked, the child process inherits the parent's memory space, including any initialized CUDA contexts. However, CUDA drivers do not support this sharing model, leading to the error "Cannot re-initialize CUDA in forked subprocess" when the child process attempts to perform CUDA operations.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+This issue commonly occurs in machine learning workflows where developers use multiprocessing to parallelize data preprocessing, model inference, or training operations. The error can be particularly confusing because the same code works fine in single-process scenarios.
 
-=== Code examples
+=== What is the potential impact?
 
-==== Noncompliant code example
+Applications will crash with runtime errors when attempting to use CUDA operations in multiprocessing scenarios. This can cause:
+
+* Production systems to fail unexpectedly during parallel processing tasks
+* Development workflows to be disrupted when scaling from single-process to multi-process implementations
+* Performance degradation if developers resort to single-process solutions to avoid the error
+* Inconsistent behavior across different operating systems (the issue is more prominent on Unix-based systems)
+
+=== How to fix?
+
+
+Replace the standard `multiprocessing` import with `torch.multiprocessing` and set the start method to 'spawn' for CUDA compatibility.
+
+==== Non-compliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from multiprocessing import Pool, Process
+import torch
+
+def process_tensor(data):
+    tensor = torch.tensor(data)
+    return tensor.cuda()  # Noncompliant: will fail in forked subprocess
+
+pool = Pool(processes=4)
+results = pool.map(process_tensor, data_list)
 ----
 
-==== Compliant solution
+==== Compliant code example
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from torch.multiprocessing import Pool, Process, set_start_method
+import torch
+
+try:
+    set_start_method('spawn')  # Required for CUDA operations
+except RuntimeError:
+    pass  # Already set
+
+def process_tensor(data):
+    tensor = torch.tensor(data)
+    return tensor.cuda()  # Safe with torch.multiprocessing
+
+pool = Pool(processes=4)
+results = pool.map(process_tensor, data_list)
 ----
 
-//=== How does this work?
+=== Documentation
 
-//=== Pitfalls
+ * PyTorch Multiprocessing Documentation - https://pytorch.org/docs/stable/multiprocessing.html[Official PyTorch documentation on multiprocessing best practices and CUDA compatibility]
+ * PyTorch CUDA Semantics - https://pytorch.org/docs/stable/notes/cuda.html#cuda-semantics[Documentation explaining CUDA context behavior and multiprocessing considerations]
 
-//=== Going the extra mile
-
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
