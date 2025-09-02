@@ -88,11 +88,16 @@ class RuleCreator:
             )
         return branch_name
 
+    def _make_branch_name(self, rule_numbers: list[int]) -> str:
+        if len(rule_numbers) <= 2:
+            return "-".join([str(r) for r in rule_numbers])
+        return f"{rule_numbers[0]}-to-{rule_numbers[-1]}"
+
     def create_new_rule_branch(
         self, rule_numbers: list[int], languages: Iterable[str]
     ) -> str:
         """Create all the files required for a new rule."""
-        branch_name = f"rule/add-RSPEC-S{'-'.join([str(r) for r in rule_numbers])}"
+        branch_name = f"rule/add-RSPEC-S{self._make_branch_name(rule_numbers)}"
         with self.rspec_repo.checkout_branch(
             self.rspec_repo.MASTER_BRANCH, branch_name
         ):
