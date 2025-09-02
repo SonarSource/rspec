@@ -1,44 +1,97 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when `torch.tensor()` is used to convert a list or sequence of existing PyTorch tensors into a single tensor.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+When you have a list of existing tensors and want to combine them into a single tensor, using `torch.tensor()` creates unnecessary memory overhead and can lead to out-of-memory errors.
 
-//=== What is the potential impact?
+The `torch.tensor()` constructor creates a completely new tensor by copying data from the input. When applied to a list of existing tensors, this means:
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+* The original tensors remain in memory
+* A new tensor is created with duplicated data
+* Memory usage effectively doubles
 
-=== Code examples
+This memory duplication becomes particularly problematic when working with GPU tensors, where memory is often limited. Large tensor operations can quickly exhaust available CUDA memory, causing runtime errors.
 
-==== Noncompliant code example
+The `torch.cat()` function is specifically designed for concatenating existing tensors. It efficiently combines tensors along a specified dimension without creating unnecessary copies of the original data.
+
+=== What is the potential impact?
+
+Memory inefficiency can lead to:
+
+* Increased memory consumption, potentially doubling memory usage
+* CUDA out-of-memory errors when working with GPU tensors
+* Slower performance due to unnecessary data copying
+* Application crashes in memory-constrained environments
+
+=== How to fix in PyTorch?
+
+Replace `torch.tensor()` with `torch.cat()` when concatenating existing tensors. Specify the dimension along which to concatenate using the `dim` parameter.
+
+==== Non-compliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+import torch
+
+# Collect tensors in a list
+tensor_list = []
+for i in range(10):
+    tensor_list.append(torch.randn(5, 10))
+
+# Memory-inefficient: creates duplicate data
+result = torch.tensor(tensor_list)  # Noncompliant
 ----
 
-==== Compliant solution
+==== Compliant code example
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+import torch
+
+# Collect tensors in a list
+tensor_list = []
+for i in range(10):
+    tensor_list.append(torch.randn(5, 10))
+
+# Memory-efficient: concatenates without duplication
+result = torch.cat(tensor_list, dim=0)
 ----
 
-//=== How does this work?
+When working with GPU tensors, the memory efficiency of `torch.cat()` becomes even more critical to avoid CUDA out-of-memory errors.
 
-//=== Pitfalls
+==== Non-compliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import torch
 
+device = torch.device('cuda')
+tensor_list = []
+for i in range(100):
+    tensor_list.append(torch.randn(1000, 1000).to(device))
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+# Risk of CUDA OOM due to memory duplication
+result = torch.tensor(tensor_list)  # Noncompliant
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import torch
+
+device = torch.device('cuda')
+tensor_list = []
+for i in range(100):
+    tensor_list.append(torch.randn(1000, 1000).to(device))
+
+# Efficient concatenation without memory duplication
+result = torch.cat(tensor_list, dim=0)
+----
+
+=== Documentation
+
+ * PyTorch torch.cat documentation - https://pytorch.org/docs/stable/generated/torch.cat.html[Official documentation for torch.cat function]
+ * PyTorch torch.tensor documentation - https://pytorch.org/docs/stable/generated/torch.tensor.html[Official documentation for torch.tensor constructor]
+ * PyTorch Memory Management - https://pytorch.org/docs/stable/notes/cuda.html#memory-management[Guide to PyTorch CUDA memory management best practices]
+
