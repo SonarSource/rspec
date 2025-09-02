@@ -192,6 +192,11 @@ class RuleCreator:
             user,
         )
 
+    def _make_pr_title(self, rule_numbers: list[int]) -> str:
+        if len(rule_numbers) == 1:
+            return f"Create rule S{rule_numbers[0]}"
+        return f"Create rules S{rule_numbers[0]} to S{rule_numbers[-1]}"
+
     def create_new_rule_pull_request(
         self,
         token: str,
@@ -206,7 +211,7 @@ class RuleCreator:
         return self.rspec_repo.create_pull_request(
             token,
             branch_name,
-            f"Create rule S{", ".join([str(r) for r in rule_numbers])}",
+            self._make_pr_title(rule_numbers),
             f"You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_numbers[0]}/{first_lang}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}",
             labels,
             user,
