@@ -24,7 +24,7 @@ def test_create_new_multi_lang_rule_branch(
     rule_number = rule_creator.rspec_repo.reserve_rule_number()
 
     languages = ["java", "javascript"]
-    branch = rule_creator.create_new_rule_branch(rule_number, languages)
+    branch = rule_creator.create_new_rule_branch([rule_number], languages)
 
     # Check that the branch was pushed successfully to the origin
     mock_git_rspec_repo.git.checkout(branch)
@@ -70,7 +70,7 @@ def test_create_new_single_lang_rule_branch(
     rule_number = rule_creator.rspec_repo.reserve_rule_number()
 
     languages = ["cfamily"]
-    branch = rule_creator.create_new_rule_branch(rule_number, languages)
+    branch = rule_creator.create_new_rule_branch([rule_number], languages)
 
     # Check that the branch was pushed successfully to the origin
     mock_git_rspec_repo.git.checkout(branch)
@@ -117,7 +117,7 @@ def test_create_new_rule_pull_request(rule_creator: RuleCreator):
 
     with mock_github() as (token, user, mock_repo):
         rule_creator.create_new_rule_pull_request(
-            token, rule_number, languages, ["mylab", "other-lab"], user
+            token, [rule_number], languages, ["mylab", "other-lab"], user
         )
 
         mock_repo.create_pull.assert_called_once()
