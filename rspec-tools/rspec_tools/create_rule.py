@@ -30,7 +30,7 @@ def create_new_rule(languages: str, token: str, user: Optional[str], count: int 
     lang_list = parse_and_validate_language_list(languages)
     label_list = get_labels_for_languages(lang_list)
     with _rule_creator(token, user) as rule_creator:
-        rule_numbers = [rule_creator.rspec_repo.reserve_rule_number() for _ in range(count)]
+        rule_numbers = rule_creator.rspec_repo.reserve_rule_number(count)
         rule_creator.create_new_rule_pull_request(
             token, rule_numbers, lang_list, label_list, user
         )
@@ -88,7 +88,9 @@ class RuleCreator:
             )
         return branch_name
 
-    def create_new_rule_branch(self, rule_numbers: list[int], languages: Iterable[str]) -> str:
+    def create_new_rule_branch(
+        self, rule_numbers: list[int], languages: Iterable[str]
+    ) -> str:
         """Create all the files required for a new rule."""
         branch_name = f"rule/add-RSPEC-S{'-'.join([str(r) for r in rule_numbers])}"
         with self.rspec_repo.checkout_branch(
@@ -99,12 +101,16 @@ class RuleCreator:
                 rule_dir.mkdir()
                 lang_count = sum(1 for _ in languages)
                 if lang_count > 1:
-                    self._fill_multi_lang_template_files(rule_dir, rule_number, languages)
+                    self._fill_multi_lang_template_files(
+                        rule_dir, rule_number, languages
+                    )
                 else:
                     self._fill_single_lang_template_files(
                         rule_dir, rule_number, next(iter(languages))
                     )
-            self.rspec_repo.commit_all_and_push(f"Create rule S{", ".join([str(r) for r in rule_numbers])}")
+            self.rspec_repo.commit_all_and_push(
+                f"Create rule S{", ".join([str(r) for r in rule_numbers])}"
+            )
 
         return branch_name
 

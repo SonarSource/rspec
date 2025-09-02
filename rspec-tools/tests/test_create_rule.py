@@ -21,10 +21,12 @@ def test_create_new_multi_lang_rule_branch(
     rule_creator: RuleCreator, mock_git_rspec_repo: Repo
 ):
     """Test create_new_rule_branch for a multi-language rule."""
-    rule_number = rule_creator.rspec_repo.reserve_rule_number()
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number()
 
     languages = ["java", "javascript"]
-    branch = rule_creator.create_new_rule_branch([rule_number], languages)
+    branch = rule_creator.create_new_rule_branch(rule_numbers, languages)
+    assert len(rule_numbers) == 1
+    rule_number = rule_numbers[0]
 
     # Check that the branch was pushed successfully to the origin
     mock_git_rspec_repo.git.checkout(branch)
@@ -67,10 +69,12 @@ def test_create_new_single_lang_rule_branch(
     rule_creator: RuleCreator, mock_git_rspec_repo: Repo
 ):
     """Test create_new_rule_branch for a single-language rule."""
-    rule_number = rule_creator.rspec_repo.reserve_rule_number()
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number()
 
     languages = ["cfamily"]
-    branch = rule_creator.create_new_rule_branch([rule_number], languages)
+    branch = rule_creator.create_new_rule_branch(rule_numbers, languages)
+    assert len(rule_numbers) == 1
+    rule_number = rule_numbers[0]
 
     # Check that the branch was pushed successfully to the origin
     mock_git_rspec_repo.git.checkout(branch)
@@ -112,12 +116,12 @@ def test_create_new_single_lang_rule_branch(
 
 def test_create_new_rule_pull_request(rule_creator: RuleCreator):
     """Test create_new_rule_branch adds the right user and labels."""
-    rule_number = rule_creator.rspec_repo.reserve_rule_number()
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number()
     languages = ["cfamily"]
 
     with mock_github() as (token, user, mock_repo):
         rule_creator.create_new_rule_pull_request(
-            token, [rule_number], languages, ["mylab", "other-lab"], user
+            token, rule_numbers, languages, ["mylab", "other-lab"], user
         )
 
         mock_repo.create_pull.assert_called_once()
