@@ -1,44 +1,58 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when a PyTorch Dataset's `__len__` method returns a `torch.Size` object instead of an integer.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+PyTorch's `Dataset` class requires the `__len__` method to return an integer representing the number of samples in the dataset. This integer is used by PyTorch's `DataLoader` and sampling mechanisms to determine how many items can be accessed.
 
-//=== What is the potential impact?
+When you return `tensor.shape` directly, you're returning a `torch.Size` object, which contains information about all dimensions of the tensor. However, PyTorch's internal code expects a simple integer that can be used in operations like `range(len(dataset))`.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+The error typically occurs when the `DataLoader` tries to create samplers for iterating over your dataset. The sampler attempts to create a range of indices using `range(len(self.data_source))`, but since `torch.Size` objects cannot be interpreted as integers, Python raises a `TypeError`.
 
-=== Code examples
+This is a common mistake when creating custom datasets, especially when working with multi-dimensional tensors where developers might think they need to return the full shape information.
 
-==== Noncompliant code example
+=== What is the potential impact?
+
+This issue will cause your training loop to fail immediately with a `TypeError` when the `DataLoader` tries to iterate over the dataset. The application cannot proceed with model training or inference until this is fixed.
+
+While this is not a security issue, it completely blocks the machine learning workflow and can be confusing for developers new to PyTorch.
+
+=== How to fix?
+
+
+Return the first dimension of the tensor shape (typically the number of samples) instead of the entire shape object.
+
+==== Non-compliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+class MyDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+    
+    def __len__(self):
+        return self.data.shape  # Noncompliant
+    
+    def __getitem__(self, idx):
+        return self.data[idx]
 ----
 
-==== Compliant solution
+==== Compliant code example
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+class MyDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+    
+    def __len__(self):
+        return self.data.shape[0]  # Return number of samples
+    
+    def __getitem__(self, idx):
+        return self.data[idx]
 ----
 
-//=== How does this work?
+=== Documentation
 
-//=== Pitfalls
+ * PyTorch Dataset Documentation - https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset[Official PyTorch documentation for creating custom datasets]
+ * PyTorch DataLoader Documentation - https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader[Official documentation explaining how DataLoader works with datasets]
 
-//=== Going the extra mile
-
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
