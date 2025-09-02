@@ -197,6 +197,20 @@ class RuleCreator:
             return f"Create rule S{rule_numbers[0]}"
         return f"Create rules S{rule_numbers[0]} to S{rule_numbers[-1]}"
 
+    def _make_pr_description(
+        self, rule_numbers: list[int], languages: Iterable[str]
+    ) -> str:
+        if len(rule_numbers) == 1 and sum(1 for _ in languages) == 1:
+            return f"You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_numbers[0]}/{next(iter(languages))}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}"
+
+        description = "You can preview the rules here:"
+        for lang in languages:
+            for rule_number in rule_numbers:
+                description += f"\n- [S{rule_number} in {lang}](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{lang})"
+        description += "\n\n"
+        description += self.PR_TEMPLATE_PATH.read_text()
+        return description
+
     def create_new_rule_pull_request(
         self,
         token: str,
@@ -207,12 +221,11 @@ class RuleCreator:
     ) -> PullRequest:
         branch_name = self.create_new_rule_branch(rule_numbers, languages)
         click.echo(f"Created rule branch {branch_name}")
-        first_lang = next(iter(languages))
         return self.rspec_repo.create_pull_request(
             token,
             branch_name,
             self._make_pr_title(rule_numbers),
-            f"You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_numbers[0]}/{first_lang}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}",
+            self._make_pr_description(rule_numbers, languages),
             labels,
             user,
         )
