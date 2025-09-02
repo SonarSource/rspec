@@ -65,6 +65,24 @@ def test_create_new_multi_lang_rule_branch(
                     assert LANG_TO_SOURCE[os.path.basename(lang)] in actual_content
 
 
+def test_create_multiple_rules_branch(
+    rule_creator: RuleCreator, mock_git_rspec_repo: Repo
+):
+    """Test create_new_rule_branch for a multi-language rule."""
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number(count=5)
+
+    branch = rule_creator.create_new_rule_branch(rule_numbers, ["java"])
+    assert len(rule_numbers) == 5
+
+    # Check that the branch was pushed successfully to the origin
+    mock_git_rspec_repo.git.checkout(branch)
+    for rule_number in rule_numbers:
+        rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath(
+            "rules", f"S{rule_number}"
+        )
+        assert rule_dir.exists()
+
+
 def test_create_new_single_lang_rule_branch(
     rule_creator: RuleCreator, mock_git_rspec_repo: Repo
 ):
