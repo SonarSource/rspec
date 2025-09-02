@@ -152,6 +152,24 @@ def test_create_new_rule_pull_request(rule_creator: RuleCreator):
         )
 
 
+def test_create_multiple_new_rules_pull_request(rule_creator: RuleCreator):
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number(count=4)
+    languages = ["python"]
+
+    with mock_github() as (token, user, mock_repo):
+        rule_creator.create_new_rule_pull_request(
+            token, rule_numbers, languages, ["mylab", "other-lab"], user
+        )
+
+        mock_repo.create_pull.assert_called_once()
+        title = mock_repo.create_pull.call_args.kwargs["title"]
+        assert title == "Create rules S0 to S3"
+        mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(user)
+        mock_repo.create_pull.return_value.add_to_labels.assert_called_with(
+            "mylab", "other-lab"
+        )
+
+
 @patch("rspec_tools.create_rule.tmp_rspec_repo")
 @patch("rspec_tools.create_rule.RuleCreator")
 def test_create_new_rule(mockRuleCreator, mock_tmp_rspec_repo):
