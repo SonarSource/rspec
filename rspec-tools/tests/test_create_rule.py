@@ -21,10 +21,12 @@ def test_create_new_multi_lang_rule_branch(
     rule_creator: RuleCreator, mock_git_rspec_repo: Repo
 ):
     """Test create_new_rule_branch for a multi-language rule."""
-    rule_number = rule_creator.rspec_repo.reserve_rule_number()
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number()
 
     languages = ["java", "javascript"]
-    branch = rule_creator.create_new_rule_branch(rule_number, languages)
+    branch = rule_creator.create_new_rule_branch(rule_numbers, languages)
+    assert len(rule_numbers) == 1
+    rule_number = rule_numbers[0]
 
     # Check that the branch was pushed successfully to the origin
     mock_git_rspec_repo.git.checkout(branch)
@@ -63,14 +65,34 @@ def test_create_new_multi_lang_rule_branch(
                     assert LANG_TO_SOURCE[os.path.basename(lang)] in actual_content
 
 
+def test_create_multiple_rules_branch(
+    rule_creator: RuleCreator, mock_git_rspec_repo: Repo
+):
+    """Test create_new_rule_branch for a multi-language rule."""
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number(count=5)
+
+    branch = rule_creator.create_new_rule_branch(rule_numbers, ["java"])
+    assert len(rule_numbers) == 5
+
+    # Check that the branch was pushed successfully to the origin
+    mock_git_rspec_repo.git.checkout(branch)
+    for rule_number in rule_numbers:
+        rule_dir = Path(mock_git_rspec_repo.working_dir).joinpath(
+            "rules", f"S{rule_number}"
+        )
+        assert rule_dir.exists()
+
+
 def test_create_new_single_lang_rule_branch(
     rule_creator: RuleCreator, mock_git_rspec_repo: Repo
 ):
     """Test create_new_rule_branch for a single-language rule."""
-    rule_number = rule_creator.rspec_repo.reserve_rule_number()
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number()
 
     languages = ["cfamily"]
-    branch = rule_creator.create_new_rule_branch(rule_number, languages)
+    branch = rule_creator.create_new_rule_branch(rule_numbers, languages)
+    assert len(rule_numbers) == 1
+    rule_number = rule_numbers[0]
 
     # Check that the branch was pushed successfully to the origin
     mock_git_rspec_repo.git.checkout(branch)
@@ -112,18 +134,36 @@ def test_create_new_single_lang_rule_branch(
 
 def test_create_new_rule_pull_request(rule_creator: RuleCreator):
     """Test create_new_rule_branch adds the right user and labels."""
-    rule_number = rule_creator.rspec_repo.reserve_rule_number()
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number()
     languages = ["cfamily"]
 
     with mock_github() as (token, user, mock_repo):
         rule_creator.create_new_rule_pull_request(
-            token, rule_number, languages, ["mylab", "other-lab"], user
+            token, rule_numbers, languages, ["mylab", "other-lab"], user
         )
 
         mock_repo.create_pull.assert_called_once()
         assert mock_repo.create_pull.call_args.kwargs["title"].startswith(
             "Create rule S"
         )
+        mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(user)
+        mock_repo.create_pull.return_value.add_to_labels.assert_called_with(
+            "mylab", "other-lab"
+        )
+
+
+def test_create_multiple_new_rules_pull_request(rule_creator: RuleCreator):
+    rule_numbers = rule_creator.rspec_repo.reserve_rule_number(count=4)
+    languages = ["python"]
+
+    with mock_github() as (token, user, mock_repo):
+        rule_creator.create_new_rule_pull_request(
+            token, rule_numbers, languages, ["mylab", "other-lab"], user
+        )
+
+        mock_repo.create_pull.assert_called_once()
+        title = mock_repo.create_pull.call_args.kwargs["title"]
+        assert title == "Create rules S0 to S3"
         mock_repo.create_pull.return_value.add_to_assignees.assert_called_with(user)
         mock_repo.create_pull.return_value.add_to_labels.assert_called_with(
             "mylab", "other-lab"
