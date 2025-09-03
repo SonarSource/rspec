@@ -114,7 +114,7 @@ class RuleCreator:
                         rule_dir, rule_number, next(iter(languages))
                     )
             self.rspec_repo.commit_all_and_push(
-                f"Create rule S{", ".join([str(r) for r in rule_numbers])}"
+                f"Create rule S{", S".join([str(r) for r in rule_numbers])}"
             )
 
         return branch_name
