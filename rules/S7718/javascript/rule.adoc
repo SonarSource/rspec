@@ -1,46 +1,62 @@
-This rule raises an issue when a ternary expression used with the spread operator in an array literal has branches with different types (array vs string).
+This is an issue when a function is defined in a nested scope but doesn't use any variables from that scope, meaning it could be moved to a higher scope.
 
 == Why is this an issue?
 
-When spreading a ternary expression in an array literal, using different types in the branches can make code harder to understand and maintain.
+When functions are defined in nested scopes unnecessarily, it creates several problems:
 
-In JavaScript, both arrays and strings are iterable, so they can both be spread into arrays. However, mixing types creates inconsistency that can confuse developers reading the code.
+**Performance Impact**: Functions defined inside other functions are recreated every time the outer function runs. This wastes memory and processing time, especially in frequently called code.
 
-For example, `...(condition ? [1, 2] : '')` works because an empty string spreads to nothing, but it's not immediately clear to readers that this is the intended behavior. Using `...(condition ? [1, 2] : [])` makes the intent much clearer.
+**Engine Optimization**: JavaScript engines like V8 have optimization limits. Functions in nested scopes are harder to optimize, which can slow down your application.
 
-Consistent typing also makes the code more predictable. If you later need to modify one branch, you won't accidentally introduce type-related bugs by forgetting that the other branch expects a different type.
+**Code Readability**: Functions at higher scopes are easier to find and understand. When a function doesn't depend on its surrounding context, placing it at the top level makes the code structure clearer.
+
+**Memory Usage**: Each function instance takes up memory. Creating the same function repeatedly in nested scopes increases memory consumption unnecessarily.
+
+The rule identifies functions that capture no variables from their enclosing scope, meaning they can be safely moved to a higher level without changing their behavior.
 
 === What is the potential impact?
 
-This issue primarily affects code readability and maintainability. While it doesn't cause runtime errors, it can lead to confusion during code reviews and make future modifications more error-prone.
+Moving functions to appropriate scopes improves application performance by reducing function recreation overhead and enabling better JavaScript engine optimizations. It also enhances code maintainability by making function dependencies clearer and reducing memory usage in frequently executed code paths.
 
 === How to fix?
 
 
-Use consistent types in both branches of the ternary. If one branch returns an array, make sure the other branch also returns an array (use an empty array `[]` instead of an empty string).
+Move the function declaration to the module level when it doesn't capture any variables from the enclosing scope.
 
 ==== Non-compliant code example
 
 [source,javascript,diff-id=1,diff-type=noncompliant]
 ----
-const array = [
-  a,
-  ...(foo ? [b, c] : ''), // Noncompliant
-];
+export function doFoo(foo) {
+	// Does not capture anything from the scope
+	function doBar(bar) { // Noncompliant
+		return bar === 'bar';
+	}
+
+	return doBar;
+}
 ----
 
 ==== Compliant code example
 
 [source,javascript,diff-id=1,diff-type=compliant]
 ----
-const array = [
-  a,
-  ...(foo ? [b, c] : []),
-];
+function doBar(bar) {
+	return bar === 'bar';
+}
+
+export function doFoo(foo) {
+	return doBar;
+}
 ----
 
 === Documentation
 
- * MDN - Spread syntax - https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax[Documentation about the spread operator in JavaScript]
- * MDN - Conditional (ternary) operator - https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Conditional_Operator[Documentation about ternary expressions in JavaScript]
+ * JavaScript Function Hoisting - https://developer.mozilla.org/en-US/docs/Glossary/Hoisting[MDN documentation on JavaScript hoisting behavior]
+ * JavaScript Performance Best Practices - https://developer.mozilla.org/en-US/docs/Web/Performance/JavaScript_performance_best_practices[MDN guide on optimizing JavaScript performance]
+ * V8 JavaScript Engine Optimization - https://v8.dev/docs/optimize[Official V8 documentation on JavaScript optimization]
+
+=== Standards
+
+ * ESLint: prefer-const - https://eslint.org/docs/latest/rules/prefer-const[Related ESLint rule for variable declaration optimization]
 
