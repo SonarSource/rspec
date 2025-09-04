@@ -1,76 +1,119 @@
-This rule raises an issue when a FastAPI endpoint function uses regular `def` instead of `async def` while containing `await` statements.
+This rule raises an issue when blocking operations like synchronous HTTP requests, `time.sleep()`, or CPU-intensive computations are performed directly within async functions.
 
 == Why is this an issue?
 
-FastAPI is built on top of Starlette and supports both synchronous and asynchronous request handlers. However, when your endpoint function contains `await` statements, it must be declared with `async def` instead of regular `def`.
+Async functions are designed to enable concurrent execution by yielding control back to the event loop when waiting for I/O operations or other asynchronous tasks. When you perform blocking operations within an async function, you defeat this purpose entirely.
 
-Using `await` in a regular function causes a `SyntaxError` in Python because `await` can only be used inside async functions. This is a fundamental requirement of Python's asyncio system.
+Blocking operations prevent the event loop from executing other coroutines, essentially making your async code run sequentially instead of concurrently. This leads to poor performance and resource utilization, especially in web applications where you might expect to handle multiple requests simultaneously.
 
-Beyond the syntax requirement, using `async def` for FastAPI endpoints provides performance benefits when dealing with I/O operations. FastAPI can handle asynchronous endpoints more efficiently, allowing the server to process other requests while waiting for I/O operations to complete.
+For example, using `requests.get()` in an async function blocks the entire event loop until the HTTP request completes. Even if you have multiple async tasks running, they will execute one after another instead of concurrently.
 
-When you declare an endpoint with `async def`, FastAPI will:
-
-* Run the function in the async event loop
-* Allow other requests to be processed while waiting for async operations
-* Provide better overall throughput for I/O-bound applications
-
-If you use regular `def` for endpoints that don't contain `await` statements, FastAPI will run them in a thread pool, which works but is less efficient than native async handling.
+The same applies to CPU-intensive operations. While these don't involve I/O, they still consume the event loop thread and prevent other coroutines from running until the computation finishes.
 
 === What is the potential impact?
 
-Using `await` in a regular `def` function will cause a `SyntaxError` at runtime, preventing the application from starting. This results in immediate application failure.
+Blocking operations in async functions can severely degrade application performance by:
 
-Even when not using `await` statements, using regular `def` instead of `async def` for FastAPI endpoints can lead to reduced performance and scalability, especially under high load with I/O-intensive operations.
+* Reducing throughput in web applications as requests are processed sequentially instead of concurrently
+* Causing timeouts and poor user experience due to increased response times
+* Wasting server resources as the event loop remains idle while waiting for blocking operations
+* Making the application unresponsive during CPU-intensive tasks
 
-=== How to fix in FastAPI?
+=== How to fix?
 
-Change the function declaration from `def` to `async def` when using `await` statements in FastAPI endpoints.
+
+Replace synchronous HTTP requests with async HTTP libraries like `httpx` or `aiohttp`. These libraries provide async methods that properly yield control back to the event loop.
 
 ==== Non-compliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-@app.get("/items/{item_id}")
-def read_item(item_id: int):  # Noncompliant
-    result = await some_async_operation()
-    return result
+import requests
+import asyncio
+
+async def fetch_data():
+    # Blocking HTTP request
+    response = requests.get("https://api.example.com/data")  # Noncompliant
+    return response.json()
+
+async def main():
+    tasks = [fetch_data() for _ in range(5)]
+    results = await asyncio.gather(*tasks)
+    return results
 ----
 
 ==== Compliant code example
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-@app.get("/items/{item_id}")
-async def read_item(item_id: int):
-    result = await some_async_operation()
-    return result
+import httpx
+import asyncio
+
+async def fetch_data():
+    # Non-blocking HTTP request
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://api.example.com/data")
+        return response.json()
+
+async def main():
+    tasks = [fetch_data() for _ in range(5)]
+    results = await asyncio.gather(*tasks)
+    return results
 ----
 
-For better performance, consider using `async def` even for endpoints without `await` statements when dealing with I/O operations.
+=== How to fix in FastAPI?
+
+Use FastAPI's `run_in_threadpool()` utility for blocking operations, or define background tasks as synchronous functions to let the framework handle thread management automatically.
 
 ==== Non-compliant code example
 
 [source,python,diff-id=2,diff-type=noncompliant]
 ----
-@app.get("/data")
-def get_data():  # Noncompliant
-    # I/O operation that could benefit from async
-    return {"data": "value"}
+from fastapi import BackgroundTasks, FastAPI
+import time
+
+app = FastAPI()
+
+async def background_task(data):
+    # This blocks the event loop
+    time.sleep(5)  # Noncompliant
+    await db.save(data)
+
+@app.post("/process")
+async def process_data(data: dict, background_tasks: BackgroundTasks):
+    background_tasks.add_task(background_task, data)
+    return {"status": "processing"}
 ----
 
 ==== Compliant code example
 
 [source,python,diff-id=2,diff-type=compliant]
 ----
-@app.get("/data")
-async def get_data():
-    # Better performance for I/O operations
-    return {"data": "value"}
+from fastapi import BackgroundTasks, FastAPI
+from fastapi.concurrency import run_in_threadpool
+import time
+
+app = FastAPI()
+
+async def background_task(data):
+    # Move blocking operation to thread pool
+    await run_in_threadpool(lambda: time.sleep(5))
+    await db.save(data)
+
+# Alternative: define as synchronous function
+def sync_background_task(data):
+    time.sleep(5)  # Framework handles this in separate thread
+    db.save_sync(data)
+
+@app.post("/process")
+async def process_data(data: dict, background_tasks: BackgroundTasks):
+    background_tasks.add_task(background_task, data)
+    return {"status": "processing"}
 ----
 
 === Documentation
 
- * FastAPI Async/Await Documentation - https://fastapi.tiangolo.com/async/[Official FastAPI documentation explaining when and how to use async/await]
- * Python Asyncio Documentation - https://docs.python.org/3/library/asyncio.html[Python's official documentation for asynchronous programming with asyncio]
- * FastAPI Concurrency and Async/Await - https://fastapi.tiangolo.com/async/#concurrency-and-async-await[Detailed explanation of concurrency concepts in FastAPI]
+ * Python asyncio documentation - https://docs.python.org/3/library/asyncio.html[Official Python documentation for asyncio module]
+ * HTTPX async client documentation - https://www.python-httpx.org/async/[Documentation for HTTPX async HTTP client]
+ * FastAPI concurrency utilities - https://fastapi.tiangolo.com/async/#concurrency-and-async-await[FastAPI documentation on handling concurrency and blocking operations]
 
