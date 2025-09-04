@@ -1,76 +1,76 @@
-This rule raises an issue when test classes are located in the main source directory (`src/main/java`) instead of the test directory (`src/test/java`), or when test classes don't maintain the same package structure as the classes they test.
+This rule raises an issue when a FastAPI endpoint function uses regular `def` instead of `async def` while containing `await` statements.
 
 == Why is this an issue?
 
-Proper test organization is essential for maintainable Java projects. Test classes should be separated from production code and follow consistent package structures.
+FastAPI is built on top of Starlette and supports both synchronous and asynchronous request handlers. However, when your endpoint function contains `await` statements, it must be declared with `async def` instead of regular `def`.
 
-When test classes are placed in the main source directory (`src/main/java`), they become part of the production codebase. This creates several problems:
+Using `await` in a regular function causes a `SyntaxError` in Python because `await` can only be used inside async functions. This is a fundamental requirement of Python's asyncio system.
 
-* Test code may be accidentally included in production builds, increasing the application size unnecessarily
-* Testing dependencies (like JUnit) may be required in production environments
-* The separation of concerns between production and test code is violated
+Beyond the syntax requirement, using `async def` for FastAPI endpoints provides performance benefits when dealing with I/O operations. FastAPI can handle asynchronous endpoints more efficiently, allowing the server to process other requests while waiting for I/O operations to complete.
 
-Additionally, when test classes don't follow the same package structure as the classes they test, it becomes harder to:
+When you declare an endpoint with `async def`, FastAPI will:
 
-* Locate tests for specific production classes
-* Maintain consistency across the codebase
-* Navigate between production code and its corresponding tests
-* Understand the relationship between test and production code
+* Run the function in the async event loop
+* Allow other requests to be processed while waiting for async operations
+* Provide better overall throughput for I/O-bound applications
 
-Modern build tools like Maven and Gradle expect test classes to be in the `src/test/java` directory structure. Following this convention ensures compatibility with standard tooling and build processes.
+If you use regular `def` for endpoints that don't contain `await` statements, FastAPI will run them in a thread pool, which works but is less efficient than native async handling.
 
 === What is the potential impact?
 
-Misorganized test classes can lead to:
+Using `await` in a regular `def` function will cause a `SyntaxError` at runtime, preventing the application from starting. This results in immediate application failure.
 
-* Test code being accidentally deployed to production environments
-* Increased application size due to unnecessary test dependencies
-* Reduced code maintainability and developer productivity
-* Confusion about code organization and testing structure
-* Build tool compatibility issues
+Even when not using `await` statements, using regular `def` instead of `async def` for FastAPI endpoints can lead to reduced performance and scalability, especially under high load with I/O-intensive operations.
 
-=== How to fix?
+=== How to fix in FastAPI?
 
-
-Move test classes from the main source directory to the test directory while maintaining the same package structure.
+Change the function declaration from `def` to `async def` when using `await` statements in FastAPI endpoints.
 
 ==== Non-compliant code example
 
-[source,java,diff-id=1,diff-type=noncompliant]
+[source,python,diff-id=1,diff-type=noncompliant]
 ----
-// File: src/main/java/com/example/math/CircleTest.java
-package com.example.math;
-
-import org.junit.Test;
-
-public class CircleTest { // Noncompliant
-    @Test
-    public void testCalculateArea() {
-        // test implementation
-    }
-}
+@app.get("/items/{item_id}")
+def read_item(item_id: int):  # Noncompliant
+    result = await some_async_operation()
+    return result
 ----
 
 ==== Compliant code example
 
-[source,java,diff-id=1,diff-type=compliant]
+[source,python,diff-id=1,diff-type=compliant]
 ----
-// File: src/test/java/com/example/math/CircleTest.java
-package com.example.math;
+@app.get("/items/{item_id}")
+async def read_item(item_id: int):
+    result = await some_async_operation()
+    return result
+----
 
-import org.junit.Test;
+For better performance, consider using `async def` even for endpoints without `await` statements when dealing with I/O operations.
 
-public class CircleTest {
-    @Test
-    public void testCalculateArea() {
-        // test implementation
-    }
-}
+==== Non-compliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+@app.get("/data")
+def get_data():  # Noncompliant
+    # I/O operation that could benefit from async
+    return {"data": "value"}
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+@app.get("/data")
+async def get_data():
+    # Better performance for I/O operations
+    return {"data": "value"}
 ----
 
 === Documentation
 
- * Java Unit Testing Best Practices - https://www.baeldung.com/java-unit-testing-best-practices[Comprehensive guide covering test organization and package structure best practices]
- * Maven Standard Directory Layout - https://maven.apache.org/guides/introduction/introduction-to-the-standard-directory-layout.html[Official Maven documentation on standard project directory structure]
- * Gradle Java Plugin - https://docs.gradle.org/current/userguide/java_plugin.html[Gradle documentation explaining the expected source set layout for Java projects]
+ * FastAPI Async/Await Documentation - https://fastapi.tiangolo.com/async/[Official FastAPI documentation explaining when and how to use async/await]
+ * Python Asyncio Documentation - https://docs.python.org/3/library/asyncio.html[Python's official documentation for asynchronous programming with asyncio]
+ * FastAPI Concurrency and Async/Await - https://fastapi.tiangolo.com/async/#concurrency-and-async-await[Detailed explanation of concurrency concepts in FastAPI]
 
