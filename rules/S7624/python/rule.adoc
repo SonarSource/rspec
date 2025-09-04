@@ -1,119 +1,123 @@
-This rule raises an issue when blocking operations like synchronous HTTP requests, `time.sleep()`, or CPU-intensive computations are performed directly within async functions.
+This rule raises an issue when FastAPI dependency functions lack proper type annotations, are not used with the `Depends()` function, or when shared logic is duplicated across endpoints instead of using dependency injection.
 
 == Why is this an issue?
 
-Async functions are designed to enable concurrent execution by yielding control back to the event loop when waiting for I/O operations or other asynchronous tasks. When you perform blocking operations within an async function, you defeat this purpose entirely.
+FastAPI's dependency injection system is a core feature that provides several important benefits when used correctly.
 
-Blocking operations prevent the event loop from executing other coroutines, essentially making your async code run sequentially instead of concurrently. This leads to poor performance and resource utilization, especially in web applications where you might expect to handle multiple requests simultaneously.
+When dependency functions lack type annotations, FastAPI cannot generate accurate API documentation or provide proper type checking. The framework relies on type hints to understand what data types are expected and returned, which is essential for automatic OpenAPI schema generation.
 
-For example, using `requests.get()` in an async function blocks the entire event loop until the HTTP request completes. Even if you have multiple async tasks running, they will execute one after another instead of concurrently.
+Using dependencies without the `Depends()` function breaks FastAPI's dependency injection mechanism. When you call a dependency function directly (like `user=get_current_user()`), the function executes immediately during module import, not during request processing. This can lead to runtime errors and prevents FastAPI from managing the dependency lifecycle properly.
 
-The same applies to CPU-intensive operations. While these don't involve I/O, they still consume the event loop thread and prevent other coroutines from running until the computation finishes.
+Duplicating shared logic across multiple endpoints violates the DRY (Don't Repeat Yourself) principle and creates maintenance problems. When authentication, validation, or database connection logic is copied between endpoints, any changes must be made in multiple places, increasing the risk of inconsistencies and bugs.
+
+Inconsistent application of security dependencies is particularly dangerous. When some endpoints that should be protected are missing security dependencies, they become vulnerable to unauthorized access. This creates security gaps that attackers can exploit.
 
 === What is the potential impact?
 
-Blocking operations in async functions can severely degrade application performance by:
+Missing type annotations lead to incomplete API documentation and potential runtime type errors that could have been caught during development.
 
-* Reducing throughput in web applications as requests are processed sequentially instead of concurrently
-* Causing timeouts and poor user experience due to increased response times
-* Wasting server resources as the event loop remains idle while waiting for blocking operations
-* Making the application unresponsive during CPU-intensive tasks
+Incorrect use of dependencies can cause application startup failures or unexpected behavior during request processing.
 
-=== How to fix?
+Code duplication makes the application harder to maintain and increases the likelihood of introducing bugs when making changes to shared logic.
 
+Inconsistent security dependency application can result in unauthorized access to protected resources, potentially exposing sensitive data or functionality.
 
-Replace synchronous HTTP requests with async HTTP libraries like `httpx` or `aiohttp`. These libraries provide async methods that properly yield control back to the event loop.
+=== How to fix in FastAPI?
+
+Add proper type annotations to dependency functions and use them with Depends() in endpoint parameters.
 
 ==== Non-compliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-import requests
-import asyncio
+def get_current_user(token):
+    # Missing type annotations
+    return verify_token(token)
 
-async def fetch_data():
-    # Blocking HTTP request
-    response = requests.get("https://api.example.com/data")  # Noncompliant
-    return response.json()
-
-async def main():
-    tasks = [fetch_data() for _ in range(5)]
-    results = await asyncio.gather(*tasks)
-    return results
+@app.get("/protected/")
+def protected_route(user=get_current_user()):  # Noncompliant
+    return {"user": user}
 ----
 
 ==== Compliant code example
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-import httpx
-import asyncio
+def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    # Proper type annotations for dependency
+    return verify_token(token)
 
-async def fetch_data():
-    # Non-blocking HTTP request
-    async with httpx.AsyncClient() as client:
-        response = await client.get("https://api.example.com/data")
-        return response.json()
-
-async def main():
-    tasks = [fetch_data() for _ in range(5)]
-    results = await asyncio.gather(*tasks)
-    return results
+@app.get("/protected/")
+def protected_route(user: User = Depends(get_current_user)):
+    return {"user": user}
 ----
 
-=== How to fix in FastAPI?
-
-Use FastAPI's `run_in_threadpool()` utility for blocking operations, or define background tasks as synchronous functions to let the framework handle thread management automatically.
+Extract duplicated logic into a dependency function and reuse it across endpoints.
 
 ==== Non-compliant code example
 
 [source,python,diff-id=2,diff-type=noncompliant]
 ----
-from fastapi import BackgroundTasks, FastAPI
-import time
+@app.get("/items/")
+def read_items(token: str):
+    if not token or token != "valid-token":  # Noncompliant
+        raise HTTPException(status_code=401)
+    return ["item1", "item2"]
 
-app = FastAPI()
-
-async def background_task(data):
-    # This blocks the event loop
-    time.sleep(5)  # Noncompliant
-    await db.save(data)
-
-@app.post("/process")
-async def process_data(data: dict, background_tasks: BackgroundTasks):
-    background_tasks.add_task(background_task, data)
-    return {"status": "processing"}
+@app.get("/users/")
+def read_users(token: str):
+    if not token or token != "valid-token":  # Noncompliant
+        raise HTTPException(status_code=401)
+    return ["user1", "user2"]
 ----
 
 ==== Compliant code example
 
 [source,python,diff-id=2,diff-type=compliant]
 ----
-from fastapi import BackgroundTasks, FastAPI
-from fastapi.concurrency import run_in_threadpool
-import time
+def verify_token(token: str) -> str:
+    if not token or token != "valid-token":
+        raise HTTPException(status_code=401)
+    return token
 
-app = FastAPI()
+@app.get("/items/")
+def read_items(token: str = Depends(verify_token)):
+    return ["item1", "item2"]
 
-async def background_task(data):
-    # Move blocking operation to thread pool
-    await run_in_threadpool(lambda: time.sleep(5))
-    await db.save(data)
+@app.get("/users/")
+def read_users(token: str = Depends(verify_token)):
+    return ["user1", "user2"]
+----
 
-# Alternative: define as synchronous function
-def sync_background_task(data):
-    time.sleep(5)  # Framework handles this in separate thread
-    db.save_sync(data)
+Apply security dependencies consistently to all protected endpoints.
 
-@app.post("/process")
-async def process_data(data: dict, background_tasks: BackgroundTasks):
-    background_tasks.add_task(background_task, data)
-    return {"status": "processing"}
+==== Non-compliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+@app.get("/users/profile")
+def get_profile():  # Noncompliant
+    # Missing security dependency
+    return get_user_profile()
+----
+
+==== Compliant code example
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+@app.get("/users/profile")
+def get_profile(current_user: User = Depends(get_current_user)):
+    # Security dependency properly applied
+    return get_user_profile(current_user.id)
 ----
 
 === Documentation
 
- * Python asyncio documentation - https://docs.python.org/3/library/asyncio.html[Official Python documentation for asyncio module]
- * HTTPX async client documentation - https://www.python-httpx.org/async/[Documentation for HTTPX async HTTP client]
- * FastAPI concurrency utilities - https://fastapi.tiangolo.com/async/#concurrency-and-async-await[FastAPI documentation on handling concurrency and blocking operations]
+ * FastAPI Dependencies Tutorial - https://fastapi.tiangolo.com/tutorial/dependencies/[Official FastAPI documentation on dependency injection system]
+ * FastAPI Security Tutorial - https://fastapi.tiangolo.com/tutorial/security/[Guide on implementing security with FastAPI dependencies]
+ * Python Type Hints - https://docs.python.org/3/library/typing.html[Python documentation on type annotations]
+
+=== Standards
+
+ * CWE-862: Missing Authorization - https://cwe.mitre.org/data/definitions/862.html[Weakness related to missing authorization checks]
 
