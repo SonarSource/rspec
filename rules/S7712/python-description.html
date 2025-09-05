@@ -1,0 +1,135 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when a PyTorch Dataset&#8217;s <code><em>getitem</em></code> method returns non-serializable objects like <code>pathlib.Path</code> instances, custom classes, or other complex objects that cannot be processed by PyTorch&#8217;s default collate function.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>PyTorch&#8217;s DataLoader uses a collate function to combine individual dataset items into batches. The default collate function only supports specific serializable types: tensors, numpy arrays, numbers, strings, lists, and dictionaries.</p>
+</div>
+<div class="paragraph">
+<p>When a Dataset&#8217;s <code><em>getitem</em></code> method returns non-serializable objects like <code>pathlib.Path</code> instances, the DataLoader will fail at runtime with a <code>TypeError</code> when trying to create batches. This error occurs during iteration over the DataLoader, not when the Dataset is created, making it harder to catch during development.</p>
+</div>
+<div class="paragraph">
+<p>The error message will be: <code>TypeError: default_collate: batch must contain tensors, numpy arrays, numbers, dicts or lists; found &lt;class 'pathlib.PosixPath'&gt;</code> (or similar for other non-serializable types).</p>
+</div>
+<div class="paragraph">
+<p>This issue is particularly common when working with file paths, where developers naturally use <code>pathlib.Path</code> objects for their convenience and type safety, but forget that these objects cannot be batched by PyTorch&#8217;s default mechanisms.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Runtime failures when iterating over DataLoader instances, causing training or inference pipelines to crash. This can lead to wasted computational resources and delayed development cycles, especially in distributed training scenarios where the error might not surface until later stages.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_fix_in_pytorch">How to fix in PyTorch?</h3>
+<div class="paragraph">
+<p>Convert non-serializable objects to their serializable equivalents. For <code>pathlib.Path</code> objects, use <code>str()</code> to convert them to strings. For custom objects, extract the necessary serializable data.</p>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pathlib import Path
+from torch.utils.data import Dataset
+
+class MyDataset(Dataset):
+    def __init__(self, filenames):
+        self.filenames = [Path(f) for f in filenames]
+
+    def __getitem__(self, idx):
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'filename': self.filenames[idx]  # Noncompliant
+        }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pathlib import Path
+from torch.utils.data import Dataset
+
+class MyDataset(Dataset):
+    def __init__(self, filenames):
+        self.filenames = [Path(f) for f in filenames]
+
+    def __getitem__(self, idx):
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'filename': str(self.filenames[idx])  # Convert to string
+        }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For custom objects, extract only the serializable attributes needed for training or inference.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example_2">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">class CustomMetadata:
+    def __init__(self, name, path, config):
+        self.name = name
+        self.path = path
+        self.config = config
+
+class MyDataset(Dataset):
+    def __getitem__(self, idx):
+        metadata = CustomMetadata("sample", Path("/data"), {"key": "value"})
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'metadata': metadata  # Noncompliant
+        }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example_2">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">class CustomMetadata:
+    def __init__(self, name, path, config):
+        self.name = name
+        self.path = path
+        self.config = config
+
+class MyDataset(Dataset):
+    def __getitem__(self, idx):
+        metadata = CustomMetadata("sample", Path("/data"), {"key": "value"})
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'metadata': {
+                'name': metadata.name,
+                'path': str(metadata.path),
+                'config': metadata.config
+            }
+        }</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PyTorch DataLoader Documentation - <a href="https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader">Official documentation for PyTorch DataLoader and collate functions</a></p>
+</li>
+<li>
+<p>PyTorch default_collate Function - <a href="https://pytorch.org/docs/stable/data.html#torch.utils.data.default_collate">Documentation for the default collate function and supported types</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

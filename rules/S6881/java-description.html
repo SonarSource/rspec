@@ -1,0 +1,101 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>With the introduction of virtual threads in Java 21, it is now possible to optimize the usage of the operating system threads by avoiding blocking them for asynchronous operations.
+Furthermore, virtual threads&#8217;s instantiation has very little overhead and they can be created in large quantities.
+This means that it can be more efficient to use them over the default platform threads for tasks that involve I/O or some other blocking operations.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Whenever a virtual thread is started, the JVM will mount it on an OS thread.
+As soon as the virtual thread runs into a blocking operation like an HTTP request or a filesystem read/write operation,
+the JVM will detect this and unmount the virtual thread.
+This allows another virtual thread to take over the OS thread and continue its execution.</p>
+</div>
+<div class="paragraph">
+<p>This is why virtual threads should be preferred to platform threads for tasks that involve blocking operations.
+By default, a Java thread is a platform thread.
+To use a virtual thread it must be started either with <code>Thread.startVirtualThread(Runnable)</code> or <code>Thread.ofVirtual().start(Runnable)</code>.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when a platform thread is created with a task that includes heavy blocking operations.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace platform thread instances or platform thread pools with virtual threads, if their task involves blocking operations.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following example creates a platform thread to handle a blocking operation, here denoted by <code>Thread.sleep(1000)</code>.
+The overhead for instantiating a platform thread is higher than for a virtual thread.
+Further, instantiating too many platform threads can lead to problems if the number of instantiated threads exceeds the maximum number of platform threads allowed by the OS.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">new Thread(() -&gt; {
+    try {
+        Thread.sleep(1000); // Noncompliant blocking operation in platform thread
+    } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+    }
+});</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the context of thread pools, using platform threads for heavy blocking operations can lead to the thread pool running out of available threads.
+Even though the threads spend most of their time waiting for e.g. I/O operations to complete and subsequently the CPU usage is low,
+the application cannot continue processing efficiently, due to the lack of available threads.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Using virtual threads allows the developer to abstract from any pooling logic as they are much lighter than platform threads,
+and the number of virtual threads that can be instantiated is only limited by the available memory.
+In this example, the execution of 10000 requests would take just over ~1 second without any risk of exceeding the allowed number of platform threads.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">Thread.ofVirtual().start(() -&gt; {
+    try {
+        Thread.sleep(1000); // Compliant
+    } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+    }
+});</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Java Documentation - <a href="https://docs.oracle.com/en/java/javase/21/core/virtual-threads.html">Virtual Threads</a></p>
+</li>
+<li>
+<p>Java Documentation - <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#startVirtualThread(java.lang.Runnable)">Thread.startVirtualThread(Runnable)</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

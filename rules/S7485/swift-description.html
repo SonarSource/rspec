@@ -1,0 +1,148 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>By default, WebViews in iOS and macOS allow users to navigate to any URL by clicking links or through JavaScript-initiated navigations. This behavior contrasts with native Android WebViews, which typically open new URLs in an external browser, thereby providing users with important context like a visible URL bar. As Webviews in iOS and macOS deviate from this safer native default, arbitrary navigation is permitted unless explicitly configured otherwise. This means the WebView behaves more like an embedded browser without the usual security indicators.</p>
+</div>
+<div class="paragraph">
+<p>Permitting unrestricted navigation within an app&#8217;s WebView can lead to significant security vulnerabilities. For instance, an element within the page (e.g., an ad) could redirect the user to a convincing phishing site designed to steal credentials. Since the WebView is part of the trusted application and lacks standard browser interface elements, users are more susceptible to such deception. Furthermore, if a page with a Cross-Site Scripting (XSS) vulnerability is loaded, the ability to navigate freely can expand the attack&#8217;s scope or be used to further mislead the user. This loss of contextual security makes it difficult for users to identify and avoid malicious websites.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Your WebView loads content from arbitrary URLs or third-party sources (e.g., advertisements, external links)</p>
+</li>
+<li>
+<p>A malicious redirection within the WebView could lead to a phishing attack or credential theft</p>
+</li>
+<li>
+<p>The WebView displays sensitive information or interacts with features that could be compromised if the user is redirected to a malicious site</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of these questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_restrict_navigation">Restrict Navigation</h3>
+<div class="paragraph">
+<p>To prevent navigation to arbitrary URLs, all navigation attempts within the WebView need to be intercepted and validated.</p>
+</div>
+<div class="paragraph">
+<p>For <code>WKWebView</code>, this is done by assigning an object that conforms to the <code>WKNavigationDelegate</code> protocol to the <code>navigationDelegate</code> property. The <code>webView(_:decidePolicyFor:decisionHandler:)</code> callback in this delegate is called for every navigation attempt (e.g., when a user clicks a link or JavaScript tries to change the location). This callback allows the application to inspect the target URL and decide whether to allow the navigation by calling the <code>decisionHandler</code> with <code>.allow</code> or block it by calling it with <code>.cancel</code>.</p>
+</div>
+<div class="paragraph">
+<p>By implementing a navigation delegate, developers can enforce a strict navigation policy, such as blocking all navigation (most secure for static content WebViews), allowing navigation only to a predefined set of trusted domains (allowlisting), or deciding to open certain links in an external browser application rather than within the WebView itself.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>By default, <code>WKWebView</code> allows arbitrary navigation. Setting no <code>WKNavigationDelegate</code> will allow the user to navigate to any URL.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import WebKit
+import UIKit
+
+class ViewController: UIViewController, WKUIDelegate {
+    var webView: WKWebView!
+
+    override func loadView() {
+        let webConfiguration = WKWebViewConfiguration()
+        webView = WKWebView(frame: .zero, configuration: webConfiguration)
+        webView.uiDelegate = self
+        view = webView
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        let myURL = URL(string:"https://example.com/")
+        let myRequest = URLRequest(url: myURL!)
+        webView.load(myRequest) // Sensitive - all navigation is permitted by default
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To restrict navigation, set a <code>WKNavigationDelegate</code> and implement the <code>webView(_:decidePolicyFor:decisionHandler:)</code> method to validate the URL before allowing navigation.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import WebKit
+import UIKit
+
+class ViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
+    var webView: WKWebView!
+
+    override func loadView() {
+        let webConfiguration = WKWebViewConfiguration()
+        webView = WKWebView(frame: .zero, configuration: webConfiguration)
+        webView.uiDelegate = self
+        view = webView
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        webView.navigationDelegate = self
+
+        let myURL = URL(string:"https://example.com/")
+        let myRequest = URLRequest(url: myURL!)
+        webView.load(myRequest)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -&gt; Void) {
+        if let url = navigationAction.request.url, url.host == "example.com" {
+            decisionHandler(.allow)
+            return
+        }
+
+        // This could also be used to open the link in an external browser
+        decisionHandler(.cancel)
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2023-risks/m8-security-misconfiguration.html">Mobile Top 10 2024 Category M8 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/">Top 10 2021 Category A5 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/451">CWE-451 - User Interface (UI) Misrepresentation of Critical Information</a></p>
+</li>
+<li>
+<p>Apple Developer Documentation - <a href="https://developer.apple.com/documentation/webkit/wknavigationdelegate"><code>WKNavigationDelegate</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
