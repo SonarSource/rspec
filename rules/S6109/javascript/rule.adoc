@@ -15,14 +15,6 @@ instructions to ``++Object.prototype++``, used to build every object.
 Below are some real-world scenarios that illustrate some impacts of an attacker
 exploiting the vulnerability.
 
-==== Application Denial of Service (DoS)
-An attacker can pollute the prototype with properties that cause the application
-to crash or become unresponsive. +
-For example, they might add a property that your application's code expects to
-be a function but is now a simple string.
-When the code tries to execute this property as a function, it will trigger an
-error, potentially halting the application for all users.
-
 ==== Property Injection and Logic Hijacking
 This attack involves injecting properties that your application's code later
 uses in security-sensitive decisions. +
@@ -32,8 +24,17 @@ set this property to `true` and gain unauthorized access without proper
 credentials.
 
 ==== Arbitrary Code Execution
-Finally, this vulnerability leads to code execution when the vulnerable
-application uses a polluted property to dynamically execute commands.
+In addition to logic hijiacking, this vulnerability leads to code execution when
+the vulnerable application uses a polluted property to dynamically execute
+commands.
+
+==== Application Denial of Service (DoS)
+An attacker can pollute the prototype with properties that cause the application
+to crash or become unresponsive. +
+For example, they might add a property that your application's code expects to
+be a function but is now a simple string.
+When the code tries to execute this property as a function, it will trigger an
+error, potentially halting the application for all users.
 
 == How to fix it
 
@@ -46,7 +47,7 @@ function merge(target, source) {
         if (typeof target[key] === 'object' && typeof source[key] === 'object') {
             merge(target[key], source[key]);
         } else {
-            target[key] = source[key];
+            target[key] = source[key]; // Noncompliant
         }
     }
     return target;
@@ -68,6 +69,8 @@ modifications to object prototypes by creating objects without a prototype:
 
 [source,javascript,diff-id=1,diff-type=compliant]
 ----
+Object.freeze(Object.prototype);
+
 function merge(target, source) {
     for (let key in source) {
         if (typeof target[key] === 'object' && typeof source[key] === 'object') {
@@ -79,7 +82,7 @@ function merge(target, source) {
     return target;
 }
 
-const userDefaults = Object.create(null);
+const userDefaults = {};
 userDefaults.isAdmin = false;
 
 function (req, res) {
@@ -90,21 +93,24 @@ function (req, res) {
 
 === How does this work?
 
-==== Create Objects Without Prototypes
-When you create a new object that will be populated with user-controlled data,
-such as parsing a JSON string from a request, you can create it without a
-prototype. This type of object, often called a "dictionary" or "map," cannot be
-polluted because it does not inherit from Object.prototype. You can achieve
-this using Object.create(null).
-
 ==== Freeze the Object Prototype
 One of the most effective ways to prevent prototype pollution is to make the
-global Object.prototype immutable. You can do this using
+global ``++Object.prototype++`` immutable. You can do this using
 ``++Object.freeze()++``. Once frozen, its properties can no longer be added,
 deleted, or changed.
 
 You should apply this fix at the very beginning of your application's entry
 point to ensure it is protected from the start.
+
+==== Create Objects Without Prototypes
+When you create a new object that will be populated with user-controlled data,
+such as parsing a JSON string from a request, you can create it without
+a prototype: ``++Object.create(null)++``.
+
+If the use case is to make a map or a dictionary, consider using a `Map` object
+over ``++Object.create(null)++``. +
+It it has a built-in get() method that only returns properties that are defined
+directly on the map itself.
 
 ==== Sanitize and Validate Input
 Finally, the most obvious way to prevent prototype pollution is to sanitize
@@ -138,11 +144,13 @@ function merge(target, source) {
 
 === Articles & blog posts
 
-* https://github.com/HoLyVieR/prototype-pollution-nsec18/blob/master/paper/JavaScript_prototype_pollution_attack_in_NodeJS.pdf[Prototype pollution attack in NodeJS application - Olivier Arteau]
+* PortSwigger - https://portswigger.net/web-security/prototype-pollution[Prototype pollution]
 
 === Standards
 
 * CWE - https://cwe.mitre.org/data/definitions/1321[CWE-1321 - Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution')]
+
+ifdef::env-github,rspecator-view[]
 
 '''
 == Implementation Specification
@@ -161,3 +169,5 @@ this argument is tainted (method invocations)
 the returned value is tainted (returns & method invocations results)
 
 '''
+
+endif::env-github,rspecator-view[]
