@@ -1,0 +1,105 @@
+This is an issue when a PyTorch Dataset's `__getitem__` method returns non-serializable objects like `pathlib.Path` instances, custom classes, or other complex objects that cannot be processed by PyTorch's default collate function.
+
+== Why is this an issue?
+
+PyTorch's DataLoader uses a collate function to combine individual dataset items into batches. The default collate function only supports specific serializable types: tensors, numpy arrays, numbers, strings, lists, and dictionaries.
+
+When a Dataset's `__getitem__` method returns non-serializable objects like `pathlib.Path` instances, the DataLoader will fail at runtime with a `TypeError` when trying to create batches. This error occurs during iteration over the DataLoader, not when the Dataset is created, making it harder to catch during development.
+
+The error message will be: `TypeError: default_collate: batch must contain tensors, numpy arrays, numbers, dicts or lists; found <class 'pathlib.PosixPath'>` (or similar for other non-serializable types).
+
+This issue is particularly common when working with file paths, where developers naturally use `pathlib.Path` objects for their convenience and type safety, but forget that these objects cannot be batched by PyTorch's default mechanisms.
+
+=== What is the potential impact?
+
+Runtime failures when iterating over DataLoader instances, causing training or inference pipelines to crash. This can lead to wasted computational resources and delayed development cycles, especially in distributed training scenarios where the error might not surface until later stages.
+
+=== How to fix in PyTorch?
+
+Convert non-serializable objects to their serializable equivalents. For `pathlib.Path` objects, use `str()` to convert them to strings. For custom objects, extract the necessary serializable data.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from pathlib import Path
+from torch.utils.data import Dataset
+
+class MyDataset(Dataset):
+    def __init__(self, filenames):
+        self.filenames = [Path(f) for f in filenames]
+    
+    def __getitem__(self, idx):
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'filename': self.filenames[idx]  # Noncompliant
+        }
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pathlib import Path
+from torch.utils.data import Dataset
+
+class MyDataset(Dataset):
+    def __init__(self, filenames):
+        self.filenames = [Path(f) for f in filenames]
+    
+    def __getitem__(self, idx):
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'filename': str(self.filenames[idx])  # Convert to string
+        }
+----
+
+For custom objects, extract only the serializable attributes needed for training or inference.
+
+==== Non-compliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+class CustomMetadata:
+    def __init__(self, name, path, config):
+        self.name = name
+        self.path = path
+        self.config = config
+
+class MyDataset(Dataset):
+    def __getitem__(self, idx):
+        metadata = CustomMetadata("sample", Path("/data"), {"key": "value"})
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'metadata': metadata  # Noncompliant
+        }
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+class CustomMetadata:
+    def __init__(self, name, path, config):
+        self.name = name
+        self.path = path
+        self.config = config
+
+class MyDataset(Dataset):
+    def __getitem__(self, idx):
+        metadata = CustomMetadata("sample", Path("/data"), {"key": "value"})
+        return {
+            'data': torch.tensor([1, 2, 3]),
+            'metadata': {
+                'name': metadata.name,
+                'path': str(metadata.path),
+                'config': metadata.config
+            }
+        }
+----
+
+=== Documentation
+
+ * PyTorch DataLoader Documentation - https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader[Official documentation for PyTorch DataLoader and collate functions]
+ * PyTorch default_collate Function - https://pytorch.org/docs/stable/data.html#torch.utils.data.default_collate[Documentation for the default collate function and supported types]
+
