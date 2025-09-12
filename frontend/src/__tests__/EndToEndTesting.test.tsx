@@ -4,6 +4,7 @@ import path from 'path';
 import { Location, createMemoryHistory } from 'history';
 import { render } from '@testing-library/react';
 import { Router } from 'react-router-dom';
+import { vi } from 'vitest';
 
 import { generateRulesDescription } from '../deployment/description';
 import { generateRulesMetadata } from '../deployment/metadata';
@@ -13,7 +14,7 @@ import { fetchMock, normalize, FetchResult } from '../testutils';
 import { SearchPage } from '../SearchPage';
 
 // The CI system is a bit slow. Increase timeout to avoid random failures.
-jest.setTimeout(20000);
+vi.setConfig({ testTimeout: 20000 });
 
 function readJson(filepath: string) {
   const content = fs.readFileSync(filepath);
@@ -98,7 +99,7 @@ beforeEach(() => {
   const indexStore = readJson(Paths.store);
   const indexAggregates = readJson(Paths.aggregates);
 
-  const rootUrl = process.env.PUBLIC_URL;
+  const rootUrl = '/rspec';
   const mockUrls = {} as Record<string, FetchResult>;
   mockUrls[`${rootUrl}/rules/rule-index.json`] = { json: normalize(index) };
   mockUrls[`${rootUrl}/rules/rule-index-store.json`] = { json: normalize(indexStore) };
@@ -109,22 +110,22 @@ beforeEach(() => {
       'PY': { 'S200': 'ver1' },
     }
   };
-  jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
+  vi.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
 });
 
 afterEach(() => {
-  (global.fetch as any).mockClear();
+  vi.mocked(global.fetch).mockClear();
 });
 
-const defaultUseLocation = jest.requireActual('react-router-dom').useLocation;
+const defaultUseLocation = await vi.importActual<typeof import('react-router-dom')>('react-router-dom').then(m => m.useLocation);
 let fakeLocation: Location | undefined = undefined;
 
 function mockUseLocation() {
   return fakeLocation ?? defaultUseLocation();
 }
 
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom') as {},
+vi.mock('react-router-dom', async () => ({
+  ...await vi.importActual<typeof import('react-router-dom')>('react-router-dom'),
   useLocation: mockUseLocation,
 }));
 
