@@ -1,5 +1,6 @@
 import { useFetch } from '../useFetch';
 import { renderHook } from '@testing-library/react-hooks';
+import { vi } from 'vitest';
 
 function fetchMock(url, opts) {
   return Promise.resolve({
@@ -12,11 +13,11 @@ function fetchMock(url, opts) {
 
 describe('url fetching', () => {
   beforeEach(() => {
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMock);
+    vi.spyOn(global, 'fetch').mockImplementation(fetchMock);
   });
 
   afterEach(() => {
-    global.fetch.mockClear();
+    vi.resetAllMocks();
   });
 
   test('notifies when loaded', async () => {
@@ -43,7 +44,7 @@ describe('url fetching', () => {
   });
 
   test('fails when fetch throws', async () => {
-    jest.spyOn(global, 'fetch').mockImplementation(() => Promise.reject(new Error()));
+    vi.spyOn(global, 'fetch').mockImplementation(() => Promise.reject(new Error()));
     const { result, waitForNextUpdate } = renderHook(() => useFetch('funny.url', false));
     expect(result.current[1]).toBeFalsy();
     await waitForNextUpdate();
