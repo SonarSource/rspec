@@ -66,100 +66,100 @@ See S100.
         expect(fs.existsSync(s100Java)).toBeTruthy();
         const htmlS100Java = fs.readFileSync(s100Java);
         expect(htmlS100Java.toString()).toMatchInlineSnapshot(`
-"<div class=\\"sect1\\">
-<h2 id=\\"_description\\">Description</h2>
-<div class=\\"sectionbody\\">
-<div class=\\"paragraph\\">
-<p>Generic content
-Specific content</p>
-</div>
-</div>
-</div>
-<div class=\\"sect1\\">
-<h2 id=\\"_test_various_forms_of_auto_link_for_rspec_s100\\">Test various forms of auto-link for RSPEC. <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a></h2>
-<div class=\\"sectionbody\\">
-<div class=\\"ulist\\">
-<ul>
-<li>
-<p>See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>, <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">S101</a>,<a data-rspec-id=\\"S102\\" class=\\"rspec-auto-link\\">S102</a>.</p>
-</li>
-<li>
-<p>See <a data-rspec-id=\\"S101\\" class=\\"rspec-auto-link\\">RSPEC-101</a></p>
-</li>
-<li>
-<p>But not S103badref.</p>
-</li>
-<li>
-<p>This is a code literal <code>S234</code> but this isn&#8217;t <a data-rspec-id=\\"S567\\" class=\\"rspec-auto-link\\">S567</a>.</p>
-</li>
-</ul>
-</div>
-<div class=\\"paragraph\\">
-<p>https://sonarsource.github.io/rspec/#/rspec/S100</p>
-</div>
-<div class=\\"paragraph\\">
-<p><a href=\\"https://sonarsource.github.io/rspec/#/rspec/S100/cfamily\\" class=\\"bare\\">https://sonarsource.github.io/rspec/#/rspec/S100/cfamily</a></p>
-</div>
-<div class=\\"paragraph\\">
-<p><a href=\\"https://sonarsource.github.io/rspec/#/rspec/S100/cfamily\\" class=\\"bare\\">https://sonarsource.github.io/rspec/#/rspec/S100/cfamily</a></p>
-</div>
-<div class=\\"listingblock\\">
-<div class=\\"content\\">
-<pre class=\\"highlight\\"><code class=\\"language-cpp\\" data-lang=\\"cpp\\">int foo() {
-  // No auto-links in code!
-  auto S100 = 100;
-  auto U100 = 100u;
-  return S100 + U100;
-}</code></pre>
-</div>
-</div>
-<div class=\\"paragraph\\">
-<p>After snippet, See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
-</div>
-<div class=\\"listingblock\\">
-<div class=\\"content\\">
-<pre class=\\"highlight\\"><code class=\\"language-cpp\\" data-lang=\\"cpp\\">int goo() {
-  // No auto-links in code!
-  // S100
-}</code></pre>
-</div>
-</div>
-<div class=\\"paragraph\\">
-<p>more ref: <a data-rspec-id=\\"S200\\" class=\\"rspec-auto-link\\">RSPEC-200</a>.</p>
-</div>
-</div>
-</div>"
-`);
+          "<div class="sect1">
+          <h2 id="_description">Description</h2>
+          <div class="sectionbody">
+          <div class="paragraph">
+          <p>Generic content
+          Specific content</p>
+          </div>
+          </div>
+          </div>
+          <div class="sect1">
+          <h2 id="_test_various_forms_of_auto_link_for_rspec_s100">Test various forms of auto-link for RSPEC. <a data-rspec-id="S100" class="rspec-auto-link">S100</a></h2>
+          <div class="sectionbody">
+          <div class="ulist">
+          <ul>
+          <li>
+          <p>See <a data-rspec-id="S100" class="rspec-auto-link">S100</a>, <a data-rspec-id="S101" class="rspec-auto-link">S101</a>,<a data-rspec-id="S102" class="rspec-auto-link">S102</a>.</p>
+          </li>
+          <li>
+          <p>See <a data-rspec-id="S101" class="rspec-auto-link">RSPEC-101</a></p>
+          </li>
+          <li>
+          <p>But not S103badref.</p>
+          </li>
+          <li>
+          <p>This is a code literal <code>S234</code> but this isn&#8217;t <a data-rspec-id="S567" class="rspec-auto-link">S567</a>.</p>
+          </li>
+          </ul>
+          </div>
+          <div class="paragraph">
+          <p>https://sonarsource.github.io/rspec/#/rspec/S100</p>
+          </div>
+          <div class="paragraph">
+          <p><a href="https://sonarsource.github.io/rspec/#/rspec/S100/cfamily" class="bare">https://sonarsource.github.io/rspec/#/rspec/S100/cfamily</a></p>
+          </div>
+          <div class="paragraph">
+          <p><a href="https://sonarsource.github.io/rspec/#/rspec/S100/cfamily" class="bare">https://sonarsource.github.io/rspec/#/rspec/S100/cfamily</a></p>
+          </div>
+          <div class="listingblock">
+          <div class="content">
+          <pre class="highlight"><code class="language-cpp" data-lang="cpp">int foo() {
+            // No auto-links in code!
+            auto S100 = 100;
+            auto U100 = 100u;
+            return S100 + U100;
+          }</code></pre>
+          </div>
+          </div>
+          <div class="paragraph">
+          <p>After snippet, See <a data-rspec-id="S100" class="rspec-auto-link">S100</a>.</p>
+          </div>
+          <div class="listingblock">
+          <div class="content">
+          <pre class="highlight"><code class="language-cpp" data-lang="cpp">int goo() {
+            // No auto-links in code!
+            // S100
+          }</code></pre>
+          </div>
+          </div>
+          <div class="paragraph">
+          <p>more ref: <a data-rspec-id="S200" class="rspec-auto-link">RSPEC-200</a>.</p>
+          </div>
+          </div>
+          </div>"
+        `);
 
         const s101Java = path.join(dstPath, 'S101', 'java-description.html');
         expect(fs.existsSync(s101Java)).toBeTruthy();
         const htmlS101Java = fs.readFileSync(s101Java);
         expect(htmlS101Java.toString()).toMatchInlineSnapshot(`
-"<div class=\\"sect1\\">
-<h2 id=\\"_description\\">Description</h2>
-<div class=\\"sectionbody\\">
-<div class=\\"paragraph\\">
-<p>Generic content
-Specific content
-See <a data-rspec-id=\\"S100\\" class=\\"rspec-auto-link\\">S100</a>.</p>
-</div>
-</div>
-</div>"
-`);
+          "<div class="sect1">
+          <h2 id="_description">Description</h2>
+          <div class="sectionbody">
+          <div class="paragraph">
+          <p>Generic content
+          Specific content
+          See <a data-rspec-id="S100" class="rspec-auto-link">S100</a>.</p>
+          </div>
+          </div>
+          </div>"
+        `);
 
         const s501Default = path.join(dstPath, 'S501', 'default-description.html');
         expect(fs.existsSync(s501Default)).toBeTruthy();
         const htmlS501Default = fs.readFileSync(s501Default);
         expect(htmlS501Default.toString()).toMatchInlineSnapshot(`
-"<div class=\\"sect1\\">
-<h2 id=\\"_description\\">Description</h2>
-<div class=\\"sectionbody\\">
-<div class=\\"paragraph\\">
-<p>Generic content, no active language</p>
-</div>
-</div>
-</div>"
-`);
+          "<div class="sect1">
+          <h2 id="_description">Description</h2>
+          <div class="sectionbody">
+          <div class="paragraph">
+          <p>Generic content, no active language</p>
+          </div>
+          </div>
+          </div>"
+        `);
       });
     });
   });
