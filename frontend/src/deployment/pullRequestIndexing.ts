@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Octokit } from '@octokit/rest';
-import Git from 'nodegit';
+import { simpleGit } from 'simple-git';
 import { logger as rootLogger } from './deploymentLogger';
 
 const logger = rootLogger.child({ source: path.basename(__filename) })
@@ -28,19 +28,17 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
     new Octokit({userAgent: 'rspec-tools', auth: process.env.GITHUB_TOKEN}):
     new Octokit({userAgent: 'rspec-tools'});
 
-  const repo = await (() => {
-    if (!fs.existsSync(path.join(tmpRepoDir, '.git'))) {
-      if (process.env.GITHUB_TOKEN) {
-        return Git.Clone.clone(`https://${process.env.GITHUB_TOKEN}@github.com/SonarSource/rspec/`, tmpRepoDir);
-      } else {
-        return Git.Clone.clone('https://github.com/SonarSource/rspec/', tmpRepoDir);
-      }
-    } else {
-      return Git.Repository.open(tmpRepoDir);
-    }
-  })();
-  const config = await repo.config();
-  await config.setString('remote.origin.fetch', '+refs/pull/*/head:refs/remotes/origin/pr/*');
+  const git = simpleGit();
+  
+  if (!fs.existsSync(path.join(tmpRepoDir, '.git'))) {
+    const repoUrl = process.env.GITHUB_TOKEN 
+      ? `https://${process.env.GITHUB_TOKEN}@github.com/SonarSource/rspec/`
+      : 'https://github.com/SonarSource/rspec/';
+    await git.clone(repoUrl, tmpRepoDir);
+  }
+  
+  const repo = simpleGit(tmpRepoDir);
+  await repo.addConfig('remote.origin.fetch', '+refs/pull/*/head:refs/remotes/origin/pr/*');
   await repo.fetch('origin');
 
   let page = 1;
@@ -59,12 +57,13 @@ export async function process_incomplete_rspecs(tmpRepoDir: string,
         continue;
       }
 
-      const pull = {rspec_id: found[1],
-                    url: pullData.html_url,
-                    branch: pullData.head.ref,
-                    pull_id: pullData.number};
-      const ref = await repo.getBranch('refs/remotes/origin/pr/' + pull.pull_id);
-      await repo.checkoutRef(ref);
+      const pull = {
+        rspec_id: found[1],
+        url: pullData.html_url,
+        branch: pullData.head.ref,
+        pull_id: pullData.number
+      };
+      await repo.checkout(`origin/pr/${pull.pull_id}`);
       const ruleDir = path.join(tmpRepoDir, 'rules', pull.rspec_id);
       if (fs.existsSync(ruleDir)) {
         try {

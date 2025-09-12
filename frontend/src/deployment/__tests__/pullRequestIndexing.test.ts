@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { process_incomplete_rspecs, PullRequest } from '../pullRequestIndexing';
-import Git from 'nodegit';
+import { simpleGit } from 'simple-git';
 import 'setimmediate';
 
 jest.mock('@octokit/rest', () => {
@@ -21,15 +21,24 @@ jest.mock('@octokit/rest', () => {
   }};
 });
 
+jest.mock('simple-git', () => ({
+  simpleGit: jest.fn(() => ({
+    clone: jest.fn(),
+    addConfig: jest.fn(),
+    fetch: jest.fn(),
+    checkout: jest.fn()
+  }))
+}));
+
 beforeEach(() => {
-  Git.Clone.clone = jest.fn();
-  let repo = {
-    config: () => ({ setString: (name: string, value: string) => {} }),
-    fetch: (remote: string) => {},
-    getBranch: (name: string) => {},
-    checkoutRef: (ref) => {}
+  const mockGit = {
+    clone: jest.fn(),
+    addConfig: jest.fn(),
+    fetch: jest.fn(),
+    checkout: jest.fn()
   };
-  Git.Clone.clone.mockReturnValueOnce(repo);
+  
+  (simpleGit as jest.Mock).mockReturnValue(mockGit);
 
   jest.spyOn(fs, 'existsSync').mockImplementation((fname) => {
     return fname.replace(/\\/g, '/').includes('rules/S');
