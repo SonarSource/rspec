@@ -1,47 +1,63 @@
 == Why is this an issue?
 
-In the interests of readability, code that can be simplified should be simplified. To that end, there are several ways ``++IEnumerable++`` language integrated queries (LINQ) can be simplified
+In the interests of readability, code that can be simplified should be simplified. To that end, there are several ways https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.ienumerable-1[IEnumerable] language integrated queries (LINQ) can be simplified.
+This not only improves readabilty but can also lead to improved performance.
 
-* Use ``++OfType++`` instead of using ``++Select++`` with ``++as++`` to type cast elements and then null-checking in a query expression to choose elements based on type.
-* Use ``++OfType++`` instead of using ``++Where++`` and the ``++is++`` operator, followed by a cast in a ``++Select++``
-* Use an expression in ``++Any++`` instead of ``++Where(element => [expression]).Any()++``.
-* Use ``++Count++`` instead of ``++Count()++`` when it's available.
-* Don't call ``++ToArray()++`` or ``++ToList()++`` in the middle of a query chain.
+== How to fix it
 
-Using ``++EntityFramework++`` may require enforcing client evaluations. Such queries should use ``++AsEnumerable()++`` instead of ``++ToArray()++`` or ``++ToList()++`` in the middle of a query chain.
+Simplify the LINQ expressions:
 
+* Use https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.oftype[OfType] instead of https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.select[Select] with the https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/type-testing-and-cast#as-operator[as operator] to type cast elements and then null-checking in a query expression to choose elements based on type.
+* Use `OfType` instead of using https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.where[Where] and the https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/type-testing-and-cast#is-operator[is operator], followed by a cast in a `Select`
+* Use an expression in `Any` instead of `Where(element => [expression]).Any()`.
+* Use the https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.list-1.count[Count] or https://learn.microsoft.com/en-us/dotnet/api/system.array.length[Length] properties instead of the https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.count[Count() method] when it's available (unless you use the predicate parameter of the method for filtering).
+* Don't call https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.toarray[ToArray()] or https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.tolist[ToList()] in the middle of a query chain.
 
-=== Noncompliant code example
+Using https://learn.microsoft.com/en-us/ef/[Entity Framework] may require enforcing client evaluations. Such queries should use https://learn.microsoft.com/en-us/dotnet/api/system.linq.enumerable.asenumerable[AsEnumerable()] instead of `ToArray()` or `ToList()` in the middle of a query chain.
 
-[source,csharp]
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
 ----
-seq1.Select(element => element as T).Any(element => element != null);  // Noncompliant; use OfType
-seq2.Select(element => element as T).Any(element => element != null && CheckCondition(element));  // Noncompliant; use OfType
-seq3.Where(element => element is T).Select(element => element as T); // Noncompliant; use OfType
-seq4.Where(element => element is T).Select(element => (T)element); // Noncompliant; use OfType
-seq5.Where(element => [expression]).Any();  // Noncompliant; use Any([expression])
+public void Foo(IEnumerable<Vehicle> seq, List<int> list)
+{
+    var result1 = seq.Select(x => x as Car).Any(x => x != null);               // Noncompliant; use OfType
+    var result2 = seq.Select(x => x as Car).Any(x => x != null && x.HasOwner); // Noncompliant; use OfType before calling Any
+    var result3 = seq.Where(x => x is Car).Select(x => x as Car);              // Noncompliant; use OfType
+    var result4 = seq.Where(x => x is Car).Select(x => (Car)x);                // Noncompliant; use OfType
+    var result5 = seq.Where(x => x.HasOwner).Any();                            // Noncompliant; use Any([predicate])
 
-var num = seq6.Count(); // Noncompliant
-var arr = seq.ToList().ToArray(); //Noncompliant
-var count = seq.ToList().Count(x=>[condition]); //Noncompliant
-----
-
-
-=== Compliant solution
-
-[source,csharp]
-----
-seq1.OfType<T>().Any();
-seq2.OfType<T>().Any(element => CheckCondition(element));
-seq3.OfType<T>();
-seq4.OfType<T>();
-seq5.Any(element => [expression])
-
-var num = seq6.Count;
-var arr = seq.ToArray();
-var count = seq.Count(x=>[condition]); 
+    var num = list.Count();                                                    // Noncompliant; use the Count property
+    var arr = seq.ToList().ToArray();                                          // Noncompliant; ToList is not needed
+    var count = seq.ToList().Count(x => x.HasOwner);                           // Noncompliant; ToList is not needed
+}
 ----
 
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+public void Foo(IEnumerable<Vehicle> seq, List<int> list)
+{
+    var result1 = seq.OfType<Car>().Any();
+    var result2 = seq.OfType<Car>().Any(x => x.HasOwner);
+    var result3 = seq.OfType<Car>();
+    var result4 = seq.OfType<Car>();
+    var result5 = seq.Any(x => x.HasOwner);
+
+    var num = list.Count;
+    var arr = seq.ToArray();
+    var count = seq.Count(x => x.HasOwner);
+}
+----
+
+== Resources
+
+=== Documentation
+
+* https://learn.microsoft.com/en-us/dotnet/csharp/linq[Language Integrated Queries in C#]
 
 ifdef::env-github,rspecator-view[]
 
@@ -49,11 +65,15 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+* Use "OfType<T>()" here instead.
+* Drop "Where" and move the condition into the "Any".
+* Drop "ToArray" from the middle of the call chain.
+* Replace "ToArray" with "AsEnumerable" in the middle of the call chain.
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
 endif::env-github,rspecator-view[]

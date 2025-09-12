@@ -1,4 +1,63 @@
-include::../rule.adoc[]
+== Why is this an issue?
+
+Because ``++reinterpret_cast++`` does not perform any safety validations, it is capable of dangerous conversions between unrelated types, often leading to undefined behavior.
+
+In some cases, `reinterpret_cast` can be simply replaced by a more focused cast, such as `static_cast`.
+
+If the goal is to reinterpret the binary representation of an object as a value of a different type, `reinterpret_cast` leads to undefined behavior. 
+Before {cpp}20, the correct way is to use `memcpy` to copy the object's bits.
+Since {cpp}20, a better option is available: ``++std::bit_cast++`` allows the reinterpretation of a value as being of a different type of the same length, preserving its binary representation (see also S6181).
+
+
+This rule raises an issue when ``++reinterpret_cast++`` is used.
+
+
+=== Noncompliant code example
+
+[source,cpp]
+----
+  class A { public: virtual ~A(){} };
+  class B : public A { public: void doSomething(){} };
+
+  void func(A *a, float f) {
+    B* b = reinterpret_cast<B*>(a) // Noncompliant, another cast is more appropriate
+    b->doSomething();
+    
+    static_assert(sizeof(float) == sizeof(uint32_t));
+    uint32_t x = reinterpret_cast<uint32_t&>(f); // Noncompliant and undefined behavior
+  }
+----
+
+
+=== Compliant solution
+
+[source,cpp]
+----
+  class A { public: virtual ~A(){} };
+  class B : public A { public: void doSomething(){} };
+
+  void func(A *a, float f) {
+    if (B* b = dynamic_cast<B*>(a)) {
+      b->doSomething();
+    }
+
+    static_assert(sizeof(float) == sizeof(uint32_t));
+    uint32_t x = std::bit_cast<uint32_t>(f);
+    // Or, before C++20
+    uint32_t y;
+    std::memcpy(&y, &f, sizeof(float));
+  }
+----
+
+=== Exceptions
+
+Since those conversions have a well-defined behavior, this rule does not raise an issue when `reinterpret_cast` is used to convert a pointer to:
+
+* ``++char*++``, ``++unsigned char*++``, ``++std::byte*++`` or `const` variants of these types, 
+* `std::intptr_t,` `std::unintptr_t`, or another integer type with sufficient size.
+  
+include::../see.adoc[]
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -6,13 +65,20 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::../message.adoc[]
+=== Message
 
-include::../highlighting.adoc[]
+Replace "reinterpret_cast" with a safer cast or refactor the code to avoid such an unsafe cast.
+
+
+=== Highlighting
+
+``++reinterpret_cast++`` keyword
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
 include::../comments-and-links.adoc[]
+
 endif::env-github,rspecator-view[]

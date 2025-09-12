@@ -1,0 +1,62 @@
+== How to fix it in Bicep
+
+In Bicep, it is recommended to use modules instead of a `Microsoft.Resources/deployments` resource. Modules allow for reuse, improve readability by encapsulating different parts of a deployment and therefore reduce the risk for errors. They also do not leakage of secure parameters from a parent resource.
+
+If it is not possible to use modules, this issue can be fixed by setting `properties.expressionEvaluationOptions.scope` to `Inner` in the `Microsoft.Resources/deployments` resource. By setting this property, template evaluations are limited to the scope of the nested template. This makes it impossible to expose secure parameters defined in the parent template.
+
+=== Code examples
+==== Noncompliant code example
+
+[source,bicep,diff-id=201,diff-type=noncompliant]
+----
+@secure()
+param adminUsername string = newGuid()
+
+resource example 'Microsoft.Resources/deployments@2022-09-01' = {
+  name: 'example-deployment'
+  properties: {
+    // Noncompliant: expressionEvaluationOptions is missing (defaults to 'Outer')
+    mode: 'Incremental'
+    template: {
+      '$schema': 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#'
+      contentVersion: '1.0.0.0'
+      resources: [
+        {
+          apiVersion: '2023-03-01'
+          type: 'Microsoft.Compute/virtualMachines'
+          name: 'example-vm'
+          properties: {
+            osProfile: {
+              adminUsername: adminUsername
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+==== Compliant solution
+
+[source,bicep,diff-id=201,diff-type=compliant]
+----
+// main.bicep
+module example 'vm.bicep' = {
+  name: 'example-deployment'
+}
+
+// vm.bicep
+@secure()
+param adminUsername string = newGuid()
+
+resource vmExample 'Microsoft.Compute/virtualMachines@2023-03-01' = {
+  name: 'example-vm'
+  properties: {
+    osProfile: {
+      adminUsername: adminUsername
+    }
+  }
+}
+
+----

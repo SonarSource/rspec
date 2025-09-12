@@ -6,15 +6,16 @@ import { buildIndexStore, buildSearchIndex } from '../deployment/searchIndex';
 import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { fetchMockObject, normalize } from '../testutils';
+import { vi } from 'vitest';
 
 // The CI system is a bit slow. Increase timeout to avoid random failures.
-jest.setTimeout(20000);
+vi.setConfig({ testTimeout: 20000 });
 
 function genMockUrls() {
     const rulePath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
     const [indexStore, indexAggregates] = buildIndexStore(rulePath);
     const searchIndex: lunr.Index = buildSearchIndex(indexStore);
-    const rootUrl = process.env.PUBLIC_URL;
+    const rootUrl = '/rspec';
     let mockUrls: {[index: string]: any} = {};
     mockUrls[`${rootUrl}/rules/rule-index.json`] = {json: normalize(searchIndex)};
     mockUrls[`${rootUrl}/rules/rule-index-store.json`] = {json: normalize(indexStore)};
@@ -30,12 +31,12 @@ function genMockUrls() {
 let fetchMocker = fetchMockObject(genMockUrls());
 
 beforeEach(() => {
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMocker.mock as jest.Mocked<typeof fetch>);
+    vi.spyOn(global, 'fetch').mockImplementation(fetchMocker.mock as any);
 });
 
 afterEach(() => {
     fetchMocker.reset();
-    global.fetch.mockClear();
+    vi.mocked(global.fetch).mockClear();
 });
 
 async function renderDefaultSearchPageWithHistory() {
@@ -209,12 +210,11 @@ test('narrows search by language', async () => {
 test('narrows search by quality profile', async () => {
     const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    // Select MISRA 2008 recommended and Sonar way profiles - only S1000 and S3457 are in these profiles
+    // Select Sonar way profile - S1000, S1007, S3457 and S3649 are in this profile
     fireEvent.mouseDown(within(getByTestId('rule-default-quality-profile')).getByRole('button'));
     const listbox = within(getByRole('listbox'));
     fireEvent.click(listbox.getByTestId('rule-qual-profile-Sonar way'));
-    fireEvent.click(listbox.getByTestId('rule-qual-profile-MISRA C++ 2008 recommended'));
-    expect(queryByText(/rules found: 2/i)).not.toBeNull();
+    expect(queryByText(/rules found: 3/i)).not.toBeNull();
     expect(queryByTestId('search-hit-S987')).toBeNull();
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByTestId('search-hit-S3457')).not.toBeNull();

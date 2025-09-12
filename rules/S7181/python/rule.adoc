@@ -1,0 +1,68 @@
+This rule raises an issue when a PySpark `Window` function is used without defining a frame.
+
+== Why is this an issue?
+
+In PySpark, a window defines a set of rows related to the current row, enabling calculations like running totals or rankings across these rows. It is useful for performing complex data analysis tasks by allowing computations over partitions of data while preserving the context of each row.
+
+Depending on the operation you're willing to compute, you need to define a frame for the window. A frame defines the range of rows that are used in each computation. If you don't define a frame, a default frame is used.
+
+The default frame that will be used depends on whether ordering is defined. When ordering is not defined, an unbounded window frame `(rowFrame, unboundedPreceding, unboundedFollowing)` is used by default. When ordering is defined, a growing window frame `(rangeFrame, unboundedPreceding, currentRow)` is used by default.
+
+This can lead to unexpected results if the default frame is not what you intended. It is recommended to always define a frame when using a window function to avoid confusion and ensure the expected results.
+
+== How to fix it
+
+In order to fix this issue, make sure to explicitly define the frame when using a window function. For instance, you can use the `rowsBetween` or the `rangeBetween` methods to define the frame.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from pyspark.sql import SparkSession
+from pyspark.sql.window import Window
+from pyspark.sql.functions import sum
+
+spark = SparkSession.builder.appName("Example").getOrCreate()
+
+data = [(1, "A", 100), (2, "A", 200), (3, "B", 300)]
+df = spark.createDataFrame(data, ["id", "category", "value"])
+
+window_spec = Window.partitionBy("category").orderBy("id") # Noncompliant: No explicit frame specified
+
+
+df.withColumn("cumulative_sum", sum("value").over(window_spec)).show()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pyspark.sql import SparkSession
+from pyspark.sql.window import Window
+from pyspark.sql.functions import col, sum
+
+spark = SparkSession.builder.appName("Example").getOrCreate()
+
+data = [(1, "A", 100), (2, "A", 200), (3, "B", 300)]
+df = spark.createDataFrame(data, ["id", "category", "value"])
+
+window_spec = Window.partitionBy("category").orderBy("id").rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing) # Compliant: Explicit frame specified
+df.withColumn("cumulative_sum", sum("value").over(window_spec)).show()
+----
+
+== Resources
+=== Documentation
+* PySpark Documentation - https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.Window.html[PySpark Documentation]
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Specify a frame for this PySpark Window function.
+
+endif::env-github,rspecator-view[]

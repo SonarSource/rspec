@@ -1,0 +1,148 @@
+This rule raises an issue if a division of `sizeof` is used to compute the size of an array,
+that could be replaced with `std::size` or `std::ranges::size` (since {cpp}20).
+
+== Why is this an issue?
+
+C-arrays do not expose their number of elements as a data member or a member function.
+This information is present in the type system.
+
+In {cpp} it can be extracted by calling `std::size` (introduced in {cpp}17) or `std::ranges::size` (introduced in {cpp}20),
+as these functions support C-arrays in addition to containers and ranges.
+
+The historical way, inherited from C, is to divide the size of the array by the size of the element type.
+However, using this solution does not convey the intent of the code as clearly,
+and is prone to producing incorrect values when:
+ 
+ * the element type is changed but the `sizeof` code was not updated,
+ * `sizeof` was applied to pointer produced from array decay instead of the array itself.
+
+This rule raises an issue when the division of `sizeof` is used to compute the number of elements in an array.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+int carr[10]; 
+
+void process() {
+  std::size_t size = sizeof(carr) / sizeof(int); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+int carr[10]; 
+
+void process() {
+  std::size_t size = std::size(carr); // Compliant
+}
+----
+
+The rule also detects cases where the `sizeof` division is expanded from a macro:
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+int carr[10]; 
+
+void process() {
+  std::size_t size = ARRAY_SIZE(carr); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+int carr[10]; 
+
+void process() {
+  std::size_t size = std::size(carr); // Compliant
+}
+----
+
+Once all uses of the `ARRAY_SIZE` macro have been removed, the macro should also be removed. 
+However doing so is not required to address the issues raised by this rule,
+as this allows code the be fixed incrementally.
+
+=== `std::array` is also covered
+
+This rule will also raise an issue when the `sizeof` division, 
+is used to compute the size of the `std::array` type.
+
+Such code may be leftover from the replacement of C-array,
+without updating all necessary call sites (see S5954).
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+std::array<int, 10> arr; 
+
+void process() {
+  std::size_t size1 = sizeof(arr) / sizeof(int); // Noncompliant
+  std::size_t size2 = ARRAY_SIZE(arr); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+std::array<int, 10> arr; 
+
+void process() {
+  std::size_t size1 = std::size(arr); // Compliant
+  std::size_t size2 = std::size(arr); // Compliant
+}
+----
+
+Alternatively, the `size` member function may be invoked in a non-generic code.
+
+[source,cpp]
+----
+#define ARRAY_SIZE(arr) sizeof(arr) / sizeof((arr)[0])
+
+std::array<int, 10> arr; 
+
+void process() {
+  std::size_t size1 = arr.size(); // Compliant
+  std::size_t size2 = arr.size(); // Compliant
+}
+----
+
+=== How does this work?
+
+The implementation of `std::size` for arrays relies on template argument deduction
+to deduce the size of the array from the parameter that references an array type:
+
+[source,cpp]
+----
+template<typename T, std::size_t N>
+constexpr N my_size(T const& (arr)[N]) {
+  return N;
+}
+
+int arr[10];
+std::size_t s = my_size(arr); // Deduces: "N" == 10
+----
+
+== Resources
+
+=== Related rules
+
+* S5945 - suggest replacing C-arrays with `std::array` and `std::vector`
+

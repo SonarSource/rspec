@@ -1,107 +1,145 @@
-== Why is this an issue?
+include::../why-general.adoc[]
 
-include::../description.adoc[]
 
-=== Noncompliant code example
+The examples below show typical situations in which shadowing can occur.
 
-[source,cpp]
-----
-class Foo
-{
-public:
-  void doSomething();
-
-private: 
-  int myField;
-};
-
-void Foo::doSomething()
-{
-    int myField = 0; // Noncompliant
-    // ...
-}
-----
-
+ * Parameter shadowing
++
 [source,cpp]
 ----
 void f(int x, bool b) {
-  int y = 4; 
+  int y = 4;
   if (b) {
-    int x = 7; // Noncompliant
-    int y = 9; // Noncompliant
+    int x = 7; // Noncompliant: the parameter "x" is shadowed.
+    int y = 9; // Noncompliant: the local variable "y" is shadowed.
     // ...
   }
 }
 ----
 
-=== Compliant solution
-
+* Member variable shadowing
++
 [source,cpp]
 ----
-class Foo
-{
-public:
-  void doSomething();
-
-private: 
+class Foo {
+private:
   int myField;
-};
 
-void Foo::doSomething()
-{
-    int myInternalField = 0; // Compliant
+public:
+  void doSomething() {
+    int myField = 0; // Noncompliant: Foo::myField is shadowed.
     // ...
-}
+  }
+};
 ----
 
-
+* Global variable shadowing
++
 [source,cpp]
 ----
-void f(int x, bool b) {
-  int y = 4; 
-  if (b) {
-    int z = 7; // Better yet: Use meaningful names
-    int w = 9;
-    // ...
+namespace ns {
+  int state;
+
+  void bar() {
+    int state = 0; // Noncompliant: the namespace variable is shadowed.
   }
 }
 ----
 
 === Exceptions
 
-It is common in a constructor to have constructor arguments shadowing the fields that they will initialize. This pattern avoids the need to select new names for the constructor arguments, and will not be reported by this rule:
+It is common practice to have constructor arguments shadowing the fields they initialize in the _member initializer list_.
+This pattern avoids the need to select new names for the constructor arguments and will not be reported by this rule.
 
+[source,cpp]
 ----
-class Point{
+class Point {
 public:
-  Point(int x, int y) : x(x), y(y) {} // Compliant by exception
+  Point(int x, int y)
+    : x(x) // Compliant by exception: the parameter "x" is used
+           // in the member initializer list.
+  {
+    y = y; // Noncompliant: the parameter is assigned to itself
+           // and the member "y" is not initialized.
+  }
+
 private:
   int x;
   int y;
 };
 ----
 
+=== Caveats
+
+==== Shadowing in `if`, `else if`, and `else`
+
+Variables can be introduced in the condition of an `if` statement.
+Their scope includes the optional `else` statement, which may be surprising.
+Consequently, such variables can be shadowed in an `else if` statement.
+This can be even more confusing and result in unintended behavior, as illustrated in this example:
+
+[source,cpp]
+----
+using ExpectedData = std::expected<std::string, std::error_code>;
+
+if (ExpectedData e = readData()) {
+  printMessage(e.value());
+} else if (ExpectedData e = readFallbackSource()) { // Noncompliant
+  printMessage(e.value());
+} else {
+  logError(
+    "Initial source failed with: ",
+    e.error() // Contrary to the intention, the second "e" is used.
+  );
+}
+----
+
+==== Shadowing of inaccessible declarations
+
+This rule also raises issues on some variables, although they do not shadow another variable according to a strict interpretation of the {cpp} language. There are mainly two reasons for this.
+
+ . Primarily, the readability and maintainability of the code are impaired.
+   Readers need an advanced understanding of the {cpp} language to understand the subtle differences.
+
+ . Secondly, a small change can lead to actual shadowing.
+   This can lead to subtle bugs when updating the code.
+
+Here is an example with nested classes:
+
+[source,cpp]
+----
+class A {
+public:
+  int x;
+  class B;
+};
+
+class A::B {
+  void f(int x) { // Noncompliant: The parameter "x" shadows the field "A::x".
+    // ...
+  }
+};
+----
+
+In the above example, `A::x` cannot be used from `A::B` member functions because it is not a `static` field.
+This can lead to surprising effects when moving code around, particularly if the declaration of `A::x` was changed from `int x;` to `static int x;`.
+
+You should always avoid shadowing to avoid any confusion and increase the maintainability of your code.
+
 == Resources
+
+=== External coding guidelines
 
 * MISRA C:2004, 5.2 - Identifiers in an inner scope shall not use the same name as an identifier in an outer scope, and therefore hide that identifier
 * MISRA {cpp}:2008, 2-10-2 - Identifiers declared in an inner scope shall not hide an identifier declared in an outer scope
 * MISRA C:2012, 5.3 - An identifier declared in an inner scope shall not hide an identifier declared in an outer scope
-* https://wiki.sei.cmu.edu/confluence/display/c/DCL01-C.+Do+not+reuse+variable+names+in+subscopes[CERT, DCL01-C.] - Do not reuse variable names in subscopes
-* https://wiki.sei.cmu.edu/confluence/display/java/DCL51-J.+Do+not+shadow+or+obscure+identifiers+in+subscopes[CERT, DCL51-J.] - Do not shadow or obscure identifiers in subscopes
 
-ifdef::env-github,rspecator-view[]
+=== Standards
 
-'''
-== Implementation Specification
-(visible only on this page)
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/DCL01-C.+Do+not+reuse+variable+names+in+subscopes[DCL01-C. Do not reuse variable names in subscopes]
 
-include::../message.adoc[]
+=== Related rules
 
-include::../highlighting.adoc[]
+* S2387 - Child class fields should not shadow parent class fields
 
-'''
-== Comments And Links
-(visible only on this page)
-
-include::../comments-and-links.adoc[]
-endif::env-github,rspecator-view[]
+include::../rspecator.adoc[]

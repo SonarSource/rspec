@@ -1,35 +1,148 @@
+Size argument should be based on the size of the destination buffer to to prevent buffer overflows.
+
 == Why is this an issue?
 
-Size argument of ``++strncat++``, ``++strlcat++`` and ``++strlcpy++`` should define the size of the destination to prevent buffer overflow.
+The string manipulation functions ``++strncat++``, ``++strlcat++`` and ``++strlcpy++`` require a size argument that describes how many bytes from the source buffer are used at most.
+In many situations the size of the source buffer is unknown, which is why the size argument for these functions should be based on the size of the destination buffer.
+This helps to prevent buffer overflows.
 
-
-Moreover, ``++strncat++`` always adds a terminating null character at the end of the appended characters so the size argument should be smaller than the size of the destination to let enough space for it.
-
-
-=== Noncompliant code example
+Note that ``++strncat++`` always adds a terminating null character at the end of the appended characters; therefore, the size argument should be smaller than the size of the destination to leave enough space for the null character.
 
 [source,cpp]
 ----
-void f(char* src) {
-  char dest[10];
-  strlcpy(dest, src, sizeof(src)); // Noncompliant; size argument is the size of the source instead of the size of the destination
+#include <stdio.h>
+#include <string.h>
 
-  strncat(dest, src, sizeof(src)); // Noncompliant; size of the source instead of the size of the destination
-  strncat(dest, src, sizeof(dest)); // Noncompliant; size argument is too large  
+void foo(const char *src) {
+  char dst[10] = {0};
+  strlcpy(dst, src, sizeof(src)); // Noncompliant: size of destination should be used.
+  printf("%s", dst);
 }
 ----
 
 
-=== Compliant solution
+=== What is the potential impact?
+
+By using the source buffer's size to determine the size argument for ``++strncat++``, ``++strlcat++`` or ``++strlcpy++``, the program becomes vulnerable to buffer overflows which pose a security risk.
+
+
+== How to fix it
+
+To prevent potential buffer overflows, use the size of the destination buffer to determine the correct size argument for ``++strncat++``, ``++strlcat++`` and ``++strlcpy++``.
+
+=== Going the extra mile
+
+Buffer overflows occur when a program writes data beyond the boundaries of a buffer and can lead to memory corruption and potential security vulnerabilities.
+Attackers can use buffer overflows to overwrite critical data, execute arbitrary code, or gain unauthorized access to a system.
+To mitigate this risk, developers must carefully manage buffer sizes (, use secure coding practices, and employ techniques like input validation and bounds checking).
+
+In {cpp}, manual string, i.e., buffer manipulations are considered a code smell.
+Instead, the `std::string` type should be used to manage buffers, which guarantees safe buffer manipulations.
+
+Instead of manually concatenating two buffers using `strncat`, for instance, `std::string` allows this operation to be performed in a much more convenient manner as shown in the following code:
 
 [source,cpp]
 ----
-void f(char* src) {
-  char dest[10];
-  strncat(dest, src, sizeof(dest) - 1); // Compliant  
+#include <iostream>
+#include <string>
+
+void buz(std::string const &s) {
+  std::string t = "Hello, " + s;
+  std::cout << t << '\n';
 }
 ----
- 
+
+In addition, the `std::format` function allows one to format strings according to a user-specified format and returns the result as a string as shown in what follows:
+
+[source, cpp]
+----
+#include <format>
+#include <iostream>
+#include <string>
+
+void tar(std::string const &s) {
+  std::string t = std::format("Hello, World! Greetings {}\n", s);
+  std::cout << t << '\n';
+}
+----
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <string.h>
+
+void foo(const char *src) {
+  char dst[10] = {0};
+  strlcpy(dst, src, sizeof(src)); // Noncompliant: size of `dst` should be used.
+  printf("%s", dst);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <stdio.h>
+#include <string.h>
+
+void foo(const char *src) {
+  char dst[10] = {0};
+  // `strlcpy` copies up to size - 1 characters from the NUL-terminated string
+  // src to dst, NUL-terminating the result.
+  strlcpy(dst, src, sizeof(dst)); // Compliant: using `dst`'s size avoid prevents buffer overflows.
+  printf("%s", dst);
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <string.h>
+
+void bar(const char *src) {
+  char dst[256] = "Hello, ";
+  strncat(dst, src, sizeof(src)); // Noncompliant: incorrect size used. 
+  printf("%s\n", dst);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <stdio.h>
+#include <string.h>
+
+void bar(const char *src) {
+  char dst[256] = "Hello, ";
+  // `strncat` always adds a terminating null character at the end of the appended
+  // characters, which is the reason for the `- 1`.
+  strncat(dst, src, sizeof(dst) - strlen(dst) - 1); // Compliant: uses only `dst` to compute size.
+  printf("%s\n", dst);
+}
+----
+
+== Resources
+
+=== Conference presentations
+
+* CppCon 2018 - https://www.youtube.com/watch?v=0S0QgQd75Sw&ab_channel=CppCon[Software Vulnerabilities in C and {cpp}]
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/STR31-C.+Guarantee+that+storage+for+strings+has+sufficient+space+for+character+data+and+the+null+terminator[STR31-C. Guarantee that storage for strings has sufficient space for character data and the null terminator]
+* CWE - https://cwe.mitre.org/data/definitions/121[CWE-121 Stack-based Buffer Overflow]
+* CWE - https://cwe.mitre.org/data/definitions/122[CWE-122 Heap-based Buffer Overflow]
+* CWE - https://cwe.mitre.org/data/definitions/676[CWE-676 Use of Potentially Dangerous Function]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222612[Application Security and Development: V-222612] - The application must not be vulnerable to overflow attacks.
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -37,6 +150,9 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+the value of the size argument to "XXX" is wrong
+
 
 endif::env-github,rspecator-view[]

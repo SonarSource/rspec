@@ -1,20 +1,76 @@
+The ``++template++`` parameter for creating temporary files or directories must contain at least six trailing "X"s to ensure uniqueness.
+
 == Why is this an issue?
 
-``++mktemp++``, ``++mkstemp++``, ``++mkstemps++`` or ``++mkdtemp++`` are useful functions to create temporary files and directories. They accept a ``++template++`` parameter which defines the path where the file should be created and which should contain at least six trailing "X"s to ensure the uniqueness of the filename.
+The standard C library provides several functions to create temporary files and directories.
+These functions include ``++mktemp++``, ``++mkstemp++``, ``++mkstemps++`` and ``++mkdtemp++``, and they accept as a parameter a ``++template++`` that defines the path where the file (or directory) should be created.
+The filename part of the ``++template++`` must contain at least six trailing "X"s to ensure the uniqueness of the filename, since these "X"'s are replaced with a string that makes the filename unique.
 
-
-=== Noncompliant code example
-
-[source,cpp]
-----
-mkstemp("/tmp/file_XXXX"); // Noncompliant
-----
-
-
-=== Compliant solution
+Note that the ``++template++`` parameter will be modified and therefore, it may not be a string constant, but should be declared as a character array, instead.
 
 [source,cpp]
 ----
-mkstemp("/tmp/file_XXXXXX"); // Compliant
+#include <stdio.h>
+#include <stdlib.h>
+
+int create_tmp_file() {
+  char tmp_name[] = "example_XXXXX"; // `template` parameter only contains five "X"s
+  printf("raw template: %s\n", tmp_name);
+  int fd = mkstemp(tmp_name); // Noncompliant: `mkstemp` will fail due to an invalid template parameter.
+  if (fd == -1) {
+    perror("mkstemp failed");
+    return 1;
+  }
+  printf("unique name: %s\n", tmp_name);
+  return 0;
+}
 ----
 
+=== What is the potential impact?
+
+If the last six characters of the ``++template++`` parameter are different from "XXXXXX", ``++mktemp++``, ``++mkstemp++``, ``++mkstemps++`` and ``++mkdtemp++`` will fail to create the desired unique temporary file or directory.
+
+
+== How to fix it
+
+Ensure that the ``++template++`` parameter ends on at least six "X"'s, i.e., "XXXXXX".
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+int create_tmp_file() {
+  char tmp_name[] = "/tmp/example_XXXXX";
+  int fd = mkstemp(tmp_name); // Noncompliant: `mkstemp` will fail due to an invalid template parameter.
+  if (fd == -1) {
+    perror("mkstemp failed");
+    return 1;
+  }
+  return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+int create_tmp_file() {
+  char tmp_name[] = "/tmp/example_XXXXXX";
+  int fd = mkstemp(tmp_name); // Compliant: template parameter ends on six "X"s.
+  if (fd == -1) {
+    perror("mkstemp failed");
+    return 1;
+  }
+  printf("unique name: %s\n", tmp_name); // May print "/tmp/example_hNjl9G"
+  return 0;
+}
+----

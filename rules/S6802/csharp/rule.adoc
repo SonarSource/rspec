@@ -1,0 +1,175 @@
+== Why is this an issue?
+
+In Blazor, using https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#lambda-expressions[lambda expressions] as https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#lambda-expressions[event handlers] when the UI elements are rendered in a loop can lead to negative user experiences and performance issues. This is particularly noticeable when rendering a large number of elements.
+
+The reason behind this is that Blazor rebuilds all lambda expressions within the loop every time the UI elements are rendered.
+
+== How to fix it
+
+Ensure to not use a delegate in elements rendered in loops, you can try:
+
+* using a collection of objects containing the delegate as an https://learn.microsoft.com/en-us/dotnet/api/system.action[Action],
+* or extracting the elements into a dedicated component and using an https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#eventcallback[EventCallback] to call the delegate
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+@for (var i = 1; i < 100; i++)
+{
+    var buttonNumber = i;
+
+    <button @onclick="@(e => DoAction(e, buttonNumber))"> @* Noncompliant *@
+        Button #@buttonNumber
+    </button>
+}
+
+@code {
+    private void DoAction(MouseEventArgs e, int button)
+    {
+        // Do something here
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+@foreach (var button in Buttons)
+{
+    <button @key="button.Id" @onclick="button.Action">  @* Compliant *@
+        Button #@button.Id
+    </button>
+}
+
+@code {
+    private List<Button> Buttons { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            var button = new Button();
+
+            button.Action = (e) => DoAction(e, button);
+
+            Buttons.Add(button);
+        }
+    }
+
+    private void DoAction(MouseEventArgs e, Button button)
+    {
+        // Do something here
+    }
+
+    private class Button
+    {
+        public string? Id { get; } = Guid.NewGuid().ToString();
+        public Action<MouseEventArgs> Action { get; set; } = e => { };
+    }
+}
+----
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+@* Component.razor *@
+
+@for (var i = 1; i < 100; i++)
+{
+    var buttonNumber = i;
+
+    <button @onclick="@(e => DoAction(e, buttonNumber))"> @* Noncompliant *@
+        Button #@buttonNumber
+    </button>
+}
+
+@code {
+    private void DoAction(MouseEventArgs e, int button)
+    {
+        // Do something here
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+@* MyButton.razor *@
+
+<button @onclick="OnClickCallback">
+    @ChildContent
+</button>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnClick { get; set; }
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    private void OnClickCallback()
+    {
+        OnClick.InvokeAsync(Id);
+    }
+}
+
+@* Component.razor *@
+
+@for (var i = 1; i < 100; i++)
+{
+    var buttonNumber = i;
+    <MyButton Id="buttonNumber" OnClick="DoAction">
+        Button #@buttonNumber
+    </MyButton>
+}
+
+@code {
+    private void DoAction(int button)
+    {
+        // Do something here
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/blazor/performance#avoid-recreating-delegates-for-many-repeated-elements-or-components[ASP.NET Core Blazor performance best practices]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#lambda-expressions[ASP.NET Core Blazor event handling - Lambda expressions]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#eventcallback[Event handling - EventCallback Struct]
+
+=== Benchmarks
+
+The results were generated with the help of https://github.com/dotnet/BenchmarkDotNet[BenchmarkDotNet] and https://github.com/egil/Benchmark.Blazor/tree/main[Benchmark.Blazor]:
+
+[options="header"]
+|===
+| Method      | NbButtonRendered | Mean       | StdDev    | Ratio
+| UseDelegate | 10               |   6.603 us | 0.0483 us |  1.00
+| UseAction   | 10               |   1.994 us | 0.0592 us |  0.29
+| UseDelegate | 100              |  50.666 us | 0.5449 us |  1.00
+| UseAction   | 100              |   2.016 us | 0.0346 us |  0.04
+| UseDelegate | 1000             | 512.513 us | 9.7561 us | 1.000
+| UseAction   | 1000             |   2.005 us | 0.0243 us | 0.004
+|===
+
+Hardware configuration:
+
+[source,text]
+----
+BenchmarkDotNet v0.13.9+228a464e8be6c580ad9408e98f18813f6407fb5a, Windows 10 (10.0.19045.3448/22H2/2022Update)
+12th Gen Intel Core i7-12800H, 1 CPU, 20 logical and 14 physical cores
+.NET SDK 8.0.100-rc.1.23463.5
+  [Host]   : .NET 7.0.11 (7.0.1123.42427), X64 RyuJIT AVX2
+  .NET 7.0 : .NET 7.0.11 (7.0.1123.42427), X64 RyuJIT AVX2
+----

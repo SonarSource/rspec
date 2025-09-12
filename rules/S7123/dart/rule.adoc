@@ -1,0 +1,168 @@
+A https://dart.dev/language/built-in-types[literal] used as an argument to a constructor of an https://api.flutter.dev/flutter/meta/immutable-constant.html[`@immutable`] class should be marked as https://dart.dev/language/variables#final-and-const[`const`].
+
+== Why is this an issue?
+
+The `meta.dart` package defines an `@immutable` annotation that can be used to mark classes that are https://en.wikipedia.org/wiki/Immutable_object[immutable], meaning that all their instance variables, directly defined or inherited, have to be https://dart.dev/language/variables#final-and-const[`final`], that is, once the instance is created, it cannot be modified.
+
+However, like any other annotation, the `@immutable` annotation only provides information to the developer using the class and to developer tools such as the analyzer package, and it does not enforce any constraint.
+
+Therefore, there is nothing that prevents a developer from
+
+* defining a non-`const` constructor of an `@immutable` class (named or unnamed)
+* passing non-`const` literals to such a constructor
+
+An example is shown in the code below:
+
+[source,dart]
+----
+import 'package:meta/meta.dart';
+
+@immutable
+class MultiDimensionalPoint {
+  final List<int> coordinates;
+  MultiDimensionalPoint(this.coordinates); // Non-const constructor
+}
+
+void main() {
+  var p = MultiDimensionalPoint([1, 2, 3]);
+  p.coordinates[0] = 4; // This is allowed, and won't raise any error
+  print(p.coordinates); // Will print [4, 2, 3]
+}
+----
+
+This scenario can lead to confusion and bugs, since a developer might not realized the class is designed with immutability in mind, and may modify the instance after creation, as in the example above.
+
+Even when the immutability design constraint is respected, failing to specify the `const` constraint on a literal used as an argument to a constructor of an `@immutable` class will lead to subpar performance, as the Dart compiler will not create compile-time constants in a non-constant context.
+
+=== Exceptions
+
+Notice that the `const` constraint is not required when the literal is used in a *const context*, as the Dart compiler is already building a compile-time constant for a larger expression including the object, and a compile-time constant can only be built of other compile-time constants. See rule S7112 for further details about why it's important to call `const` constructors with the `const` keyword or in a `const` context.
+
+Rule S7113 helps in this regard, by enforcing the `const` constraint on the constructor itself, which in turns will oblige all constructor parameters to be `const`, whether they are literals or not.
+
+[source,dart]
+----
+import 'package:meta/meta.dart';
+
+@immutable
+class MultiDimensionalPoint {
+  final List<int> coordinates;
+  const MultiDimensionalPoint(this.coordinates); // Const constructor
+}
+
+void main() {
+  const p1 = MultiDimensionalPoint([1, 2, 3]); // [1, 2, 3] will be const since it's used in a const context
+  var p2 = const MultiDimensionalPoint([1, 2, 3]); // [1, 2, 3] will be const since it's used in a const context
+}
+----
+
+== How to fix it
+
+Make sure that each literal of a constructor invocation of an `@immutable` class is
+
+* either marked as `const`
+* or used in a `const` context
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,dart,diff-id=1,diff-type=noncompliant]
+----
+import 'package:meta/meta.dart';
+
+@immutable
+class MultiDimensionalPoint {
+  final List<int> coordinates;
+  MultiDimensionalPoint(this.coordinates);
+}
+
+void main() {
+  final p1 = MultiDimensionalPoint([1, 2, 3]); // Non compliant
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=1,diff-type=compliant]
+----
+import 'package:meta/meta.dart';
+
+@immutable
+class MultiDimensionalPoint {
+  final List<int> coordinates;
+  MultiDimensionalPoint(this.coordinates);
+}
+
+void main() {
+  final p1 = MultiDimensionalPoint(const [1, 2, 3]);
+}
+----
+
+==== Noncompliant code example
+
+[source,dart,diff-id=2,diff-type=noncompliant]
+----
+import 'package:meta/meta.dart';
+
+@immutable
+class MultiDimensionalPoint {
+  final List<int> coordinates;
+  const MultiDimensionalPoint(this.coordinates);
+}
+
+void main() {
+  final p1 = MultiDimensionalPoint([1, 2, 3]); // Non compliant
+}
+----
+
+==== Compliant solution
+
+[source,dart,diff-id=2,diff-type=compliant]
+----
+import 'package:meta/meta.dart';
+
+@immutable
+class MultiDimensionalPoint {
+  final List<int> coordinates;
+  const MultiDimensionalPoint(this.coordinates);
+}
+
+void main() {
+  const p1 = MultiDimensionalPoint([1, 2, 3]);
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Dart Docs - https://dart.dev/tools/linter-rules/prefer_const_literals_to_create_immutables[Dart Linter rule - prefer_const_literals_to_create_immutables]
+* Dart Docs - https://dart.dev/language/variables#final-and-const[Language - Final and const]
+* Dart Docs - https://dart.dev/language/constructors#constant-constructors[Language - Constant constructors]
+* Flutter API Reference - https://api.flutter.dev/flutter/meta/immutable-constant.html[meta.dart - immutable top-level constant]
+* Wikipedia - https://en.wikipedia.org/wiki/Immutable_object[Immutable object]
+
+=== Related rules
+
+* S7112 - Const constructors should be invoked with const
+* S7113 - @immutable classes should only have const constructors
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Use 'const' literals as arguments to constructors of '@immutable' classes.
+
+=== Highlighting
+
+Each non-`const` literal used as argument: e.g. `[1, 2, 3]` in `ImmutableNonConst.withParams(42, [1, 2, 3], { [1, 2, 3], [4, 5, 6] });`. 
+
+If the literal is prepended by a type annotation, the type annotation is included in the highlighting: e.g. `List<int>` and `Set<List<int>>` in `ImmutableNonConst.withParams(42, List<int> [1, 2, 3], Set<List<int>> { [1, 2, 3], [4, 5, 6] });`.
+
+endif::env-github,rspecator-view[]

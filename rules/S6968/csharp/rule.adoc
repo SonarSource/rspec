@@ -1,0 +1,99 @@
+In an https://learn.microsoft.com/en-us/aspnet/core[ASP.NET Core] https://en.wikipedia.org/wiki/Web_API[Web API], controller actions can optionally return a result value. If a controller action returns a value in the https://en.wikipedia.org/wiki/Happy_path[happy path], for example https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.controllerbase.ok#microsoft-aspnetcore-mvc-controllerbase-ok(system-object)[ControllerBase.Ok(Object)], annotating the action with one of the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.producesresponsetypeattribute[`++[ProducesResponseType]++`] overloads that describe the type is recommended.
+
+== Why is this an issue?
+
+If an ASP.NET Core Web API uses https://swagger.io/[Swagger], the API documentation will be generated based on the input/output types of the controller actions, as well as the attributes annotating the actions. If an action returns https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.iactionresult[IActionResult] or https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iresult[IResult], Swagger cannot infer the type of the response. From the consumer's perspective, this can be confusing and lead to unexpected results and bugs in the long run without the API provider's awareness.
+
+This rule raises an issue on a controller action when:
+
+* The action returns a value in the happy path. This can be either:
+    ** https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/200[200 OK]
+    ** https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/201[201 Created]
+    ** https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/202[202 Accepted]
+* There is no `++[ProducesResponseType]++` attribute containing the return type, either at controller or action level.
+* There is no `++[SwaggerResponse]++` attribute containing the return type, either at controller or action level.
+* The controller is annotated with the https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.apicontrollerattribute[`++[ApiController]++`] attribute.
+* The controller action returns either https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.iactionresult[IActionResult] or https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.iresult[IResult].
+* The application has enabled the https://learn.microsoft.com/en-us/aspnet/core/tutorials/getting-started-with-swashbuckle#add-and-configure-swagger-middleware[Swagger middleware].
+
+== How to fix it
+
+There are multiple ways to fix this issue:
+
+* Annotate the action with https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.producesresponsetypeattribute[`++[ProducesResponseType]++`] containing the return type.
+* Annotate the action with https://github.com/domaindrivendev/Swashbuckle.AspNetCore/blob/master/README.md#enrich-response-metadata[SwaggerResponse Class] containing the return type.
+* Return https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.actionresult-1[ActionResult<TValue>] instead of `++[IActionResult]++` or `++[IResult]++`.
+* Return https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httpresults.results-2[Results<TResult1, TResult2>] instead of `++[IActionResult]++` or `++[IResult]++`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+[HttpGet("foo")]
+// Noncompliant: Annotate this method with ProducesResponseType containing the return type for succesful responses.
+public IActionResult MagicNumber() => Ok(42);
+----
+
+[source,csharp,diff-id=2,diff-type=noncompliant]
+----
+[HttpGet("foo")]
+// Noncompliant: Use the ProducesResponseType overload containing the return type for succesful responses.
+[ProducesResponseType(StatusCodes.Status200OK)]
+public IActionResult MagicNumber() => Ok(42);
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+[HttpGet("foo")]
+[ProducesResponseType<int>(StatusCodes.Status200OK)]
+public IActionResult MagicNumber() => Ok(42);
+----
+
+[source,csharp,diff-id=2,diff-type=compliant]
+----
+[HttpGet("foo")]
+[ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+public IActionResult MagicNumber() => Ok(42);
+----
+
+== Resources
+
+=== Documentation
+
+* Wikipedia - https://en.wikipedia.org/wiki/Web_API[Web API]
+* Wikipedia - https://en.wikipedia.org/wiki/Happy_path[Happy path]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core[ASP.NET Core]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/tutorials/getting-started-with-swashbuckle[Get started with Swashbuckle and ASP.NET Core]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.apicontrollerattribute[ApiControllerAttribute Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.producesresponsetypeattribute[ProducesResponseTypeAttribute Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.producesresponsetypeattribute-1[ProducesResponseTypeAttribute<T> Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.actionresult-1[ActionResult<TValue> Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.httpresults.results-2[Results<TResult1, TResult2> Class]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/web-api/action-return-types#httpresults-type[HttpResults type]
+* GitHub - https://github.com/domaindrivendev/Swashbuckle.AspNetCore/blob/master/README.md#enrich-response-metadata[SwaggerResponse Class]
+* SmartBear - https://swagger.io/[Swagger]
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+* If no `ProducesResponseType` is specified: Annotate this method with ProducesResponseType containing the return type for successful responses.
+* If a type-less `ProducesResponseType` is specified: Use the ProducesResponseType overload containing the return type for successful responses.
+
+=== Highlighting
+
+* Primary: The identifier of the action method.
+* Secondary: The returned expression of the success path that contains a value.
+
+'''
+== Comments And Links
+(visible only on this page)
+
+endif::env-github,rspecator-view[]

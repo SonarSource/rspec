@@ -1,69 +1,71 @@
+include::../common/description.adoc[]
+
 == Why is this an issue?
 
-include::../description.adoc[]
+include::../common/rationale.adoc[]
 
-=== Noncompliant code example
+=== What is the potential impact?
 
-A "check function" (for instance ``++access++``, ``++stat++`` ... in this case ``++access++`` to verify the existence of a file) is used, followed by a "use function" (``++open++``, ``++fopen++`` ...) to write data inside a non existing file. These two consecutive calls create a TOCTOU race condition:
+include::../common/impact/rationale.adoc[]
 
-[source,cpp]
+include::../common/impact/code_execution.adoc[]
+
+include::../common/impact/privilege_escalation.adoc[]
+
+include::../common/impact/dos.adoc[]
+
+== How to fix it
+
+include::../common/how-to-fix/rationale.adoc[]
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following code sample is susceptible to a race condition attack because it
+checks a file exists strictly before it opens it for writing.
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-#include <stdio.h>
-
-void fopen_with_toctou(const char *file) {
+FILE *fopen_if_not_exists(const char *file) {
   if (access(file, F_OK) == -1 && errno == ENOENT) {
-    // the file doesn't exist
-    // it is now created in order to write some data inside
-    FILE *f = fopen(file, "w"); // Noncompliant: a race condition window exist from access() call to fopen() call calls
-    if (NULL == f) {
-      /* Handle error */
-    }
+    FILE *f = fopen(file, "w"); // Noncompliant
 
-    if (fclose(f) == EOF) {
-      /* Handle error */
-    }
+    return f;
   }
+
+  return nullptr;
 }
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-If the file already exists on the disk, ``++fopen++`` with ``++x++`` mode will fail:
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
-#include <stdio.h>
-
-void open_without_toctou(const char *file) {
-  FILE *f = fopen(file, "wx"); // Compliant
-  if (NULL == f) {
-    /* Handle error */
-  }
-  /* Write to file */
-  if (fclose(f) == EOF) {
-    /* Handle error */
-  }
+FILE *fopen_if_not_exists(const char *file) {
+  FILE *f = fopen(file, "wx");
+  return f;
 }
 ----
 
-A more generic solution is to use "file descriptors":
+=== How does this work?
 
-[source,cpp]
-----
-void open_without_toctou(const char *file) {
-  int fd = open(file, O_CREAT | O_EXCL | O_WRONLY);
-  if (-1 != fd) {
-    FILE *f = fdopen(fd, "w");  // Compliant
-  }
-}
-----
+Here, the compliant code example uses an atomic operation to open the file and
+check for its existence beforehand.
 
 == Resources
 
-* https://owasp.org/Top10/A01_2021-Broken_Access_Control/[OWASP Top 10 2021 Category A1] - Broken Access Control
-* https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control[OWASP Top 10 2017 Category A5] - Broken Access Control
-* https://cwe.mitre.org/data/definitions/367[MITRE, CWE-367] - Time-of-check Time-of-use (TOCTOU) Race Condition
-* https://wiki.sei.cmu.edu/confluence/display/c/FIO45-C.+Avoid+TOCTOU+race+conditions+while+accessing+files[CERT, FIO45-C.] - Avoid TOCTOU race conditions while accessing files
+=== Documentation
+
+* Carnegie Mellon University Software Engineering Institure - https://wiki.sei.cmu.edu/confluence/display/c/FIO45-C.+Avoid+TOCTOU+race+conditions+while+accessing+files[FIO45-C. - Avoid TOCTOU race conditions while accessing files]
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Top 10 2021 Category A1 - Broken Access Control]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control[Top 10 2017 Category A5 - Broken Access Control]
+* CWE - https://cwe.mitre.org/data/definitions/367[CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567[Application Security and Development: V-222567] - The application must not be vulnerable to race conditions.
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -78,4 +80,6 @@ include::../message.adoc[]
 (visible only on this page)
 
 include::../comments-and-links.adoc[]
+
 endif::env-github,rspecator-view[]
+

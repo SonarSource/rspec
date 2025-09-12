@@ -27,17 +27,18 @@ function generateAutoRspecLinks(html: string) {
 
   function visitNode(node: Node) {
     switch (node.nodeType) {
-      case NodeType.ELEMENT_NODE:
+      case NodeType.ELEMENT_NODE: {
         const element = node as HTMLElement;
         if (!/^(code|pre|a)$/.test(element.rawTagName)) {
           visitChildren(node);
         }
         break;
-
-      case NodeType.TEXT_NODE:
+      }
+      case NodeType.TEXT_NODE: {
         const text = node as TextNode;
         text.rawText = processText(text.rawText);
         break;
+      }
     }
   }
 
@@ -56,9 +57,17 @@ const winstonLogger = asciidoc.LoggerManager.newLogger('WinstonLogger', {
   },
   add: function (severity: any, _: any, message: any) {
     const level = severity >= 3 ? 'error' : 'warning';
+    if (typeof message === "string") {
+      this.logger.log({
+        level,
+        message,
+        source: path.basename(__filename)
+      });
+      return;
+    }
     const location = message.getSourceLocation();
     this.logger.log({
-      level: level,
+      level,
       message: message.getText(),
       source: path.basename(__filename),
       file: location.getFile(),

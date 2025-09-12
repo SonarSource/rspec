@@ -1,33 +1,99 @@
 == Why is this an issue?
 
-Marking a non-public method ``++@Transactional++`` is both useless and misleading because Spring doesn't "see" non-``++public++`` methods, and so makes no provision for their proper invocation. Nor does Spring make provision for the methods invoked by the method it called.
+Marking a non-public method `@Async` or `@Transactional` is misleading because, up to version 5, Spring does not recognize non-public methods, and so makes no provision for their proper invocation.
+Nor does Spring make provision for the methods invoked by the method it called.
+Since Spring 6, protected and package-private methods can be handled, but the issue remains for private methods.
 
+Therefore, marking a private method, for instance, @Transactional gives a false sense of security, and can lead to incorrect assumptions and potential bugs.
 
-Therefore marking a ``++private++``  method, for instance, ``++@Transactional++`` can only result in a runtime error or exception if the method is actually written to be ``++@Transactional++``.
+== Exceptions
 
+The rule targets all non-public methods for project using Spring up to Spring 5, but only private methods for Spring 6 because Spring 6 takes into account all non-private methods.
 
-=== Noncompliant code example
+== How to fix it
 
-[source,java]
+Declare the method `public`.
+Note that this action alone does not resolve the issue of direct instance calls from within the same class (see rule S6809), but it is a required precondition to fix it.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-@Transactional  // Noncompliant
-private void doTheThing(ArgClass arg) {
-  // ...
+@Async
+private Future<String> asyncMethodWithReturnType() { // Noncompliant, no proxy generated and
+    return "Hellow, world!";                         // can only be invoked from same class
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@Async
+public Future<String> asyncMethodWithReturnType() { // Compliant
+    return "Hellow, world!";
 }
 ----
 
 
+== Resources
+
+=== Documentation
+
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/scheduling/annotation/Async.html[Spring Framework API - Annotation Interface Async]
+- https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/annotation/Transactional.html[Spring Framework API - Annotation Interface Transactional]
+- https://docs.spring.io/spring-framework/reference/6.2.6/data-access/transaction/declarative/annotations.html#transaction-declarative-annotations-method-visibility[Method visibility and @Transactional in proxy mode]
+
+=== Articles & blog posts
+
+- https://www.baeldung.com/spring-async[Baeldung - How To Do @Async in Spring]
+- https://stackoverflow.com/questions/22561775/spring-async-ignored[Stack Overflow - Spring @Async ignored]
+- https://stackoverflow.com/questions/4396284/does-spring-transactional-attribute-work-on-a-private-method[Stack Overflow - Does Spring @Transactional attribute work on a private method?]
+
+
 ifdef::env-github,rspecator-view[]
 
-'''
-== Implementation Specification
-(visible only on this page)
-
-include::message.adoc[]
-
-'''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 21 Nov 2014, 12:28:29 Freddy Mallet wrote:
+Two questions/remarks:
+
+* Are we talking about private methods or about non-public methods ? If my feeling is correct this rule should only target private methods
+* I would tag the rule with the label "spring"
+* As this rule is associated to the Reliability characteristic, I think the default severity should be "Critical"
+
+=== on 21 Nov 2014, 13:28:08 Ann Campbell wrote:
+The Spring docs are pretty clear that only `public` method can actually be `@Transactional`
+
+=== on 21 Nov 2014, 14:14:44 Freddy Mallet wrote:
+Ok Ann, so I would replace :
+
+
+"Therefore marking a private method"
+
+
+by
+
+
+"Therefore marking for instance a private method"
+
+
+to prevent any misunderstanding
+
+=== on 27 Nov 2018, 13:06:43 Semyon Danilov wrote:
+\[~ann.campbell.2] Actually, any method can be Transactional if you're using AspectJ compiler, it's stated in the docs https://docs.spring.io/spring/docs/4.2.x/spring-framework-reference/html/transaction.html[here]. The excerpt:
+
+
+----
+Method visibility and @Transactional
+
+When using proxies, you should apply the @Transactional annotation only to methods with public visibility. If you do annotate protected, private or package-visible methods with the @Transactional annotation, no error is raised, but the annotated method does not exhibit the configured transactional settings. Consider the use of AspectJ (see below) if you need to annotate non-public methods.
+----
+
+=== on 27 Nov 2018, 13:33:30 Ann Campbell wrote:
+FYI [~alexandre.gigleux] ^
+
 endif::env-github,rspecator-view[]

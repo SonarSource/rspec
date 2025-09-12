@@ -1,0 +1,58 @@
+== How to fix it in Java XML API
+
+=== Code examples
+
+The following noncompliant code is vulnerable to XPath injections because untrusted data is
+concatenated to an XPath query without prior validation.
+
+==== Noncompliant code example
+
+[source,kotlin,diff-id=1,diff-type=noncompliant]
+----
+import javax.xml.xpath.XPath
+import javax.xml.xpath.XPathConstants
+
+fun authenticate(request: HttpServletRequest, xpath: XPath, doc: Document): Boolean {
+    val user = request.getParameter("user")
+    val pass = request.getParameter("pass")
+    val expression = "/users/user[@name='$user' and @pass='$pass']"
+    return xpath.evaluate(expression, doc, XPathConstants.BOOLEAN) as Boolean
+}
+----
+
+==== Compliant solution
+
+[source,kotlin,diff-id=1,diff-type=compliant]
+----
+import javax.xml.xpath.XPath
+import javax.xml.xpath.XPathConstants
+import javax.xml.xpath.XPathVariableResolver
+
+fun authenticate(request: HttpServletRequest, xpath: XPath, doc: Document): Boolean {
+    val user = request.getParameter("user")
+    val pass = request.getParameter("pass")
+    val expression = "/users/user[@name=\$user and @pass=\$pass]"
+    xpath.xPathVariableResolver = XPathVariableResolver { v: QName ->
+        when (v.localPart) {
+            "user" -> return@XPathVariableResolver user
+            "pass" -> return@XPathVariableResolver pass
+            else -> throw IllegalArgumentException()
+        }
+    }
+    return xpath.evaluate(expression, doc, XPathConstants.BOOLEAN) as Boolean
+}
+----
+
+=== How does this work?
+
+As a rule of thumb, the best approach to protect against injections is to
+systematically ensure that untrusted data cannot break out of the initially
+intended logic.
+
+include::../../common/fix/parameterized-queries.adoc[]
+
+In the example, a parameterized XPath query is created, and an `XPathVariableResolver` is used to securely insert untrusted data into the query, similar to parameterized SQL queries.
+
+include::../../common/fix/validation.adoc[]
+
+For Java, OWASP's Enterprise Security API offers https://www.javadoc.io/doc/org.owasp.esapi/esapi/latest/org/owasp/esapi/Encoder.html#encodeForXPath-java.lang.String-[`encodeForXPath`] which sanitizes metacharacters automatically.

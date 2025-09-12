@@ -48,7 +48,7 @@ export function fetchMockObject(mockUrls: Record<string, FetchResult>): FetchMoc
         }}));
       }
     } else {
-      return keeping(Promise.reject(`unexpected url ${url}`));
+      return keeping(Promise.reject(new Error(`unexpected url ${url}`)));
     }
   };
   return {mock, finished, reset};

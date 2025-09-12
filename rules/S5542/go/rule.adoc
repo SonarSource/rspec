@@ -1,0 +1,153 @@
+
+include::../summary.adoc[]
+
+== Why is this an issue?
+
+include::../rationale.adoc[]
+
+include::../impact.adoc[]
+
+// How to fix it section
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+Example with a symmetric cipher, AES in CBC mode:
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+import (
+    "crypto/aes"
+    "crypto/cipher"
+    "crypto/rand"
+)
+func encrypt() {
+    plaintext := []byte("Exampleplaintext")
+
+    key := make([]byte, 32) 
+    rand.Read(key)
+    block, _ := aes.NewCipher(key)
+    iv := make([]byte, block.BlockSize())
+    rand.Read(iv)
+
+    encrypter := cipher.NewCBCEncrypter(block, iv) // Noncompliant
+
+    ciphertext := make([]byte, len(plaintext))
+    encrypter.CryptBlocks(ciphertext, plaintext)
+}
+----
+
+The following example shows the function `cipher.Block.Encrypt` being used directly to run AES in a self-build ECB mode:
+
+[source,go]
+----
+import (
+    "crypto/aes"
+    "crypto/rand"
+)
+func encrypt() {
+    plaintext := []byte("Exampleplaintext")
+
+    key := make([]byte, 32) 
+    rand.Read(key)
+    block, _ := aes.NewCipher(key)
+
+    ciphertext := make([]byte, len(plaintext))
+    block.Encrypt(ciphertext, plaintext) // Noncompliant
+}
+----
+
+Example with an asymetric cipher, RSA with PKCS1v15 padding:
+
+[source,go,diff-id=2,diff-type=noncompliant]
+----
+import (
+    "crypto/rand"
+    "crypto/rsa"
+)
+func encrypt() {
+    random := rand.Reader
+    plaintext := []byte("Exampleplaintext")
+    privateKey, _ := rsa.GenerateKey(random, 4096)
+    ciphertext, _ := rsa.EncryptPKCS1v15(random, &privateKey.PublicKey, plaintext) // Noncompliant
+}
+----
+
+==== Compliant solution
+
+include::../common/fix/aes-compliant-example.adoc[]
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+import (
+    "crypto/aes"
+    "crypto/cipher"
+    "crypto/rand"
+)
+func encrypt() {
+    plaintext := []byte("Exampleplaintext")
+
+    key := make([]byte, 32) 
+    rand.Read(key)
+    block, _ := aes.NewCipher(key)
+    nonce := make([]byte, 12)
+    rand.Read(nonce)
+
+    aesgcm, _ := cipher.NewGCM(block)
+
+    ciphertext := aesgcm.Seal(nil, nonce, plaintext, nil)
+}
+----
+
+include::../common/fix/rsa-compliant-example.adoc[]
+
+[source,go,diff-id=2,diff-type=compliant]
+----
+import (
+    "crypto/rand"
+    "crypto/rsa"
+    "crypto/sha256"
+)
+func encrypt() {
+    random := rand.Reader
+    plaintext := []byte("Exampleplaintext")
+    privateKey, _ := rsa.GenerateKey(random, 4096)
+    ciphertext, _ := rsa.EncryptOAEP(sha256.New(), random, &privateKey.PublicKey, plaintext, nil)
+}
+----
+
+=== How does this work?
+
+include::../common/fix/fix.adoc[]
+
+
+
+== Resources
+
+include::../common/resources/docs.adoc[]
+
+include::../common/resources/articles.adoc[]
+
+include::../common/resources/presentations.adoc[]
+
+include::../common/resources/standards.adoc[]
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+'''
+== Comments And Links
+(visible only on this page)
+
+include::../comments-and-links.adoc[]
+
+endif::env-github,rspecator-view[]

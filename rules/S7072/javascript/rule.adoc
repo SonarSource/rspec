@@ -1,0 +1,111 @@
+Sensitive APIs such as `ipcRenderer` should not be directly exposed to the renderer process. Doing so can allow attackers to bypass Electron's context isolation and execute unwanted actions in the main process.
+
+== Why is this an issue?
+
+In Electron, there is a clear separation between the main process and the renderer process. The main process is responsible for managing system-level resources and interacting with the operating system, while the renderer process is responsible for rendering the user interface and executing JavaScript code in the context of a web page. Electron provides a mechanism called context isolation to enforce this separation and prevent the renderer process from directly accessing sensitive APIs in the main process.
+
+Passing sensitive APIs directly to the renderer process in Electron, such as through a `contextBridge.exposeInMainWorld` call, can be dangerous because it potentially exposes powerful system-level capabilities to untrusted content. This means that any JavaScript running in the renderer, including potentially malicious scripts from web content, could use this method to send arbitrary IPC messages to the main process. The main process typically has elevated privileges and access to system resources, so allowing unrestricted communication from the renderer to the main process can lead to security vulnerabilities.
+
+When `nodeIntegration` is enabled, it is even possible to access Node.js APIs from the renderer process, which can further increase the attack surface and expose additional system-level capabilities to untrusted content. This can lead to a variety of security issues, including remote code execution, privilege escalation, and data exfiltration. Therefore, extreme caution should always be taken when using Node.js APIs from the main process to the renderer process in Electron applications.
+
+== How to fix it in Electron
+
+=== Code examples
+
+==== Noncompliant code example
+
+The example below is a preload script that directly exposes `ipcRenderer.send`.
+
+[source,javascript,diff-id=1,diff-type=noncompliant]
+----
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('example', {
+  send: ipcRenderer.send, // Noncompliant
+});
+----
+
+This example is only relevant when `nodeIntegration` is set to `true` (it is disabled by default).
+
+[source,javascript,diff-id=2,diff-type=noncompliant]
+----
+import { contextBridge } from 'electron';
+import fs from 'node:fs';
+
+contextBridge.exposeInMainWorld('example', {
+  readFile: fs.readFileSync, // Noncompliant
+});
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('example', {
+  sendMessage: (message) => {
+    ipcRenderer.send("my-specific-channel", message);
+  },
+});
+----
+
+[source,javascript,diff-id=2,diff-type=compliant]
+----
+import { contextBridge } from 'electron';
+import fs from 'node:fs';
+
+const ALLOWED_FILES = ['file1.txt', 'file2.txt'];
+
+contextBridge.exposeInMainWorld('example', {
+  readFile: (file) => {
+    if (!ALLOWED_FILES.includes(file)) {
+      throw new Error('File not allowed');
+    }
+    return fs.readFileSync(file);
+  },
+});
+----
+
+=== How does this work?
+
+In the first example, unwanted behavior is prevented by specifying a specific channel for communication between the renderer and the main process. This way, even if the renderer process is compromised, it can only send messages to the main process on the specified channel, which limits the potential impact of an attack.
+
+In the second example, the `readFile` method is restricted to only read files that are explicitly allowed. This prevents the renderer process from reading arbitrary files on the system and limits the potential for unauthorized access to sensitive data.
+
+In both examples, the code is designed to minimize the attack surface and prevent untrusted content from directly accessing sensitive APIs or system resources.
+
+== Resources
+=== Documentation
+
+* Electron - https://www.electronjs.org/docs/tutorial/context-isolation[Context Isolation]
+* Electron - https://www.electronjs.org/docs/latest/api/context-bridge[contextBridge]
+
+=== Articles & blog posts
+
+* Doyensec - https://blog.doyensec.com/2019/04/03/subverting-electron-apps-via-insecure-preload.html[Subverting Electron Apps via Insecure Preload]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+If the sensitive API is an Electron API (currently only `ipcRenderer` methods):
+* Change this code to not expose a sensitive Electron API.
+
+Otherwise:
+* Change this code to not expose a sensitive Node.js API.
+
+=== Highlighting
+
+Within the `exposeInMainWorld` call, the key:value pair that is noncompliant should be highlighted.
+
+'''
+== Comments And Links
+(visible only on this page)
+
+endif::env-github,rspecator-view[]
+

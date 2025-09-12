@@ -1,0 +1,111 @@
+Spring proxies are based on the *Proxy design pattern* and serve as intermediaries to other resources, offering extra features at a slight performance penalty.
+For example, they facilitate lazy resource initialization and data caching.
+
+The `@Configuration` annotation enables this mechanism by default through the `proxyBeanMethods` attribute set to `true`.
+This ensures that the `@Bean` methods are proxied in order to enforce bean lifecycle behavior, e.g. to return shared singleton bean instances even in case of direct `@Bean` method calls in user code.
+This functionality is achieved via method interception, implemented through a runtime-generated *https://github.com/cglib/cglib/wiki[CGLIB]* subclass.
+
+== Why is this an issue?
+
+When setting the `proxyBeanMethods` attribute to `false` the `@Bean` methods are not proxied and this is similar to removing the `@Configuration` stereotype.
+In this scenario, `@Bean` methods within the `@Configuration` annotated class operate in https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/context/annotation/Bean.html[_lite mode_], resulting in a new bean creation each time the method is invoked.
+
+For `Singleton` beans, this could cause unexpected outcomes as the bean is created multiple times instead of being created once and cached.
+
+The rule raises an issue when the `proxyBeanMethods` attribute is set to `false` and the `@Bean` method of a `Singleton` bean is directly invoked in the `@Configuration` annotated class code.
+
+== How to fix it
+
+The issue can be fixed in the following ways:
+
+* Not invoking the `@Bean` method directly, but rather injecting the bean in the context and using it, by means of `@Bean`  https://docs.spring.io/spring-framework/reference/core/beans/java/bean-annotation.html#beans-java-dependencies[method parameters].
+
+* If the performance penalty is negligible, consider not disabling the `proxyBeanMethods` attribute, so that the `@Bean` methods are proxied and the bean lifecycle is enforced.
+
+=== Code examples
+
+==== Noncompliant code example
+
+In the example below, every instance of `PrototypeBean` will have a different instance of `SingletonBean`, as `singletonBean()` is called directly from `prototypeBean()`.
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+@Configuration(proxyBeanMethods = false)
+class ConfigurationExample {
+  @Bean
+  public SingletonBean singletonBean() {
+    return new SingletonBean();
+  }
+
+  @Bean
+  @Scope("prototype")
+  public PrototypeBean prototypeBean() {
+    return new PrototypeBean(singletonBean()); // Noncompliant: a "singletonBean" is created every time a prototypeBean is created
+  }
+
+  class SingletonBean {
+    // ...
+  }
+
+  class PrototypeBean {
+    // ...
+
+    public PrototypeBean(SingletonBean singletonBean) {
+      // ...
+    }
+
+    // ...
+  }
+}
+----
+
+==== Compliant solution
+
+The compliant solution relies on the `@Bean` method parameter to automatically inject the `SingletonBean` from the `ApplicationContext`.
+This way every instance of `PrototypeBean` will have the same instance of `SingletonBean`.
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@Configuration(proxyBeanMethods = false)
+class ConfigurationExample {
+  @Bean
+  public SingletonBean singletonBean() {
+    return new SingletonBean();
+  }
+
+  @Bean
+  @Scope("prototype")
+  public PrototypeBean prototypeBean(SingletonBean singletonBean) { // Compliant, the singletonBean is injected in the context and used by every prototypeBean
+    return new PrototypeBean(singletonBean);
+  }
+
+  class SingletonBean {
+    // ...
+  }
+
+  class PrototypeBean {
+    // ...
+
+    public PrototypeBean(SingletonBean singletonBean) {
+      // ...
+    }
+
+    // ...
+  }
+}
+----
+
+== Resources
+=== Documentation
+
+* Spring - https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/context/annotation/Configuration.html#proxyBeanMethods()[Configuration - proxyBeanMethods]
+
+* Spring - https://docs.spring.io/spring-framework/reference/core/aop/proxying.html[Proxying Mechanisms]
+
+* Spring - https://docs.spring.io/spring-framework/reference/core/beans/java/bean-annotation.html#beans-java-dependencies[Bean Annotation - Dependencies]
+
+* GitHub - https://github.com/cglib/cglib/wiki[CGLIB]
+
+=== Articles & blog posts
+
+* Medium - https://blog.devgenius.io/demystifying-proxy-in-spring-3ab536046b11[Demystifying Proxy in Spring]

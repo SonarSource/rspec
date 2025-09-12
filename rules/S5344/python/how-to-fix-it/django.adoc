@@ -1,0 +1,73 @@
+== How to fix it in Django
+
+=== Code examples
+
+==== Noncompliant code example
+
+Django uses the first item in the `PASSWORD_HASHERS` list to store new passwords.
+In this example, SHA-1 is used, which is too fast to store passwords.
+
+[source,python,diff-id=203,diff-type=noncompliant]
+----
+# settings.py
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.SHA1PasswordHasher',  # Noncompliant
+    'django.contrib.auth.hashers.CryptPasswordHasher',
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.ScryptPasswordHasher',
+]
+----
+
+==== Compliant solution
+
+This example requires `argon2-cffi` to be installed, which can be done using `pip install django[argon2]`.
+
+[source,python,diff-id=203,diff-type=compliant]
+----
+# settings.py
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.ScryptPasswordHasher',
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
+----
+
+=== How does this work?
+
+include::../../common/fix/password-hashing.adoc[]
+
+In the previous example, Argon2 is used as the default password hashing function
+by Django. Use the `PASSWORD_HASHERS` variable carefuly. If there is a need to
+upgrade, use 
+https://docs.djangoproject.com/en/5.0/topics/auth/passwords/#password-upgrading[Django's password upgrade documentation].
+
+=== Going the extra mile
+
+==== Tweaking password hashing parameters
+
+It is possible to change the parameters of the password hashing algorithm to
+make it more secure. For example, you can increase the number of iterations or
+the length of the salt. +
+https://docs.djangoproject.com/en/5.0/topics/auth/passwords/[The Django documentation contains more details about these parameters].
+
+==== Preventing user enumeration attacks
+
+Django uses the first item in `PASSWORD_HASHERS` to store passwords, but uses every hashing algorithm in the `PASSWORD_HASHERS`
+list to check passwords during user login. If a user password was not hashed using the first algorithm, then Django upgrades
+the hashed password after a user logs in.
+
+This process is convenient to keep users up to date, but is also vulnerable to enumeration. If an
+attacker wants to know whether an account exists, they can attempt a login with that account. By
+tracking how long it took to get a response, they can know if an older hashing algorithm was used
+(so the account exists) or the new hashing algorithm was used (the default is an account does not
+exist.)
+
+To fix this, https://docs.djangoproject.com/en/5.0/topics/auth/passwords/#password-upgrading-without-requiring-a-login[the Django documentation]
+defines how to upgrade passwords without needing to log in. In this case, a custom hasher has to
+be created that wraps the old hash.
+
+
+include::../../common/extra-mile/peppering.adoc[]
+

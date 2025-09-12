@@ -1,0 +1,73 @@
+
+== Why is this an issue?
+
+`std::views::as_const` provides a constant view over a range. Using it removes the possibility of inadvertently modifying the underlying data of a range. This function is especially useful because in {cpp} `const` only applies to the top-level element, it is not deep-const. 
+
+One common misunderstanding of how const works is when iterating on ranges whose element type is a pair/tuple of references. Even if the iteration variable is const-qualified, it is possible to modify the range's underlying data through this variable:
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+void example() {
+  std::vector<int> v1 = createVector1();
+  std::vector<int> v2 = createVector2();
+  
+  for (auto const&t : std::views::zip(v1, v2)) {
+    get<0>(t) = get<1>(t); // Modifies data in v1
+  }
+----
+
+In this example, `zip` returns a view of `std::tuple<int&, int&>`, and even if `p` is const-qualified, it is still possible to change the underlying data via `p`, because the references inside the `tuple` never become const.
+
+On the other hand, if the example is rewritten this way:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+void example() {
+  std::vector<int> v1 = createVector1();
+  std::vector<int> v2 = createVector2();
+  
+  for (auto const &t : std::views::zip(v1, v2) | std::views::as_const) {
+    get<0>(t) = get<1>(t); // Does not compile
+  }
+----
+
+The view is now over elements of type `std::tuple<int const&, int const&>` and can no longer be used to modify the data in `v1` or `v2`.
+
+This rule raises an issue when iterating with a range-based for loop over a range whose elements are tuples or pairs containing non-constant references, and the iteration variable is a reference to a constant.
+
+This situation can easily happen when using `std::views::zip`, `std::views::enumerate`, `std::flat_map`...
+
+//=== What is the potential impact?
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+void displayRanks(std::vector<std::string> athletes) {
+  for (auto const &[rank, name] : athletes | std::views::enumerate) {
+    std::cout << rank << ": " << name << std::endl;
+  }
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void displayRanks(std::vector<std::string> athletes) {
+  for (auto const &[rank, name] : athletes | std::views::enumerate | std::views::as_const) {
+    std::cout << rank << ": " << name << std::endl;
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/ranges/as_const_view[`std::ranges::views::as_const`, `std::ranges::as_const_view`]
+

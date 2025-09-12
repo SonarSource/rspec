@@ -1,26 +1,188 @@
+Passing invalid arguments to UNIX/POSIX functions may result in undefined behavior.
+
 == Why is this an issue?
 
-UNIX/POSIX functions can have undefined behavior if they are not called correctly. More specifically:
+Many UNIX/POSIX functions put certain constraints on the values of their parameters.
+The behavior for some of those UNIX/POSIX functions is not defined but instead, their behavior is implementation-defined, if one passes incorrectly constrained parameters.
+This may lead to undefined behavior depending on a function's concrete implementation.
+The constraints include the following:
 
-* allocation size of ``++calloc++``, ``++malloc++``, ``++realloc++``, ``++reallocf++``, ``++alloca++`` and ``++valloc++`` should be strictly positive
-* ``++open++`` and ``++openat++`` should be called with a flag that contains one access mode: ``++O_RDONLY++``, ``++O_WRONLY++``, or ``++O_RDWR++``
+* Allocation sizes of ``++calloc++``, ``++malloc++``, ``++realloc++``, ``++reallocf++``, ``++alloca++`` and ``++valloc++`` must be strictly positive
+* ``++open++`` and ``++openat++`` should be called with a flag that contains one of the access modes: ``++O_RDONLY++``, ``++O_WRONLY++``, or ``++O_RDWR++``
 * ``++open++`` and ``++openat++`` with flag ``++O_CREAT++`` should be called with a third argument
-* flag ``++O_EXCL++`` should be used with ``++O_CREAT++``
-* first argument of ``++pthread_once++`` should not have automatic storage duration and should be initialized by ``++PTHREAD_ONCE_INIT++``
+* The ``++O_EXCL++`` flag should be used with ``++O_CREAT++``
+* The first argument of ``++pthread_once++`` should not have automatic storage duration and should be initialized by the constant ``++PTHREAD_ONCE_INIT++``
 
-
-=== Noncompliant code example
+Failing to pass correctly constrained parameters can result in undefined behavior.
 
 [source,cpp]
 ----
-int res = open(file, O_CREAT); // Noncompliant, flag O_CREAT requires a third argument
+// Depending on the implementation, either NULL is returned, or the behavior is
+// as if the passed size parameter were a non-zero value, except that accesses
+// of the returned pointer result in undefined behavior.
+void *mem = alloca(0); // May result in undefined behavior.
 
-void *mem = alloca(0); // Noncompliant, allocation of 0 bytes
+int fd = open("example.txt", O_ APPEND); // Access mode is missing, may result in undefined behavior.
 
-extern void initialize();
-pthread_once_t pthread = PTHREAD_ONCE_INIT;
-pthread_once(&pthread, initialize); // Noncompliant, do not pass a local variable as argument
+// Third argument should be used to specify the file's access permissions.
+int fd_1 = open("another_example.txt", O_CREAT); // May result in undefined behavior.
+
+// Since `O_EXCL` prevents file creation if it already exists, the flag for
+// file creation `O_CREAT` should be used in combination with `O_EXCL`.
+int fd_3 = open("further_example.txt", O_EXCL); // `O_CREAT` flag is missing, may result in undefined behavior.
+
+int counter = 0;
+
+void inc_counter() { ++counter; }
+
+void bar() {
+  // May trigger undefined behavior, because `once_control`'s storage duration
+  // is automatic. `counter` might be incremented with each call to `bar`.
+  pthread_once_t once_control = PTHREAD_ONCE_INIT;
+  pthread_once(&once_control, &inc_counter); // May result in undefined behavior.
+}
 ----
+
+
+=== What is the potential impact?
+
+Using UNIX/POSIX functions with invalid arguments results in implementation-defined behavior and may lead to *undefined behavior*.
+
+When a function emits implementation-defined behavior, its behavior is unspecified and each implementation documents how the choice is made.
+Implementation-defined behavior can quickly lead to undefined behavior, if the respective function is not used exactly as per the documentation.
+
+When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.
+
+Depending on the concrete situation, the application might just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.
+
+
+== How to fix it
+
+Ensure that allocation sizes are strictly positive, calls to `open` and `openat` are correctly parameterized, and the first argument of `pthread_once` has non-automatic storage duration and is initialized with `PTHREAD_ONCE_INIT`.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+char *allocate_buffer(size_t size) {
+  char *buf = (char *)malloc(size); // Noncompliant: `size` might be zero.
+  if (buf == NULL) {
+    // Handle allocation error.
+    perror("malloc failed");
+    exit(1);
+  }
+  return buf;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+char *allocate_buffer(size_t size) {
+  if (size == 0) { // Compliant: `size` is checked for zero.
+    // Handle error.
+    printf("Cannot allocate 0 bytes!\n");
+    exit(1);
+  }
+  char *buf = (char *)malloc(size);
+  if (buf == NULL) {
+    // Handle allocation error.
+    perror("malloc failed");
+    exit(1);
+  }
+  return buf;
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+#include <fcntl.h>
+#include <sys/stat.h>
+
+int foo() {
+  int fd = open("example.txt", O_CREAT); // Noncompliant: file permissions are not set.
+  if (fd == -1) {
+    return -1;
+  }
+  return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <fcntl.h>
+#include <sys/stat.h>
+
+int foo() {
+  // Specify read permissions for user, group and others. 
+  int fd = open("example.txt", O_CREAT, S_IRUSR | S_IRGRP | S_IROTH); // Compliant: file permissions correctly set.
+  if (fd == -1) {
+    return -1;
+  }
+  return 0;
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+#include <pthread.h>
+#include <stdio.h>
+
+int counter = 0;
+
+void inc_counter() { ++counter; }
+
+void bar() {
+  pthread_once_t once_control = PTHREAD_ONCE_INIT;
+  pthread_once(&once_control, &inc_counter); // Noncompliant: `once_control` has automatic storage duration.
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <pthread.h>
+#include <stdio.h>
+
+int counter = 0;
+pthread_once_t once_control = PTHREAD_ONCE_INIT;
+
+void inc_counter() { ++counter; }
+
+void bar() {
+  pthread_once(&once_control, &inc_counter); // Compliant: `once_control` has global storage duration here.
+}
+----
+
+
+== Resources
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/MEM04-C.+Beware+of+zero-length+allocations[MEM04-C. Beware of zero-length allocations]
+
+=== Related rules
+
+* S3807 ensures that appropriate arguments are passed to C standard library functions
+* S5485 ensures that appropriate arguments are passed to C standard library for handling I/O streams
+
 
 
 ifdef::env-github,rspecator-view[]
@@ -28,5 +190,9 @@ ifdef::env-github,rspecator-view[]
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== relates to: S5828
+
+=== on 24 Oct 2019, 21:25:51 Loïc Joly wrote:
+\[~amelie.renard] Should you mention openat at the same time you mention open?
+
 endif::env-github,rspecator-view[]

@@ -1,0 +1,46 @@
+name: dogfood merge
+# This workflow is triggered on pushes to master and dogfood branches
+on:
+  pull_request:
+  push:
+  delete:
+    # There is no 'branch:' filter for the delete action,
+    # so we are using 'if:' inside the job instead.
+  workflow_dispatch:
+    # This allows to run the workflow manually from the Actions tab (can be useful for testing purposes)
+
+jobs:
+  dogfood_merge:
+    if: >-
+      (github.event_name == 'push' && (github.event.ref == 'refs/heads/master' || startsWith(github.event.ref, 'refs/heads/dogfood/')))
+      || (github.event_name == 'delete' && startsWith(github.event.ref, 'dogfood/'))
+    runs-on: github-ubuntu-latest-s
+    name: Update dogfood branch
+    permissions:
+      id-token: write # required for SonarSource/vault-action-wrapper
+    steps:
+      - name: get secrets
+        id: secrets
+        uses: SonarSource/vault-action-wrapper@d1c1ab4ca5ad07fd9cdfe1eff038a39673dfca64  # tag=2.4.2-1
+        with:
+          secrets: |
+            development/github/token/{REPO_OWNER_NAME_DASH}-coverage token | dogfood_token;
+            development/kv/data/slack webhook | slack_webhook;
+      - name: git octopus step
+        env:
+          GITHUB_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).dogfood_token }}
+        id: dogfood
+        uses: SonarSource/gh-action_dogfood_merge@8ae16f1dc3c9687d5910016ba9f059d18286b308 # 1.0.2
+        with:
+          dogfood-branch: 'dogfood-automerge'
+      # Use the output from the `dogfood` step
+      - name: Get the name of the dogfood branch and its HEAD SHA1
+        run: echo "The dogfood branch was ${{ steps.dogfood.outputs.dogfood-branch }} and its HEAD SHA1 was ${{ steps.dogfood.outputs.sha1 }}"
+      - name: Notify failures on Slack
+        uses: Ilshidur/action-slack@fb92a78a305a399cd6d8ede99d641f2b9224daf3 # 2.0.0
+        env:
+          SLACK_WEBHOOK: ${{ fromJSON(steps.secrets.outputs.vault).SLACK_WEBHOOK }}
+          SLACK_CHANNEL: team-analysis-rspec
+        if: failure()
+        with:
+          args: "Dogfood merge failed by {{ GITHUB_ACTOR }}, see {{ GITHUB_SERVER_URL }}/{{ GITHUB_REPOSITORY }}/actions/runs/{{ GITHUB_RUN_ID }}"

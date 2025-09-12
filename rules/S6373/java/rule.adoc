@@ -1,108 +1,83 @@
+XML standard allows the inclusion of XML files with the `xinclude` element.
+When an XML parser component is set up with the `\http://apache.org/xml/features/xinclude`
+feature, it will follow the standard and allow the inclusion of remote files.
+
 == Why is this an issue?
 
-include::../description.adoc[]
+When the XML parser will encounter an `xinclude` element, it will try to load
+the file pointed to by the `href` attribute into the document. Included files
+can either be local files found on the file system of the application server,
+or remote files that are downloaded over HTTP, SMB, or other protocols,
+depending on the capabilities of the application and server.
 
-=== Noncompliant code example
+The files that can be accessed that way are only limited by the entitlement of
+the application on the local system and the network filtering the server is
+subject to.
 
-For https://docs.oracle.com/javase/9/docs/api/javax/xml/parsers/DocumentBuilderFactory.html[DocumentBuilder], https://docs.oracle.com/javase/9/docs/api/javax/xml/parsers/SAXParserFactory.html[SAXParser], https://docs.oracle.com/javase/9/docs/api/javax/xml/stream/XMLInputFactory.html[XMLInput], https://docs.oracle.com/javase/9/docs/api/javax/xml/transform/TransformerFactory.html[Transformer] and https://docs.oracle.com/javase/9/docs/api/javax/xml/validation/SchemaFactory.html[Schema] JAPX factories:
+This issue is particularly severe when the XML parser is used to parse untrusted
+documents. For example, when user-submitted XML messages are parsed that way.
 
-[source,java]
-----
-factory.setXIncludeAware(true); // Noncompliant
-// or
-factory.setFeature("http://apache.org/xml/features/xinclude", true); // Noncompliant
-----
+=== What is the potential impact?
 
-For https://dom4j.github.io/[Dom4j] library:
+Allowing the inclusion of arbitrary files in XML documents can have two main
+consequences depending on what type of file is included: local or remote.
 
-[source,java]
-----
-SAXReader xmlReader = new SAXReader();
-xmlReader.setFeature("http://apache.org/xml/features/xinclude", true); // Noncompliant
-----
+==== Sensitive file disclosure
 
-For http://www.jdom.org/[Jdom2] library:
+If the application allows the inclusion of arbitrary files through the use of
+the `xinclude` element, it might be used to disclose arbitrary files from the
+local file system. Depending on the application's permissions on the file
+system, configuration files, runtime secrets, or Personally Identifiable
+Information could be leaked.
 
-[source,java]
-----
-SAXBuilder builder = new SAXBuilder();
-builder.setFeature("http://apache.org/xml/features/xinclude", true); // Noncompliant
-----
+This is particularly true if the affected parser is used to process untrusted
+XML documents.
 
-=== Compliant solution
+==== Server-side request forgery
 
-Xinclude is disabled by default and can be explicitely disabled like below.  
+When used to retrieve remote files, the application will send network requests
+to remote hosts. Moreover, it will do so from its current network location,
+which can have severe consequences if the application server is located on a
+sensitive network, such as the company corporate network or a DMZ hosting other
+applications.
 
-For https://docs.oracle.com/javase/9/docs/api/javax/xml/parsers/DocumentBuilderFactory.html[DocumentBuilder], https://docs.oracle.com/javase/9/docs/api/javax/xml/parsers/SAXParserFactory.html[SAXParser], https://docs.oracle.com/javase/9/docs/api/javax/xml/stream/XMLInputFactory.html[XMLInput], https://docs.oracle.com/javase/9/docs/api/javax/xml/transform/TransformerFactory.html[Transformer] and https://docs.oracle.com/javase/9/docs/api/javax/xml/validation/SchemaFactory.html[Schema] JAPX factories:
+Attackers exploiting this issue could try to access internal backend services or
+corporate file shares. It could allow them to access more sensitive files,
+bypass authentication mechanisms from frontend applications, or exploit further
+vulnerabilities in the local services. Note that, in some cases, the requests
+sent from the application can be automatically authenticated on federated
+locations. This is often the case in Windows environments when using Active
+Directory federated authentication.
 
-[source,java]
-----
-factory.setXIncludeAware(false);
-// or
-factory.setFeature("http://apache.org/xml/features/xinclude", false);
-----
+include::how-to-fix/java-se.adoc[]
 
-For https://dom4j.github.io/[Dom4j] library:
+include::how-to-fix/dom4j.adoc[]
 
-[source,java]
-----
-SAXReader xmlReader = new SAXReader(); 
-xmlReader.setFeature("http://apache.org/xml/features/xinclude", false);
-----
+include::how-to-fix/jdom2.adoc[]
 
-For http://www.jdom.org/[Jdom2] library:
+=== How does this work?
 
-[source,java]
-----
-SAXBuilder builder = new SAXBuilder();
-builder.setFeature("http://apache.org/xml/features/xinclude", false);
-----
-
-=== Exceptions
-
-This rule does not raise issues when Xinclude is enabled with a custom ``++EntityResolver++``:
-
-For DocumentBuilderFactory:
-
-----
-DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-factory.setXIncludeAware(true);
-// ...
-DocumentBuilder builder = factory.newDocumentBuilder();
-builder.setEntityResolver((publicId, systemId) -> new MySafeEntityResolver(publicId, systemId));
-----
-
-For SAXBuilder:
-
-----
-SAXBuilder builder = new SAXBuilder();
-builder.setFeature("http://apache.org/xml/features/xinclude", true);
-builder.setEntityResolver((publicId, systemId) -> new MySafeEntityResolver(publicId, systemId));
-----
-
-For SAXReader:
-
-----
-SAXReader xmlReader = new SAXReader();
-xmlReader.setFeature("http://apache.org/xml/features/xinclude", true);
-xmlReader.setEntityResolver((publicId, systemId) -> new MySafeEntityResolver(publicId, systemId));
-----
-
-For XMLInputFactory:
-
-----
-XMLInputFactory factory = XMLInputFactory.newInstance();
-factory.setProperty("http://apache.org/xml/features/xinclude", true);
-factory.setXMLResolver(new MySafeEntityResolver());
-----
+The compliant code example explicitly prevents the inclusion of files in XML
+documents by setting the `\http://apache.org/xml/features/xinclude` feature
+property to `false`.
 
 == Resources
 
-* https://docs.oracle.com/en/java/javase/13/security/java-api-xml-processing-jaxp-security-guide.html#GUID-8CD65EF5-D113-4D5C-A564-B875C8625FAC[Oracle Java Documentation] - XML External Entity Injection Attack
-* https://owasp.org/www-project-top-ten/2017/A4_2017-XML_External_Entities_(XXE)[OWASP Top 10 2017 Category A4] - XML External Entities (XXE)
-* https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java[OWASP XXE Prevention Cheat Sheet]
-* https://cwe.mitre.org/data/definitions/611[MITRE, CWE-611] - Information Exposure Through XML External Entity Reference
-* https://cwe.mitre.org/data/definitions/827[MITRE, CWE-827] - Improper Control of Document Type Definition
+=== Documentation
+
+* OWASP - https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html#java[OWASP XXE Prevention Cheat Sheet]
+* Java documentation - https://docs.oracle.com/en/java/javase/13/security/java-api-xml-processing-jaxp-security-guide.html#GUID-8CD65EF5-D113-4D5C-A564-B875C8625FAC[XML External Entity Injection Attack]
+* W3C - https://www.w3.org/TR/xinclude-11/[XML Inclusions (XInclude) Version 1.1]
+
+=== Standards
+
+* OWASP - https://owasp.org/www-project-top-ten/2017/A4_2017-XML_External_Entities_(XXE)[Top 10 2017 - Category A4 - XML External Entities (XXE)]
+* OWASP - https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[Top 10 2021 - Category A5 - Security Misconfiguration]
+* OWASP - https://owasp.org/www-project-mobile-top-10/2023-risks/m4-insufficient-input-output-validation[Mobile Top 10 2024 Category M4 - Insufficient Input/Output Validation]
+* OWASP - https://owasp.org/www-project-mobile-top-10/2023-risks/m8-security-misconfiguration[Mobile Top 10 2024 Category M8 - Security Misconfiguration]
+* CWE - https://cwe.mitre.org/data/definitions/611[CWE-611 - Improper Restriction of XML External Entity Reference]
+* CWE - https://cwe.mitre.org/data/definitions/827[CWE-827 - Improper Control of Document Type Definition]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222608[Application Security and Development: V-222608] - The application must not be vulnerable to XML-oriented attacks.
 
 ifdef::env-github,rspecator-view[]
 
@@ -110,12 +85,17 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::../message.adoc[]
+=== Message
+
+Disable the inclusion of files in XML processing.
+
 
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::../comments-and-links.adoc[]
+=== on 25 Jan 2022, 10:34:00 Quentin Jaquier wrote:
+Quick fixes (for Java): even if it is technically possible to provide a fix that would result in compliant code, it does not sound wise to set properties blindly, as it can have side effects. Fixing the issue requires a careful and good understanding of the overall context of the code.
+
 endif::env-github,rspecator-view[]

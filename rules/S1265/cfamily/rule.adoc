@@ -1,39 +1,156 @@
 == Why is this an issue?
 
-Overriding ``++operator new++`` typically indicates that custom memory allocation is required for the class. When that's the case, it must be balanced with a custom memory deallocation in a matching ``++operator delete++`` method. Otherwise memory leaks or memory corruption will result.
+The `operator new` allocates memory for objects, and the `operator delete` frees the memory allocated by the matching `operator new`. It is possible to customize these operations, either for a specific class (by overloading these operators in the class) or globally (by defining them in the global namespace, they will replace the default version).
 
+If the `operator delete` is not overloaded alongside the `operator new`, the program will call its default implementation, which may not be suitable for the custom memory allocation strategy used by the overloaded `operator new`.
 
-=== Noncompliant code example
+For instance, if the `operator new` draws memory from a preallocated buffer instead of allocating memory, the `operator delete` should not call the `free` function to release the memory. Reciprocally, if the `operator new` allocate memory with `malloc`, the `operator delete` must call `free`.
+
+On the other hand, if the `operator delete` is overloaded without overloading the `operator new`, it is suspicious because it may not correctly release the memory allocated by the default `operator new`.
+
+By defining the `operator delete` along with the `operator new`, the memory is deallocated in a way consistent with the custom allocation strategy used by the `operator new`.
+
+Up to this point, we mentioned `operator new` and `operator delete`, but it is a simplification. There are many different forms of https://en.cppreference.com/w/cpp/memory/new/operator_new[`operator new`] and https://en.cppreference.com/w/cpp/memory/new/operator_delete[`operator delete`] (for a single object or an array, with an extra alignment parameter... see the links for a full list), and the consistency between new and delete should be enforced for each form.
+
+For instance, if `++void * operator new[]( std::size_t count, std::align_val_t al );++` is defined (for arrays, with extra alignment), then `++void operator delete[]( void* ptr, std::align_val_t al ) noexcept;++` should be defined too.
+
+Additionally, it is possible to define a version of the delete operator with an additional size argument, alongside the unsized version of `operator delete`. When overloading these operators in a class, defining both a sized and an unsized version of operator delete is useless, since the unsized version will always be preferred. However, for free replacement (introduced in {cpp}14), it is necessary to specify both versions since the language does not specify which version will be called.
+
+=== What is the potential impact?
+
+Overloading only one of the two operators may result in your program consuming more and more memory over time, eventually leading to a crash. 
+
+Deallocating memory that was not allocated with the corresponding strategy results in undefined behavior.
+
+== How to fix it
+
+Each overload of the `operator new` should have a matching overload `operator delete` and vice versa. Within a class, define only a sized or an unsized version of `operator delete`, but as a free function (availalble since {cpp}14), define both.
+
+=== Example with overloaded operators in a class
+
+Imagine a custom allocator `MyAllocator`:
 
 [source,cpp]
 ----
-class AirPlane
-{
+class MyAllocator {
 public:
-  void* operator new(size_t size);
-  void fly();
+    void* allocate(size_t size) {
+        void* p = malloc(size);
+        if (!p) {
+            throw std::bad_alloc();
+        }
+        return p;
+    }
+
+    void deallocate(void* p) {
+        free(p);
+    }
 };
 ----
 
+==== Noncompliant code example
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-class AirPlane
-{
+class MyClass {
 public:
-  void* operator new(size_t size);
-  void operator delete(void* deadObject, size_t size);
-  void fly();
+    // Noncompliant: there is no matching overload of the delete operator
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+private:
+    static MyAllocator allocator;
 };
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call the default implementation of the operator delete
+    // which will not call the MyAllocator::deallocate function to correctly release the memory
+}
 ----
 
+==== Compliant solution
 
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+class MyClass {
+public:
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+    void operator delete(void* p) noexcept {
+        allocator.deallocate(p);
+    }
+
+private:
+    static MyAllocator allocator;
+};
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call MyClass::delete to correctly deallocate the memory
+}
+----
+
+=== Example with replacement of global allocators
+
+In the following example, the intent is to replace allocation functions with system-specific variants.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+// Noncompliant: The sized version of delete is not replaced
+
+void* operator new(std::size_t count) {
+    return SystemSpecificNew(count);
+}
+
+void operator delete(void* ptr ) noexcept {
+    return SystemSpecificDelete(ptr);
+}
+----
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void* operator new(std::size_t count) {
+    return SystemSpecificNew(count);
+}
+
+void operator delete(void* ptr) noexcept {
+    return SystemSpecificDelete(ptr);
+}
+
+// Compliant: Even if it does exactly the same as the unsized version, this sized 
+// version of delete replaces the default-provided one that probably deallocates
+// memory in a different and incompatible way.
+void operator delete(void* ptr, std::size_t) noexcept {
+    return SystemSpecificDelete(ptr);
+}
+----
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/KX0-BQ[CERT, DCL54-CPP.] - Overload allocation and deallocation functions as a pair in the same scope
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#r15-always-overload-matched-allocationdeallocation-pairs[{cpp} Core Guidelines R.15] - Always overload matched allocation/deallocation pairs
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/new/operator_new[`operator new`, ``++operator new[]++``]
+* {cpp} reference - https://en.cppreference.com/w/cpp/memory/new/operator_delete[`operator delete`, ``++operator delete[]++``]
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/KX0-BQ[DCL54-CPP. Overload allocation and deallocation functions as a pair in the same scope]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#r15-always-overload-matched-allocationdeallocation-pairs[R.15: Always overload matched allocation/deallocation pairs]
+* MISRA {cpp}:2023, 21.6.4 - If a project defines either a sized or unsized version of a global 
+operator delete, then both shall be defined
+
+=== Related rules
+
+* S1232 - Appropriate memory de-allocation should be used
 
 
 ifdef::env-github,rspecator-view[]
@@ -42,11 +159,24 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Add an "operator delete" to this class.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 26 May 2015, 18:26:21 Evgeny Mandrikov wrote:
+\[~ann.campbell.2] word "class" looks strange for me after "operator delete" in description. Is it a typo or just bad knowledge of english by me?
+
+=== on 27 May 2015, 14:07:28 Ann Campbell wrote:
+It's not your English [~evgeny.mandrikov], it's mine. ;)
+
+Check it now.
+
+=== on 27 May 2015, 14:44:46 Evgeny Mandrikov wrote:
+LGTM.
+
 endif::env-github,rspecator-view[]

@@ -1,50 +1,133 @@
+Dereferencing a null pointer results in undefined behavior.
+
 == Why is this an issue?
 
-include::../description.adoc[]
+A pointer to null, also known as a null pointer, is created by initializing a pointer object to `0`, `NULL`, or in the case of {cpp} `nullptr`.
+A null pointer does neither point to an object nor to valid memory, and as a consequence dereferencing or accessing the memory pointed by such a pointer is undefined behavior.
 
-=== Noncompliant code example
+[source,c]
+----
+int deref() {
+  int* ptr = 0;
+  return *ptr; // Noncompliant: deference of a null pointer
+}
+----
 
-[source,cpp]
+In addition to using the `*` operator, accessing a member of a structure (using `->`) or an element of an array (using `[]`) also leads to dereference of the pointer,
+and causes undefined behavior if performed on a pointer to null.
+
+[source,c]
+----
+int subscript() {
+  int* ptr = 0;
+  return ptr[2]; // Noncompliant: subscript operator used on null pointer
+}
+----
+
+[source,c]
+----
+struct Aggregate {
+  int x;
+  int y;
+};
+
+int memberAccess() {
+  struct Aggregate* ptr = 0;
+  return ptr->x; // Noncompliant: member access on a null pointer
+}
+----
+
+Finally, invoking a function pointer that holds a null value, dereferences the pointer, and too results in undefined behavior.
+[source,c]
+----
+void call() {
+  void (*func)(int) = NULL; // func is a pointer to a function
+  func(10); // Noncompliant: the invocation of a null function pointer
+}
+----
+
+=== What is the potential impact?
+
+The behavior of a program that dereferences a null pointer is undefined.
+In that case, the compiler no longer needs to adhere to the language standard
+and the program has no meaning assigned to it.
+
+In practice, dereferencing a null pointer may lead to program crashes, or the application may appear to execute correctly while losing data or producing incorrect results.
+
+Besides affecting the application's availability, null pointer dereferences may lead to code execution, in rare circumstances.
+If null is equivalent to the ``++0x0++`` memory address that can be accessed by privileged code, writing, and reading memory is possible, which compromises the integrity and confidentiality of the application.
+
+== How to fix it
+
+Ensure that any pointer that is dereferenced by the program _is not_ null.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,c,diff-id=1,diff-type=noncompliant]
 ----
 char *p1 = ... ;
-if (p1 == NULL && *p1 == '\t') { // Noncompliant, p1 will be dereferenced IFF it is null
+if (p1 == NULL && *p1 == '\t') { // Noncompliant: p1 will be dereferenced IFF it is null
   // ...
 }
+----
 
+==== Compliant solution
+
+[source,c,diff-id=1,diff-type=compliant]
+----
+char *p1 = ... ;
+if (p1 != NULL && *p1 == '\t') { // Compliant: *p1 cannot be evaluated if p1 is NULL
+  // ...
+}
+----
+
+==== Noncompliant code example
+
+[source,c,diff-id=2,diff-type=noncompliant]
+----
 char *p2 = ... ;
 if (p2 != NULL) {
     // ...
 }
-*p2 = '\t'; // Noncompliant; potential null-dereference
-
-char *p3, *p4;
-p3 = NULL;
-// ...
-p4 = p3;
-*p4 = 'a';  // Noncompliant
+p2[2] = '\t'; // Noncompliant: potential null-dereference
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,c,diff-id=2,diff-type=compliant]
 ----
-char *p1 = ... ;
-if (p1 != NULL && *p1 == '\t') { // Compliant, *p1 cannot be evaluated when p1 is NULL
-  // ...
-}
-
 char *p2 = ... ;
 if (p2 != NULL) {
     // ...
-  *p2 = '\t'; // Compliant
+  p2[2] = '\t'; // Compliant: p2 is known to be non-null
 }
 ----
+
+=== Going the extra mile
+
+include::../../../shared_content/cfamily/reference_over_nonnull_pointer.adoc[]
+
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/476[MITRE, CWE-476] - NULL Pointer Dereference
-* https://wiki.sei.cmu.edu/confluence/x/QdcxBQ[CERT, EXP34-C.] - Do not dereference null pointers
-* https://wiki.sei.cmu.edu/confluence/x/aDdGBQ[CERT, EXP01-J.] - Do not use a null in a case where an object is required
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/QdcxBQ[EXP34-C.Do not dereference null pointers]
+* CWE - https://cwe.mitre.org/data/definitions/476[CWE-476 NULL Pointer Dereference]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f16-for-in-parameters-pass-cheaply-copied-types-by-value-and-others-by-reference-to-const[F.16: For "in" parameters, pass cheaply-copied types by value and others by reference to `const`]
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f17-for-in-out-parameters-pass-by-reference-to-non-const[F.17: For "in-out" parameters, pass by reference to non-`const`]
+
+
+=== Related rules
+
+* S3807 detects calls to C library functions that require valid, non-null pointers with null pointer arguments
+* S2637 detects uses of null pointers as arguments for parameters that are annotated with `nonnull`
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -61,4 +144,5 @@ include::../highlighting.adoc[]
 (visible only on this page)
 
 include::../comments-and-links.adoc[]
+
 endif::env-github,rspecator-view[]

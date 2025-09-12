@@ -1,16 +1,149 @@
+Ensure that integer division and remainder operations do not result in divide-by-zero errors.
+
 == Why is this an issue?
 
-If the denominator to a division or modulo operation is zero it would result in a fatal error.
+If the denominator to a division or modulo operation is zero, the behavior of the application is undefined.
 
-include::../noncompliant.adoc[]
+Operator `/` is used for division and `%` for modulo operation.
+Division and modulo operations are susceptible to divide-by-zero (and signed integer overflow) errors.
 
-include::../compliant.adoc[]
+[source,cpp]
+----
+int foo(int a, int b) {
+  if (b == 0) {
+    a = 1;
+  }
+  return a / b; // Noncompliant: potential divide-by-zero error
+}
+----
+
+
+=== What is the potential impact?
+
+Integer division or remainder operations that result in divide-by-zero errors lead to *undefined behavior*.
+
+For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
+The application may crash or, even worse, the application may appear to execute correctly while losing data or producing incorrect results.
+
+
+== How to fix it
+
+Employ adequate checks that prevent divide-by-zero errors when using integer division or remainder operations.
+
+Alternatively, replace integer division with floating-point division for which the divide-by-zero case is well defined and does not introduce undefined behavior.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <limits>
+#include <optional>
+
+std::optional<int> safe_division(int a, int b) {
+  // While the following check correctly prevents signed integer overflows,
+  // it fails to prevent divide-by-zero errors. If `b` is equal to `0`, the
+  // application emits undefined behavior.
+  if ((a == std::numeric_limits<int>::min()) && (b == -1)) {
+    return std::nullopt;
+  }
+  return a / b; // Noncompliant: causes undefined behavior if `b` is zero
+}
+
+std::optional<int> foo(int a, int b) {
+  if (b == 0) {
+    a = 1;
+  }
+  return safe_division(a, b);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <limits>
+#include <optional>
+
+std::optional<int> safe_division(int a, int b) {
+  if ((b == 0) || ((a == std::numeric_limits<int>::min()) && (b == -1))) {
+    return std::nullopt;
+  }
+  return a / b; // Compliant: check correctly prevents divide-by-zero and signed integer overflows
+}
+
+std::optional<int> foo(int a, int b) {
+  if (b == 0) {
+    a = 1;
+  }
+  return safe_division(a, b);
+}
+----
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <limits>
+#include <optional>
+
+std::optional<int> safe_division(int a, int b) {
+  if ((a == std::numeric_limits<int>::min()) && (b == -1)) {
+    return std::nullopt;
+  }
+  return a / b; // Compliant: check to prevent divide-by-zero in the caller
+}
+
+std::optional<int> foo(int a, int b) {
+  if (b == 0) {
+    return std::nullopt;
+  }
+  return safe_division(a, b);
+}
+----
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+double foo(int a, int b) {
+  return a / static_cast<double>(b); // Compliant: replace integer division by floating-point division
+}
+----
+
+=== Going the extra mile
+
+Besides divide-by-zero errors, signed integer division is susceptible to overflows, too.
+When the dividend is the minimum value for the signed integer type and the divisor is equal to `-1` an overflow is provoked due to two's complement representation.
+This frequently causes hard-to-track bugs.
+
+The checks shown in the following code snippet correctly protect the division operation against divide-by-zero _and_ signed integer overflow errors:
+
+[source,cpp]
+----
+#include <limits>
+#include <optional>
+
+std::optional<int> safe_division(int a, int b) {
+  if ((b == 0) || ((a == std::numeric_limits<int>::min()) && (b == -1))) {
+    return std::nullopt;
+  }
+  return a / b; // Compliant: prevents divide-by-zero _and_ signed integer overflows
+}
+----
+
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/369[MITRE, CWE-369] - Divide by zero
-* https://wiki.sei.cmu.edu/confluence/x/CTZGBQ[CERT, NUM02-J.] - Ensure that division and remainder operations do not result in divide-by-zero errors
-* https://wiki.sei.cmu.edu/confluence/x/ftYxBQ[CERT, INT33-C.] - Ensure that division and remainder operations do not result in divide-by-zero errors
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/INT32-C.+Ensure+that+operations+on+signed+integers+do+not+result+in+overflow[INT32-C. Ensure that operations on signed integers do not result in overflow]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/ftYxBQ[INT33-C. Ensure that division and remainder operations do not result in divide-by-zero errors]
+* CWE - https://cwe.mitre.org/data/definitions/369[CWE-369 - Divide by zero]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222612[Application Security and Development: V-222612] - The application must not be vulnerable to overflow attacks.
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#es105-dont-divide-by-integer-zero[ES.105: Don't divide by integer zero]
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -18,7 +151,10 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Consider reviewing data-flow - possible division by zero.
+
 
 include::../highlighting.adoc[]
 
@@ -27,4 +163,5 @@ include::../highlighting.adoc[]
 (visible only on this page)
 
 include::../comments-and-links.adoc[]
+
 endif::env-github,rspecator-view[]

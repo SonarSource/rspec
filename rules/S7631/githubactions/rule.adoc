@@ -1,0 +1,114 @@
+When using GitHub Actions, certain workflow triggers such as `pull_request_target` and `workflow_run` execute with the repository's privileges.
+This creates a security risk when these workflows check out code from a forked repository and then use this untrusted code as input for subsequent steps.
+
+If code from the fork is used as an input inside the workflow, they could exploit this to extract sensitive information, manipulate the repository, or execute arbitrary commands with the permissions of the repository. Special considerations should be taken into account on organizations and repositories created before 2023 when https://github.blog/changelog/2023-02-02-github-actions-updating-the-default-github_token-permissions-to-read-only/[the default permissions of the `GITHUB_TOKEN` were changed to read-only].
+
+== Ask Yourself Whether
+
+* Is the checked out code executed directly as part of some steps in the workflow?
+* Can the checked out code _indirectly_ affect the execution of the workflow? For example, does your workflow use configuration files to download packages from package repositories?
+
+There is a risk if you answered yes to any of these questions.
+
+== Recommended Secure Coding Practices
+
+If the flow does not require write access to the repository nor access to its secrets, the recommended approach is to avoid using triggers that cause execution using elevated privileges.
+
+If this is not feasible, the workflow can be split into two parts:
+
+* An unprivileged job that gets triggered by `pull_request` that performs checks that do not require elevated permissions, and
+* A privileged job that is triggered by `workflow_run` on completion of the first job, that performs the actions requiring elevated permissions
+
+When doing this, it is important to make sure that the privileged workflow does not process input from the untrusted workflow.
+
+
+== Sensitive Code Example
+
+The following workflow executes the `build.sh` script from the fork using the privileges of the repository:
+
+[source,yaml,diff-id=1,diff-type=noncompliant]
+----
+name: Example
+
+on:
+  pull_request_target:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}  # Sensitive
+
+      - name: Build
+        run: |
+          ./build.sh
+----
+
+== Compliant Solution
+
+If elevated permissions are not needed, the simplest way to fix this is to use `pull_request` as the trigger.
+
+[source,yaml,diff-id=1,diff-type=compliant]
+----
+name: Example
+
+on:
+  pull_request:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build
+        run: |
+          ./build.sh
+----
+
+== See
+
+=== Documentation
+
+* GitHub Security Lab - https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/[Keeping your GitHub Actions and workflows secure Part 1: Preventing pwn requests]
+
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Top 10 2021 Category A1 - Broken Access Control]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control[Top 10 2017 Category A5 - Broken Access Control]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure[Top 10 2017 Category A3 - Sensitive Data Exposure]
+* CWE - https://cwe.mitre.org/data/definitions/732.html[CWE-732 - Incorrect Permission Assignment for Critical Resource]
+* CWE - https://cwe.mitre.org/data/definitions/272.html[CWE-272 - Least Privilege Violation]
+* CWE - https://cwe.mitre.org/data/definitions/279.html[CWE-279 - Incorrect Execution-assigned Privileges]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222429[Application Security and Development: V-222429] - The application must prevent non-privileged users from executing privileged functions to include disabling, circumventing, or altering implemented security safeguards/countermeasures
+
+=== Articles & blog posts
+* GitHub Blog - https://github.blog/changelog/2023-02-02-github-actions-updating-the-default-github_token-permissions-to-read-only/[GitHub Actions – Updating the default GITHUB_TOKEN permissions to read-only]
+* GitHub Security Lab - https://securitylab.github.com/advisories/GHSL-2024-268_Hibernate_ORM/[GHSL-2024-268: Poisoned Pipeline Execution (PPE) via execution of untrusted checked-out code in Hibernate ORM]
+* Open Source Security Foundation - https://openssf.org/blog/2024/08/12/mitigating-attack-vectors-in-github-workflows/[Mitigating Attack Vectors in GitHub Workflows]
+
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Make sure that no untrusted code is executed from a fork
+
+=== Highlighting
+
+* Primary: on the detected code checkout (e.g., action/checkout or the git command)
+* Secondary on the sensitive trigger (e.g., ``pull_request_target``)
+  * Message: This trigger runs the workflow using the permissions of this repository
+
+'''
+
+endif::env-github,rspecator-view[]

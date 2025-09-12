@@ -1,50 +1,120 @@
+include::../../../shared_content/secrets/description.adoc[]
+
 == Why is this an issue?
 
-include::./description.adoc[]
+include::../../../shared_content/secrets/rationale.adoc[]
 
-=== Noncompliant code example
+In Dockerfiles, hard-coded secrets and secrets passed through as variables or
+created at build-time will cause security risks. The secret information can be
+exposed either via the container environment, the image metadata, or the build
+environment logs.
 
-[source,docker]
+=== What is the potential impact?
+
+include::../common/impact/rationale.adoc[]
+
+include::../../../shared_content/secrets/impact/financial_loss.adoc[]
+
+include::../../../shared_content/secrets/impact/security_downgrade.adoc[]
+
+=== Exceptions
+
+In multi-stage builds, the rule only scans instructions that are part of the final image.
+
+== How to fix it
+
+Best practices recommend using a secret vault for all secrets that must be
+accessed at container runtime. This will ensure the secret's security and
+prevent any further unexpected disclosure. Depending on the development platform
+and the leaked secret type, multiple solutions are currently available.
+
+For all secrets that must be accessed at image build time, it is recommended to
+rely on Docker Buildkit's secret mount options. This will prevent secrets from
+being disclosed in image's metadata and build logs.
+
+Additionally, investigations and remediation actions should be conducted to
+ensure the current and future security of the infrastructure.
+
+include::../../../shared_content/secrets/fix/revoke.adoc[]
+
+include::../../../shared_content/secrets/fix/recent_use.adoc[]
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following code sample generates a new SSH private key that will be stored in
+the generated image. This key should be considered as compromised. Moreover, the
+SSH key encryption passphrase is also hardcoded.
+
+[source,docker, diff-id=1, diff-type=noncompliant]
+----
+FROM example
+
+# Noncompliant
+RUN ssh-keygen -N "passphrase" -t rsa -b 2048 -f /etc/ssh/rsa_key
+
+RUN /example.sh --ssh /etc/ssh/rsa_key
+----
+
+The following code sample uses a seemingly hidden password which is actually
+leaked in the image metadata after the build.
+
+[source,docker, diff-id=2, diff-type=noncompliant]
 ----
 FROM example
 ARG PASSWORD
+
 # Noncompliant
 RUN wget --user=guest --password="$PASSWORD" https://example.com
 ----
 
-=== Compliant solution
+==== Compliant solution
 
-For build-time secrets, use https://docs.docker.com/engine/reference/builder/#run---mounttypesecret[Buildkit's secret mount type] instead:
-[source,docker]
+[source,docker,diff-id=1,diff-type=compliant]
 ----
 FROM example
-RUN --mount=type=secret,id=build_secret \
-    wget --user=guest --password=$(cat /run/secrets/build_secret) https://example.com
+
+RUN --mount=type=secret,id=ssh,target=/etc/ssh/rsa_key \
+    /example.sh --ssh /etc/ssh/rsa_key
 ----
 
-For runtime secrets, leave the environment variables empty until runtime:
-
-[source,docker]
+[source,docker,diff-id=2,diff-type=compliant]
 ----
 FROM example
-ENV ACCESS_TOKEN=""
-CMD /run.sh
+
+RUN --mount=type=secret,id=wget,target=/home/user/.wgetrc \
+    wget --user=guest https://example.com
 ----
 
-Store the runtime secrets in an https://docs.docker.com/compose/env-file/[environment file] (such as `.env`) and then start the container with the https://docs.docker.com/engine/reference/commandline/run/#set-environment-variables--e---env---env-file[`--env-file`] argument:
+For runtime secrets, best practices recommend relying on a vault service to
+pass secret information to the containers. Docker environment provides Swarm
+services that implement such a feature.
 
-[source,text]
+If such an option can not be considered, store the runtime secrets in an
+https://docs.docker.com/compose/env-file/[environment file] such as `.env` and
+then start the container with the
+https://docs.docker.com/engine/reference/commandline/run/#env[`--env-file`] argument:
+
+[source,docker]
 ----
 docker run --env-file .env myImage
 ----
 
+It is then important to ensure that the environment files are securely stored
+and generated.
+
 == Resources
 
-* https://docs.docker.com/engine/reference/builder/#run---mounttypesecret[Dockerfile reference] - RUN command secrets mount points
-* https://docs.docker.com/engine/swarm/secrets/[Docker documentation] - Manage sensitive data with Docker secrets
-* https://cwe.mitre.org/data/definitions/522.html[MITRE, CWE-522] - Insufficiently Protected Credentials
-* https://cwe.mitre.org/data/definitions/798.html[MITRE, CWE-798] - Use of Hard-coded Credentials
+include::../common/resources/documentation.adoc[]
 
+* Docker Documentation - https://docs.docker.com/engine/swarm/secrets/[Manage sensitive data with Docker secrets]
+* Docker Documentation - https://docs.docker.com/engine/reference/builder/#run---mounttypesecret[RUN command secrets mount points]
+
+=== Standards
+
+* CWE - https://cwe.mitre.org/data/definitions/522[CWE-522 - Insufficiently Protected Credentials]
+* CWE - https://cwe.mitre.org/data/definitions/798[CWE-798 - Use of Hard-coded Credentials]
 
 ifdef::env-github,rspecator-view[]
 '''
@@ -67,5 +137,3 @@ For secret generation:
 
 '''
 endif::env-github,rspecator-view[]
-
-
