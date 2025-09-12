@@ -1,0 +1,244 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Regular expression injections occur when the application retrieves
+untrusted data and uses it as a regex to pattern match a string with it.</p>
+</div>
+<div class="paragraph">
+<p>Most regular expression search engines use <em>backtracking</em> to try all possible
+regex execution paths when evaluating an input. Sometimes this can lead to
+performance problems also referred to as <em>catastrophic backtracking</em> situations.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In the context of a web application vulnerable to regex injection:<br>
+After discovering the injection point, attackers insert data into the
+vulnerable field to make the affected component inaccessible.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the application&#8217;s software architecture and the injection point&#8217;s
+location, the impact may or may not be visible.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_self_denial_of_service">Self Denial of Service</h4>
+<div class="paragraph">
+<p>In cases where the complexity of the regular expression is exponential to the
+input size, a small, carefully-crafted input (for example, 20 chars) can
+trigger <em>catastrophic backtracking</em> and cause a denial of service of the
+application.</p>
+</div>
+<div class="paragraph">
+<p>Super-linear regex complexity can produce the same effects for a large,
+carefully crafted input (thousands of chars).</p>
+</div>
+<div class="paragraph">
+<p>If the component jeopardized by this vulnerability is not a bottleneck that
+acts as a single point of failure (SPOF) within the application, the denial of
+service might only affect the attacker who initiated it.</p>
+</div>
+<div class="paragraph">
+<p>Such benign denial of service can also occur in architectures that rely heavily
+on containers and container orchestrators. Replication systems would detect the
+failure of a container and automatically replace it.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_infrastructure_spofs">Infrastructure SPOFs</h4>
+<div class="paragraph">
+<p>However, a denial of service attack can be critical to the enterprise if it
+targets a SPOF component. Sometimes the SPOF is a software architecture
+vulnerability (such as a single component on which multiple critical components
+depend) or an operational vulnerability (for example, insufficient container
+creation capabilities or failures from containers to terminate).</p>
+</div>
+<div class="paragraph">
+<p>In either case, attackers aim to exploit the infrastructure weakness by sending
+as many malicious payloads as possible, using potentially huge offensive
+infrastructures.</p>
+</div>
+<div class="paragraph">
+<p>These threats are particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_net">How to fix it in .NET</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following noncompliant code is vulnerable to Regex Denial of Service
+because untrusted data is used as a regex to scan a string without prior
+sanitization or validation.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public class ExampleController : Controller
+{
+    public IActionResult Validate(string regex, string input)
+    {
+        bool match = Regex.IsMatch(input, regex);
+
+        return Json(match);
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public class ExampleController : Controller
+{
+    public IActionResult Validate(string regex, string input)
+    {
+        bool match = Regex.IsMatch(input, Regex.Escape(regex));
+
+        return Json(match);
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_sanitization_and_validation">Sanitization and Validation</h4>
+<div class="paragraph">
+<p>Metacharacters escape using native functions is a solution against regex
+injection.<br>
+The escape function sanitizes the input so that the regular expression
+engine interprets these characters literally.</p>
+</div>
+<div class="paragraph">
+<p>An allowlist approach can also be used by creating a list containing
+authorized and secure strings you want the application to use in a query.<br>
+If a user
+input does not match an entry in this list, it should be considered unsafe and
+rejected.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important Note</strong>: The application must sanitize and validate on the server side. Not on
+client-side front end.</p>
+</div>
+<div class="paragraph">
+<p>Where possible, use <em>non-backtracking</em> regex engines, for example, Google&#8217;s
+<a href="https://github.com/google/re2">re2</a>.</p>
+</div>
+<div class="paragraph">
+<p>In the compliant solution example, <code>Regex.Escape</code> escapes metacharacters and escape sequences that
+could have broken the initially intended logic.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://www.owasp.org/index.php/Regular_expression_Denial_of_Service_-_ReDoS">Regular expression Denial of Service - ReDoS</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/400">CWE-400 - Uncontrolled Resource Consumption</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/1333">CWE-1333 - Inefficient Regular Expression Complexity</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222594">Application Security and Development: V-222594</a> - The application must restrict the ability to launch Denial of Service (DoS) attacks against itself or other information systems.</p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222667">Application Security and Development: V-222667</a> - Protections against DoS attacks must be implemented.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct the regular expression from user-controlled data.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s4784">relates to: <a data-rspec-id="S4784" class="rspec-auto-link">S4784</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_supercedes_s4784">supercedes: <a data-rspec-id="S4784" class="rspec-auto-link">S4784</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_4_may_2018_113829_dinesh_bolkensteyn_wrote">on 4 May 2018, 11:38:29 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>The next step is to identify hard-coded regex that are vulnerable, against which externally-provided strings will be matched.</p>
+</div>
+<div class="paragraph">
+<p>This should enable us to detect CVE-2015-2526, see http://blog.malerisch.net/2015/09/net-mvc-redos-denial-of-service-vulnerability-cve-2015-2526.html</p>
+</div>
+<div class="paragraph">
+<p>With both of these rules, we&#8217;ll have full coverage of the ReDoS attack.</p>
+</div>
+</div>
+</div>
+</div>

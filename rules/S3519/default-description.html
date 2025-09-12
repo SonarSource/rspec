@@ -1,0 +1,652 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Memory accesses should be bounded to prevent buffer overflows.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Array overruns and buffer overflows occur when a memory access accidentally goes beyond the boundary of the allocated array or buffer.</p>
+</div>
+<div class="paragraph">
+<p>These overreaching accesses cause some of the most damaging and hard to track defects.
+Not only do these faulty accesses constitute undefined behavior, but they frequently introduce security vulnerabilities, too.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Accessing memory that goes beyond the boundary of the allocated array or buffer results in undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
+The application may crash or, even worse, the application may appear to execute correctly while losing data or producing incorrect results.</p>
+</div>
+<div class="paragraph">
+<p>Out-of-bounds memory accesses cause some of the most damaging and hard-to-track defects.
+Unbounded memory accesses may also introduce severe security vulnerabilities.
+In case a user of the program can control the contents of a buffer, for instance, a malicious attacker can use the buffer overflow to overwrite critical data, leak secret or private information, execute arbitrary code, or gain unauthorized access to the system.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ensure that memory accesses are within the bounds of the allocated array or buffer.</p>
+</div>
+<div class="paragraph">
+<p>If C&#43;&#43; is available, use the <code>std::array</code> or <code>std::vector</code> types to manage stack or heap-based arrays, respectively and use <code>std::string</code> to manage string buffers.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void access_exceeds(void) {
+  int id_sequence[3];
+  id_sequence[0] = 100;
+  id_sequence[1] = 200;
+  id_sequence[2] = 300;
+  id_sequence[3] = 400; // Noncompliant: memory access is out of bounds
+  // Accessed memory exceeds upper limit of memory block
+}
+
+void access_precedes(int x) {
+  int buf[100];
+  int *p = buf;
+  --p;
+  p[0] = 9001; // Noncompliant: memory access is out of bounds
+  // Accessed memory precedes memory block
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">void access_exceeds(void) {
+  int id_sequence[3];
+  // Compliant: all memory accesses are within valid bounds between 0 and 2
+  id_sequence[0] = 100;
+  id_sequence[1] = 200;
+  id_sequence[2] = 300;
+}
+
+void access_precedes(int x) {
+  int buf[100];
+  int *p = buf;
+  p[0] = 9001; // Compliant: memory access within valid bounds
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;string.h&gt;
+
+void memcpy_fun(void) {
+  char src[] = {1, 2, 3, 4};
+  char dst[10];
+  memcpy(dst, src, 5); // Noncompliant: memory copy function accesses out-of-bound array element
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;string.h&gt;
+
+void memcpy_fun(void) {
+  char src[] = {1, 2, 3, 4};
+  char dst[10];
+  memcpy(dst, src, sizeof(src)); // Compliant: memory copy function accesses only valid array elements
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+
+int fun(void) {
+  char buffer[64] = {0};
+  if (fgets(buffer, 2048, stdin) != NULL) { // Noncompliant: target buffer may overflow
+    printf("buffer contents: %s", buffer);
+    return 0;
+  }
+  return 1;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+
+int fun(void) {
+  char buffer[64] = {0};
+  if (fgets(buffer, 64, stdin) != NULL) { // Compliant: reads at most 64 - 1 characters
+    printf("buffer contents: %s", buffer);
+    return 0;
+  }
+  return 1;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+int foo(void) {
+  const char *const str = "AAAA"
+                          "BBBB"
+                          "CCCC"
+                          "DDDD";
+  size_t str_len = strlen(str);
+  char *buf1 = (char *)malloc(str_len + /*null terminator*/ 1);
+  if (buf1 == NULL) { return 1; }
+  memset(buf1, 0, str_len + 1);
+  strncpy(buf1, str, str_len);
+  char buf2[8] = {0};
+  memcpy(buf2, buf1, str_len + 1); // Noncompliant: buf2 will overflow.
+  printf("buf1: %s\n", buf1);
+  printf("buf2: %s\n", buf2);
+  free(buf1);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+int foo(void) {
+  const char *const str = "AAAA"
+                          "BBBB"
+                          "CCCC"
+                          "DDDD";
+  size_t str_len = strlen(str);
+  char *buf1 = (char *)malloc(str_len + /*null terminator*/ 1);
+  if (buf1 == NULL) { return 1; }
+  memset(buf1, 0, str_len + 1);
+  strncpy(buf1, str, str_len + 1);
+  char buf2[8] = {0};
+  // Compliant: copy only `sizeof(buf2) - 1` bytes and leave the last
+  // terminating null byte ('\0') untouched such that `buf2` can be correctly
+  // printed in the subsequent lines.
+  memcpy(buf2, buf1,  sizeof(buf2) - 1);
+  printf("buf1: %s\n", buf1);
+  printf("buf2: %s\n", buf2);
+  free(buf1);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_5">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+
+void bar(void) {
+  int array[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  array[8] = 42; // Noncompliant: index should be between 0 and 7
+  for (size_t i = 0; i &lt; 8; ++i) {
+    printf("%d\n", array[i]); // Compliant: index is between 0 and 7
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_5">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+
+void bar(void) {
+  int array[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  array[7] = 42; // Compliant: index is between 0 and 7
+  for (size_t i = 0; i &lt; 8; ++i) {
+    printf("%d\n", array[i]); // Compliant: index is between 0 and 7
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>When managing and manipulating string buffers one needs to take great care that the buffers are correctly terminated with a null byte (<code>'\0'</code>).
+Failing to correctly null terminate string buffers almost always causes buffer overruns and introduces undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>The following faulty program aims at creating a string copy.
+However, the heap-allocated memory buffer for holding the copy is too small since <code>strlen</code> calculates the length of its input string but excludes the "invisible" terminating null byte (<code>'\0'</code>).
+The call to <code>strncpy</code> also uses the string length computed by <code>strlen</code> and the string copy hence lacks an implicitly copied null terminator.
+This causes out-of-bounds reads and introduces undefined behavior in the subsequent processing steps.
+In this example, the call to <code>printf</code> will eventually trigger such erroneous behavior.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+char *make_str_copy(const char *const src) {
+  size_t src_len = strlen(src);
+  char *dst = (char *)malloc(src_len); // buffer too small to hold null terminator
+  if (dst == NULL) {
+    perror("malloc failed");
+    exit(1);
+  }
+  strncpy(dst, src, src_len); // null terminator is not (implicitly) copied either
+  return dst;
+}
+
+int main(void) {
+  const char str[] = "Hello, World!";
+  char *str_copy = make_str_copy(str);
+  // call to `printf` will trigger undefined behavior due to missing null terminator
+  printf("%s\n", str_copy); // Noncompliant: `str_copy` has not been null terminated
+  // More code that processes `str_copy` ...
+  free(str_copy);
+  return 0;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following fixed version of the program does correctly allocate a heap-based buffer of sufficient size <em>and</em> (explicitly) terminates it with a null byte (<code>'\0'</code>):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+char *make_str_copy(const char *const src) {
+  size_t src_len = strlen(src);
+  // `src_len + 1` since `strlen` _excludes_ the terminating null byte
+  char *dst = (char *)malloc(src_len + 1);
+  if (dst == NULL) {
+    perror("malloc failed");
+    exit(1);
+  }
+  dst[src_len] = '\0'; // explicitly add a null terminator
+  strncpy(dst, src, src_len);
+  return dst;
+}
+
+int main(void) {
+  const char str[] = "Hello, World!";
+  char *str_copy = make_str_copy(str);
+  printf("%s\n", str_copy); // Compliant: `str_copy` has been correctly null terminated
+  // More code that processes `str_copy` ...
+  free(str_copy);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>Buffer overflows occur when a program writes data beyond the boundaries of a buffer and can lead to memory corruption and potential security vulnerabilities.
+To mitigate this risk, developers must carefully manage array and buffer sizes.
+This includes using secure coding practices, and employing techniques like input validation and bounds checking.</p>
+</div>
+<div class="paragraph">
+<p>Various modern C and C&#43;&#43; compilers allow one to automatically instrument a program during compilation using so-called <em>sanitizers</em>.
+The address and undefined behavior sanitizers, for instance, aim at detecting out-of-bound memory accesses and undefined behavior, respectively.
+If the instrumentation detects an error at runtime, the program will abort with an error message that provides valuable information for identifying and fixing the error.</p>
+</div>
+<div class="paragraph">
+<p>Additional capabilities of modern compilers that aim at hardening the binary include the <code>FORTIFY_SOURCE</code> compilation flag, or features such as stack canaries or address space layout randomization (ASLR).
+These hardening features provide some lightweight support for detecting buffer overflows.</p>
+</div>
+<div class="paragraph">
+<p>Yet another programming tool for memory debugging is Valgrind.
+Valgrind inspects a programming during its execution and is capable of detecting various memory-related issues including buffer overflows.</p>
+</div>
+<div class="paragraph">
+<p>In C&#43;&#43;, manual array or string, i.e., buffer manipulations are considered a code smell.</p>
+</div>
+<div class="paragraph">
+<p>Instead, the <code>std::array</code> type should be used to manage stack-based arrays, and the <code>std::vector</code> type should be used if a heap-based array is desired.
+Besides always carrying their respective sizes, i.e., number of elements, <code>std::array</code> and <code>std::vector</code> implement many useful member functions such as <code>begin()</code> and <code>end()</code>, allowing one to safely and conveniently process them using algorithms from the C&#43;&#43;'s <code>&lt;algorithm&gt;</code> header, for instance.
+An example is shown in the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;algorithm&gt;
+#include &lt;array&gt;
+#include &lt;iostream&gt;
+#include &lt;numeric&gt;
+#include &lt;vector&gt;
+
+void bar() {
+  // stack-based array
+  std::array&lt;int, 8&gt; stack_buf;
+  std::fill(stack_buf.begin(), stack_buf.end(), 42);
+  for (auto i : stack_buf) {
+    std::cout &lt;&lt; i &lt;&lt; ' ';
+  }
+  std::cout &lt;&lt; '\n';
+  std::cout &lt;&lt; "sum of stack_buf's values: "
+            &lt;&lt; std::accumulate(stack_buf.begin(), stack_buf.end(), 0) &lt;&lt; '\n';
+  // heap-based array
+  std::vector&lt;int&gt; heap_buf = {1, 2, 3, 4};
+  heap_buf.resize(10);
+  std::iota(heap_buf.begin(), heap_buf.end(), 1);
+  std::cout &lt;&lt; "sum of heap_buf's values: "
+            &lt;&lt; std::accumulate(heap_buf.begin(), heap_buf.end(), 0) &lt;&lt; '\n';
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>std::string</code> type should be used to manage buffers since it facilitates safe buffer manipulations.
+Instead of manually concatenating two buffers using <code>strncat</code>, for instance, <code>std::string</code> allows this operation to be performed in a much more convenient manner as shown in the following code:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+void buz(std::string const &amp;s) {
+  std::string t = "Hello, " + s;
+  std::cout &lt;&lt; t &lt;&lt; '\n';
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In addition, the <code>std::format</code> function allows one to format strings according to a user-specified format and returns the result as a string as shown in what follows:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;format&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+void tar(std::string const &amp;s) {
+  std::string t = std::format("Hello, World! Greetings {}\n", s);
+  std::cout &lt;&lt; t &lt;&lt; '\n';
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Clang Hardening - <a href="https://blog.quarkslab.com/clang-hardening-cheat-sheet.html">Clang Hardening Cheat Sheet</a></p>
+</li>
+<li>
+<p>FORTIFY_SOURCE - <a href="https://www.redhat.com/en/blog/enhance-application-security-fortifysource">Enhance application security with FORTIFY_SOURCE</a></p>
+</li>
+<li>
+<p>Stack Protection - <a href="https://developers.redhat.com/articles/2022/06/02/use-compiler-flags-stack-protection-gcc-and-clang">Use compiler flags for stack protection in GCC and Clang</a></p>
+</li>
+<li>
+<p>Valgrind - <a href="https://valgrind.org/docs/manual/quick-start.html">The Valgrind Quick Start Guide</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_conference_presentations">Conference presentations</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CppCon 2014 - <a href="https://youtu.be/V2_80g0eOMc?si=U_qv9iBKI5B3a_EL">Sanitize your C&#43;&#43; code</a></p>
+</li>
+<li>
+<p>CppCon 2018 - <a href="https://youtu.be/0S0QgQd75Sw?si=AW9mA09L5PEbkqXc">Software Vulnerabilities in C and C&#43;&#43;</a></p>
+</li>
+<li>
+<p>CppCon 2020 - <a href="https://youtu.be/xEzfnbTabyE?si=9yJQkrcRKn6tuPaV">2020: The Year of Sanitizers?</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/wtYxBQ">ARR30-C. Do not form or use out-of-bounds pointers or array subscripts</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/i3w-BQ">STR50-CPP. Guarantee that storage for strings has sufficient space for character data and the null terminator</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/119">CWE-119 Improper Restriction of Operations within the Bounds of a Memory Buffer</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/121">CWE-121 Stack-based Buffer Overflow</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/122">CWE-122 Heap-based Buffer Overflow</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/131">CWE-131 Incorrect Calculation of Buffer Size</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/193">CWE-193 Off-by-one Error</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/788">CWE-788 Access of Memory Location After End of Buffer</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222612">Application Security and Development: V-222612</a> - The application must not be vulnerable to overflow attacks.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5782" class="rspec-auto-link">S5782</a> ensures that POSIX functions are not called with arguments that trigger buffer overflows</p>
+</li>
+<li>
+<p><a data-rspec-id="S5945" class="rspec-auto-link">S5945</a> discourages the use of C-style arrays and suggests the use of <code>std::array</code> or <code>std::vector</code></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Review this array access; it is likely to be an overrun.</p>
+</li>
+<li>
+<p>Review this memory access; it is likely to create an overflow.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary: Array access or function call</p>
+</div>
+<div class="paragraph">
+<p>Secondary: * Index value for arrays</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Length value for functions call</p>
+</li>
+<li>
+<p>For loop end condition if applicable</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="paragraph">
+<p>Possible messages of the rule <a data-rspec-id="S3519" class="rspec-auto-link">S3519</a>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>alpha.security.ArrayBoundV2</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>void access_exceeds(void) {
+  int id_sequence[3];
+  id_sequence[0] = 123;
+  id_sequence[1] = 234;
+  id_sequence[2] = 345;
+  id_sequence[3] = 456; // Noncompliant: accessing out of bounds.
+  // Out of bound memory access (access exceeds upper limit of memory block)
+}
+void access_precedes(int x) {
+  int buf[100];
+  int *p = buf;
+  --p;
+  p[0] = 1; // Out of bound memory access (accessed memory precedes memory block)
+}
+int getchar(void);
+void access_tainted(void) {
+  int m = getchar();
+  Buffer[m] = 1; // Out of bound memory access (index is tainted)
+}</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>alpha.security.ReturnPtrRange</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>int *test_idx_sym(int i) {
+  static int arr[10];
+  if (i != 40)
+    return arr;
+  return arr + i; // Returned pointer value points outside the original object
+}</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>alpha.unix.cstring.OutOfBounds</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>char* my_calloc(int n) {
+  char *p = malloc(n);
+  memset(p, 0, n + /*null terminator*/1); // OOB: off by one
+  // Memory set function overflows the destination buffer
+  return p;
+}
+void memcpy1(void) {
+  char src[] = {1, 2, 3, 4};
+  char dst[10];
+  memcpy(dst, src, 5); // Memory copy function accesses out-of-bound array element
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Typical bugs:
+* Off-by-one bugs</p>
+</div>
+<div class="paragraph">
+<p>Mitigations (extra mile):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>asan</p>
+</li>
+<li>
+<p>valgrind</p>
+</li>
+<li>
+<p>Use "bounded" alternative functions, such as <code>strncpy</code>.</p>
+</li>
+<li>
+<p>Compilation flags to harden the binary: FORTIFY_SOURCE, stack-canaries, ASLR</p>
+</li>
+<li>
+<p>fuzzing</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Clarification question regarding inclusion forthis link in [<a href="https://discuss.sonarsource.com/t/layc-2023-languages-team-updates/14242/31?u=tomasz_kaminski">discuss</a>.</p>
+</div>
+<div class="paragraph">
+<p>Possibly missing CWEs from rspec:
+* <a href="https://cwe.mitre.org/data/definitions/787.html" class="bare">https://cwe.mitre.org/data/definitions/787.html</a>
+* <a href="https://cwe.mitre.org/data/definitions/193.html" class="bare">https://cwe.mitre.org/data/definitions/193.html</a></p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5782">is related to: <a data-rspec-id="S5782" class="rspec-auto-link">S5782</a></h3>
+
+</div>
+</div>
+</div>
