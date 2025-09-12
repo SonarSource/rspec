@@ -1,28 +1,157 @@
+
+Recursive methods must always reach a base case where the recursion is
+stopped.
+Infinite recursion is caused by logical errors and it will crash your
+application.
+
 == Why is this an issue?
 
-Recursion is a method of solving a computational problem where a method calls itself with smaller instances of the same input. This can happen when a method invokes itself or when a pair of methods invoke each other. It can be a useful tool, but unless the method includes a provision to break out of the recursion and ``++return++``, the recursion will continue until the stack overflows and the program crashes.
+Recursion is a technique to solve a computational problem by splitting it into
+smaller problems.
+A method is recursive, if it splits its input into smaller instances and calls
+itself on these instances.
+This continues until a smallest input, a _base case_, is reached that can not
+be split further.
+Similarly, recursion can also occur when multiple methods invoke each other.
 
-=== Noncompliant code example
+Recursion is a useful tool, but it must be used carefully. Recursive methods need to detect base cases and end recursion with a ``++return++`` statement.
+When this is not the case, recursion will continue until the stack overflows and the
+program crashes due to a `StackOverflowError`.
+
+=== What is the potential impact?
+
+include::../../../shared_content/layc/exception-impact.adoc[]
+
+== How to fix it
+
+To correctly implement recursion, you must ensure that the following conditions
+are met:
+
+1. On every recursive call, the input to the call needs to become smaller,
+   meaning it needs to be brought closer to the base case.
+   For instance, if you are operating on a list, you can split it into smaller
+   segments.
+   If the input is numerical, you can ensure that you only make recursive calls
+   on numbers that are strictly smaller.
+
+2. The recursive method must contain a _termination condition_ that checks
+   whether the base case has been reached.
+   If so, it must not perform another recursive call.
+   For example, a base case can be that the input is an empty list.
+
+3. You need to ensure that your process for splitting the input into smaller
+   instances will actually lead to the base case.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+int myPow(int num, int exponent) {
+  num = num * myPow(num, exponent - 1); // Noncompliant: myPow unconditionally calls itself.
+  return num;  // this is never reached
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+int myPow(int num, int exponent) {
+  if (exponent == 0) { // <- termination condition
+    return 1;
+  }
+
+  if (exponent < 0) {
+    throw new IllegalArgumentException("Negative exponents are not supported.");
+  }
+
+  num = num * myPow(num, exponent - 1);
+  return num;
+}
+----
+
+=== How does this work?
+
+In the example, `myPow` computes the power of `num` to the given `exponent`.
+The problem is solved recursively by computing the power of `num` to
+`exponent - 1` first and then multiplying the result with `num`.
+
+Thus, the problem is correctly reduced to a recursive call on a strictly smaller
+input.
+However, the noncompliant implementation lacks a base case.
+I.e., the input `exponent` will eventually become negative, and the recursion
+never stops.
+This is solved by introducing the termination condition `exponent == 0`, which
+stops the recursion.
+
+Now, the recursion is finite for all valid, non-negative input values for
+`exponent`.
+However, it would still allow for infinite recursion on negative exponents.
+Hence, for additional safety, we add a check that leads to an
+`IllegalArgumentException`.
+Throwing this exception also crashes the program, but for the right reasons:
+It reports misuse of the method and provides useful debugging information to the
+programmer.
+
+=== Pitfalls
+
+Even when implemented correctly, recursion can still lead to a
+`StackOverflowError`.
+Every recursive call consumes memory on the stack.
+If the number of recursive calls is large enough, the available stack memory can
+be exhausted, even for finite recursions.
+Thus, for large input sizes, recursion should be avoided.
+
+=== Going the extra mile
+
+There are techniques for converting any recursive method into a loop-based,
+iterative method.
+This can be utilized when running into the pitfall of recursion on large inputs.
+
+For instance, the following is an iterative version of the previous example:
 
 [source,java]
 ----
 int myPow(int num, int exponent) {
-    num = num * myPow(num, exponent - 1); // Noncompliant
-    return num;  // this is never reached
+  if (exponent < 0) {
+    throw new IllegalArgumentException("Negative exponents are not supported.");
+  }
+
+  int result = 1;
+  while (exponent > 0) {
+    result *= num;
+    --exponent;
+  }
+
+  return result;
 }
 ----
 
-=== Compliant solution
+As the conversion of recursive methods into iterative methods is a complex
+topic, we refer to external articles on the topic.
+See the section _Articles & blog posts_ under the tab _More Info_.
+// ^Unfortunately, section links do not work in SonarQube.
 
-[source,java]
-----
-int myPow(int num, int exponent) {
-    if(exponent > 1) {
-      num = num * myPow(num, exponent - 1);
-    }
-    return num;
-}
-----
+// Tail-recursion is also a common approach to optimizing deep recustions.
+// However, it is currently not supported by Java, so it does provide little
+// value to the reader to mention it here.
+
+== Resources
+
+=== Documentation
+
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/StackOverflowError.html[StackOverflowError]
+
+=== Articles & blog posts
+
+* https://www.baeldung.com/cs/convert-recursion-to-iteration[From Recursive to Iterative Functions] by Baeldung.
+
+=== Standards
+
+* The JVMS on https://docs.oracle.com/javase/specs/jvms/se17/html/jvms-2.html#jvms-2.5.2[Stacks]
+
 ifdef::env-github,rspecator-view[]
 
 '''
@@ -30,5 +159,11 @@ ifdef::env-github,rspecator-view[]
 (visible only on this page)
 
 include::../message.adoc[]
+
+'''
+== Comments And Links
+(visible only on this page)
+
+include::../comments-and-links.adoc[]
 
 endif::env-github,rspecator-view[]

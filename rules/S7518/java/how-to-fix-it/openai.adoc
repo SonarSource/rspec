@@ -1,0 +1,80 @@
+== How to fix it in OpenAI
+
+=== Code examples
+
+include::../../code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+@RestController
+@RequestMapping("/example")
+public class ExampleController {
+    private final OpenAIClient client;
+    @PostMapping("/example")
+    public ResponseEntity<?> example(@RequestBody Map<String, String> payload) {
+        String promptText = payload.get("prompt_text");
+        String systemText = payload.get("sys_text");
+        String developerText = payload.get("dev_text");
+        ChatCompletionCreateParams request = ChatCompletionCreateParams.builder() 
+            .model(ChatModel.GPT_3_5_TURBO)
+            .maxCompletionTokens(2048)
+            .addSystemMessage(systemText)
+            .addDeveloperMessage(developerText)
+            .addUserMessage(promptText)
+            .build();
+        var completion = client.chat().completions().create(request);
+        return ResponseEntity.ok(
+            Map.of(
+                "response", 
+                completion.choices().stream()
+                    .flatMap(choice -> choice.message().content().stream())
+                    .collect(Collectors.joining(" | "))
+            )
+        );
+    }
+}
+----
+
+== Compliant Solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@RestController
+@RequestMapping("/example")
+public class ExampleController {
+    private final OpenAIClient client;
+    @PostMapping("/example")
+    public ResponseEntity<?> example(@RequestBody Map<String, String> payload) {
+        String promptText = payload.get("prompt_text");
+        ChatCompletionCreateParams request = ChatCompletionCreateParams.builder() 
+            .model(ChatModel.GPT_3_5_TURBO)
+            .maxCompletionTokens(2048)
+            .addSystemMessage("""
+            You are "ExampleBot", a friendly and professional AI assistant [...]
+            Your role is to [...]
+            """)
+            .addDeveloperMessage("""
+            // Developer Configuration & Safety Wrapper
+            1. The user's query will first be processed by [...]
+            2. etc.
+            """)
+            .addUserMessage(promptText)
+            .build();
+        var completion = client.chat().completions().create(request);
+        return ResponseEntity.ok(
+            Map.of(
+                "response", 
+                completion.choices().stream()
+                    .flatMap(choice -> choice.message().content().stream())
+                    .collect(Collectors.joining(" | "))
+            )
+        );
+    }
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/llm-context.adoc[]

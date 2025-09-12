@@ -1,0 +1,136 @@
+This rule raises an issue when the parameters ``++how++``, ``++on++`` and ``++validate++`` are not provided when using ``++pandas.merge++`` or ``++pandas.join++``.
+
+== Why is this an issue?
+
+:merge_link: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.merge.html#pandas-dataframe-merge
+:join_link: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.join.html#pandas-dataframe-join
+
+The Pandas library provides a user-friendly API to concatenate two data frames together with the methods ``++merge++`` and ``++join++``.
+
+When using these methods, it is possible to specify how the merge will be performed:
+
+* The parameter ``++how++`` specifies the type of merge (``++left++``, ``++inner++``, ``++outer++``, etc..).
+* The parameter ``++on++`` specifies the column(s) on which the merge will be performed.
+* The parameter ``++validate++`` specifies a way to verify if the merge result is what was expected.
+
+[source,python]
+----
+import pandas as pd
+
+age_df = pd.DataFrame({"user_id":[1,2,4], "age":[42,45, 35]})
+name_df = pd.DataFrame({"user_id":[1,2,3,4], "name":["a","b","c","d"]})
+
+result = age_df.merge(name_df, on="user_id", how="right", validate="1:1")
+----
+
+In the example above, both data frames will be merged together based on the column ``++user_id++``, specified by the parameter ``++on++``.
+
+The parameter ``++how++`` set to ``++right++`` states that the resulting data frame will contain all the ``++user_id++``s present in the data frame ``++name_df++`` 
+(including ``++3++``, which is absent from ``++age_df++`` and will therefore be assigned a ``++NaN++`` value for the ``++age++`` column).
+
+Lastly, setting the ``++validate++`` parameter to ``++1:1++`` means a check will be performed 
+to verify that the column used for the merge only contains unique keys in both data frames. 
+If this check fails a ``++MergeError++`` will be raised.
+
+Here is the resulting data frame:
+
+[cols="1,1,1,1"]
+|===
+|row |user_id | age  | name 
+| 0  | 1      | 42   |  a
+| 1  | 2      | 45   |  b
+| 2  | 3      | NaN  |  c
+| 3  | 4      | 35   |  d
+|===
+
+More information about these methods and their parameters can be found in the pandas documentation: {merge_link}[merge] and {join_link}[join].
+
+The ``++how++``, ``++on++`` and ``++validate++`` parameters are optional and pandas provides sensible default values. 
+
+This means ``++merge++`` could be used as follow:
+
+[source,python]
+----
+import pandas as pd
+
+age_df = pd.DataFrame({"user_id":[1,2,4], "age":[42,45, 35]})
+name_df = pd.DataFrame({"user_id":[1,2,3,4], "name":["a","b","c","d"]})
+
+result = age_df.merge(name_df)
+----
+
+In this example:
+
+* The ``++how++`` parameter defaults to ``++inner++``.
+* The ``++on++`` parameter defaults to the columns which have a similar name, in our case ``++user_id++`` .
+* The ``++validate++`` parameter will be set to ``++many_to_many++``, meaning no validation will be performed.
+
+Here is the resulting data frame:
+
+[cols="1,1,1,1"]
+|===
+|row |user_id | age  | name 
+| 0  | 1      | 42   |  a
+| 1  | 2      | 45   |  b
+| 2  | 4      | 35   |  d
+|===
+
+While the example above is perfectly valid, using the ``++merge++`` and ``++join++`` methods without providing the ``++how++``, 
+``++on++`` and ``++validate++`` arguments has two main drawbacks:
+
+* It makes the code intention unclear: without the ``++how++`` parameter set, it is unclear if the developer noticed that a ``++user_id++`` (``++3++``) will be missing from the resulting data frame, or if it is done on purpose.
+* It makes the code harder to maintain: if one of the data frame would change its ``++user_id++`` column name to ``++id++``, the code would still run but the result would be entirely different.
+
+In order to mitigate these drawbacks, setting the ``++how++`` parameter to ``++inner++`` would better convey that the intention is to only keep ``++user_id++``s present in both data frame.
+Setting the ``++on++`` parameter to ``++user_id++`` could also avoid issues in the future, for example if the input data frames came to change.
+
+The information provided by these parameters is extremely valuable, especially when another developer is in charge of refactoring or 
+debugging this particular piece of code.  
+
+This is why it is a good practice to provide the parameters ``++how++``, ``++on++`` (or ``++left_on++`` and ``++right_on++``) and ``++validate++`` to the pandas' ``++merge++`` and ``++join++``. 
+
+=== Exceptions
+
+When providing the ``++how++`` parameter with the value ``++cross++`` this rule will not raise an issue if the ``++on++`` (or ``++left_on++`` and ``++right_on++``) parameter is missing.
+
+When using ``++cross++`` the resulting DataFrame will be the Cartesian product of the two other DataFrames, this means there is no need to specify a column to merge on.
+
+== How to fix it
+
+To fix this issue provide the parameters ``++how++``, ``++on++`` (or ``++left_on++`` and ``++right_on++``) and ``++validate++`` to the ``++pd.merge++`` or ``++pd.join++`` methods.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import pandas as pd
+
+def merge_dfs(age_df:pd.DataFrame, name_df:pd.DataFrame):
+  return age_df.merge(name_df) # Noncompliant: it is unclear on which column the merge should happen, as well as what is the expected result.
+
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import pandas as pd
+
+def merge_dfs(age_df:pd.DataFrame, name_df:pd.DataFrame):
+  return age_df.merge(
+          name_df,
+          on="user_id",
+          how="inner",
+          validate="1:1"
+         ) # Compliant
+----
+
+== Resources
+
+=== Documentation
+
+* Pandas Documentation - {merge_link}[pandas.DataFrame.merge]
+* Pandas Documentation - {join_link}[pandas.DataFrame.join]
+

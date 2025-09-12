@@ -1,12 +1,12 @@
 == Why is this an issue?
 
-In a statement, the order of evaluation of sub-expressions (e.g. the arguments of a function call) is not totally specified. This means the compiler can even interleave the evaluation of these sub-expressions, especially for optimization purposes.
+In a statement, the order of evaluation of sub-expressions (e.g., the arguments of a function call) is not totally specified. This means the compiler can even interleave the evaluation of these sub-expressions, especially for optimization purposes.
 
 
-If you have several resource allocations in one statement, and the first succeeds while the second fails and throws an exception, the first allocated resource can leak. The classical mitigation for this issue is to use a RAII manager to wrap the raw resource, but since the execution order is not specified, you may not have the time to do this.
+If you have several resource allocations in one statement, and the first succeeds while the second fails and throws an exception, the first allocated resource can leak. The classical mitigation for this issue is to use an RAII (_Resource Acquisition Is Initialization_) manager to wrap the raw resource. Yet, this solution may not be sufficient since the execution order is not specified.
 
 
-It is possible to write code that contains several allocations and will still behaves correctly (it has even been made easier in {cpp}17, where the evaluation order has been made more strict), however it requires expert-level knowledge of the language. It is simpler, and more future-proof, to simply avoid using several allocations in a single statement.
+It is possible to write code that contains several allocations and still behaves correctly. {cpp}17 made this even easier since the evaluation order rules are more strict. However, it requires expert-level knowledge of the language. It is simpler and more future-proof to simply avoid using several allocations in a single statement.
 
 
 === Noncompliant code example
@@ -15,17 +15,15 @@ It is possible to write code that contains several allocations and will still be
 ----
 #include <memory>
 
-using namespace std;
-
 class S {
 public:
   explicit S(int a, int b);
 };
 
-void g(shared_ptr<S> p1, shared_ptr<S> p2);
+void g(std::shared_ptr<S> p1, std::shared_ptr<S> p2);
 
 void f() {
-  g(shared_ptr<S>(new S(1, 2)), shared_ptr<S>(new S(3, 4))); // Noncompliant: 2 resources are allocated in the same expression statement
+  g(std::shared_ptr<S>(new S(1, 2)), std::shared_ptr<S>(new S(3, 4))); // Noncompliant: 2 resources are allocated in the same expression statement
 }
 ----
 
@@ -34,11 +32,11 @@ In this example, it would be valid for a pre-{cpp}17 compiler to run the code in
 
 * ``++new S(1, 2) => p1++``
 * ``++new S(3, 4) => p2++``
-* ``++shared_ptr<S>(p1) => s1++``
-* ``++shared_ptr<S>(p2) => s2++``
+* ``++std::shared_ptr<S>(p1) => s1++``
+* ``++std::shared_ptr<S>(p2) => s2++``
 * ``++g(s1, s2)++``
 
-In that case, if the second allocation fails, the memory allocated for the first one will be leaked, since the ``++shared_ptr++`` has not yet been able to claim ownership of the object.
+In that case, if the second allocation fails, the memory allocated for the first one will be leaked since the ``++shared_ptr++`` has not yet been able to claim ownership of the object.
 
 
 === Compliant solution
@@ -47,17 +45,20 @@ In that case, if the second allocation fails, the memory allocated for the first
 ----
 #include <memory>
 
-using namespace std;
-
 class S {
 public:
   explicit S(int a, int b);
 };
 
-void g(shared_ptr<S> p1, shared_ptr<S> p2);
+void g(std::shared_ptr<S> p1, std::shared_ptr<S> p2);
 
 void f() {
-  g(make_shared<S>(1, 2), make_shared<S>(3, 4)); // Compliant: no resource in the same expression statement
+  auto s = std::shared_ptr<S>(new S(1, 2));
+  g(s, std::shared_ptr<S>(new S(3, 4))); // Compliant, only one resource allocation, even if a bit messy
+
+  // Or, a better alternative:
+
+  g(std::make_shared<S>(1, 2), std::make_shared<S>(3, 4)); // Compliant: no explicit allocation
 }
 ----
  
@@ -65,8 +66,14 @@ void f() {
 
 == Resources
 
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#r13-perform-at-most-one-explicit-resource-allocation-in-a-single-expression-statement[{cpp} Core Guidelines R.13] - Perform at most one explicit resource allocation in a single expression statement
-* https://en.cppreference.com/w/cpp/language/eval_order[cppreference] - Order of evaluation
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/eval_order[Order of evaluation]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/raii[RAII]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#r13-perform-at-most-one-explicit-resource-allocation-in-a-single-expression-statement[R.13: Perform at most one explicit resource allocation in a single expression statement]
 
 
 ifdef::env-github,rspecator-view[]
@@ -74,5 +81,9 @@ ifdef::env-github,rspecator-view[]
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== relates to: S984
+
+=== on 24 Oct 2019, 12:15:01 Loïc Joly wrote:
+\[~geoffray.adde]: Can you please review my changes?
+
 endif::env-github,rspecator-view[]

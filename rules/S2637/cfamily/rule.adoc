@@ -1,20 +1,192 @@
+Pointers marked as "nonnull" may not be set to null, since they are typically not null-checked before use.
+
 == Why is this an issue?
 
-Functions return values and parameters values marked ``++nonnull++`` are assumed to have non-null values and are not typically null-checked before use. Therefore setting one of these values to ``++null++``, could cause null pointer dereferences at runtime.
+A function's return value and parameters may be decorated with attributes to convey additional information to the compiler and/or other developers.
 
-=== Noncompliant code example
+A commonly used attribute is `nonnull` which can be used to mark a function's return value and parameters as shown in the following:
+
+[source,cpp]
+----
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+__attribute__((returns_nonnull)) int *
+make_array_copy(int *src, size_t len) __attribute__((nonnull(1)));
+
+int *make_array_copy(int *src, size_t len) {
+  int *dst = (int *)malloc(len * sizeof(int));
+  if (dst == NULL) {
+    perror("malloc failed");
+    exit(1);
+  }
+  memcpy(dst, src, len);
+  return dst;
+}
+----
+
+The `nonnull` attribute is meant for other developers and as a hint for compilers.
+Values marked as `nonnull` are assumed to have non-null values.
+
+However, developers may accidentally break the `nonnull` attribute as shown in the following code snippet:
 
 [source,cpp]
 ----
 __attribute__((returns_nonnull))
-int* nonnull(__attribute__((nonnull)) int* parameter) {
-  parameter = 0; // Noncompliant - "parameter" is marked "nonnull" but is set to null.
-  nonnull(0); // Noncompliant - Parameter "parameter" to this call is marked "nonnull" but null is passed.
-  return 0; // Noncompliant - This function's return value is marked "nonnull" but null is returned.
+int *foo(__attribute__((nonnull)) int *x) {
+  x = 0; // This is compliant but might be surprising, use with caution
+  foo(0); // Noncompliant: null is passed as an argument marked as "nonnull"
+  return 0; // Noncompliant: return value is marked "nonnull" but null is returned
 }
 ----
 
-include::../see.adoc[]
+Failing to adhere to the attribute may introduce serious program errors.
+In particular, the compiler does not enforce that values marked as `nonnull` are indeed non-null at runtime; it is the developers' responsibility to adhere to the attribute.
+These values are typically _not_ null-checked before use.
+Passing null (i.e., `NULL`, `0` or `nullptr`) as an argument to a parameter that is marked as `nonnull`
+or returning null from a function marked as `returns_nonnull` is, hence, likely to cause a null-pointer dereference.
+Compilers may even apply optimizations based on this attribute and might, for instance, _remove_ an explicit null-check if the parameter is declared as `nonnull` -- even in code outside of the function with the attribute.
+
+Note that the `nonnull` attribute is a GNU extension (see https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-nonnull-function-attribute[nonnull] and https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-returns_005fnonnull-function-attribute[returns_nonnull]) which many compiler vendors have implemented.
+
+Note that it is allowed to _assign_ null to a parameter marked as `nonnull`.
+This attribute is only concerned with the function call contract
+and does not control the evolution of the parameter variable.
+For example, a linked-list search could be implemented as follows:
+
+[source,cpp]
+----
+struct List {
+  int value;
+  List *next; // nullptr for a tail node.
+};
+
+
+List *findElement(List *l, int elem) __attribute__((nonnull(1)));
+
+List *findElement(List *l, int elem) {
+  while(l && l->value != elem)
+    l = l->next;
+  return l;
+}
+----
+
+
+
+=== What is the potential impact?
+
+In case a program dereferences a null pointer, it's behavior is undefined.
+For programs that exercise undefined behavior the compiler no longer needs to adhere to the language standard and the program has no meaning assigned to it.
+
+In practice, dereferencing a null pointer may lead to program crashes, or the application may appear to execute correctly while losing data or producing incorrect results.
+
+Besides affecting the application's availability, null-pointer dereferences may lead to malicious code execution, in rare circumstances.
+If null is equivalent to the 0x0 memory address that can be accessed by privileged code, writing, and reading memory is possible, which compromises the integrity and confidentiality of the application.
+
+Because compilers may apply optimizations based on the `nonnull` attribute, not respecting `nonnull` can also introduce more complex bugs such as resource leaks or infinite recursion as indicated in the following code snippet:
+
+[source,cpp]
+----
+struct List {
+  int value;
+  List *next; // nullptr for a tail node.
+};
+
+size_t len(List *n) __attribute__((nonnull));
+size_t len(List *l) {
+  if (!l) return 0; // Impossible branch according to the attribute
+  return 1 + len(l->next);
+}
+----
+
+
+== How to fix it
+
+Ensure not to pass null values when `nonnull` arguments are expected and not to return a null value when a function is marked as `returns_nonnull`.
+This especially holds for library functions, which frequently require `nonnull` pointer parameters.
+
+On other occasions, it might be more appropriate to remove the attribute.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+int *foo(int *x) __attribute__((nonnull));
+int *foo(int *x) {
+  *x = 42;
+  return x;
+}
+
+void bar() {
+  int *p = nullptr;
+  int *q = foo(p); // Noncompliant: null value is passed as an argument marked "nonnull"
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+int *foo(int *x) __attribute__((nonnull));
+int *foo(int *x) {
+  *x = 42;
+  return x;
+}
+
+void bar() {
+  int i = 0;
+  int *p = &i;
+  int *q = foo(p); // Compliant: `p` points to a valid memory location
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+__attribute__((returns_nonnull))
+int *foo() {
+  return nullptr; // Noncompliant: function may not return a null pointer
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+__attribute__((returns_nonnull))
+int *foo() {
+  int *p = new int(0);
+  return p; // Compliant: `p` points to a valid memory location
+}
+----
+
+
+=== Going the extra mile
+
+include::../../../shared_content/cfamily/reference_over_nonnull_pointer.adoc[]
+
+
+== Resources
+
+include::../standards.adoc[]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f16-for-in-parameters-pass-cheaply-copied-types-by-value-and-others-by-reference-to-const[F.16: For "in" parameters, pass cheaply-copied types by value and others by reference to `const`]
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f17-for-in-out-parameters-pass-by-reference-to-non-const[F.17: For "in-out" parameters, pass by reference to non-`const`]
+
+
+=== Related rules
+
+* S2259 detects null-pointer dereferences
+* S3807 detects calls to C library functions that require valid, non-null pointers with null pointer arguments
+
+
 ifdef::env-github,rspecator-view[]
 
 '''

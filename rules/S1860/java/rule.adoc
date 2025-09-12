@@ -1,21 +1,59 @@
 == Why is this an issue?
 
-Objects which are pooled and potentially reused should not be used for synchronization. If they are, it can cause unrelated threads to deadlock with unhelpful stacktraces. Specifically, ``++String++`` literals, and boxed primitives such as Integers should not be used as lock objects because they are pooled and reused. The story is even worse for ``++Boolean++`` objects, because there could possibly be only two instances of ``++Boolean++``, ``++Boolean.TRUE++`` and ``++Boolean.FALSE++`` and every class that uses a Boolean will be referring to one of the two.
+In Java, value-based classes are those for which instances are final and immutable, like `String`, `Integer` and so on, and their identity relies on their value and not their reference.
+When a variable of one of these types is instantiated, the JVM caches its value, and the variable is just a reference to that value.
+For example, multiple `String` variables with the same value "Hello world!" will refer to the same cached string literal in memory.
 
+The `synchronized` keyword tells the JVM to only allow the execution of the code contained in the following block to one `Thread` at a time.
+This mechanism relies on the identity of the object that is being synchronized between threads, to prevent that if object X is locked, it will still be possible to lock another object Y.
 
-Here is the list of types which shouldn't be used for synchronization:
-
-* The primitive wrapper classes in java.lang;
-* The class java.lang.Runtime.Version;
-* The "optional" classes in java.util: Optional, OptionalInt, OptionalLong, and OptionalDouble;
-* Many classes in the java.time API: Instant, LocalDate, LocalTime, LocalDateTime, ZonedDateTime, ZoneId, OffsetTime, OffsetDateTime, ZoneOffset, Duration, Period, Year, YearMonth, and MonthDay, and, in java.time.chrono: MinguoDate, HijrahDate, JapaneseDate, and ThaiBuddhistDate;
-* The interface java.lang.ProcessHandle and its implementation classes;
-* The implementation classes of the collection factories in java.util: List.of, List.copyOf, Set.of, Set.copyOf, Map.of, Map.copyOf, Map.ofEntries, and Map.entry.
-
-
-=== Noncompliant code example
+It means that the JVM will fail to correctly synchronize threads on instances of the aforementioned value-based classes, for instance:
 
 [source,java]
+----
+// These variables "a" and "b" will effectively reference the same object in memory
+Integer a = 0;
+Integer b = 0;
+
+// This means that in the following code, the JVM could try to lock and execute
+// on the variable "a" because "b" was notified to be released, as the two Integer variables
+// are the same object to the JVM
+void syncMethod(int x) {
+    synchronized (a) {
+        if (a == x) {
+        // ... do something here
+        }
+    }
+    synchronized (b) {
+        if (b == x) {
+        // ... do something else
+        }
+    }
+}
+----
+
+This behavior can cause unrelated threads to deadlock with unclear stacktraces.
+
+Within the JDK, types which should not be used for synchronization include:
+
+* `String` literals
+* Primitive wrapper classes in `java.lang` (such as `Boolean` with `Boolean.FALSE` and `Boolean.TRUE`)
+* The class `java.lang.Runtime.Version`
+* The ``++Optional*++`` classes in `java.util`: `Optional`, `OptionalInt`, `OptionalLong`, and `OptionalDouble`
+* Various classes in the `java.time` API: `Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `ZonedDateTime`, `ZoneId`, `OffsetTime`, `OffsetDateTime`, `ZoneOffset`, `Duration`, `Period`, `Year`, `YearMonth`, and `MonthDay`
+* Various classes in the `java.time.chrono` API: `MinguoDate`, `HijrahDate`, `JapaneseDate`, and `ThaiBuddhistDate`
+* The interface `java.lang.ProcessHandle` and its implementation classes
+* The implementation classes of the collection factories in `java.util`: `List.of`, `List.copyOf`, `Set.of`, `Set.copyOf`, `Map.of`, `Map.copyOf`, `Map.ofEntries`, and `Map.entry`.
+
+== How to fix it
+
+Replace instances of value-based classes with a new object instance to synchronize on.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
 private static final Boolean bLock = Boolean.FALSE;
 private static final Integer iLock = Integer.valueOf(0);
@@ -25,50 +63,51 @@ private static final List<String> listLock = List.of("a", "b", "c", "d");
 public void doSomething() {
 
   synchronized(bLock) {  // Noncompliant
-    // ...
+      ...
   }
   synchronized(iLock) {  // Noncompliant
-    // ...
+      ...
   }
   synchronized(sLock) {  // Noncompliant
-    // ...
+      ...
   }
   synchronized(listLock) {  // Noncompliant
-    // ...
+      ...
   }
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
 private static final Object lock1 = new Object();
-private static final Object lock2 = new Object();
-private static final Object lock3 = new Object();
-private static final Object lock4 = new Object();
+private static final Integer iLock = new Integer(42);
+private static final String sLock = new String("A brand new string in memory!");
+private static final List<String> listLock = new ArrayList<>();
 
 public void doSomething() {
 
-  synchronized(lock1) {
-    // ...
+  synchronized(lock1) { // Compliant
+      ...
   }
-  synchronized(lock2) {
-    // ...
+  synchronized(iLock) { // Compliant
+      ...
   }
-  synchronized(lock3) {
-    // ...
+  synchronized(sLock) { // Compliant
+      ...
   }
-  synchronized(lock4) {
-    // ...
+  synchronized(listLock) { // Compliant
+      ...
   }
 ----
 
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/1zdGBQ[CERT, LCK01-J.] - Do not synchronize on objects that may be reused
-* https://openjdk.java.net/jeps/390[JEP-390.] - JEP 390: Warnings for Value-Based Classes
+* CERT - https://wiki.sei.cmu.edu/confluence/x/1zdGBQ[Do not synchronize on objects that may be reused]
+* OpenJDK - https://openjdk.java.net/jeps/390[JEP 390: Warnings for Value-Based Classes]
+* Java Documentation - https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/doc-files/ValueBased.html[Value-based Classes]
 
 
 ifdef::env-github,rspecator-view[]
@@ -77,11 +116,16 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Synchronize on a new "Object" instead.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== on 21 Nov 2024, 16:48:00 Alban Auzeill wrote:
+[test-code-support-investigation-for-java] Decision for scope: Keep 'Main'. Rule could be improved, FP new Integer(0)
+
 endif::env-github,rspecator-view[]

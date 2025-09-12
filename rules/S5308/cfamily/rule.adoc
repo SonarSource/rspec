@@ -1,30 +1,180 @@
+Unchecked return value of a function from the `setuid`-family might cause unexpected behavior and poses a security risk.
+
 == Why is this an issue?
 
-``++setuid++`` family of functions are used to change the user identity of the caller process in order to change privileges for the following actions. If the function call returns with an error, the rest of the program will execute with unexpected privileges leading to unexpected behaviour.
+Functions from the ``++setuid++``-family including ``++setuid++`` and ``++setgid++`` are used to change the identity of the caller process.
+They are used to change privileges for the subsequent actions to be executed.
+If a call to these functions returns an error that is not checked and handled appropriately, the subsequent parts of the program will execute with unexpected privileges.
+This, in turn, leads to unexpected program behavior and poses a _serious_ security risk.
 
 
-=== Noncompliant code example
+=== What is the potential impact?
+
+Functions for managing a program's privileges are fairly complex and one needs to take great care to use them correctly.
+
+Failing to correctly handle potential errors indicated by those functions' respective return values can lead to unexpected behavior.
+If the program fails to acquire more privileges to execute a privileged operation, for instance, the OS will disallow the operation and the program is likely terminated by the OS.
+However, if the program silently fails to drop its privileges, it will continue to run the subsequent operations with more privileges than expected, which poses a _serious_ security risk.
+
+
+=== Example program that changes between privileged and unprivileged mode
+
+A brief example on how ``++setuid++`` can be used and how to correctly check its return value is given in what follows.
+
+Consider the following example:
+
+Assume that the program shown below has been compiled to its binary named `my-program`.
+One can change its owner to root, for instance.
+
+[source,txt]
+----
+$ sudo chown root:root my-program
+----
+
+After setting the program's setuid bit using
+
+[source,txt]
+----
+$ sudo chmod u+s my-program
+----
+
+the program's permissions may look like
+
+[source,txt]
+----
+-rwsrwxr-x 1 root root 16416 Aug 21 15:45 my-program
+----
+
+The 's' indicates that the executable has the setuid bit set.
+Notice that the program's owner (here root) may be different from its caller.
+Functions from the `setuid`-family can be used to manipulate privileges and acquire (or drop) the program owner's privileges.
 
 [source,cpp]
 ----
-void f() {
-  ...
-  setuid(0); // Noncompliant
-  ...
-}
-----
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
 
+static uid_t real_uid;
+static uid_t effective_uid;
 
-=== Compliant solution
-
-[source,cpp]
-----
-void f() {
-  ...
-  if (setuid(0)) {
-    // fail
+void do_setuid(void) {
+  printf("Try to acquire privileges\n");
+  int status;
+  status = seteuid(effective_uid);
+  if (status < 0) { // Compliant: return code is checked and potential errors are handled.
+    fprintf(stderr, "Couldn't set uid.\n");
+    exit(status);
   }
-  ...
+  printf("Set uid to %lu\n", (unsigned long int)effective_uid);
+}
+
+void undo_setuid(void) {
+  printf("Try to drop privileges\n");
+  int status;
+  status = seteuid(real_uid);
+  if (status < 0) { // Compliant: return code is checked and potential errors are handled.
+    fprintf(stderr, "Couldn't set uid.\n");
+    exit(status);
+  }
+  printf("Set uid to %lu\n", (unsigned long int)real_uid);
+}
+
+int main(void) {
+  real_uid = getuid();       // Real ID of the program's caller.
+  effective_uid = geteuid(); // Effective ID of the program's owner (here root).
+  // Immediately drop privileges and set effective user ID back to real user ID
+  // such that operations are performed using the real user ID for determining
+  // permissions.
+  undo_setuid();
+  // Switch back to file user ID (the owner's privileges) only if the effective
+  // ID (the privileges) is required to determine permission for privileged
+  // operations.
+  do_setuid();
+  //
+  // PERFORM PRIVILEGED OPERATION (using root privileges in this example).
+  //
+  // Drop privileges as soon as they are no longer needed.
+  undo_setuid();
+
+  // There are a multitude of operations that can be extremely dangerous if
+  // executed as root. Assume that this program would not correctly handle
+  // potential errors. In that case, the following system call poses a security
+  // risk, if dropping privileges fails. The following command recursively removes
+  // all files and directories inside the /tmp directory. If executed with root
+  // permissions, it can potentially delete important files and directories, causing
+  // system instability or data loss.
+  system("rm -rf /tmp/*"); // Caution: poses a security risk if accidentally executed as root.
 }
 ----
 
+
+== How to fix it
+
+Always check the return values of the ``++setuid++``-family functions and handle any potential error appropriately.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+static uid_t real_uid;
+static uid_t effective_uid;
+
+void undo_setuid(void) {
+  printf("Try to drop privileges\n");
+  // Potential failures of `seteuid` are neither checked nor handled appropriately.
+  // This function may hence silently fail to drop privileges and continues execution
+  // in a privileged mode. This poses a serious security risk!
+  seteuid(real_uid); // Noncompliant: return value is not checked.
+  printf("Set uid to %lu\n", (unsigned long int)real_uid);
+}
+----
+
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+static uid_t real_uid;
+static uid_t effective_uid;
+
+void undo_setuid(void) {
+  printf("Try to drop privileges\n");
+  int status;
+  status = seteuid(real_uid);
+  if (status < 0) { // Compliant: return code is checked and potential errors are handled.
+    fprintf(stderr, "Couldn't set uid.\n");
+    exit(status);
+  }
+  printf("Set uid to %lu\n", (unsigned long int)real_uid);
+}
+----
+
+
+== Resources
+
+=== Articles & blog posts
+
+* https://www.usenix.org/legacy/events/sec02/full_papers/chen/chen.pdf[Setuid demystified] Chen, Hao, David Wagner, and Drew Dean. 11th USENIX Security Symposium (USENIX Security 02). 2002.
+
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/POS36-C.+Observe+correct+revocation+order+while+relinquishing+privileges[POS36-C. Ensure that privilege relinquishment is successful]
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/POS37-C.+Ensure+that+privilege+relinquishment+is+successful[POS37-C. Observe correct revocation order while relinquishing privileges]
+* CWE - https://cwe.mitre.org/data/definitions/252[CWE-252 Unchecked Return Value]
+* CWE - https://cwe.mitre.org/data/definitions/272[CWE-272 Least Privilege Violation]

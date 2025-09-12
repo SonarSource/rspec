@@ -1,0 +1,59 @@
+== How to fix it in Spring Data Redis
+
+=== Code examples
+
+The following code is vulnerable to NoSQL injections because untrusted data is
+concatenated to a Redis script. Such a script is used to perform advanced
+queries on a Redis instance so that an injection in it might result in the
+compromise of the Redis instance.
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+
+@RestController
+@RequestMapping(path = "/redis")
+public class RedisController {
+
+    @Autowired RedisTemplate<String, Object> redisTemplate;
+
+    @GetMapping("/template/redisscript/echo/{echo}")
+    public String templateRedisScriptCompliant(@PathVariable String echo) {
+        String script = "return " + echo + ";";
+        Object result = redisTemplate.execute(RedisScript.of(script, Object.class), new ArrayList<String>()); // Noncompliant
+        return result.toString();
+    }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+
+@RestController
+@RequestMapping(path = "/redis")
+public class RedisController {
+
+    @Autowired RedisTemplate<String, Object> redisTemplate;
+
+    @GetMapping("/template/redisscript/echo/{echo}")
+    public String templateRedisScriptCompliant(@PathVariable String echo) {
+        String script = "return ARGV[1];";
+        Object result = redisTemplate.execute(RedisScript.of(script, Object.class), new ArrayList<String>(), echo);
+        return result.toString();
+    }
+}
+----
+
+=== How does this work?
+
+Here, the compliant solution passes the untrusted data as a parameter to the
+Redis script. This ensures the data will be treated as a single value and will
+not tamper with the script semantics.
+

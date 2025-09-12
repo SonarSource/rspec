@@ -1,0 +1,68 @@
+The `java.sql.PreparedStatement` represents a precompiled SQL statement that can be efficiently executed multiple times.
+
+== Why is this an issue?
+
+The `PreparedStatement` is frequently used in loops because it allows to conveniently set parameters.
+A small optimization is possible by setting constant parameters outside the loop or hard-coding them in the query whenever possible.
+
+=== What is the potential impact?
+
+* _Performance_: the unnecessary calls to the setter methods bring overhead.
+* _Sustainability_: the extra overhead has a negative impact on the environment.
+
+== How to fix it
+
+Place calls to setter methods that take a constant argument outside the loop.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+public class DatabaseExample {
+
+    public record Order(String id, BigDecimal price) {}
+
+    public void updateTodayOrders(Connection connection, List<Order> orders) {
+            Date today = java.sql.Date.valueOf(LocalDate.now());
+            String insertQuery = "INSERT INTO Order (id, price, executionDate) VALUES (?, ?, ?)";
+            PreparedStatement preparedStatement = connection.prepareStatement(insertQuery);
+
+            for(Order order: orders) {
+                preparedStatement.setString(1, order.id());
+                preparedStatement.setString(2, order.price());
+                preparedStatement.setDate(3, today); // Noncompliant
+                preparedStatement.executeUpdate();
+            }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+public class DatabaseExample {
+
+    public record Order(String id, BigDecimal price) {}
+
+    public void updateTodayOrders(Connection connection, List<Order> orders) {
+            Date today = java.sql.Date.valueOf(LocalDate.now());
+            String insertQuery = "INSERT INTO Order (id, price, executionDate) VALUES (?, ?, ?)";
+            PreparedStatement preparedStatement = connection.prepareStatement(insertQuery);
+
+            preparedStatement.setDate(3, today); // Compliant
+            for(Order order: orders) {
+                preparedStatement.setString(1, order.id());
+                preparedStatement.setString(2, order.price());
+                preparedStatement.executeUpdate();
+            }
+    }
+}
+----
+
+== Resources
+=== Documentation
+* https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/PreparedStatement.html[Oracle SDK - PreparedStatement]
+* https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html[Oracle Tutorial - Using Prepared Statements]

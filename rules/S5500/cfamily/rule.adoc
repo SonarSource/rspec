@@ -1,66 +1,256 @@
 == Why is this an issue?
 
-Rvalue reference arguments allow to transfer ownership of objects.
+Rvalue reference arguments allow the efficient transfer of the ownership of objects.
+Therefore, it is expected that rvalue arguments or their subobjects are, conditionally or not, moved into their destination variables.
 
-When a function has an argument of type rvalue reference, it is expected to call ``++std::move++`` to take ownership of the corresponding parameter when it is called.
-
-If it does not do it or if it does it conditionally, ownership is unclear and this might lead to bugs.
-
+The ownership is unclear when an rvalue argument, including its subobject or elements, is never moved.
+This might lead to bugs and performance issues.
 
 This rule does not apply when the argument is a forwarding reference.
 
+=== Exceptions
 
-=== Noncompliant code example
+For the {cpp}23 or later standard, this rule does not raise issues if the function returns the rvalue reference parameter.
+In such cases, the parameter is implicitly moved, and an explicit call to `std::move` is not required:
+[source,cpp]
+----
+Shape updateShape(Shape&& shape) {
+  /* ... */
+  return shape; // Compliant: implicitly moves shape
+}
+----
+
+When returning a parameter or variable of rvalue reference type, an implicit move
+was introduced in {cpp}20 and retroactively applied to previous standards.
+As a consequence, the behavior of such return statements is not consistent across compilers
+and standard versions.
+
+Furthermore, with the {cpp}20 rules, the implicit move is not triggered if the function
+returns a reference:
+[source,cpp]
+----
+Shape&& updateShape(Shape&& shape) {
+  /* ... */
+  // C++23: Implicit move, equivalent to `std::move(shape)`
+  // C++20: No move and ill-formed as Shape&& reference cannot bound to Shape&
+  return shape;
+}
+----
+
+Due to all of the above, this rule does not treat `return p` as an exception in {cpp} standard before {cpp}23,
+and requires the explicit move `return std::move(p)`.
+
+In contrast to returning local (stack) variables, named return value optimization (NRVO)
+does not apply to function parameters, so an explicit `std::move` call has no impact on optimizations.
+
+== How to fix it
+
+This issue can be resolved in multiple ways:
+
+// We do not mention std::move_backward or std::ranges::move_backward to keep things simple.
+// Those functions are assumed to be less frequently needed.
+
+* Generally, `std::move` can be used to move such arguments;
+* For containers, {cpp}20 `std::ranges::move` or {cpp}23 `std::views::as_rvalue` can be used to move their elements;
+* It is also possible to use a range-based for loop to move elements.
+
+We illustrate these solutions in the examples below based on the following definitions.
 
 [source,cpp]
 ----
-enum class Shape {
-  empty, circle, square
+class Shape {
+public:
+  Shape(Shape const& shape); // Copy constructor
+  Shape(Shape&& shape);      // Move constructor
+  // More code...
+
+  bool isVisible() const;
 };
 
 class DrawingStore {
   std::vector<Shape> store;
-public:
-  void insertShape(Shape &&shape) {
-    store.emplace_back(shape); // Noncompliant, call to std::move is expected
-  }  
 
-  void insertIfCircle(Shape &&shape) {
-      if (shape == Shape::circle) {
-          store.emplace_back(std::move(shape)); // Noncompliant, std::move is not always called, ownership of shape is not clear
-      }    
-  }  
+public:
+  void insertVisibleShape(Shape&& shape);
+  void insertAllShapes(std::vector<Shape>&& shapes);
+  void insertAllVisibleShapes(std::vector<Shape>&& shapes);
 };
 ----
 
+=== How to move an rvalue parameter
 
-=== Compliant solution
+==== Noncompliant code example
+
+When the parameter represents a single object you want to move, it is not sufficient to use `&&` after its type in the parameter list.
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+void DrawingStore::insertVisibleShape(Shape&& shape) {
+  if (shape.isVisible()) {
+    store.emplace_back(shape); // Noncompliant, call to std::move is expected.
+  }
+}
+----
+
+With the above implementation, the `Shape` object appended in `store` is created using ``Shape``'s _copy_ constructor.
+
+==== Compliant solution
+
+To ensure the object's content is moved, you have to call `std::move()` like this:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+void DrawingStore::insertVisibleShape(Shape&& shape) {
+  if (shape.isVisible()) {
+    store.emplace_back(std::move(shape)); // Compliant
+  }
+}
+----
+
+With this fix, the _move_ constructor of `Shape` is used and the content of the parameter `shape` can be transferred to the newly created object in `store`.
+
+=== How to move elements of a container using for-loops
+
+When you want to transfer the content of multiple objects into another container, it also makes sense to define the parameter as rvalue with `&&`.
+
+==== Noncompliant code example
+
+While the following code looks fine and compiles, it does actually _copy_ the elements. In fact, `shapes` is left unchanged.
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+void DrawingStore::insertAllShapes(std::vector<Shape>&& shapes) {
+  for (Shape& s : shapes) {
+    if (s.isVisible()) {
+      store.emplace_back(s); // Noncompliant, call to std::move is expected.
+    }
+  }
+}
+----
+
+==== Compliant solution
+
+As in the previous example, a call to `std::move` is required to fix the implementation:
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void DrawingStore::insertAllVisibleShapes(std::vector<Shape>&& shapes) {
+  for (Shape& s : shapes) {
+    if (s.isVisible()) {
+      store.emplace_back(std::move(s)); // Compliant
+    }
+  }
+}
+----
+
+// We purposely do not go into the details of "moved-from" states and the fact that `shapes` has still the same number of elements while some of them are in this "moved-from" state.
+
+Writing ``++for (Shape& s : std::move(shapes))++`` would not fix the issue because this call to `std::move` has no effect here.
+The call to `std::move` has to be on `s`, not `shapes`.
+
+Notice that in this solution, the for-loop variable `s` remains an lvalue reference with a single `&`.
+In {cpp}23, it is possible to make it a rvalue too, with ``++std::ranges::views::as_rvalue++``, making the intent of the code clearer.
+
+// We do not use the shorter form std::views::as_rvalue because libstdc++ does not support it yet.
 
 [source,cpp]
 ----
-enum class Shape {
-  empty, circle, square
-};
-
-class DrawingStoreOk {
-  std::vector<Shape> store;
-public:
-  void insertShape(Shape &&shape) {
-    store.emplace_back(std::move(shape));
-  }  
-
-  void insertIfCircle(const Shape &shape) {
-      if (shape == Shape::circle) {
-          store.emplace_back(shape);
-      }    
-  }  
-};
+void DrawingStore::insertAllVisibleShapes(std::vector<Shape>&& shapes) {
+  for (Shape&& s : shapes | std::ranges::views::as_rvalue) {
+    if (s.isVisible()) {
+      store.emplace_back(std::move(s)); // Compliant
+    }
+  }
+}
 ----
 
+=== How to move elements of a container using algorithms
+
+Algorithms, especially with {cpp}20 ranges, are often better alternatives to manual for-loops since they abstract away a lot of implementation details.
+However, not all of them abstract away the move semantics and attention is required to use them correctly.
+
+==== Noncompliant code example
+
+For example, `std::ranges::copy` performs copies by default:
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+void DrawingStore::insertAllShapes(std::vector<Shape>&& shapes) {
+  // Noncompliant: the elements of shapes are not moved.
+  std::ranges::copy(shapes, std::back_inserter(store));
+}
+----
+
+==== Compliant solution
+
+Here, the solution is fairly simple: `std::ranges::copy` can be replaced with `std::ranges::move`.
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+void DrawingStore::insertAllShapes(std::vector<Shape>&& shapes) {
+  // Compliant: uses "move" instead of "copy".
+  std::ranges::move(shapes, std::back_inserter(store));
+}
+----
+
+==== Noncompliant code example
+
+However, sometimes `std::ranges::move` cannot be used, for example when not all elements should be moved.
+In this case, `std::ranges::copy_if` looks appropriate but falls short:
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+void DrawingStore::insertAllVisibleShapes(std::vector<Shape>&& shapes) {
+  // Noncompliant: the elements of shapes are not moved.
+  std::ranges::copy_if(
+    shapes,
+    std::back_inserter(store),
+    &Shape::isVisible
+  );
+}
+----
+
+Again, the elements are copied instead of being moved.
+
+==== Compliant solution
+
+While a solution based on ``++std::make_move_iterator++`` exists before {cpp}23, it is fairly verbose and error-prone.
+This time again, {cpp}23 ``++std::ranges::views::as_rvalue++`` helps writing regular code:
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+void DrawingStore::insertAllVisibleShapes(std::vector<Shape>&& shapes) {
+  // Compliant: use as_rvalue to ensure elements are moved.
+  std::ranges::copy_if(
+    shapes | std::ranges::views::as_rvalue,
+    std::back_inserter(store),
+    &Shape::isVisible
+  );
+}
+----
+
+This solution can be applied to any move-compatible algorithm.
 
 == Resources
 
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#f18-for-will-move-from-parameters-pass-by-x-and-stdmove-the-parameter[{cpp} Core Guidelines F.18] - For “will-move-from” parameters, pass by X&& and std::move the parameter
+=== Documentation
+
+// Not linking to the _backward versions, to the std::move(start, end, result) overload,
+// or std::make_move_iterator function to keep the number of links manageable.
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/move[`std::move`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/algorithm/ranges/move[`std::ranges::move`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/ranges/as_rvalue_view[`std::ranges::views::as_rvalue`]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/copy_elision[Copy elision]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f18-for-will-move-from-parameters-pass-by-x-and-stdmove-the-parameter[F.18: For "will-move-from" parameters, pass by `X&&` and `std::move` the parameter]
+
+=== Related rules
+
+* S6352 - The return value of "std::move" should be used in a function
+* S5417 - "std::move" and "std::forward" should not be confused
 
 
 ifdef::env-github,rspecator-view[]
@@ -69,11 +259,15 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+"std::move" is never called on this rvalue reference argument.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== relates to: S5272
+
 endif::env-github,rspecator-view[]

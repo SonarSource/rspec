@@ -1,0 +1,146 @@
+== Why is this an issue?
+
+Java 21 enhances Pattern Matching, introduced in Java 16, with a _record pattern_ that decomposes records into local variables.
+This form should be used when all fields of a record are accessed within a block for improved readability.
+Nested record patterns are also allowed and should be used when a record field is another record, and all its fields are accessed.
+
+== Exceptions
+
+This rule does not apply when not all record fields are accessed.
+This prevents the creation of unused local variables in the decomposed record structure.
+
+== How to fix it
+
+Replace the instance check or simple pattern matching with a record pattern.
+
+=== Code examples
+
+==== Noncompliant code example
+
+This example uses pattern matching but not a record pattern, even though all fields of the record are accessed in the block.
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+record Point(Float x, Float y, Float z) {}
+
+void print(Object obj) {
+    if (obj instanceof Point p) { // Noncompliant, because all three fields x, y, z are accessed
+        Float x = p.x;
+        Float y = p.y();
+        System.out.println(x + y + p.z);
+    }
+}
+----
+
+==== Compliant solution
+
+The compliant example uses a record pattern to decompose the record structure.
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+record Point(Float x, Float y, Float z) {}
+
+void print(Object obj) {
+    if (obj instanceof Point(Float x, Float y, Float z)) { // Compliant
+        System.out.println(x + y + z);
+    }
+}
+----
+
+==== Noncompliant code example
+
+This example does not use pattern matching or a record pattern.
+Rule _https://sonarsource.github.io/rspec/#/rspec/S6201[S6201 - Pattern matching or "instanceOf" operator should be used]_ would report first.
+When fixed using simple pattern matching instead of a record pattern, this rule (S6878) will report.
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+void print(Object obj) {
+    if (obj instanceof Point) { // Noncompliant
+        Point p = (Point) obj;
+        Float x = p.x;
+        Float y = p.y();
+        System.out.println(x + y + p.z);
+    }
+}
+----
+
+==== Compliant solution
+
+The solution compliant with both rules, S6201 and S6878, uses pattern matching and decomposes the record structure using a record pattern.
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+void print(Object obj) {
+    if (obj instanceof Point(Float x, Float y, Float z)) { // Compliant
+        System.out.println(x + y + z);
+    }
+}
+----
+
+
+==== Noncompliant code example
+
+This example is noncompliant because a nested record pattern could have been used.
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+record Plane(Point normal, Float d) {}
+
+void print(Object obj) {
+    // Noncompliant, because all field of "normal" are accessed
+    if (obj instanceof Plane(Point normal, Float d)) {
+        System.out.println(normal.x + normal.y + normal.z);
+        System.out.println(d);
+    }
+}
+----
+
+==== Compliant solution
+
+This is the same example using a nested record pattern.
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+void print(Object obj) {
+    if (obj instanceof Plane(Point(Float x, Float y, Float z), Float d)) { // Compliant
+        System.out.println(x + y + z);
+        System.out.println(d);
+    }
+}
+----
+
+==== Compliant solution
+
+This example uses `var` instead of replicating the field types in the record pattern, which is less verbose and keeps the code more readable, especially in the case of longer type names.
+Also, it uses variable names that do not match the original field names.
+The reason for this can be to avoid name collisions with fields or other local variables.
+
+[source,java]
+----
+void print(Object obj) {
+    if (obj instanceof Point(var px, var py, var pz)) { // Compliant
+        System.out.println(px + py + pz);
+    }
+}
+----
+
+==== Compliant solution
+
+This example is compliant without using a record pattern, as it does not access all fields.
+
+[source,java]
+----
+void print(Object obj) {
+    if (obj instanceof Point p) { // Compliant, because z is never accessed
+        Float x = p.x;
+        Float y = p.y();
+        System.out.println(x + y);
+    }
+}
+----
+
+
+== Resources
+
+* https://openjdk.org/jeps/440[JEP 440: Record Patterns]

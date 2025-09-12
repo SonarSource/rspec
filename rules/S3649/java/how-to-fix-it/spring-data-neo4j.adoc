@@ -1,0 +1,55 @@
+== How to fix it in Spring Data Neo4j
+
+=== Code examples
+
+The following code is vulnerable to Cypher injection because user-controlled data
+is inserted directly into a query string. The application assumes that incoming
+data always has a specific range of characters, and ignores that some characters
+may change the query logic to a malicious one.
+
+==== Noncompliant code example
+
+[source,java,diff-id=41,diff-type=noncompliant]
+----
+import org.springframework.data.neo4j.core.Neo4jTemplate;
+
+@RestController
+public class ApiController
+{
+    private final Neo4jTemplate neo4jTemplate;
+
+    @GetMapping("/find")
+    public List<Person> find(@RequestParam("name") String name) {
+        String cypherQuery = "MATCH (n:Person) WHERE n.name = '" + name + "' RETURN n";
+        return neo4jTemplate.findAll(cypherQuery, Person.class);
+    }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=41,diff-type=compliant]
+----
+import org.springframework.data.neo4j.core.Neo4jTemplate;
+
+@RestController
+public class ApiController
+{
+    private final Neo4jTemplate neo4jTemplate;
+
+    @GetMapping("/find")
+    public List<Person> find(@RequestParam("name") String name) {
+        String cypherQuery = "MATCH (n:Person) WHERE n.name = $name RETURN n";
+        var parameters = new HashMap<String, Object>();
+        parameters.put("name", name);
+        return neo4jTemplate.findAll(cypherQuery, parameters, Person.class);
+    }
+}
+----
+
+=== How does this work?
+
+As a rule of thumb, the best approach to protect against injections is to
+systematically ensure that untrusted data cannot break out of an interpreted
+context. For Neo4j, parameterized queries can securely and efficiently supply
+dynamic values to the query at the time of execution.

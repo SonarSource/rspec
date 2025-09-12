@@ -1,40 +1,53 @@
+If a buffer contains sensitive data, such as passwords or access tokens, it is good practice to overwrite the buffer before releasing the memory. This ensures that the sensitive data is not available when that memory is reallocated. The ``++memset++`` function is commonly used for this purpose.
+
 == Why is this an issue?
 
-The compiler is generally allowed to remove code that does not have any effect, according to the abstract machine of the C language. This means that if you have a buffer that contains sensitive data (for instance passwords), calling ``++memset++`` on the buffer before releasing the memory will probably be optimized away.
+The C language specification allows the compiler to remove unnecessary code during the optimization phase. For example, when a memory buffer is about to be destroyed, any writes to that buffer may be seen as unnecessary to the operation of the program. The compiler may choose to remove these write operations.
 
-
-The function https://en.cppreference.com/w/c/string/byte/memset[``++memset_s++``] behaves similarly to ``++memset++``, but the main difference is that it cannot be optimized away, the memory will be overwritten in all cases. You should always use this function to scrub security-sensitive data.
-
+When the ``++memset++`` function is used to clear sensitive data from memory and that memory is destroyed immediately afterward, the compiler may see the ``++memset++`` call as unnecessary and remove it. The sensitive data will, therefore, remain in memory.
 
 This rule raises an issue when a call to ``++memset++`` is followed by the destruction of the buffer.
 
+== How to fix it
 
-Note that ``++memset_s++`` is defined in annex K of C11, so to have access to it, you need a standard library that supports it (this can be tested with the macro ``++__STDC_LIB_EXT1__++``), and you need to enable it by defining the macro ``++__STDC_WANT_LIB_EXT1__++`` before including ``++<string.h>++``. Other platform specific functions can perform the same operation, for instance https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa366877(v=vs.85)?redirectedfrom=MSDN[SecureZeroMemory] (Windows) or https://www.freebsd.org/cgi/man.cgi?query=explicit_bzero[explicit_bzero] (FreeBSD)
+The function https://en.cppreference.com/w/c/string/byte/memset[``++memset_s++``] behaves similarly to ``++memset++``. The main difference is that it cannot be optimized away and the memory will be overwritten in all cases. You should use ``++memset_s++`` to clear security-sensitive data.
+
+The ``++memset_s++`` function is defined in annex K of C11 and is optional for C11 compilers. It will only be available if the macro ``++__STDC_LIB_EXT1__++`` is defined, and it must be enabled by defining the macro ``++__STDC_WANT_LIB_EXT1__++`` before including ``++<string.h>++``.
+
+Other platform-specific functions can perform the same operation, such as https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa366877(v=vs.85)?redirectedfrom=MSDN[SecureZeroMemory] (Windows) or https://www.freebsd.org/cgi/man.cgi?query=explicit_bzero[explicit_bzero] (FreeBSD).
 
 
-=== Noncompliant code example
+=== Code examples
 
-[source,cpp]
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
 ----
+#include <string>
+
 void f(char *password, size_t bufferSize) {
   char localToken[256];
   init(localToken, password);
-  memset(password, ' ', strlen(password)); // Noncompliant, password is about to be freed
-  memset(localToken, ' ', strlen(localToken)); // Noncompliant, localToken is about to go out of scope
+  memset(password, 0, strlen(password));  // Noncompliant
+  memset(localToken, 0, strlen(localToken));  // Noncompliant
   free(password);
 }
 ----
 
+The ``memset`` calls may be optimized away because ``password`` is about to be freed and ``localToken`` is about to go out of scope.
 
-=== Compliant solution
+==== Compliant solution
 
-[source,cpp]
+[source,cpp,diff-id=1,diff-type=compliant]
 ----
+#define __STDC_WANT_LIB_EXT1__
+#include <string>
+
 void f(char *password, size_t bufferSize) {
   char localToken[256];
   init(localToken, password);
-  memset_s(password, bufferSize, ' ', strlen(password));
-  memset_s(localToken, sizeof(localToken), ' ', strlen(localToken));
+  memset_s(password, bufferSize, 0, strlen(password));
+  memset_s(localToken, sizeof(localToken), 0, strlen(localToken));
   free(password);
 }
 ----
@@ -42,8 +55,15 @@ void f(char *password, size_t bufferSize) {
 
 == Resources
 
-* https://www.owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure[OWASP Top 10 2017 Category A3] - Sensitive Data Exposure
-* https://cwe.mitre.org/data/definitions/14[MITRE, CWE-14] - Compiler Removal of Code to Clear Buffers
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/c/string/byte/memset[`memset`, ``++memset_s++``]
+
+=== Standards
+
+* OWASP - https://www.owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure[Top 10 2017 Category A3 - Sensitive Data Exposure]
+* OWASP - https://github.com/OWASP/ASVS/blob/master/4.0/en/0x16-V8-Data-Protection.md#v83-sensitive-private-data[Application Security Verification Standard 4.0 - 8.3.6]
+* CWE - https://cwe.mitre.org/data/definitions/14[CWE-14 - Compiler Removal of Code to Clear Buffers]
 
 
 ifdef::env-github,rspecator-view[]
@@ -52,6 +72,9 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Use "memset_s" if you want to scrub memory, or remove this useless operation
+
 
 endif::env-github,rspecator-view[]

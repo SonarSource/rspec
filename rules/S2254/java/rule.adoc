@@ -1,43 +1,70 @@
+This function uses a session ID that is supplied by the client. Because of this, the ID may not be valid or might even be spoofed.
+
 == Why is this an issue?
 
-According to the Oracle Java API, the ``++HttpServletRequest.getRequestedSessionId()++`` method:
+According to the API documentation of the `HttpServletRequest.getRequestedSessionId()` method:
 
 ____
 Returns the session ID specified by the client. This may not be the same as the ID of the current valid session for this request. If the client did not specify a session ID, this method returns null.
-
 ____
 
-The session ID it returns is either transmitted in a cookie or a URL parameter so by definition, nothing prevents the end-user from manually updating the value of this session ID in the HTTP request. 
+The session ID it returns is either transmitted through a cookie or a URL parameter. This allows an end user to manually update the value of this session ID in an HTTP request.
+
+Due to the ability of the end-user to manually change the value, the session ID in the request should only be used by a servlet container (e.g. Tomcat or Jetty) to see if the value matches the ID of an existing session.
+If it does not, the user should be considered unauthenticated.
+
+=== What is the potential impact?
+
+Using a client-supplied session ID to manage sessions on the server side can potentially have an impact on the security of the application.
+
+==== Impersonation (through session fixation)
+
+If an attacker succeeds in fixing a user's session to a session identifier that they know, then they can impersonate this victim and gain access to their account without providing valid credentials. This can result in unauthorized actions, such as modifying personal information, making unauthorized transactions, or even performing malicious activities on behalf of the victim. An attacker can also manipulate the victim into performing actions they wouldn't normally do, such as revealing sensitive information or conducting financial transactions on the attacker's behalf.
 
 
-Here is an example of a updated HTTP header:
+== How to fix it in Java EE
 
+=== Code examples
+
+In both examples, a session ID is used to check whether a user's session is still active. In the noncompliant example, the session ID supplied by the user is used. In the compliant example, the session ID defined by the server is used instead.
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-GET /pageSomeWhere HTTP/1.1
-Host: webSite.com
-User-Agent: Mozilla/5.0
-Cookie: JSESSIONID=Hacked_Session_Value'''">
-----
-
-Due to the ability of the end-user to manually change the value, the session ID in the request should only be used by a servlet container (E.G. Tomcat or Jetty) to see if the value matches the ID of an an existing session. If it does not, the user should be considered  unauthenticated. Moreover, this session ID should never be logged as is but using a one-way hash to prevent hijacking of active sessions.
-
-
-=== Noncompliant code example
-
-[source,java]
-----
-if(isActiveSession(request.getRequestedSessionId()) ){
-  ...
+if (isActiveSession(request.getRequestedSessionId())) { // Noncompliant
+    // ...
 }
 ----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+if (isActiveSession(request.getSession().getId())) {
+    // ...
+}
+----
+
+=== How does this work?
+
+The noncompliant example uses `HttpServletRequest.getRequestedSessionId()` to retrieve a session ID. This ID is then used to verify if the given session is still active. As this value is given by a user, this value is not guaranteed to be a valid ID.
+
+The compliant example instead uses the server's session ID to verify if the session is active. Additionally, `getSession()` will create a new session if the user's request does not contain a valid ID.
 
 
 == Resources
 
-* https://owasp.org/Top10/A04_2021-Insecure_Design/[OWASP Top 10 2021 Category A4] - Insecure Design
-* https://owasp.org/www-project-top-ten/2017/A2_2017-Broken_Authentication[OWASP Top 10 2017 Category A2] - Broken Authentication
-* https://cwe.mitre.org/data/definitions/807[MITRE, CWE-807] - Reliance on Untrusted Inputs in a Security Decision
-* https://www.sans.org/top25-software-errors/#cat3[SANS Top 25] - Porous Defenses
+=== Documentation
+
+* Jakarta EE Documentation - https://jakarta.ee/specifications/platform/10/apidocs/jakarta/servlet/http/httpservletrequest#getRequestedSessionId--[`HttpServletRequest` - `getRequestedSessionId`]
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A04_2021-Insecure_Design/[Top 10 2021 Category A4 - Insecure Design]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A2_2017-Broken_Authentication[Top 10 2017 Category A2 - Broken Authentication]
+* CWE - https://cwe.mitre.org/data/definitions/807[CWE-807 - Reliance on Untrusted Inputs in a Security Decision]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222582[Application Security and Development: V-222582] - The application must not re-use or recycle session IDs.
 
 
 ifdef::env-github,rspecator-view[]
@@ -46,6 +73,9 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Remove the use of this insecure "getRequestedSessionId()" method.
+
 
 endif::env-github,rspecator-view[]

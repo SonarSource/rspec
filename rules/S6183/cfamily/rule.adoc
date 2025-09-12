@@ -1,48 +1,165 @@
+Functions from the ``++std::cmp_*++`` family should be used to compare signed and unsigned values.
+
 == Why is this an issue?
 
-Comparison between `signed` and `unsigned` integers is dangerous because it produces counterintuitive results outside of their common range of values.
+Comparisons between ``++signed++`` and ``++unsigned++`` integers are dangerous because they produce counterintuitive results outside their shared value range.
+
+When a signed integer is compared to an unsigned one, the former might be converted to unsigned.
+The conversion preserves the two's-complement bit pattern of the signed value that often corresponds to a large unsigned result.
+The expression ``++2U < -1++`` evaluates to ``++true++``, for instance.
+
+{cpp}20 introduced a remedy to this common pitfall: a family of ``++std::cmp_*++`` functions defined in the ``++<utility>++`` header:
+
+* ``++std::cmp_equal++``
+* ``++std::cmp_not_equal++``
+* ``++std::cmp_less++``
+* ``++std::cmp_greater++``
+* ``++std::cmp_less_equal++``
+* ``++std::cmp_greater_equal++``
+
+These functions correctly handle negative numbers and are safe against lossy integer conversion.
+For example, the comparison of ``++2U++`` and ``++-1++`` using ``++std::cmp_less(2U, -1)++`` evaluates to ``++false++`` and matches common intuition.
 
 
-When a signed integer is compared to an unsigned one, the former might be converted to unsigned. The conversion preserves the two's-complement bit pattern of the signed value that often corresponds to a large unsigned result. For example, `2U < -1` is `true`.
+=== What is the potential impact?
 
+Comparisons between ``++signed++`` and ``++unsigned++`` integer types produce counterintuitive results.
 
-{cpp}20 introduced remedy to this common pitfall: a family of `std::cmp_*` functions defined in the `<utility>` header. These functions correctly handle negative numbers and lossy integer conversion. For example, `std::cmp_less(2U, -1)` is `false`.
+Failing to understand integer conversion rules can lead to tricky bugs and security vulnerabilities.
+The major integer conversion risks include narrowing types, converting from unsigned to signed and from negative to unsigned.
 
-This rule starts by detecting comparisons between signed and unsigned integers. Then, if the signed value can be proven to be negative, the rule S6214 will raise an issue (it is a bug). Otherwise, this rule will raise an issue. Therefore, if this rule is enabled, S6214 should be enabled too.
+The following program shall demonstrate the subtlety of the kind of vulnerabilities that integer conversions may introduce.
+The program is vulnerable to buffer overflows due to signed/unsigned integer conversion.
 
-
-=== Noncompliant code example
-
-[source,cpp]
+[source,c]
 ----
-bool less = 2U < -1; // Compliant, raises S6214
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-bool foo(unsigned x, signed y) {
+int main(int argc, char **argv) {
+  if (argc != 3) {
+    printf("usage: <prog> <string length - int> <string - const char *>\n");
+    return 1;
+  }
+  const int buf_size = 16;
+  char buf[buf_size];
+  int user_input = atoi(argv[1]);
+  if (user_input >= buf_size) {
+    return 1;
+  }
+  // Because `sizeof(*)` returns an unsigned integer, both operands are first
+  // converted to unsigned integers, the multiplication is performed and the
+  // result is of type unsigned integer.
+  memcpy(buf, argv[2], user_input * sizeof(char));
+  if (user_input == 0xBEEF) {
+    printf("Whoopsie daisy, ...\n");
+    // A malicious user can craft input arguments such that the flow of control
+    // passes through this call to `execl`, which opens a new shell with this
+    // program's (possibly elevated) permissions.
+    execl("/bin/bash", "bash", (char *)NULL);
+  } else {
+    printf("Not so fast!\n");
+  }
+  return 0;
+}
+----
+
+The program takes a string and its size as arguments and uses these arguments to copy the string argument into an internal buffer.
+Before copying the string into its internal buffer, it checks whether the user-provided string fits into the buffer.
+The program also comprises a call to `execl` that opens a shell with the program's possibly elevated permissions -- a potentially dangerous endeavor.
+Even though the call to `execl` seems unreachable at first glance, it can actually be reached due to signed/unsigned integer conversion.
+
+The check for the buffer size only validates that the provided string length (`user_input`) is smaller or equal to the buffer's size.
+Since the `atoi` function returns a signed integer, a user may provide a negative number to withstand that check.
+On the other hand, the result of `sizeof(*)` returns an unsigned integer which causes the expression `user_input * sizeof(char)` to be evaluated by
+
+  . converting both operands to unsigned integers,
+  . performing the multiplication, and
+  . returning the result as an unsigned integer type.
+
+Hence, a malicious user can provide carefully crafted negative integer and string to bypass the size check while still arriving at the appropriate size argument to not crash `memcpy`.
+In turn, this enables the malicious user to overflow the buffer variable `buf` to override the `user_input` variable, which allows the second `if` statement to be evaluated to true, eventually opening a new shell with the target program's possibly elevated permissions.
+
+
+== How to fix it
+
+Use the appropriate function from the ``++std::cmp_*++`` family to compare signed and unsigned integer types.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+bool foo(unsigned x, int y) {
   return x < y; // Noncompliant: y might be negative
 }
+----
 
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+bool foo(unsigned x, int y) {
+  return std::cmp_less(x, y); // Compliant
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
 bool fun(int x, std::vector<int> const& v) {
   return x < v.size(); // Noncompliant: x might be negative
 }
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,cpp]
+[source,cpp,diff-id=2,diff-type=compliant]
 ----
-bool less = std::cmp_less(2U, -1); // Compliant for this rule and S6214
-
-bool foo(unsigned x, signed y) {
-  return std::cmp_less(x, y); // Compliant
-}
-
 bool fun(int x, std::vector<int> const& v) {
   return std::cmp_less(x, v.size()); // Compliant
 }
+----
 
-void compute(std::vector<int> const &v) {
-  if (0 < v.size() && v.size() < 100) { // Compliant, even though v.size() returns an unsigned integer
+
+=== Interactions with associated rule S6214
+
+Note that this rule (S6183) deliberately avoids intersection with S6214.
+
+While S6214 raises an issue if the signed value can be proven to be negative (in which case it is definitely a bug), S6183 will flag all *other* comparisons between signed and unsigned integers.
+Therefore, if this rule is enabled, S6214 should be enabled too.
+
+The following code snippet is compliant with S6183 but noncompliant with S6214, which will raise an issue on this definite bug.
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+#include <iostream>
+
+void foo() {
+  if (2U < -1) { // Compliant: the comparison is incorrect but S6214 raises an issue instead of S6183
+    std::cout << "2 is less than -1\n";
+  } else {
+    std::cout << "2 is not less than -1\n";
+  }
+}
+----
+
+The fixed version of the code shown in the following is compliant with both rules, S6183 and S6214.
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <iostream>
+
+void foo() {
+  if (std::cmp_less(2U, -1)) { // Compliant: for this rule (S6183) and associated rule S6214
+    std::cout << "2 is less than -1\n";
+  } else {
+    std::cout << "2 is not less than -1\n";
   }
 }
 ----
@@ -50,8 +167,21 @@ void compute(std::vector<int> const &v) {
 
 == Resources
 
-* S845 - a more generic rule about mixing signed and unsigned values.
-* S6214 - a version of this rule that only triggers when it detects negative values are involved.
+=== Documentation
+
+* {cpp} reference - https://en.cppreference.com/w/cpp/utility/intcmp[intcmp]
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/INT02-C.+Understand+integer+conversion+rules[INT02-C. Understand integer conversion rules]
+* CERT - https://wiki.sei.cmu.edu/confluence/display/c/INT31-C.+Ensure+that+integer+conversions+do+not+result+in+lost+or+misinterpreted+data[INT31-C. Ensure that integer conversions do not result in lost or misinterpreted data]
+* CWE - https://cwe.mitre.org/data/definitions/195[CWE-195 Signed to Unsigned Conversion Error]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222612[Application Security and Development: V-222612] - The application must not be vulnerable to overflow attacks.
+
+=== Related rules
+
+* S845 ensures that signed and unsigned types are not mixed in expressions
+* S6214 constitutes a version of this rule that only triggers when it detects the involvement of negative values. If S6183 is enabled, S6214 should be enabled, too.
 
 
 ifdef::env-github,rspecator-view[]
@@ -59,5 +189,8 @@ ifdef::env-github,rspecator-view[]
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== relates to: S845
+
+=== is related to: S6214
+
 endif::env-github,rspecator-view[]

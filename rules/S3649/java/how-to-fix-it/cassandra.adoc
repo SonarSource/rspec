@@ -1,0 +1,66 @@
+== How to fix it in Spring Data Cassandra
+
+=== Code examples
+
+The following code is an example of a simple API endpoint designed to read public messages. It is vulnerable to CQL injection because user-controlled data is inserted directly into a query string. The application assumes that incoming data always has a specific range of characters and ignores that some characters may change the query logic to a malicious one.
+
+In this particular case, the query can be exploited with the following values:
+
+ * ``++user=foo'/*++``
+ * ``++date=*/AND date = 'xxxx-yy-zz++``
+
+By adapting and inserting these values, an attacker can bypass the `private = false` condition and get access to private messages.
+
+==== Noncompliant code example
+
+[source,java,diff-id=22,diff-type=noncompliant]
+----
+@RestController
+public class ApiController
+{
+    @Autowired
+    CqlSession cqlSession;
+
+    @GetMapping(value = "/read")
+    @ResponseBody
+    public List<String> readPublicOnly(
+            @RequestParam("user") String user,
+            @RequestParam("date") String date)
+    {
+        String query = "SELECT content FROM app.message WHERE user = '" + user + "' AND private = false AND date = '"+ date +"'";
+
+        CqlOperations template = new CqlTemplate(cqlSession);
+        return template.queryForList(query, String.class); //Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=22,diff-type=compliant]
+----
+@RestController
+public class ApiController
+{
+    @Autowired
+    CqlSession cqlSession;
+
+    @GetMapping(value = "/read")
+    @ResponseBody
+    public List<String> readPublicOnly(
+            @RequestParam("user") String user,
+            @RequestParam("date") String date)
+    {
+        String query = "SELECT content FROM app.message WHERE user = ? AND private = false AND date = ?";
+
+        CqlOperations template = new CqlTemplate(cqlSession);
+        LocalDate filterDate = LocalDate.parse(date);
+        return template.queryForList(query, String.class, user, filterDate);
+    }
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/prepared-statements.adoc[]
+

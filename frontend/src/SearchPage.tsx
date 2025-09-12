@@ -21,13 +21,12 @@ import { IndexedRule, IndexAggregates } from './types/IndexStore';
 
 import { useHistory } from 'react-router-dom';
 
-function correctResultsOrder(results: IndexedRule[], query: string) {
+function correctResultsOrder(results: IndexedRule[], query: string): IndexedRule[] {
   const upperCaseQuery = query.toLocaleUpperCase();
-  let reorderedResults: IndexedRule[] = [];
-
+  const reorderedResults: IndexedRule[] = [];
   results.forEach(indexedRule => {
-    if(indexedRule.all_keys.some(key => key === upperCaseQuery)) {
-      reorderedResults = [indexedRule, ...reorderedResults];
+    if (indexedRule.all_keys.includes(upperCaseQuery)) {
+      reorderedResults.unshift(indexedRule);
     } else {
       reorderedResults.push(indexedRule);
     }
@@ -84,16 +83,9 @@ export const SearchPage = () => {
   if (loading) {
     resultsDisplay = 'Searching';
   } else if (results.length > 0) {
-    let resultsBoxes: JSX.Element[] = [];
-
-    // making the exact match to appear first in the search results
-    correctResultsOrder(results, query).forEach(indexedRule => {
-      const box = <Box key={indexedRule.id} className={classes.searchHitBox}>
+    resultsDisplay = correctResultsOrder(results, query).map(indexedRule => <Box key={indexedRule.id} className={classes.searchHitBox}>
         <SearchHit key={indexedRule.id} data={indexedRule}/>
-      </Box>;
-      resultsBoxes.push(box);
-    });
-    resultsDisplay = resultsBoxes;
+      </Box>);
   }
 
   const paramSetters: Record<string, SearchParamSetter<any>> = {
@@ -119,7 +111,7 @@ export const SearchPage = () => {
   function handleKeyup(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       const query = (event.target as HTMLTextAreaElement).value;
-      if (query.match(/^(S|RSPEC-?)?[0-9]{3,}$/i)) {
+      if (/^(S|RSPEC-?)?\d{3,}$/i.exec(query)) {
         if (0 < results.length) {
           history.push(correctResultsOrder(results, query)[0].id);
         }
@@ -150,6 +142,7 @@ export const SearchPage = () => {
                 onKeyUp={handleKeyup}
                 error={!!error}
                 helperText={error}
+                autoFocus
               />
             </Grid>
             <Grid item xs={12} container spacing={3} className={classes.fullWidth}>
@@ -242,7 +235,8 @@ export const SearchPage = () => {
                 data-testid="rule-default-quality-profile"
               >
                 {allQualityProfiles.map((qualityProfile) => (
-                  <MenuItem key={qualityProfile} value={qualityProfile} data-testid={`rule-qual-profile-${qualityProfile}`}>
+                  <MenuItem key={qualityProfile} value={qualityProfile}
+                            data-testid={`rule-qual-profile-${qualityProfile}`}>
                     {qualityProfile}
                   </MenuItem>
                 ))}

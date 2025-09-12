@@ -1,38 +1,263 @@
+The address of an automatic object should not be persisted beyond the object's lifetime.
+
 == Why is this an issue?
 
-If the address of an automatic object is assigned to another automatic object of larger scope, or to a static object, or returned from a function then the object containing the address may exist beyond the time when the original object ceases to exist (and its address becomes invalid).
+An automatic object is an object whose lifetime is automatically managed.
+The storage for an automatic object, e.g. a local variable, is allocated at the beginning of the enclosing code block and is deallocated at the end.
+This is commonly referred to as "allocated on the stack".
 
-
-=== Noncompliant code example
+If the address of an automatic object is assigned to another automatic object of larger scope, a static or extern object, or if it is returned from a function (using `return` or an output parameter), then there will be a point where the address will point to an object that ceased to exist.
+In that case, the address becomes invalid, and attempts to dereference the invalid address -- trying to access the object that ceased to exist -- result in undefined behavior.
 
 [source,cpp]
 ----
-int* f(void) {
-  int local_auto;
-  return &local_auto; // Noncompliant, returning address of an object allocated on the stack.
+int *global = nullptr;
+
+int* bar(int **out) {
+  int local = 42;
+  int *ptr;
+  global = &local; // Noncompliant: assigning the address of an object allocated on the stack to a global variable
+  {
+    int i = 9001;
+    ptr = &i; // Noncompliant: assigning the address of a stack-allocated object to an object that outlives it
+  }
+  *out = &local; // Noncompliant: returning the address of an object allocated on the stack (via output parameter)
+  return &local; // Noncompliant: returning the address of an object allocated on the stack
+}
+----
+
+
+=== What is the potential impact?
+
+Persisting addresses of objects with automatic storage past their lifetime is dangerous as it creates invalid addresses.
+Attempts to access objects that no longer exist through such invalid addresses result in undefined behavior.
+
+For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
+The application may crash or, even worse, the application may appear to execute correctly while losing data or producing incorrect results.
+
+
+== How to fix it
+
+There are multiple approaches to avoid persisting addresses of objects with automatic storage after their lifetime ended:
+
+* Make a full copy of the object instead of using its address.
+* Allocate the object on the heap (free-store) and deallocate it once done.
+* Create the automatic object in a larger scope where it outlives all accesses through its address.
+* Reduce the scope of objects that store the address of the original automatic object.
+
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+int* bar(void) {
+  int local_auto = 42;
+  return &local_auto; // Noncompliant: returns the address of a stack-allocated object
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+int foo() {
+  int local_auto = 42;
+  return local_auto; // Compliant: returns a value rather than an address
+}
+----
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+int* foo() {
+  int *local_auto = new int(42);
+  return local_auto; // Compliant: returns the address of a heap-allocated object
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+const char *str_ptr = nullptr;
+
+void bar() {
+  const char str[] = "This will change";
+  str_ptr = str; // Noncompliant: address of `str` becomes invalid when `str` goes out of scope
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+void bar() {
+  const char str[] = "This will change";
+  const char *str_ptr = str; // Compliant: `str_ptr` has the same storage duration as `str`
+}
+----
+
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+#include <string>
+
+std::string bar() {
+  std::string str = "This will change";
+  return str; // Compliant: `str` will be moved to the caller (using C++ move semantics)
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+#include <array>
+#include <cstddef>
+
+int *buz() {
+  int buf[256];
+  for (size_t i = 0; i < std::size(buf); ++i) {
+    buf[i] = i;
+  }
+  return buf; // Noncompliant: returns address of stack-allocated object
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <array>
+#include <cstddef>
+#include <numeric>
+
+void buz(int *buf, size_t length) {
+  std::iota(&buf[0], &buf[length], 0);
+}
+
+void caller() {
+  int buf[256];
+  buz(buf, std::size(buf));
+}
+----
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <array>
+
+std::array<int, 3> buz() {
+  std::array<int, 3> buf = {1, 2, 3};
+  return buf; // Compliant: `buf` will by copied to the caller; return-value optimization (RVO) might be invoked
+}
+----
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+#include <numeric>
+#include <vector>
+
+std::vector<int> buz() {
+  std::vector<int> buf;
+  std::iota(buf.begin(), buf.end(), 0);
+  return buf; // Compliant: `buf` will be moved to the caller (using C++ move semantics)
+}
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+#include <algorithm>
+#include <array>
+
+void fun(char **out) {
+  char buffer[64];
+  std::fill(std::begin(buffer), std::end(buffer), 42);
+  *out = buffer; // Noncompliant: `buffer`'s address becomes invalid once it goes out of scope
+}
+
+void caller() {
+  char *p;
+  fun(&p);
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+#include <algorithm>
+#include <array>
+
+char buffer[64];
+
+void fun(char **out) {
+  std::fill(std::begin(buffer), std::end(buffer), 42);
+  *out = buffer; // Compliant: `buffer`'s lifetime is the program's lifetime
+}
+
+void caller() {
+  char *p;
+  fun(&p);
+}
+----
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+#include <vector>
+
+std::vector<int> fun() {
+  std::vector<int> buf(/* count */ 64, /* initial value */ 42);
+  return buf;
+}
+
+void caller() {
+  auto buf = fun();
 }
 ----
 
 
 == Resources
 
-* MISRA C:2004, 17.6
-* MISRA {cpp}:2008, 7-5-2
-* MISRA C:2012, 18.6
-* https://wiki.sei.cmu.edu/confluence/x/UtcxBQ[CERT, DCL30-C.] - Declare objects with appropriate storage durations
+=== Conference presentations
+
+* CppCon 2018 - https://www.youtube.com/watch?v=uQyT-5iWUow&ab_channel=CppCon[Surprises in Object Lifetime]
+
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/UtcxBQ[DCL30-C. Declare objects with appropriate storage durations]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/OXw-BQ[EXP54-CPP. Do not access an object outside of its lifetime]
+* CERT - https://wiki.sei.cmu.edu/confluence/x/6NUxBQ[MSC00-C. Compile cleanly at high warning levels]
+* MISRA C:2004, 17.6 - The address of an object with automatic storage shall not be assigned to another object that may persist after the first object has ceased to exist
+* MISRA {cpp}:2008, 7-5-2 - The address of an object with automatic storage shall not be assigned to another object that may persist after the first object has ceased to exist
+* MISRA C:2012, 18.6 - The address of an object with automatic storage shall not be copied to another object that persists after the first object has ceased to exist
 
 
 ifdef::env-github,rspecator-view[]
+
+=== Related rules but not implemented
+
+* S837 detects attempts to return addresses of automatic variables
+* S839 ensures that functions do not return references or pointers to parameters that are passed by reference
 
 '''
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+The address of 'xxx' is invalid once the function returns.
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== is duplicated by: S838
+
+=== is related to: S837
+
+=== is related to: S839
+
 endif::env-github,rspecator-view[]

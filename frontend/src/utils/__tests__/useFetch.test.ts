@@ -36,18 +36,18 @@ describe('url fetching', () => {
 
   test('fails when not expecting but getting json', async () => {
     const { result, waitForNextUpdate } = renderHook(() => useFetch('funny.url', false));
-    expect(result.current[1]).toBeNull();
+    expect(result.current[1]).toBeFalsy();
     await waitForNextUpdate();
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(result.current[1]).not.toBeNull();
+    expect(result.current[1]).not.toBeFalsy();
   });
 
   test('fails when fetch throws', async () => {
     jest.spyOn(global, 'fetch').mockImplementation(() => Promise.reject(new Error()));
     const { result, waitForNextUpdate } = renderHook(() => useFetch('funny.url', false));
-    expect(result.current[1]).toBeNull();
+    expect(result.current[1]).toBeFalsy();
     await waitForNextUpdate();
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(result.current[1]).not.toBeNull();
+    expect(result.current[1]).not.toBeFalsy();
   });
 });

@@ -1,0 +1,63 @@
+This rule raises an issue when AWS Lambda handlers write to the /tmp directory without properly cleaning up temporary files before function completion.
+
+== Why is this an issue?
+
+AWS Lambda provides a temporary file system at /tmp for each execution environment. However, the contents of /tmp can persist across multiple invocations of the same Lambda function instance during "warm starts." When temporary files are not cleaned up, they remain available to subsequent invocations of the same function instance.
+
+=== What is the potential impact?
+
+This can lead to serious security and reliability issues: sensitive data from one invocation might leak to unrelated subsequent invocations, disk space can be exhausted causing function failures, and stale data from previous runs can cause unexpected behavior and hard-to-debug issues.
+
+=== Exceptions
+
+* Writing to /tmp is recommended for caching data used by future lambda invocations.
+
+== How to fix it
+
+Always clean up temporary files before your Lambda function completes.
+It is possible to use the `tempfile` module to create temporary files that will be automatically deleted.
+
+Otherwise, use a `try...finally` block to ensure cleanup happens even if errors occur during processing.
+
+=== Code examples
+
+==== Noncompliant code example
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+def lambda_handler(event, context):
+    file_path = '/tmp/temp_data.txt'  # Noncompliant
+    with open(file_path, 'w') as f:
+        f.write("Something")
+----
+
+==== Compliant solution
+[source,python,diff-id=1,diff-type=compliant]
+----
+import tempfile
+
+def lambda_handler(event, context):
+    with tempfile.NamedTemporaryFile() as f:  # Compliant
+        f.write("Something")
+----
+
+ifdef::env-github,rspecator-view[]
+
+== Implementation Specification
+(visible only on this page)
+
+Detecting all the cases will be tough.
+We should detect the most common cases, like an open() with a path starting with /tmp and no os.remove() after the open().
+We should also detect the use of tempfile.NamedTemporaryFile() with delete=False.
+
+I expect a lot of FN here.
+
+=== Message
+
+Clean up this temporary file before the Lambda function completes.
+
+=== Highlighting
+
+* Primary location: the file write operation to /tmp directory
+* Secondary location: the Lambda function definition
+
+endif::env-github,rspecator-view[]

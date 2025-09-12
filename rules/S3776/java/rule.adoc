@@ -1,22 +1,177 @@
+include::../intro.adoc[]
+
 == Why is this an issue?
 
-Cognitive Complexity is a measure of how hard the control flow of a method is to understand. Methods with high Cognitive Complexity will be difficult to maintain.
+include::../why.adoc[]
 
 === Exceptions
 
-``++equals++`` and ``++hashCode++`` methods are ignored because they might be automatically generated and might end up being difficult to understand, especially in presence of many fields.
+`equals` and `hashCode` methods are ignored because they might be automatically generated and might end up being difficult to understand, especially in the presence of many fields.
 
-include::../see.adoc[]
-ifdef::env-github,rspecator-view[]
+== How to fix it
 
-'''
-== Implementation Specification
-(visible only on this page)
+include::../how.adoc[]
 
-include::../message.adoc[]
+=== Code examples
 
-include::../parameters.adoc[]
+**Extraction of a complex condition in a new function.**
 
-include::../highlighting.adoc[]
+==== Noncompliant code example
 
-endif::env-github,rspecator-view[]
+The code is using a complex condition and has a cognitive cost of 3.
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+double calculateFinalPrice(User user, Cart cart) {
+  double total = calculateTotal(cart);
+  if (user.hasMembership()                            // +1 (if)
+    && user.ordersCount() > 10                        // +1 (more than one condition)
+    && user.isAccountActive()
+    && !user.hasDiscount()
+    || user.ordersCount() == 1) {                    // +1 (change of operator in condition)
+    total = applyDiscount(user, total);
+  }
+  return total;
+}
+----
+
+==== Compliant solution
+
+Even if the cognitive complexity of the whole program did not change, it is easier for a reader to understand the code of the `calculateFinalPrice` function, which now only has a cognitive cost of 1.
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+
+double calculateFinalPrice(User user, Cart cart) {
+  double total = calculateTotal(cart);
+  if (isEligibleForDiscount(user)) {                  // +1 (if)          
+    total = applyDiscount(user, total);
+  }
+  return total;
+}
+
+boolean isEligibleForDiscount(User user) {
+  return user.hasMembership()                        
+    && user.ordersCount() > 10                        // +1 (more than one condition)
+    && user.isAccountActive()
+    && !user.hasDiscount()
+    || user.ordersCount() == 1;                       // +1 (change of operator in condition)
+}
+----
+
+**Break down large functions.**
+
+==== Noncompliant code example
+
+For example, consider a function that calculates the total price of a shopping cart, including sales tax and shipping. +
+__Note:__ The code is simplified here, to illustrate the purpose. Please imagine there is more happening in the `for` loops.
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+
+double calculateTotal(Cart cart) {
+  double total = 0;
+  for (Item item : cart.items()) {       // +1 (for)
+    total += item.price;
+  }
+
+  // calculateSalesTax
+  for (Item item : cart.items()) {       // +1 (for)
+    total += 0.2 * item.price;
+  }
+
+  //calculateShipping
+  total += 5 * cart.items().size();
+
+  return total;
+}
+
+----
+
+This function could be refactored into smaller functions:
+The complexity is spread over multiple functions and the complex `calculateTotal` has now a complexity score of zero.
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+
+double calculateTotal(Cart cart) {
+  double total = 0;
+  total = calculateSubtotal(cart, total);
+  total += calculateSalesTax(cart, total);
+  total += calculateShipping(cart, total);
+
+  return total;
+}
+
+double calculateShipping(Cart cart, double total) {
+  total += 5 * cart.items().size();
+  return total;
+}
+
+double calculateSalesTax(Cart cart, double total) {
+  for (Item item : cart.items()) {       // +1 (for)
+    total += 0.2 * item.price;
+  }
+  return total;
+}
+
+double calculateSubtotal(Cart cart, double total) {
+  for (Item item : cart.items()) {       // +1 (for)
+    total += item.price;
+  }
+  return total;
+}
+----
+
+**Avoid deep nesting by returning early.**
+
+
+==== Noncompliant code example
+
+The below code has a cognitive complexity of 6.
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+double calculateDiscount(double price, User user) {
+  if (isEligibleForDiscount(user)) {      // +1 ( if )
+    if (user.hasMembership()) {           // +2 ( nested if )
+      return price * 0.9;
+    } else if (user.ordersCount() == 1) { // +1 ( else )
+      return price * 0.95;
+    } else {                              // +1 ( else )
+      return price;
+    }
+  } else {                                // +1 ( else )
+    return price;
+  }
+}
+----
+
+==== Compliant solution
+
+Checking for the edge case first flattens the `if` statements and reduces the cognitive complexity to 3.
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+double calculateDiscount(double price, User user) {
+  if (!isEligibleForDiscount(user)) {     // +1 ( if )
+    return price;
+  }
+  if (user.hasMembership()) {             // +1
+    return price * 0.9;
+  }
+  if (user.ordersCount() == 1) {          // +1 ( if )
+    return price * 0.95;
+  }
+  return price;
+}
+----
+
+=== Pitfalls
+
+As this code is complex, ensure that you have unit tests that cover the code before refactoring.
+
+include::../resources.adoc[]
+
+include::../rspecator.adoc[]

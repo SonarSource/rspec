@@ -2,10 +2,11 @@ The Dockerfile should contain at most one `ENTRYPOINT` and one `CMD` instruction
 
 == Why is this an issue?
 
-Multiple `ENTRYPOINT` or `CMD` instructions in a file can lead to confusion as we may think they are all applied, which is not the case.
-Previous `ENTRYPOINT` and `CMD` instructions should be removed to avoid this.
+Multiple `ENTRYPOINT` or `CMD` instructions in a file can lead to confusion as we may think they are all applied.
+This is not the case, as only the last one is applied.
 
 == How to fix it
+Previous `ENTRYPOINT` and `CMD` instructions should be removed to avoid this.
 
 === Code examples
 
@@ -13,6 +14,7 @@ Previous `ENTRYPOINT` and `CMD` instructions should be removed to avoid this.
 
 [source,docker,diff-id=1,diff-type=noncompliant]
 ----
+FROM busybox
 ENTRYPOINT ignored_entrypoint param1 param2
 ENTRYPOINT effective_entrypoint param1 param2
 
@@ -24,17 +26,45 @@ Here we have multiple `ENTRYPOINT` and `CMD` instructions.
 The first `ENTRYPOINT` and the first `CMD` instructions will have no effect.
 Although this is valid in Docker, this can lead to confusion and be error-prone, as we may expect each `CMD` and `ENTRYPOINT` to have an effect.
 
+Multi-Stage Build:
+[source,docker,diff-id=2,diff-type=noncompliant]
+----
+FROM scratch as development
+CMD ignored_scratch_cmd param1 param2
+CMD effective_scratch_cmd param1 param2
+
+FROM busybox
+CMD ignored_busyBox_cmd param1 param2
+CMD effective_busyBox_cmd param1 param2
+----
+For multi-stage builds we take each stage into account separately.
+This is because there are valid docker setups, where the file should only be build up to a certain stage.
+In the example, the developer builds only the first stage as a development environment via `docker build --target development`.
+
+
 ==== Compliant solution
 
 [source,docker,diff-id=1,diff-type=compliant]
 ----
+FROM busybox
 ENTRYPOINT effective_entrypoint param1 param2
 
 CMD effective_cmd param1 param2
 ----
 
-Here we have only one ENTRYPOINT and one CMD instruction.
-Each of them will be considered by the docker container and have a normal effect as we can expect.
+Here we have only one `ENTRYPOINT` and one `CMD` instruction.
+Each of them will be considered by the docker container and have a normal effect, as we can expect.
+
+Multi-Stage Build:
+[source,docker,diff-id=2,diff-type=compliant]
+----
+FROM scratch as development
+CMD effective_scratch_cmd param1 param2
+
+FROM busybox
+CMD effective_busyBox_cmd param1 param2
+----
+For each stage, we only have one `CMD` or `ENTRYPOINT` instruction.
 
 == Resources
 
@@ -42,6 +72,7 @@ Each of them will be considered by the docker container and have a normal effect
 
 * https://docs.docker.com/engine/reference/builder/#entrypoint[ENTRYPOINT - Dockerfile reference]
 * https://docs.docker.com/engine/reference/builder/#cmd[CMD - Dockerfile reference]
+* https://docs.docker.com/build/building/multi-stage/#stop-at-a-specific-build-stage[Multi-Stage builds - Stop at specific build stage]
 
 ifdef::env-github,rspecator-view[]
 '''

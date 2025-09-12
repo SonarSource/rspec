@@ -1,57 +1,65 @@
+Android components that are exported can be used by other applications.
+This may give access to functionalities that should remain private.
+
 == Why is this an issue?
 
 Once an Android component has been exported, it can be used by attackers to
 launch malicious actions and might also give access to other components
-that are not exported.
-
-As a result, sensitive user data can be stolen, and components can be launched
-unexpectedly.
-
-For this reason, the following components should be protected:
+that are not exported. For this reason, the following components should be protected:
 
 * Providers
 * Activities
 * Activity-aliases
 * Services
 
-To do so, it is recommended to either set `exported` to `false`, add
-`android:readPermission` and `android:writePermission` attributes, or add a
-`<permission>` tag.
+=== What is the potential impact?
 
-**Warning**: When targeting Android versions lower than 12, the presence of intent filters will cause ``++exported++`` to be set to
-``++true++`` by default.
+When components are exported unintentionally, they can be accessed and manipulated 
+by other applications, potentially leading to unauthorized data access, data corruption, 
+or even control over certain functionalities of the application. 
 
-If a component must be exported, use a `<permission>` tag and the
-https://developer.android.com/guide/topics/manifest/permission-element#plevel[protection level]
-that matches your use case and data confidentiality requirements. +
-For example, https://developer.android.com/training/sync-adapters[Sync adapters]
-should use a `signature` protection level to remain both exported **and** protected.
+Below are some real-world scenarios that illustrate some impacts of an attacker exploiting the vulnerability:
 
-=== Noncompliant code example
+==== Unauthorized Data Access
 
-The following components are vulnerable because permissions are undefined or
-partially defined:
+If a component that handles sensitive data is exported, other applications can potentially access this data. For instance, if an activity that displays private messages is exported, a malicious application could send an intent to this activity and read the user's private messages.
 
-[source,xml]
+==== Unwanted Control Over Application Functionality
+
+If a broadcast receiver is exported, other applications can send intents to it, triggering it to perform actions. This could lead to unwanted behaviors. For instance, a malicious application could trigger a receiver that starts a certain activity, causing the user's device to open unwanted screens, consume unnecessary resources, or even perform harmful actions.
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+This sample exports a provider and does not define permissions:
+
+[source,xml,diff-id=1,diff-type=noncompliant]
+----
+<provider
+  android:authorities="com.example.app.Provider"
+  android:name="com.example.app.Provider"
+  android:exported="true" />  <!-- Noncompliant -->
+----
+
+This sample exports a provider and does not define `READ` permission:
+
+[source,xml,diff-id=2,diff-type=noncompliant]
 ----
 <provider
   android:authorities="com.example.app.Provider"
   android:name="com.example.app.Provider"
   android:exported="true"
-  android:readPermission="com.example.app.READ_PERMISSION" />  <!-- Noncompliant: write permission is not defined -->
-----
-[source,xml]
-----
-<provider
-  android:authorities="com.example.app.Provider"
-  android:name="com.example.app.Provider"
-  android:exported="true"
-  android:writePermission="com.example.app.WRITE_PERMISSION" />  <!-- Noncompliant: read permission is not defined -->
+  android:writePermission="com.example.app.WRITE_PERMISSION" />  <!-- Noncompliant -->
 ----
 
-[source,xml]
+This sample exports a provider and does not define permissions:
+
+[source,xml,diff-id=3,diff-type=noncompliant]
 ----
-<activity android:name="com.example.activity.Activity">  <!-- Noncompliant: permissions are not defined -->
+<activity android:name="com.example.activity.Activity">  <!-- Noncompliant -->
   <intent-filter>
     <action android:name="com.example.OPEN_UI"/>
     <category android:name="android.intent.category.DEFAULT"/>
@@ -60,13 +68,9 @@ partially defined:
 ----
 
 
-=== Compliant solution
+==== Compliant solution
 
-
-If the component's capabilities or data are not intended to be shared with
-other apps, its ``++exported++`` attribute should be set to ``++false++``:
-
-[source,xml]
+[source,xml,diff-id=1,diff-type=compliant]
 ----
 <provider
   android:authorities="com.example.app.Provider"
@@ -74,8 +78,7 @@ other apps, its ``++exported++`` attribute should be set to ``++false++``:
   android:exported="false" />
 ----
 
-Otherwise, implement permissions:
-[source,xml]
+[source,xml,diff-id=2,diff-type=compliant]
 ----
 <provider
   android:authorities="com.example.app.Provider"
@@ -83,6 +86,11 @@ Otherwise, implement permissions:
   android:exported="true"
   android:readPermission="com.example.app.READ_PERMISSION"
   android:writePermission="com.example.app.WRITE_PERMISSION" />
+----
+
+[source,xml,diff-id=3,diff-type=compliant]
+----
+<permission android:name="com.example.app.PERMISSION" android:protectionLevel="signature" />
 
 <activity android:name="com.example.activity.Activity"
           android:permission="com.example.app.PERMISSION" >
@@ -93,13 +101,47 @@ Otherwise, implement permissions:
 </activity>
 ----
 
+
+=== How does this work?
+
+The preferred way to protect components is to set ``++exported++`` to ``++false++``. 
+The component is not exported and can only be used by its application.
+
+If the component, such as a provider, has to be exported because it is shared with some 
+other application, add `android:readPermission` and `android:writePermission` attributes.
+
+Another way to secure access to components is to create a permission with the
+``++<permission>++`` tag and add it to the component with the ``++android:permission++``
+attribute.
+
+=== Pitfalls
+
+When targeting Android API versions lower than 12, intent filters will cause ``++exported++`` to be set to ``++true++`` by default.
+
 == Resources
 
-* https://developer.android.com/guide/topics/providers/content-provider-creating#Permissions[developer.android.com] - Implementing content provider permissions
-* https://mobile-security.gitbook.io/masvs/security-requirements/0x11-v6-interaction_with_the_environment[Mobile AppSec Verification Standard] - Platform Interaction Requirements
-* https://owasp.org/www-project-mobile-top-10/2016-risks/m1-improper-platform-usage[OWASP Mobile Top 10 2016 Category M1] - Improper platform usage
-* https://owasp.org/www-project-mobile-top-10/2016-risks/m2-insecure-data-storage[OWASP Mobile Top 10 2016 Category M2] - Insecure Data Storage
-* https://cwe.mitre.org/data/definitions/926[MITRE, CWE-926] - Improper Export of Android Application Components
+=== Documentation
+
+* Android Documentation - https://developer.android.com/guide/topics/manifest/permission-element#plevel[protection level]
+
+* Android Documentation - https://developer.android.com/guide/topics/providers/content-provider-creating#Permissions[Implement content provider permissions]
+
+
+=== Standards
+
+* OWASP - https://owasp.org/www-project-mobile-top-10/2016-risks/m1-improper-platform-usage[Mobile Top 10 2016 Category M1 - Improper platform usage]
+
+* OWASP - https://owasp.org/www-project-mobile-top-10/2016-risks/m2-insecure-data-storage[Mobile Top 10 2016 Category M2 - Insecure Data Storage]
+
+* OWASP - https://owasp.org/www-project-mobile-top-10/2023-risks/m8-security-misconfiguration[Mobile Top 10 2024 Category M8 - Security Misconfiguration]
+
+* CWE - https://cwe.mitre.org/data/definitions/926[CWE-926 - Improper Export of Android Application Components]
+
+
+=== External coding guidelines
+
+* OWASP - https://mas.owasp.org/checklists/MASVS-PLATFORM/[Mobile AppSec Verification Standard - V6: Platform Interaction Requirements]
+
 
 ifdef::env-github,rspecator-view[]
 
@@ -107,6 +149,9 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Implement permissions on this exported component.
+
 
 endif::env-github,rspecator-view[]

@@ -1,9 +1,29 @@
+The TLS configuration of Google Cloud load balancers is defined through SSL policies.
+
 == Why is this an issue?
 
-include::description.adoc[]
+There are three managed profiles to choose from: ``++COMPATIBLE++`` (default), ``++MODERN++`` and ``++RESTRICTED++``:
 
-=== Noncompliant code example
-[source,terraform]
+* The ``++RESTRICTED++`` profile supports a reduced set of cryptographic algorithms, intended to meet stricter compliance requirements.
+* The ``++MODERN++`` profile supports a wider set of cryptographic algorithms, allowing most modern clients to negotiate TLS.
+* The ``++COMPATIBLE++`` profile supports the widest set of cryptographic algorithms, allowing connections from older client applications.
+
+The ``++MODERN++`` and ``++COMPATIBLE++`` profiles allow the use of older cryptographic algorithms that are no longer considered secure and are susceptible to attack.
+
+=== What is the potential impact?
+
+An attacker may be able to force the use of the insecure cryptographic algorithms, downgrading the security of the connection. This allows them to compromise the confidentiality or integrity of the data being transmitted.
+
+The ``++MODERN++`` profile allows the use of the insecure SHA-1 signing algorithm. An attacker is able to generate forged data that passes a signature check, appearing to be legitimate data.
+
+The ``++COMPATIBLE++`` profile additionally allows the user of key exchange algorithms that do not support https://en.wikipedia.org/wiki/Forward_secrecy[forward secrecy] as a feature. If the server's private key is leaked, it can be used to decrypt all network traffic sent to and from that server.
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+[source,terraform,diff-id=1,diff-type=noncompliant]
 ----
 resource "google_compute_ssl_policy" "example" {
   name            = "example"
@@ -12,8 +32,8 @@ resource "google_compute_ssl_policy" "example" {
 }
 ----
 
-=== Compliant solution
-[source,terraform]
+==== Compliant solution
+[source,terraform,diff-id=1,diff-type=compliant]
 ----
 resource "google_compute_ssl_policy" "example" {
   name            = "example"
@@ -22,7 +42,28 @@ resource "google_compute_ssl_policy" "example" {
 }
 ----
 
-include::see.adoc[]
+=== How does this work?
+
+If an attacker is able to intercept and modify network traffic, they can filter the list of algorithms sent between the client and the server. By removing all secure algorithms from the list, the attacker can force the use of any insecure algorithms that remain.
+
+The ``++RESTRICTED++`` profile only allows strong cryptographic algorithms to be used. There are no insecure algorithms that can compromise the security of the connection.
+
+=== Pitfalls
+
+Older client applications may not support the algorithms required by the ``++RESTRICTED++`` profile. These applications will no longer be able to connect.
+
+If the ``++MODERN++`` or ``++COMPATIBLE++`` profiles must be used so that older clients can connect, consider using additional measures such as TLS client certificates or IP allow-lists to improve security.
+
+== Resources
+
+=== Standards
+
+* CWE - https://cwe.mitre.org/data/definitions/327[CWE-327 - Use of a Broken or Risky Cryptographic Algorithm]
+
+=== External coding guidelines
+
+* SSL Labs - https://github.com/ssllabs/research/wiki/SSL-and-TLS-Deployment-Best-Practices#23-use-secure-cipher-suites[SSL and TLS Deployment Best Practices] - Use Secure Cipher Suites
+* Google - https://cloud.google.com/load-balancing/docs/ssl-policies-concepts#defining_an_ssl_policy[Google Cloud Load Balancing] - Defining an SSL policy
 
 
 ifdef::env-github,rspecator-view[]
@@ -31,8 +72,23 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
 
-include::highlighting.adoc[]
+==== GCP
+
+* If `profile` is specified but has the wrong value
+** Change this code to disable support of weak cipher suites.
+
+* If `profile` is not specified at all
+** Set profile to disable support of weak cipher suites.
+
+
+=== Highlighting
+
+For `google_compute_ssl_policy`:
+
+* Highlight `profile` if it is specified but has the wrong value
+* Highlight resource if `profile` is not specified at all
+
 
 endif::env-github,rspecator-view[]

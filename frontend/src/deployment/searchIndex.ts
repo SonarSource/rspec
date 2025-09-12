@@ -103,14 +103,14 @@ function buildOneRuleIndexedRecord(rulesPath: string, ruleDir: string)
 
   const indexedRecord: IndexedRuleWithDescription = {
     id: ruleDir,
-    supportedLanguages: Array.from(record.supportedLanguages).sort(),
-    types: Array.from(record.types).sort(),
-    severities: Array.from(record.severities).sort(),
-    all_keys: Array.from(record.allKeys).sort(),
-    titles: Array.from(record.titles).sort(),
-    tags: Array.from(record.tags).sort(),
-    qualityProfiles: Array.from(record.qualityProfiles).sort(),
-    descriptions: Array.from(record.descriptions).sort(),
+    supportedLanguages: Array.from(record.supportedLanguages).sort((a, b) => a.name.localeCompare(b.name)),
+    types: Array.from(record.types).sort((a, b) => a.localeCompare(b)),
+    severities: Array.from(record.severities).sort((a, b) => a.localeCompare(b)),
+    all_keys: Array.from(record.allKeys).sort((a, b) => a.localeCompare(b)),
+    titles: Array.from(record.titles).sort((a, b) => a.localeCompare(b)),
+    tags: Array.from(record.tags).sort((a, b) => a.localeCompare(b)),
+    qualityProfiles: Array.from(record.qualityProfiles).sort((a, b) => a.localeCompare(b)),
+    descriptions: Array.from(record.descriptions).sort((a, b) => a.localeCompare(b)),
     prUrl: record.prUrl
   }
 

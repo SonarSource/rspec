@@ -1,39 +1,104 @@
+ActiveMQ can send/receive JMS Object messages (ObjectMessage in ActiveMQ
+context) to comply with JMS specifications. Internally, ActiveMQ relies on
+Java's serialization mechanism for the marshaling and unmarshalling of the
+messages' payload.
+
+Applications should restrict the types that can be unserialized from JMS
+messages.
+
 == Why is this an issue?
 
-ActiveMQ can send/receive JMS Object messages (named ObjectMessage in ActiveMQ context) to comply with JMS specification. Internally, ActiveMQ relies on Java serialization mechanism for marshaling/unmarshalling of the message payload. Deserialization based on data supplied by the user could lead to remote code execution attacks, where the structure of the serialized data is changed to modify the behavior of the object being unserialized.
+When the application does not implement controls over the JMS object types, its
+clients could be able to force the deserialization of arbitrary objects. This
+may lead to deserialization injection attacks.
 
+=== What is the potential impact?
 
-To limit the risk to be victim of such attack, ActiveMQ 5.12.2+ enforces developers to explicitly whitelist packages that can be exchanged using ObjectMessages.
+Attackers will be able to force the deserialization of arbitrary objects. This
+process will trigger the execution of magic unmarshalling methods on the object
+and its properties. With a specially crafted serialized object, the attackers
+can exploit those magic methods to achieve malicious purposes.
 
+While the exact impact depends on the types available in the execution context
+at the time of deserialization, such an attack can generally lead to the
+execution of arbitrary code on the application server.
 
-=== Noncompliant code example
+==== Application-specific attacks
 
-[source,java]
+By exploiting the behavior of some of the application-defined types and objects,
+the attacker could manage to affect the application's business logic. The exact
+consequences will depend on the application's nature:
+
+* Payment bypass in an e-commerce application.
+* Privilege escalation.
+* Unauthorized users' data access.
+
+==== Publicly-known exploitation
+
+In some cases, depending on the library the application uses and their versions,
+there may exist publicly known deserialization attack payloads known as *gadget
+chains*. In general, they are designed to have severe consequences, such as:
+
+* Arbitrary code execution
+* Arbitrary file read or write
+* Server-side request forgery
+
+Those attacks are independent of the application's own logic and from the types
+it specifies.
+
+== How to fix it in Java EE
+
+=== Code examples
+
+The following code example is vulnerable to a deserialization injection attack
+because it allows the deserialization of arbitrary types from JMS messages.
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
 ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory("tcp://localhost:61616");
 factory.setTrustAllPackages(true); // Noncompliant
-
-ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory("tcp://localhost:61616");
-// no call to factory.setTrustedPackages(...);
 ----
 
+==== Compliant solution
 
-=== Compliant solution
-
-[source,java]
+[source,java,diff-id=1,diff-type=compliant]
 ----
 ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory("tcp://localhost:61616");
 factory.setTrustedPackages(Arrays.asList("org.mypackage1", "org.mypackage2"));
 ----
 
+=== How does this work?
+
+The noncompliant code example calls the `setTrustAllPackages` method that
+explicitly allows the deserialization of arbitrary types. On the contrary, the
+compliant code example, thanks to the `setTrustedPackages` method, defines a
+short list of classes allowed for the deserialization.
+
+While defining a short list of trusted types is generally the state-of-the-art
+solution to avoid deserialization injection attacks, it is important to ensure
+that the allowed classes and packages can not be used to exploit the issue. In
+that case, a vulnerability would still be present.
+
+Note that ActiveMQ, starting with version 5.12.2, forces developers to
+explicitly list packages that JMS messages can contain. This limits the risk of
+successful exploitation. In versions before that one, calling the
+`ActiveMQConnectionFactory` constructor without further configuration would
+leave the application at risk.
 
 == Resources
 
-* https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/[OWASP Top 10 2021 Category A8] - Software and Data Integrity Failures
-* https://owasp.org/www-project-top-ten/2017/A8_2017-Insecure_Deserialization[OWASP Top 10 2017 Category A8] - Insecure Deserialization
-* https://cwe.mitre.org/data/definitions/502[MITRE, CWE-502] - Deserialization of Untrusted Data
-* https://activemq.apache.org/objectmessage.html[ActiveMQ ObjectMessage Security Advisory]
-* https://activemq.apache.org/security-advisories.data/CVE-2015-5254-announcement.txt[CVE-2015-5254]
+=== Documentation
+
+* Apache ActiveMQ Documentation - https://activemq.apache.org/objectmessage.html[ObjectMessage]
+* CVE - https://www.cve.org/CVERecord?id=CVE-2015-5254[CVE-2015-5254]
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/[Top 10 2021 - Category A8 - Software and Data Integrity Failures]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A8_2017-Insecure_Deserialization[Top 10 2017 - Category A8 - Insecure Deserialization]
+* CWE - https://cwe.mitre.org/data/definitions/502[CWE-502 - Deserialization of Untrusted Data]
 
 ifdef::env-github,rspecator-view[]
 
@@ -41,6 +106,8 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+Explicitly define a whitelist of trusted packages with ActiveMQConnectionFactory.setTrustedPackages
 
 endif::env-github,rspecator-view[]

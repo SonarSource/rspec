@@ -1,46 +1,130 @@
-== Why is this an issue?
-
 Using the value of a pointer to a ``++FILE++`` object after the associated file is closed is undefined behavior.
 
+== Why is this an issue?
 
-=== Noncompliant code example
+Once a file has been closed, its corresponding ``++FILE*++`` typed variable becomes invalid and the stream may no longer be accessed through this variable.
+In particular, a pointer to a ``++FILE++`` object may not be passed to ``++fclose++`` more than once.
 
-[source,cpp]
-----
-void fun() {
-  FILE * pFile;
-  pFile = fopen(fileName, "w");
-
-  if (condition) {
-    fclose(pFile);
-    // ...
-  }
-
-  fclose(pFile); // Noncompliant, the file has already been closed
-}
-----
-
-
-=== Compliant solution
+Using the value of a pointer to a ``++FILE++`` object after the associated file is closed results in undefined behavior.
 
 [source,cpp]
 ----
-void fun() {
-  FILE * pFile;
-  pFile = fopen(fileName, "w");
+#include <stdio.h>
+#include <stdlib.h>
 
-  if (condition) {
-    // ...
+int process_file(int print) {
+  FILE *f = fopen("example.txt", "r");
+  if (!f) {
+    perror("fopen() failed");
+    return 1;
   }
 
-  fclose(pFile);
+  if (print) {
+    char buffer[256];
+    while (fgets(buffer, 256, f)) {
+      printf("%s", buffer);
+    }
+    fclose(f);
+  }
+
+  // Further processing ...
+
+  fclose(f); // Noncompliant: file associated with `f` might already be closed.
+  return 0;
 }
 ----
+
+=== What is the potential impact?
+
+If a pointer to a ``++FILE++`` object is used after the associated file is closed, the behavior of the application is undefined.
+
+When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.
+The application might just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.
+
+
+== How to fix it
+
+Do not use the value of a pointer to a ``++FILE++`` object after the associated file has been closed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+int process_file(int print) {
+  FILE *f = fopen("example.txt", "r");
+  if (!f) {
+    perror("fopen() failed");
+    return 1;
+  }
+
+  if (print) {
+    char buffer[256];
+    while (fgets(buffer, 256, f)) {
+      printf("%s", buffer);
+    }
+    fclose(f);
+  }
+
+  fclose(f); // Noncompliant: file associated with `f` might already be closed.
+  return 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+#include <stdio.h>
+#include <stdlib.h>
+
+int process_file(int print) {
+  FILE *f = fopen("example.txt", "r");
+  if (!f) {
+    perror("fopen() failed");
+    return 1;
+  }
+
+  if (print) {
+    char buffer[256];
+    while (fgets(buffer, 256, f)) {
+      printf("%s", buffer);
+    }
+  }
+
+  if (fclose(f) == EOF) { // Compliant: file associated with `f` is closed only once.
+    return 1;
+  }
+  return 0;
+}
+----
+
+=== Going the extra mile
+
+Using {cpp}'s _RAII_ idiom can mitigate these "double-close" issues.
+
+include::../../../shared_content/cfamily/c_file_io_raii_extra_mile.adoc[]
+
+With the design shown above, it is still possible to "double-close" a file by passing the raw ``++FILE++`` pointer obtained by a call to ``++File::handle++`` to ``++fclose++`` (e.g. ``++fclose(f.handle())++``).
+However, this design reduces the risk of such occurrence by eliminating the need for manually closing files.
+If even the reduced possibility of "double-close" is still a concern, the function member ``++File::handle++`` should be removed and any required file operations should be wrapped by the ``++File++`` class.
+
+If falling back to low-level file operations is not necessary, one should prefer ``++std::fstream++``.
 
 
 == Resources
 
-* https://wiki.sei.cmu.edu/confluence/x/QdUxBQ[CERT, FIO46-C.] - Do not access a closed file
+=== Standards
+
+* CERT - https://wiki.sei.cmu.edu/confluence/x/QdUxBQ[FIO46-C. Do not access a closed file]
+
+=== Related rules
+
+* S3520 addresses "double-free" memory issues
 
 
 ifdef::env-github,rspecator-view[]
@@ -49,13 +133,22 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
 
-include::highlighting.adoc[]
+File "xxx" has already been closed.
+
+
+=== Highlighting
+
+primary: ``++FILE++`` access
+
+secondary: where the ``++FILE++`` was closed
+
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+=== relates to: S5485
+
 endif::env-github,rspecator-view[]

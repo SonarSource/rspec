@@ -209,12 +209,11 @@ test('narrows search by language', async () => {
 test('narrows search by quality profile', async () => {
     const { queryByText, queryByTestId, getByRole, getByTestId } = await renderDefaultSearchPage();
 
-    // Select MISRA 2008 recommended and Sonar way profiles - only S1000 and S3457 are in these profiles
+    // Select Sonar way profile - S1000, S1007, S3457 and S3649 are in this profile
     fireEvent.mouseDown(within(getByTestId('rule-default-quality-profile')).getByRole('button'));
     const listbox = within(getByRole('listbox'));
     fireEvent.click(listbox.getByTestId('rule-qual-profile-Sonar way'));
-    fireEvent.click(listbox.getByTestId('rule-qual-profile-MISRA C++ 2008 recommended'));
-    expect(queryByText(/rules found: 2/i)).not.toBeNull();
+    expect(queryByText(/rules found: 3/i)).not.toBeNull();
     expect(queryByTestId('search-hit-S987')).toBeNull();
     expect(queryByTestId('search-hit-S1000')).not.toBeNull();
     expect(queryByTestId('search-hit-S3457')).not.toBeNull();

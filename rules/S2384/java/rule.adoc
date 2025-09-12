@@ -1,15 +1,93 @@
 == Why is this an issue?
 
-include::../description.adoc[]
+Mutable objects are those whose state can be changed. For instance, an array is mutable, but a String is not. Private mutable class members should never be returned to a caller or accepted and stored directly. Doing so leaves you vulnerable to unexpected changes in your class state.
 
-include::../noncompliant.adoc[]
 
-include::../compliant.adoc[]
+Instead use an unmodifiable ``++Collection++`` (via ``++Collections.unmodifiableCollection++``, ``++Collections.unmodifiableList++``, ...) or make a copy of the mutable object, and store or return the copy instead.
+
+
+This rule checks that private arrays, collections and Dates are not stored or returned directly.
+
+=== Exceptions ===
+
+The rule violation is not reported for mutable values stored in private methods if no non-private methods directly passes a mutable parameter to them.
+
+Similarly, rule violations are not reported for mutable values returned by a private getter if that getter's value is not directly exposed by a non-private method.
+
+=== Noncompliant code example
+
+[source,java]
+----
+class A {
+  private String[] strings;
+
+  public A () {
+    strings = new String[]{"first", "second"};
+  }
+
+  public String[] getStrings() {
+    return strings; // Noncompliant
+  }
+
+  public void setStrings(String[] strings) {
+    this.strings = strings;  // Noncompliant
+  }
+}
+
+public class B {
+
+  private A a = new A();  // At this point a.strings = {"first", "second"};
+
+  public void wreakHavoc() {
+    a.getStrings()[0] = "yellow";  // a.strings = {"yellow", "second"};
+  }
+}
+----
+
+
+=== Compliant solution
+
+[source,java]
+----
+class A {
+  private String [] strings;
+
+  public A () {
+    strings = new String[]{"first", "second"};
+  }
+
+  public String[] getStrings() {
+    return getStringsInternal().clone();
+  }
+
+  private String[] getStringsInternal() {
+    return strings;
+  }
+
+  private void setStringsInternal(String[] strings) {
+    this.strings = strings;
+  }
+
+  public void setStrings(String[] strings) {
+    this.strings = strings.clone();
+  }
+}
+
+public class B {
+
+  private A a = new A();  // At this point a.strings = {"first", "second"};
+
+  public void wreakHavoc() {
+    a.getStrings()[0] = "yellow";  // a.strings = {"first", "second"};
+  }
+}
+----
+
 
 == Resources
 
-* https://cwe.mitre.org/data/definitions/374[MITRE, CWE-374] - Passing Mutable Objects to an Untrusted Method
-* https://cwe.mitre.org/data/definitions/375[MITRE, CWE-375] - Returning a Mutable Object to an Untrusted Caller
+* CWE - https://cwe.mitre.org/data/definitions/374[CWE-374 - Passing Mutable Objects to an Untrusted Method]
+* CWE - https://cwe.mitre.org/data/definitions/375[CWE-375 - Returning a Mutable Object to an Untrusted Caller]
 * https://wiki.sei.cmu.edu/confluence/x/OTdGBQ[CERT, OBJ05-J.] - Do not return references to private mutable class members
 * https://wiki.sei.cmu.edu/confluence/x/HTdGBQ[CERT, OBJ06-J.] - Defensively copy mutable inputs and mutable internal components
 * https://wiki.sei.cmu.edu/confluence/x/VzZGBQ[CERT, OBJ13-J.] - Ensure that references to mutable objects are not exposed
@@ -27,4 +105,5 @@ include::../message.adoc[]
 (visible only on this page)
 
 include::../comments-and-links.adoc[]
+
 endif::env-github,rspecator-view[]

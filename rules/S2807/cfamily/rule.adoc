@@ -1,34 +1,455 @@
+This rule raises issues for overloaded binary mathematical and relational operators that are not declared as hidden friends.
+
 == Why is this an issue?
 
-Member functions can only be used with an instance of a class. But ``++friend++`` functions can be used with an implicitly converted type. So loosening access privileges to ``++friend++`` on overloaded binary operators makes them more flexible. Specifically, with a ``++friend++`` function, the class instance can be on either the right or the left of the operator, but with a member function, it can only be on the left.
+When overloading binary or relational operators, it is recommended that they be declared hidden friends of the class.
 
+=== The hidden friend pattern
 
-This rule raises an issue for all non-``++friend++`` overloaded binary operators except:
-
-* \"``++=++``", \"``++[ ]++``", and \"``++->++``", which cannot be overloaded as ``++friend++`` functions.
-* \"``+++=++``", \"``++-=++``", \"``++*=++``", \"``++/=++``", \"``++%=++``", \"``++^=++``", \"``++&=++``", \"``++|=++``", \"``++<<=++``", and \"``++>>=++``", which are not symmetric operators.
-
-
-=== Noncompliant code example
+The hidden friend pattern consists of declaring and defining a function directly as a friend inside the class body. This reduces the function's visibility to argument-dependent lookup only. Approximately, such a function is considered only when called on an object of the enclosing class.
 
 [source,cpp]
 ----
-bool operator==(const MyClass &RHS);  // Noncompliant
+struct MyClass {
+  friend void function(MyClass const& arg) { // This function is a hidden friend of MyClass
+    ...
+  }
+};
 ----
 
+=== Benefits of hidden friends
 
-=== Compliant solution
+Using hidden friends provides the following benefits:
+
+* in contrast to the member function, it allows conversion to be applied to both operands
+* in contrast to free functions, it is considered only if one of the operands is an object of the given class
+
+This rule raises issues for these overloaded binary operators:
+
+* mathematical operators: `+`, `-`, `*`, `/`, `%`, `^`, `&`, `|`, `<<`, `>>`
+* until {cpp}20, all relational operators: `==`, `!=`, `<`, `>`, ``++<=++``, ``++>=++``
+* since {cpp}20, non-members key relational operators: `==`, ``++<=>++``
 
 [source,cpp]
 ----
-friend bool operator==(const MyClass &LHS, const MyClass &RHS);
+struct MyClass {
+  MyClass operator+(const MyClass& rhs) // Noncompliant
+  { /* ... */ }
+};
+
+bool operator==(const MyClass &lhs, const MyClass& rhs) // Noncompliant
+{ /* ... */ }
 ----
 
+
+=== Why are hidden friends preferred over free functions?
+
+The overloaded operators that are declared as hidden friends are found only by argument-dependent lookup (ADL) for a given class.
+Roughly, this means that the hidden friend of class `C` is considered a candidate
+only if one of the arguments of the call is an object of type `C` or one derived from it.
+In contrast, a free function is considered for any class declared in the same namespace.
+
+For illustration, let's consider the following example which defines `operator/` as a free function.
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+namespace lib {
+  class Path {
+  public:
+    Path(char const*);
+    Path(std::string_view);
+    Path& operator/=(Path const&);
+  };
+
+  Path operator/(Path const& lhs, Path const& rhs) {
+    auto result = lhs;
+    result /= rhs;
+    return result;
+  }
+}
+----
+
+The `operator/` will be considered as a candidate for any call `a / b`
+when either `a` or `b` are of a type declared in the namespace `lib`.
+This not only makes compilation slower but also lists the function as a candidate in case of a compilation error,
+making such a message less readable.
+
+Furthermore, when such an operator is visible via normal lookup, it may be invoked when both arguments are of the type that is convertible to `lib::Path`.
+This may happen for code in the `lib` namespace or after using `using namespace lib;`.
+However, such code will not compile or, even worse, select different overloads when placed in a different namespace.
+
+[source,cpp]
+----
+namespace lib {
+  void insideLib(std::string_view sv) {
+    sv / "dir"; // Compiles, converts both arg to lib::Path
+  }
+} // namespace lib
+
+namespace otherNS {
+  void withoutUsing(std::string_view sv) {
+    sv / "dir"; // Either does not compile or calls a different operator
+  }
+  void withUsing(std::string_view sv) {
+    using namespace lib;
+    sv / "dir"; // Compiles, converts both arg to lib::Path
+  }
+} // namespace otherNS
+----
+
+Such conversion for both arguments will not be allowed when the operator is declared as a hidden friend,
+as none of the operands are of `lib::Path` type:
+
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+namespace lib {
+  class Path {
+  public:
+    Path(char const*);
+    Path(std::string_view);
+    Path& operator/=(Path const&);
+
+    friend Path operator/(Path const& lhs, Path const& rhs) {
+      auto result = lhs;
+      result /= rhs;
+      return result;
+    }
+  };
+}
+----
+
+=== Why are hidden friends preferred over member functions?
+
+When the overloaded operator is declared as a class member,
+it can be invoked only for objects of that class or classes derived from it.
+These restrictions also apply when operator syntax (`a op b`) is used
+and disallows implicit conversion for left operands while allowing them for right operands.
+
+For example, given the object `i` of class `Integer` that defines
+`operator+` as a member:
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+class Integer {
+public:
+  Integer(long long int);
+  Integer& operator+=(Integer const& rhs);
+  Integer operator+(Integer const& rhs) const { // Noncompliant
+    Integer res = *this;
+    res += rhs;
+    return res;
+  }
+};
+----
+The call `i + 10` is well-formed and resolves to `i.operator+(10)`,
+which will convert `10` to an `Integer` object using the implicit converting constructor.
+However, `10 + i` is ill-formed.
+
+If hidden friend functions were used, the expressions `i + 10` and `10 + i`,
+would resolve to `operator+(i, 10)` and `operator+(10, i)` respectively,
+allowing conversion to be performed symmetrically on the integer literal.
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+class Integer {
+public:
+  Integer(long long int);
+  Integer& operator+=(Integer const& rhs);
+  friend Integer operator+(Integer const& lhs, Integer const& rhs) { // Compliant
+    Integer res = lhs;
+    res += rhs;
+    return res;
+  }
+};
+----
+
+
+=== Why relational operators are treated differently since {cpp}20?
+
+{cpp}20 has introduced a three-way comparison operator ``++<=>++`` (also known as spaceship)
+in addition to the mechanism that considers additional functions when interpreting relational operations:
+
+* `a < b` (also `>`, ``++<=++``, ``++>=++``) is also interpreted as ``++operator<=>(a, b) < 0++``, ``++a.operator<=>(b) < 0++``, or ``++0 < operator<=>(b, a)++``, ``++0 < b.operator<=>(a)++``,
+* `a != b` is also intepreted as `!operator==(a, b)`, `!a.operator==(b)`, or `!operator==(b, a)`, `!b.operator==(a)`,
+* `a == b` is also intepreted as `operator==(a, b)`, `a.operator==(b)`, or  `operator==(b, a)`, `b.operator==(a)`.
+
+The above mechanism makes overloads for `!=`, `<`, `>`, ``++<=++``, ``++>=++`` replacable with ``++<=>++`` and `==` (see S6187).
+As these overloads will usually be removed, we do not suggest replacing them with hidden friends.
+
+Additionally, such rewrites consider calls of overloads with the order of argument as spelled (`a`, `b`), and reversed (`b`, `a`).
+This makes the behavior of expression consistent regardless of the order of operands.
+Given the following example:
+
+[source,cpp]
+----
+struct MyString {
+  MyString(char const* cstr);
+  bool 
+  operator==(MyString const& other) const;  // Compliant since C++20: see below
+  
+  std::strong_ordering 
+  operator<=>(MyString const& other) const; // Compliant: only available since C++20
+};
+
+const MySting ms;
+----
+
+The expression `ms == "Some string"` and `"SomeString" == ms` both compile,
+and the latter calls `operator==` with the argument reversed.
+This removes the drawbacks of declaring all combinations of such operators as members,
+and the issue is not raised for them for {cpp}20 and later.
+
+Note, that hidden friends are still preferred over free functions:
+[source,cpp]
+----
+struct MyString {
+  MyString(char const* cstr);
+};
+
+bool 
+operator==(MyString const& lhs, MyString const& rhs)  // Noncompliant
+{ /* ... */ }
+
+std::strong_ordering 
+operator<=>(MyString const& lhs, MyString const& rhs) // Noncompliant
+{ /* ... */ }
+----
+
+== How to fix it
+
+The issue can be fixed by declaring the operator as a hidden friend,
+i.e., declaring it as a `friend` inside the class and inlining its function body.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+struct IntWrapper {
+  long i;
+  MyClass operator+(const MyClass& rhs) const // Noncompliant
+  {
+    return MyClass{i + rhs.i}
+  }
+};
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+struct IntWrapper {
+  long i;
+  friend MyClass operator+(const MyClass& lhs, const MyClass& rhs) // Compliant
+  {
+    return Myclass{lhs.i + rhs.i}
+  }
+};
+----
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+struct IntWrapper {
+  long i;
+};
+
+MyClass operator+(const MyClass& lhs, const MyClass& rhs) // Noncompliant
+{
+  return Myclass{lhs.i + rhs.i}
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+struct IntWrapper {
+  long i;
+  friend MyClass operator+(const MyClass& lhs, const MyClass& rhs) // Compliant
+  {
+    return Myclass{lhs.i + rhs.i}
+  }
+};
+----
+
+=== How to handle operator with definition in source file
+
+To define a hidden friend, the overloaded operator needs to be defined in class.
+If the operator is initially defined in the source file, it may be necessary to move its definition to the header file.
+In complex implementations, this may be undesired or impossible.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=5,diff-type=noncompliant]
+----
+// Header file
+class Integer {
+public:
+  Integer(long long int);
+  Integer operator+(Integer const& rhs) const; // Noncompliant
+};
+
+// Source file
+Integer Integer::operator+(Integer const& rhs) const
+{
+  /* Complex logic */
+}
+----
+
+==== Compliant solution
+
+To properly resolve such an issue, you may define a helper member function,
+that will remain defined in the source file, and define the operator in terms of it.
+
+For mathematical operators, this is usually achieved by defining them in terms of the corresponding compound assignment operator.
+This has the additional benefit of reducing code duplication if both `operator+` and `operator+=` were already defined,
+or making the interface more consistent by providing compound assignment counterparts for each supported operator.
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+// Header file
+class Integer {
+public:
+  Integer(long long int);
+  Integer& operator+=(Integer const& rhs);
+  friend Integer operator+(Integer const& lhs, Integer const& rhs) // Compliant
+  {
+    Integer result = lhs;
+    result += rhs;
+    return result;
+  }
+};
+
+// Source file
+Integer& Integer::operator+=(Integer const& rhs)
+{
+  /* Complex logic */
+}
+----
+
+=== How to handle operator template
+
+When declaring a hidden friend for a class template, a separate friend function is instantiated for each instantiation of the enclosing class.
+When changing from a free overloaded operator template to a friend function, template parameters corresponding to the class should be removed.
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=6,diff-type=noncompliant]
+----
+template<typename CharT>
+class StringRef {
+public:
+  StringRef(CharT const* str);
+
+  int compare(StringRef other) const;
+};
+
+template<typename CharT>
+bool operator==(StringRef<CharT> lhs, StringRef<CharT> rhs) // Noncompliant
+{
+  return lhs.compare(rhs) == 0;
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=6,diff-type=compliant]
+----
+template<typename CharT>
+class StringRef {
+public:
+  StringRef(CharT const* str);
+
+  int compare(StringRef other) const;
+
+  friend bool operator==(StringRef lhs, StringRef rhs) // Compliant: separate overload for each instantiation of StringRef<CharT>
+  {
+    return lhs.compare(rhs) == 0;
+  }
+};
+----
+
+Such a solution has the additional benefit of allowing the operands to be converted (as the operator is no longer a template).
+This means that for `StringRef<char> sr`, the expression `sr == "Some string"` will compile and use the implicit constructor from ``++CharT const*++``,
+alleviating the need to declare additional overloads accepting ``++const CharT*++``.
+
+In the case of heterogeneous operators that accept different specializations, only one set of template parameters should be removed:
+
+==== Noncompliant code example
+
+[source,cpp,diff-id=7,diff-type=noncompliant]
+----
+template<typename T>
+struct Optional {
+  bool has_value() const;
+  T const& value() const;
+};
+
+template<typename T>
+  requires std::equality_comparable<T>
+bool operator==(Optional<T> const& lhs, Optional<T> const& rhs) // Noncompliant
+{
+  if (lhs.has_value() && rhs.has_value()) {
+    return lhs.value() == rhs.value();
+  }
+  return lhs.has_value() == rhs.has_value();
+}
+
+template<typename T, typename U>
+  requires std::equality_comparable_with<T, U>
+bool operator==(Optional<T> const& lhs, Optional<U> rhs) // Noncompliant
+{
+  if (lhs.has_value() && rhs.has_value()) {
+    return lhs.value() == rhs.value();
+  }
+  return lhs.has_value() == rhs.has_value();
+}
+----
+
+==== Compliant solution
+
+[source,cpp,diff-id=7,diff-type=compliant]
+----
+template<typename T>
+struct Optional {
+  bool has_value() const;
+  T const& value() const;
+
+  friend bool operator==(Optional const& lhs, Optional rhs) // Compliant: lhs and rhs are Optional<T>
+    requires std::equality_comparable<T>
+  {
+    if (lhs.has_value() && rhs.has_value()) {
+      return lhs.value() == rhs.value();
+    }
+    return lhs.has_value() == rhs.has_value();
+  }
+
+  template<typename U>
+    requires std::equality_comparable_with<T, U>
+  friend bool operator==(Optional const& lhs, Optional<U> rhs) // Compliant: lhs is Optional<T>
+  {
+    if (lhs.has_value() && rhs.has_value()) {
+      return lhs.value() == rhs.value();
+    }
+    return lhs.has_value() == rhs.has_value();
+  }
+};
+----
 
 == Resources
 
-* https://github.com/isocpp/CppCoreGuidelines/blob/036324/CppCoreGuidelines.md#c161-use-nonmember-functions-for-symmetric-operators[{cpp} Core Guidelines C.161] - Use nonmember functions for symmetric operators
+=== Documentation
 
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/lookup[Name lookup]
+* {cpp} reference - https://en.cppreference.com/w/cpp/language/adl[Argument-dependent lookup]
+
+=== External coding guidelines
+
+* {cpp} Core Guidelines - https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c161-use-non-member-functions-for-symmetric-operators[C.161: Use non-member functions for symmetric operators]
+
+=== Related rules
+
+* S6187 - Operator spaceship "<=>" should be used to define comparable types
 
 ifdef::env-github,rspecator-view[]
 
@@ -36,11 +457,27 @@ ifdef::env-github,rspecator-view[]
 == Implementation Specification
 (visible only on this page)
 
-include::message.adoc[]
+=== Message
+
+* "Make this member overloaded operator a hidden friend."
+* "Make this overloaded operator a hidden friend of class "{}"."
+* "Make this overloaded operator a hidden friend of class "{}" or "{}"."
 
 '''
 == Comments And Links
 (visible only on this page)
 
-include::comments-and-links.adoc[]
+Exception for member `operator<<` and `operator>>` that looks like streaming is omitted on purpose.
+I do not think any user will be confused about not having an issue there when they write a stream
+(this happens only for members).
+
+=== on 17 Nov 2015, 09:01:34 Evgeny Mandrikov wrote:
+\[~ann.campbell.2] could you please help me update this RSPEC - operators ``++=++``, ``++[]++`` and ``++->++`` can't be overloaded as friend functions.
+
+=== on 17 Nov 2015, 14:01:38 Ann Campbell wrote:
+See what you think [~evgeny.mandrikov]
+
+=== on 17 Nov 2015, 20:38:54 Evgeny Mandrikov wrote:
+\[~ann.campbell.2] LGTM
+
 endif::env-github,rspecator-view[]
