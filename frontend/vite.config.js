@@ -33,6 +33,18 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
     include: ['src/**/*.test.{js,ts,jsx,tsx}'],
-    exclude: ['**/incomplete-rules-repo/**']
+    exclude: ['**/incomplete-rules-repo/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/**',
+        'build/**',
+        'public/**',
+        '**/*.test.{js,ts,jsx,tsx}',
+        '**/*.config.{js,ts}',
+        '**/coverage/**'
+      ]
+    }
   },
 })
