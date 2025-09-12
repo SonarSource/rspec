@@ -57,8 +57,8 @@ describe('pull request enumeration', () => {
     return process_incomplete_rspecs(nonExistingDir, (srcDir: string, pr: PullRequest) => {
       processedPRs.push(pr.pull_id);
     }).then(() => {
-      expect(Git.Clone.clone.mock.calls.length).toBe(1);
-      expect(Git.Clone.clone.mock.calls[0][1]).toBe(nonExistingDir);
+      expect(simpleGit().clone.mock.calls.length).toBe(1);
+      expect(simpleGit().clone.mock.calls[0][1]).toBe(nonExistingDir);
       expect(processedPRs).toHaveLength(2);
       expect(processedPRs).toContain(1);
       expect(processedPRs).toContain(42);
