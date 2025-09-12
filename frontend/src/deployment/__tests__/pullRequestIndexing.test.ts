@@ -12,10 +12,11 @@ import {
 import { simpleGit } from 'simple-git';
 import { Octokit } from '@octokit/rest';
 import 'setimmediate';
+import { vi } from 'vitest';
 
-jest.mock('@octokit/rest', () => {
+vi.mock('@octokit/rest', () => {
   return {Octokit: function() {
-    this.rest = {pulls: {list: jest.fn(() => {
+    this.rest = {pulls: {list: vi.fn(() => {
       return { data: [
         { title: 'Irrelevant S832' },
         { title: 'Create rule S343: Be friendly',
@@ -31,32 +32,32 @@ jest.mock('@octokit/rest', () => {
   }};
 });
 
-jest.mock('simple-git', () => ({
-  simpleGit: jest.fn(() => ({
-    clone: jest.fn(),
-    addConfig: jest.fn(),
-    fetch: jest.fn(),
-    checkout: jest.fn()
+vi.mock('simple-git', () => ({
+  simpleGit: vi.fn(() => ({
+    clone: vi.fn(),
+    addConfig: vi.fn(),
+    fetch: vi.fn(),
+    checkout: vi.fn()
   }))
 }));
 
 beforeEach(() => {
   const mockGit = {
-    clone: jest.fn(),
-    addConfig: jest.fn(),
-    fetch: jest.fn(),
-    checkout: jest.fn()
+    clone: vi.fn(),
+    addConfig: vi.fn(),
+    fetch: vi.fn(),
+    checkout: vi.fn()
   };
   
-  (simpleGit as jest.Mock).mockReturnValue(mockGit);
+  vi.mocked(simpleGit).mockReturnValue(mockGit);
 
-  jest.spyOn(fs, 'existsSync').mockImplementation((fname) => {
+  vi.spyOn(fs, 'existsSync').mockImplementation((fname) => {
     return fname.replace(/\\/g, '/').includes('rules/S');
   });
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 
@@ -86,22 +87,22 @@ describe('createGitHubClient', () => {
 
 describe('setupRepository', () => {
   const mockGitRoot = {
-    clone: jest.fn()
+    clone: vi.fn()
   };
   const mockRepo = {
-    addConfig: jest.fn(),
-    fetch: jest.fn()
+    addConfig: vi.fn(),
+    fetch: vi.fn()
   };
 
   beforeEach(() => {
-    (simpleGit as jest.Mock).mockImplementation((dir?: string) => {
+    vi.mocked(simpleGit).mockImplementation((dir?: string) => {
       return dir ? mockRepo : mockGitRoot;
     });
   });
 
   test('clones repository when .git does not exist', async () => {
     const tmpDir = '/tmp/test-repo';
-    jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
     
     const repo = await setupRepository(tmpDir);
     
@@ -119,7 +120,7 @@ describe('setupRepository', () => {
 
   test('skips cloning when .git already exists', async () => {
     const tmpDir = '/tmp/existing-repo';
-    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     
     await setupRepository(tmpDir);
     
@@ -143,7 +144,7 @@ describe('parseRuleId', () => {
 });
 
 describe('processRule', () => {
-  const mockCallback = jest.fn();
+  const mockCallback = vi.fn();
   const tmpDir = '/tmp/repo';
   const pullData: GitHubPullData = {
     title: 'Create rule S123',
@@ -157,7 +158,7 @@ describe('processRule', () => {
   });
 
   test('processes rule when directory exists', () => {
-    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     
     processRule(tmpDir, pullData, 'S123', mockCallback);
     
@@ -173,7 +174,7 @@ describe('processRule', () => {
   });
 
   test('skips processing when directory does not exist', () => {
-    jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
     
     processRule(tmpDir, pullData, 'S123', mockCallback);
     
@@ -181,7 +182,7 @@ describe('processRule', () => {
   });
 
   test('handles callback errors gracefully', () => {
-    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     mockCallback.mockImplementation(() => {
       throw new Error('Processing failed');
     });
@@ -198,19 +199,19 @@ describe('fetchAndProcessPRs', () => {
   const mockOctokit = {
     rest: {
       pulls: {
-        list: jest.fn()
+        list: vi.fn()
       }
     }
   };
   const mockRepo = {
-    checkout: jest.fn()
+    checkout: vi.fn()
   };
-  const mockCallback = jest.fn();
+  const mockCallback = vi.fn();
 
   beforeEach(() => {
     mockCallback.mockReset();
     mockRepo.checkout.mockReset();
-    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
   });
 
   test('processes multiple pages of PRs', async () => {
