@@ -47,7 +47,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
 }));
 
 export function useRuleCoverage() {
-  const coveredRulesUrl = `${process.env.PUBLIC_URL}/covered_rules.json`;
+  const coveredRulesUrl = `/rspec/covered_rules.json`;
   const [coveredRules, coveredRulesError, coveredRulesIsLoading] = useFetch<RuleCoverage>(coveredRulesUrl);
 
   function ruleCoverageForSonarpediaKeys(languageKeys: string[], ruleKeys: string[], mapper: Mapper): Coverage {
