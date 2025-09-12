@@ -131,7 +131,7 @@ export async function fetchAndProcessPRs(
  *                srcDir - the path to the incomplete rule found in the corresponding PR.
  *                pr - the pull request attributes that might be useful to process the rule.
  */
-export async function process_incomplete_rspecs(
+export async function processIncompleteRspecs(
   tmpRepoDir: string,
   callback: (srcDir: string, pr: PullRequest) => void
 ): Promise<void> {

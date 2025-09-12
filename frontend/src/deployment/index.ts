@@ -6,7 +6,7 @@ import { clean_rules } from './clean';
 import { generateOneRuleMetadata, generateRulesMetadata } from './metadata';
 import { generateOneRuleDescription, generateRulesDescription, } from './description';
 import { createIndexFiles } from './searchIndex';
-import { process_incomplete_rspecs, PullRequest } from './pullRequestIndexing';
+import { processIncompleteRspecs, PullRequest } from './pullRequestIndexing';
 
 import { PR_DIRECTORY, RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY } from './paths';
 
@@ -26,7 +26,7 @@ yargs(process.argv.slice(2))
     },
     (argv: { rules: string[] }) => {
       generateRulesMetadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules);
-      process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
+      processIncompleteRspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
         const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
         generateOneRuleMetadata(srcDir, dstDir, pr.branch, pr.url);
       });
@@ -37,7 +37,7 @@ yargs(process.argv.slice(2))
     },
     (argv: { rules: string[] }) => {
       generateRulesDescription(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, argv.rules);
-      process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
+      processIncompleteRspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
         const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
         generateOneRuleDescription(srcDir, dstDir);
       });
@@ -50,7 +50,7 @@ yargs(process.argv.slice(2))
     _ => {
       generateRulesMetadata(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
       generateRulesDescription(RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY);
-      process_incomplete_rspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
+      processIncompleteRspecs(PR_DIRECTORY, function (srcDir: string, pr: PullRequest) {
         const dstDir = path.join(RULE_DST_DIRECTORY, pr.rspec_id);
         generateOneRuleMetadata(srcDir, dstDir, pr.branch, pr.url);
         generateOneRuleDescription(srcDir, dstDir);

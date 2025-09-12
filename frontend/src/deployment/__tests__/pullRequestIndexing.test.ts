@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { 
-  process_incomplete_rspecs, 
+  processIncompleteRspecs,
   PullRequest, 
   createGitHubClient,
   setupRepository,
@@ -261,7 +261,7 @@ describe('pull request enumeration (integration)', () => {
     const nonExistingDir = 'not-existing-directory';
     let processedPRs: number[] = [];
     
-    await process_incomplete_rspecs(nonExistingDir, (srcDir: string, pr: PullRequest) => {
+    await processIncompleteRspecs(nonExistingDir, (srcDir: string, pr: PullRequest) => {
       processedPRs.push(pr.pull_id);
     });
     
