@@ -1,16 +1,25 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when environment variables are accessed directly using `ENV["KEY"]` without validation or default values, particularly in configuration contexts.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Environment variables are external dependencies that may not be set in all environments. When you access an environment variable using `ENV["KEY"]`, Ruby returns `nil` if the variable is not defined.
 
-//=== What is the potential impact?
+This can lead to several problems:
+
+* *Application startup failures*: If critical configuration values are missing, your application may fail to start or behave unexpectedly.
+* *Runtime errors*: Methods that expect strings or other specific types may crash when receiving `nil` values.
+* *Silent failures*: Some APIs accept `nil` values but behave differently, leading to hard-to-debug issues.
+* *Security vulnerabilities*: Missing security-related configuration (like API keys or secrets) might cause authentication to fail silently or use insecure defaults.
+
+This is especially problematic in production environments where environment variables are the primary way to configure applications securely. A missing environment variable can cause immediate outages or security issues.
+
+=== What is the potential impact?
+
+Missing environment variables can cause application startup failures, runtime crashes, or security vulnerabilities. In production, this can lead to service outages or compromised authentication systems.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Use the `||` operator to provide default values for non-critical environment variables.
 
 === Code examples
 
@@ -18,27 +27,58 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,ruby,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+# Direct access without validation
+api_timeout = ENV["API_TIMEOUT"] # Noncompliant
+SomeService.configure(timeout: api_timeout)
 ----
 
 ==== Compliant solution
 
 [source,ruby,diff-id=1,diff-type=compliant]
 ----
-FIXME
+# Provide a sensible default value
+api_timeout = ENV["API_TIMEOUT"] || "30"
+SomeService.configure(timeout: api_timeout.to_i)
 ----
 
-//=== How does this work?
+== How to fix it in Rails
 
-//=== Pitfalls
+Use Rails credentials or secrets with environment variable fallbacks for better configuration management.
 
-//=== Going the extra mile
+=== Code examples
 
+==== Noncompliant code example
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Direct ENV access in Rails configuration
+Rails.application.config.middleware.use OmniAuth::Builder do
+  provider :google_oauth2, ENV["GOOGLE_CLIENT_ID"], ENV["GOOGLE_CLIENT_SECRET"] # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Use Rails secrets with ENV fallback
+Rails.application.config.middleware.use OmniAuth::Builder do
+  provider :google_oauth2,
+    Rails.application.secrets.google_client_id || ENV["GOOGLE_CLIENT_ID"],
+    Rails.application.secrets.google_client_secret || ENV["GOOGLE_CLIENT_SECRET"]
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby ENV Documentation - https://ruby-doc.org/core/ENV.html[Official Ruby documentation for the ENV class and its methods]
+
+ * Rails Configuration Guide - https://guides.rubyonrails.org/configuring.html[Rails guide on application configuration including environment variables]
+
+ * The Twelve-Factor App - Config - https://12factor.net/config[Best practices for storing configuration in environment variables]
+
+=== Standards
+
+ * CWE-665: Improper Initialization - https://cwe.mitre.org/data/definitions/665.html[Weakness related to improper initialization of resources]
