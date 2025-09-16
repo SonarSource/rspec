@@ -1,24 +1,25 @@
-This is an issue when routes are defined directly on the main FastAPI instance instead of using APIRouter for modular organization, or when routers are included without appropriate prefixes or with conflicting paths.
+This rule raises an issue when FastAPI route functions have query parameters that should be optional but lack proper Union type annotations or default values.
 
 == Why is this an issue?
 
-FastAPI applications benefit from modular organization using APIRouter to separate concerns and improve maintainability.
+In FastAPI, query parameters are automatically validated based on their type annotations and default values. When a parameter is intended to be optional, it needs both a Union type annotation (like `Union[str, None]` or `Optional[str]`) and a default value (typically `None`) to work correctly.
 
-When all routes are defined directly on the main FastAPI instance, the application becomes harder to maintain as it grows. This approach creates a monolithic structure where related functionality is not properly grouped, making the codebase difficult to navigate and understand.
+Without the Union type annotation, FastAPI treats the parameter as required, even if you provide a default value. Without the default value, Python treats the parameter as mandatory, causing validation errors.
 
-APIRouter provides a way to organize endpoints into logical modules that can be developed and maintained independently. Each router can focus on a specific domain or feature area, making the code more organized and easier to test.
-
-Additionally, when including routers in the main application, using meaningful prefixes helps create a clear API structure. Prefixes like `/api/v1/users` or `/admin` make the API more intuitive for consumers and help avoid path conflicts.
-
-Including the same router multiple times with identical prefixes creates path conflicts and unpredictable behavior, as FastAPI cannot determine which route handler should respond to a request.
+This creates a poor API experience where clients receive unexpected validation errors when they don't provide parameters that should be optional. The API documentation will also incorrectly show these parameters as required, misleading API consumers about the expected interface.
 
 === What is the potential impact?
 
-Poor application organization leads to reduced maintainability and developer productivity. As the application grows, it becomes increasingly difficult to locate and modify specific functionality. Path conflicts from duplicate router inclusions can cause runtime errors or unpredictable API behavior, potentially breaking client applications.
+API clients will receive validation errors when they don't provide parameters that should be optional. This leads to:
+
+* Poor developer experience for API consumers
+* Incorrect API documentation showing optional parameters as required
+* Potential integration failures when clients assume parameters are optional
+* Reduced API usability and adoption
 
 == How to fix it in FastAPI
 
-Use APIRouter to organize related endpoints into separate modules instead of defining all routes on the main FastAPI instance.
+Add Union type annotation and default value to make the query parameter truly optional. Use `Union[Type, None] = None` or `Optional[Type] = None` to indicate the parameter can be either the specified type or None.
 
 === Code examples
 
@@ -26,43 +27,30 @@ Use APIRouter to organize related endpoints into separate modules instead of def
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-# main.py
 from fastapi import FastAPI
 
 app = FastAPI()
 
-@app.get("/users/")  # Noncompliant
-def read_users():
-    return [{"username": "Rick"}]
-
-@app.get("/items/")  # Noncompliant
-def read_items():
-    return [{"item_id": "Foo"}]
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: str):  # Noncompliant
+    return {"item_id": item_id, "q": q}
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-# main.py
+from typing import Union
 from fastapi import FastAPI
-from .routers import users, items
 
 app = FastAPI()
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(items.router, prefix="/api/v1")
 
-# routers/users.py
-from fastapi import APIRouter
-
-router = APIRouter()
-
-@router.get("/users/")
-def read_users():
-    return [{"username": "Rick"}]
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: Union[str, None] = None):
+    return {"item_id": item_id, "q": q}
 ----
 
-When including the same router multiple times, use different prefixes to avoid path conflicts.
+Add a default value when you already have the Union type annotation. The default value (typically None) is required to make the parameter optional in the function signature.
 
 === Code examples
 
@@ -70,40 +58,61 @@ When including the same router multiple times, use different prefixes to avoid p
 
 [source,python,diff-id=2,diff-type=noncompliant]
 ----
-from fastapi import APIRouter, FastAPI
+from typing import Union
 
-router = APIRouter()
-app = FastAPI()
-
-@router.get("/items/")
-def read_items():
-    return []
-
-app.include_router(router)
-app.include_router(router, prefix="/api/v1")  # Noncompliant
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: Union[str, None]):  # Noncompliant
+    return {"item_id": item_id, "q": q}
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=2,diff-type=compliant]
 ----
-from fastapi import APIRouter, FastAPI
+from typing import Union
 
-router = APIRouter()
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: Union[str, None] = None):
+    return {"item_id": item_id, "q": q}
+----
+
+Use the Optional type alias for cleaner code. `Optional[Type]` is equivalent to `Union[Type, None]` and can make the code more readable.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+from fastapi import FastAPI
+
 app = FastAPI()
 
-@router.get("/items/")
-def read_items():
-    return []
+@app.get("/search")
+def search_items(query: str, limit: int):  # Noncompliant
+    return {"query": query, "limit": limit}
+----
 
-app.include_router(router, prefix="/api/v1")
-app.include_router(router, prefix="/api/v2")
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from typing import Optional
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/search")
+def search_items(query: Optional[str] = None, limit: Optional[int] = 10):
+    return {"query": query, "limit": limit}
 ----
 
 == Resources
 
 === Documentation
 
- * FastAPI Bigger Applications - Multiple Files - https://fastapi.tiangolo.com/tutorial/bigger-applications/[Official FastAPI documentation on organizing larger applications using APIRouter]
+ * FastAPI Query Parameters - https://fastapi.tiangolo.com/tutorial/query-params/[Official FastAPI documentation on query parameters and optional parameters]
 
- * FastAPI APIRouter - https://fastapi.tiangolo.com/reference/apirouter/[APIRouter class reference documentation]
+ * FastAPI Query Parameters and String Validations - https://fastapi.tiangolo.com/tutorial/query-params-str-validations/[Advanced query parameter handling and validation in FastAPI]
+
+ * Python typing - Union - https://docs.python.org/3/library/typing.html#typing.Union[Python documentation on Union types for type annotations]
