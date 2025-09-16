@@ -277,7 +277,7 @@ interface PageMetadata {
 }
 
 function usePageMetadata(ruleid: string, language: string, classes: UsedStyles): PageMetadata {
-  const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
+  const metadataUrl = `/rspec/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
   let coverage: Coverage = 'Loading...';
@@ -368,7 +368,7 @@ function useDescription(metadata: PageMetadata, ruleid: string, language?: strin
     return undefined; // No modification.
   }
 
-  const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
+  const descUrl = `/rspec/rules/${ruleid}/${language ?? 'default'}-description.html`;
 
   const [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
 
