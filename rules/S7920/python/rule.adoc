@@ -1,109 +1,69 @@
-This is an issue when routes are defined directly on the main FastAPI instance instead of using APIRouter for modular organization, or when routers are included without appropriate prefixes or with conflicting paths.
+This is an issue when classes have bidirectional relationships and are serialized to JSON without proper Jackson annotations, causing infinite recursion and StackOverflowError.
 
 == Why is this an issue?
 
-FastAPI applications benefit from modular organization using APIRouter to separate concerns and improve maintainability.
+When two entities reference each other bidirectionally, Jackson attempts to serialize the entire object graph. Without proper annotations, Jackson will serialize Entity A, which contains Entity B, which contains Entity A again, creating an infinite loop.
 
-When all routes are defined directly on the main FastAPI instance, the application becomes harder to maintain as it grows. This approach creates a monolithic structure where related functionality is not properly grouped, making the codebase difficult to navigate and understand.
+This infinite recursion continues until the call stack is exhausted, resulting in a `StackOverflowError` that crashes the application. This is particularly common with JPA entities that have `@OneToMany` and `@ManyToOne` relationships.
 
-APIRouter provides a way to organize endpoints into logical modules that can be developed and maintained independently. Each router can focus on a specific domain or feature area, making the code more organized and easier to test.
+The problem occurs because Jackson's default behavior is to follow all object references during serialization. In bidirectional relationships, this creates a circular reference that Jackson cannot resolve on its own.
 
-Additionally, when including routers in the main application, using meaningful prefixes helps create a clear API structure. Prefixes like `/api/v1/users` or `/admin` make the API more intuitive for consumers and help avoid path conflicts.
-
-Including the same router multiple times with identical prefixes creates path conflicts and unpredictable behavior, as FastAPI cannot determine which route handler should respond to a request.
+For example, consider an `Order` entity with a collection of `OrderDetail` entities, where each `OrderDetail` has a reference back to its parent `Order`. During serialization, Jackson will serialize the `Order`, then each `OrderDetail`, then the `Order` reference within each `OrderDetail`, then the `OrderDetail` collection again, and so on indefinitely.
 
 === What is the potential impact?
 
-Poor application organization leads to reduced maintainability and developer productivity. As the application grows, it becomes increasingly difficult to locate and modify specific functionality. Path conflicts from duplicate router inclusions can cause runtime errors or unpredictable API behavior, potentially breaking client applications.
+Without proper Jackson annotations, applications will crash with `StackOverflowError` during JSON serialization of bidirectional relationships. This leads to:
 
-== How to fix it in FastAPI
+* Application crashes and service unavailability
+* Poor user experience with failed API responses
+* Potential data loss if the error occurs during critical operations
+* Difficult debugging due to very long stack traces
+* Performance degradation before the crash as the call stack grows
 
-Use APIRouter to organize related endpoints into separate modules instead of defining all routes on the main FastAPI instance.
+=== How to fix?
 
-=== Code examples
 
-==== Noncompliant code example
+Use @JsonManagedReference on the parent/owning side (typically collections) and @JsonBackReference on the child/inverse side (typically single object references). These annotations work as a pair to break the circular reference.
 
-[source,python,diff-id=1,diff-type=noncompliant]
+==== Non-compliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-# main.py
-from fastapi import FastAPI
+@Entity
+public class Order {
+    @OneToMany(mappedBy = "order")
+    private Set<OrderDetail> orderDetails; // Noncompliant
+}
 
-app = FastAPI()
-
-@app.get("/users/")  # Noncompliant
-def read_users():
-    return [{"username": "Rick"}]
-
-@app.get("/items/")  # Noncompliant
-def read_items():
-    return [{"item_id": "Foo"}]
-----
-
-==== Compliant solution
-
-[source,python,diff-id=1,diff-type=compliant]
-----
-# main.py
-from fastapi import FastAPI
-from .routers import users, items
-
-app = FastAPI()
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(items.router, prefix="/api/v1")
-
-# routers/users.py
-from fastapi import APIRouter
-
-router = APIRouter()
-
-@router.get("/users/")
-def read_users():
-    return [{"username": "Rick"}]
+@Entity
+public class OrderDetail {
+    @ManyToOne
+    private Order order; // Noncompliant
+}
 ----
 
-When including the same router multiple times, use different prefixes to avoid path conflicts.
+==== Compliant code example
 
-=== Code examples
-
-==== Noncompliant code example
-
-[source,python,diff-id=2,diff-type=noncompliant]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-from fastapi import APIRouter, FastAPI
+@Entity
+public class Order {
+    @JsonManagedReference
+    @OneToMany(mappedBy = "order")
+    private Set<OrderDetail> orderDetails;
+}
 
-router = APIRouter()
-app = FastAPI()
-
-@router.get("/items/")
-def read_items():
-    return []
-
-app.include_router(router)
-app.include_router(router, prefix="/api/v1")  # Noncompliant
+@Entity
+public class OrderDetail {
+    @JsonBackReference
+    @ManyToOne
+    private Order order;
+}
 ----
-
-==== Compliant solution
-
-[source,python,diff-id=2,diff-type=compliant]
-----
-from fastapi import APIRouter, FastAPI
-
-router = APIRouter()
-app = FastAPI()
-
-@router.get("/items/")
-def read_items():
-    return []
-
-app.include_router(router, prefix="/api/v1")
-app.include_router(router, prefix="/api/v2")
-----
-
-== Resources
 
 === Documentation
 
- * FastAPI Bigger Applications - Multiple Files - https://fastapi.tiangolo.com/tutorial/bigger-applications/[Official FastAPI documentation on organizing larger applications using APIRouter]
+ * Jackson Bidirectional Relationships and Infinite Recursion - https://www.baeldung.com/jackson-bidirectional-relationships-and-infinite-recursion[Comprehensive guide on handling bidirectional relationships in Jackson]
+ * Jackson Annotations Guide - https://www.baeldung.com/jackson-annotations[Complete reference for Jackson annotations including @JsonManagedReference and @JsonBackReference]
+ * Jackson Reference Documentation - https://github.com/FasterXML/jackson-annotations/wiki/Jackson-Annotations[Official Jackson annotations documentation]
 
- * FastAPI APIRouter - https://fastapi.tiangolo.com/reference/apirouter/[APIRouter class reference documentation]

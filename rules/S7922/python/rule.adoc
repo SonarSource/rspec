@@ -1,125 +1,90 @@
-This rule raises an issue when blocking operations like synchronous HTTP requests, `time.sleep()`, or CPU-intensive computations are performed directly within async functions.
+This rule raises an issue when a class extends `TypeIdResolverBase` but does not implement the essential methods `idFromValueAndType()` and `typeFromId()`.
 
 == Why is this an issue?
 
-Async functions are designed to enable concurrent execution by yielding control back to the event loop when waiting for I/O operations or other asynchronous tasks. When you perform blocking operations within an async function, you defeat this purpose entirely.
+When creating a custom `TypeIdResolver` by extending `TypeIdResolverBase`, you need to implement specific methods to handle both serialization and deserialization of polymorphic types.
 
-Blocking operations prevent the event loop from executing other coroutines, essentially making your async code run sequentially instead of concurrently. This leads to poor performance and resource utilization, especially in web applications where you might expect to handle multiple requests simultaneously.
+The `TypeIdResolverBase` class provides a foundation for custom type ID resolution, but it requires you to implement the core logic:
 
-For example, using `requests.get()` in an async function blocks the entire event loop until the HTTP request completes. Even if you have multiple async tasks running, they will execute one after another instead of concurrently.
+* `idFromValueAndType(Object obj, Class<?> subType)` - converts Java objects to type identifiers during serialization
+* `typeFromId(DatabindContext context, String id)` - converts type identifiers back to Java types during deserialization
 
-The same applies to CPU-intensive operations. While these don't involve I/O, they still consume the event loop thread and prevent other coroutines from running until the computation finishes.
+Without these implementations, Jackson cannot properly handle polymorphic type information. The serialization process will fail to include type metadata, and deserialization will fail to reconstruct the correct object types.
+
+While `getMechanism()` defines the type inclusion strategy, it alone is insufficient. The actual conversion logic must be provided through the missing methods.
 
 === What is the potential impact?
 
-Blocking operations in async functions can severely degrade application performance by:
+Incomplete `TypeIdResolver` implementations will cause runtime failures during JSON processing:
 
-* Reducing throughput in web applications as requests are processed sequentially instead of concurrently
-* Causing timeouts and poor user experience due to increased response times
-* Wasting server resources as the event loop remains idle while waiting for blocking operations
-* Making the application unresponsive during CPU-intensive tasks
+* Serialization may fail to include necessary type information
+* Deserialization may fail to reconstruct objects with correct types
+* Applications may crash or produce incorrect results when processing polymorphic data
+* Data integrity issues may occur in systems relying on proper type preservation
 
-== How to fix it
+=== How to fix?
 
-Replace synchronous HTTP requests with async HTTP libraries like `httpx` or `aiohttp`. These libraries provide async methods that properly yield control back to the event loop.
 
-=== Code examples
+Implement both `idFromValueAndType()` and `typeFromId()` methods to handle the conversion between Java types and type identifiers.
 
-==== Noncompliant code example
+==== Non-compliant code example
 
-[source,python,diff-id=1,diff-type=noncompliant]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-import requests
-import asyncio
-
-async def fetch_data():
-    # Blocking HTTP request
-    response = requests.get("https://api.example.com/data")  # Noncompliant
-    return response.json()
-
-async def main():
-    tasks = [fetch_data() for _ in range(5)]
-    results = await asyncio.gather(*tasks)
-    return results
+public class BeanIdResolver extends TypeIdResolverBase {
+    @Override
+    public Id getMechanism() {
+        return Id.NAME;
+    }
+    // Missing idFromValueAndType and typeFromId implementations // Noncompliant
+}
 ----
 
-==== Compliant solution
+==== Compliant code example
 
-[source,python,diff-id=1,diff-type=compliant]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-import httpx
-import asyncio
-
-async def fetch_data():
-    # Non-blocking HTTP request
-    async with httpx.AsyncClient() as client:
-        response = await client.get("https://api.example.com/data")
-        return response.json()
-
-async def main():
-    tasks = [fetch_data() for _ in range(5)]
-    results = await asyncio.gather(*tasks)
-    return results
+public class BeanIdResolver extends TypeIdResolverBase {
+    private JavaType superType;
+    
+    @Override
+    public void init(JavaType baseType) {
+        superType = baseType;
+    }
+    
+    @Override
+    public Id getMechanism() {
+        return Id.NAME;
+    }
+    
+    @Override
+    public String idFromValueAndType(Object obj, Class<?> subType) {
+        // Convert object type to string identifier
+        return subType.getSimpleName().toLowerCase();
+    }
+    
+    @Override
+    public JavaType typeFromId(DatabindContext context, String id) {
+        // Convert string identifier back to Java type
+        Class<?> subType = resolveClassFromId(id);
+        return context.constructSpecializedType(superType, subType);
+    }
+    
+    private Class<?> resolveClassFromId(String id) {
+        // Implementation to map ID to actual class
+        // This depends on your specific type mapping logic
+        return MyTypeRegistry.getClassForId(id);
+    }
+}
 ----
-
-== How to fix it in FastAPI
-
-Use FastAPI's `run_in_threadpool()` utility for blocking operations, or define background tasks as synchronous functions to let the framework handle thread management automatically.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,python,diff-id=2,diff-type=noncompliant]
-----
-from fastapi import BackgroundTasks, FastAPI
-import time
-
-app = FastAPI()
-
-async def background_task(data):
-    # This blocks the event loop
-    time.sleep(5)  # Noncompliant
-    await db.save(data)
-
-@app.post("/process")
-async def process_data(data: dict, background_tasks: BackgroundTasks):
-    background_tasks.add_task(background_task, data)
-    return {"status": "processing"}
-----
-
-==== Compliant solution
-
-[source,python,diff-id=2,diff-type=compliant]
-----
-from fastapi import BackgroundTasks, FastAPI
-from fastapi.concurrency import run_in_threadpool
-import time
-
-app = FastAPI()
-
-async def background_task(data):
-    # Move blocking operation to thread pool
-    await run_in_threadpool(lambda: time.sleep(5))
-    await db.save(data)
-
-# Alternative: define as synchronous function
-def sync_background_task(data):
-    time.sleep(5)  # Framework handles this in separate thread
-    db.save_sync(data)
-
-@app.post("/process")
-async def process_data(data: dict, background_tasks: BackgroundTasks):
-    background_tasks.add_task(background_task, data)
-    return {"status": "processing"}
-----
-
-== Resources
 
 === Documentation
 
- * Python asyncio documentation - https://docs.python.org/3/library/asyncio.html[Official Python documentation for asyncio module]
+ * Jackson Advanced Annotations - @JsonTypeIdResolver - https://www.baeldung.com/jackson-advanced-annotations#jsontypeidresolver[Comprehensive guide to implementing custom TypeIdResolver with Jackson]
+ * Jackson TypeIdResolverBase JavaDoc - https://fasterxml.github.io/jackson-databind/javadoc/2.9/com/fasterxml/jackson/databind/jsontype/impl/TypeIdResolverBase.html[Official documentation for the TypeIdResolverBase class]
+ * Jackson Polymorphic Type Handling - https://github.com/FasterXML/jackson-docs/wiki/JacksonPolymorphicDeserialization[Jackson documentation on handling polymorphic types during serialization and deserialization]
 
- * HTTPX async client documentation - https://www.python-httpx.org/async/[Documentation for HTTPX async HTTP client]
+=== Standards
 
- * FastAPI concurrency utilities - https://fastapi.tiangolo.com/async/#concurrency-and-async-await[FastAPI documentation on handling concurrency and blocking operations]
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Incomplete implementations may lead to unhandled exceptional conditions during runtime]
+

@@ -1,118 +1,99 @@
-This rule raises an issue when FastAPI route functions have query parameters that should be optional but lack proper Union type annotations or default values.
+This rule raises an issue when Spring controller methods use mapping annotations (@RequestMapping, @GetMapping, @PostMapping, etc.) without explicitly specifying the `produces` attribute to define the response media type.
 
 == Why is this an issue?
 
-In FastAPI, query parameters are automatically validated based on their type annotations and default values. When a parameter is intended to be optional, it needs both a Union type annotation (like `Union[str, None]` or `Optional[str]`) and a default value (typically `None`) to work correctly.
+Spring controller methods that don't specify the `produces` attribute rely on default content negotiation, which can lead to several problems.
 
-Without the Union type annotation, FastAPI treats the parameter as required, even if you provide a default value. Without the default value, Python treats the parameter as mandatory, causing validation errors.
+When you omit the `produces` attribute, Spring uses its default content negotiation strategy to determine the response format. While this might work in simple cases, it creates several risks:
 
-This creates a poor API experience where clients receive unexpected validation errors when they don't provide parameters that should be optional. The API documentation will also incorrectly show these parameters as required, misleading API consumers about the expected interface.
+* **Ambiguous API contracts**: Clients cannot be certain what format they will receive, making the API less predictable and harder to consume.
+* **Content negotiation failures**: If a client sends an `Accept` header that Spring cannot satisfy, it returns an HTTP 406 "Not Acceptable" error instead of a clear response.
+* **Method mapping conflicts**: When multiple controller methods handle the same URL path but return different data types, Spring cannot determine which method to invoke without explicit media type specification.
+* **Inconsistent behavior**: The actual response format may vary depending on the classpath dependencies (like Jackson for JSON) rather than explicit design decisions.
+
+Explicitly specifying the `produces` attribute makes your API contract clear and predictable. It tells both Spring and API consumers exactly what format to expect, enabling proper content negotiation and preventing runtime errors.
 
 === What is the potential impact?
 
-API clients will receive validation errors when they don't provide parameters that should be optional. This leads to:
+Without explicit media type specification, applications may experience HTTP 406 errors when clients request unsupported formats, ambiguous method routing when multiple endpoints share the same URL path, and unpredictable API behavior that depends on classpath configuration rather than explicit design decisions.
 
-* Poor developer experience for API consumers
-* Incorrect API documentation showing optional parameters as required
-* Potential integration failures when clients assume parameters are optional
-* Reduced API usability and adoption
+=== How to fix in Spring?
 
-== How to fix it in FastAPI
+Add the `produces` attribute to your mapping annotation and specify the media type your endpoint returns. For JSON responses, use `MediaType.APPLICATION_JSON_VALUE` or the string `"application/json"`.
 
-Add Union type annotation and default value to make the query parameter truly optional. Use `Union[Type, None] = None` or `Optional[Type] = None` to indicate the parameter can be either the specified type or None.
+==== Non-compliant code example
 
-=== Code examples
-
-==== Noncompliant code example
-
-[source,python,diff-id=1,diff-type=noncompliant]
+[source,java,diff-id=1,diff-type=noncompliant]
 ----
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: str):  # Noncompliant
-    return {"item_id": item_id, "q": q}
+@GetMapping("/greetings")
+public String getGreeting() {
+    return "{\"message\": \"Hello\"}";
+} // Noncompliant
 ----
 
-==== Compliant solution
+==== Compliant code example
 
-[source,python,diff-id=1,diff-type=compliant]
+[source,java,diff-id=1,diff-type=compliant]
 ----
-from typing import Union
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@GetMapping(value = "/greetings", produces = MediaType.APPLICATION_JSON_VALUE)
+public String getGreeting() {
+    return "{\"message\": \"Hello\"}";
+}
 ----
 
-Add a default value when you already have the Union type annotation. The default value (typically None) is required to make the parameter optional in the function signature.
+For methods returning objects that will be serialized to JSON, explicitly specify the JSON media type to ensure proper content negotiation.
 
-=== Code examples
+==== Non-compliant code example
 
-==== Noncompliant code example
-
-[source,python,diff-id=2,diff-type=noncompliant]
+[source,java,diff-id=2,diff-type=noncompliant]
 ----
-from typing import Union
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None]):  # Noncompliant
-    return {"item_id": item_id, "q": q}
+@RequestMapping(value = "/company")
+public Company getCompany() {
+    return new Company(1, "Xpto");
+} // Noncompliant
 ----
 
-==== Compliant solution
+==== Compliant code example
 
-[source,python,diff-id=2,diff-type=compliant]
+[source,java,diff-id=2,diff-type=compliant]
 ----
-from typing import Union
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
-----
-
-Use the Optional type alias for cleaner code. `Optional[Type]` is equivalent to `Union[Type, None]` and can make the code more readable.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,python,diff-id=3,diff-type=noncompliant]
-----
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/search")
-def search_items(query: str, limit: int):  # Noncompliant
-    return {"query": query, "limit": limit}
+@RequestMapping(value = "/company", produces = MediaType.APPLICATION_JSON_VALUE)
+public Company getCompany() {
+    return new Company(1, "Xpto");
+}
 ----
 
-==== Compliant solution
+When using @PostMapping or other HTTP method-specific annotations, include the produces attribute to specify the response format.
 
-[source,python,diff-id=3,diff-type=compliant]
+==== Non-compliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
 ----
-from typing import Optional
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/search")
-def search_items(query: Optional[str] = None, limit: Optional[int] = 10):
-    return {"query": query, "limit": limit}
+@PostMapping("/content")
+@ResponseBody
+public ResponseTransfer postResponse() {
+    return new ResponseTransfer("Content!");
+} // Noncompliant
 ----
 
-== Resources
+==== Compliant code example
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+@PostMapping(value = "/content", produces = MediaType.APPLICATION_JSON_VALUE)
+@ResponseBody
+public ResponseTransfer postResponse() {
+    return new ResponseTransfer("Content!");
+}
+----
 
 === Documentation
 
- * FastAPI Query Parameters - https://fastapi.tiangolo.com/tutorial/query-params/[Official FastAPI documentation on query parameters and optional parameters]
+ * Spring Framework Reference - Request Mapping - https://docs.spring.io/spring-framework/docs/current/reference/html/web.html#mvc-ann-requestmapping[Official Spring documentation on @RequestMapping and its attributes including produces]
+ * Spring Boot - Content Negotiation - https://docs.spring.io/spring-boot/docs/current/reference/html/web.html#web.servlet.spring-mvc.content-negotiation[Spring Boot documentation on content negotiation and media type handling]
+ * Baeldung - Spring MVC Content Type - https://www.baeldung.com/spring-mvc-set-json-content-type[Tutorial on setting content types in Spring MVC applications]
 
- * FastAPI Query Parameters and String Validations - https://fastapi.tiangolo.com/tutorial/query-params-str-validations/[Advanced query parameter handling and validation in FastAPI]
+=== Standards
 
- * Python typing - Union - https://docs.python.org/3/library/typing.html#typing.Union[Python documentation on Union types for type annotations]
+ * RFC 7231 - HTTP/1.1 Semantics - https://tools.ietf.org/html/rfc7231#section-5.3.2[HTTP specification for Accept header and content negotiation]
+
