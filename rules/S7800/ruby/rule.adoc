@@ -1,0 +1,69 @@
+This rule raises an issue when `render` is called with layout options (like `:layout =>`) inside controller callback methods such as `before_filter` or `before_action`.
+
+== Why is this an issue?
+
+Using `render` with layout options in controller callbacks is a common Rails anti-pattern that causes unexpected behavior.
+
+The `render` method immediately generates and sends an HTTP response, then halts the request processing cycle. When you call `render :layout => 'admin'` in a `before_filter`, the filter renders an empty response using the specified layout and stops execution. The intended controller action never runs, which can lead to:
+
+* Missing instance variables that views expect
+* Incomplete data processing
+* Cryptic "nil object" errors when templates try to access undefined variables
+
+Layout selection should determine which template wrapper to use for rendering, not trigger the rendering itself. Rails provides the `layout` class method specifically for dynamic layout selection.
+
+=== What is the potential impact?
+
+This anti-pattern can cause application errors, incomplete page rendering, and unpredictable behavior. Users may see broken pages with missing data or encounter "nil object" exceptions when templates try to access variables that were never set because the controller action didn't execute.
+
+== How to fix it
+
+Replace the callback method that calls `render` with layout options with the `layout` class method. The layout method should point to a private method that returns the layout name as a string.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class MyController < ApplicationController
+  before_filter :admin_layout
+
+  private
+
+  def admin_layout
+    if current_user.is_able_to('siteadmin')
+      render :layout => 'admin' # Noncompliant
+    else
+      render :layout => 'application' # Noncompliant
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class MyController < ApplicationController
+  layout :determine_layout
+
+  private
+
+  def determine_layout
+    if logged_in? && current_user&.is_able_to('siteadmin')
+      "admin"
+    else
+      "application"
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Layouts and Rendering Guide - https://guides.rubyonrails.org/layouts_and_rendering.html#conditional-layouts[Official Rails documentation on conditional layouts and proper layout selection]
+
+ * Rails ActionController Layout Documentation - https://api.rubyonrails.org/classes/ActionController/Layout/ClassMethods.html#method-i-layout[API documentation for the layout class method]
