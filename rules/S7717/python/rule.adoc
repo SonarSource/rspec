@@ -1,106 +1,55 @@
-This rule raises an issue when a project declares a dependency on an unsupported version of Django in requirements files or setup configuration.
+This rule raises an issue when a Django template uses the `{% extends %}` tag to reference itself, creating a circular dependency.
 
 == Why is this an issue?
 
-Using unsupported versions of Django creates significant security and maintenance risks for your application.
+When overriding Django templates, developers sometimes accidentally create circular references by having a template extend itself instead of the original template.
 
-When Django versions reach end-of-life, they no longer receive:
+Django's template system allows you to override templates by placing them in specific directories. For example, you can override `admin/base_site.html` by creating your own version at `templates/admin/base_site.html`. However, when extending the original template, you must reference it correctly.
 
-* Security patches for newly discovered vulnerabilities
-* Bug fixes that could affect application stability
-* Compatibility updates for newer Python versions
-* Performance improvements and optimizations
+If your override template extends `templates/admin/base_site.html`, it's actually extending itself, creating an infinite loop. Django's template loader will keep trying to load the same template repeatedly until it hits a recursion limit.
 
-This leaves your application exposed to known security vulnerabilities that attackers can exploit. Additionally, unsupported versions may become incompatible with other dependencies as they evolve, making it harder to maintain and update your project over time.
-
-Django follows a predictable release cycle with Long Term Support (LTS) versions that receive extended support. Using these supported versions ensures your application stays secure and maintainable.
+The correct approach is to extend `admin/base_site.html` (without the `templates/` prefix). Django's template loader will then resolve this to the original template from the application or Django's built-in templates, not your override.
 
 === What is the potential impact?
 
-Applications using unsupported Django versions are vulnerable to known security exploits that will never be patched. This can lead to data breaches, unauthorized access, or system compromise. Additionally, technical debt accumulates as the gap between your version and supported versions grows, making future upgrades more complex and expensive.
+This issue will cause your Django application to crash with a `RecursionError` or `TemplateDoesNotExist` error when the problematic template is rendered. This can make entire pages or admin sections completely inaccessible, severely impacting the application's functionality.
 
-== How to fix it in Django
+== How to fix it
 
-Update your requirements.txt to specify a supported Django version. Use version ranges to allow patch updates while staying within supported major versions.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,text,diff-id=1,diff-type=noncompliant]
-----
-# requirements.txt
-Django==1.11.29  # Noncompliant
-----
-
-==== Compliant solution
-
-[source,text,diff-id=1,diff-type=compliant]
-----
-# requirements.txt
-Django>=4.2.0,<5.0
-----
-
-Update your setup.py to require a supported Django version. This ensures anyone installing your package gets a secure version.
+Use the relative template path in the extends tag, not the full path that includes your override directory. This allows Django's template loader to find the original template you want to extend.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,python,diff-id=2,diff-type=noncompliant]
+[source,django,diff-id=1,diff-type=noncompliant]
 ----
-# setup.py
-install_requires=[
-    'Django==2.2.28',  # Noncompliant
-]
-----
-
-==== Compliant solution
-
-[source,python,diff-id=2,diff-type=compliant]
-----
-# setup.py
-install_requires=[
-    'Django>=4.2.0,<5.0',
-]
-----
-
-Update your pyproject.toml to specify a supported Django version in the dependencies section.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,toml,diff-id=3,diff-type=noncompliant]
-----
-[project]
-dependencies = [
-    "Django==3.1.14",  # Noncompliant
-]
+{% comment %}
+File: templates/admin/base_site.html
+{% endcomment %}
+{% extends "templates/admin/base_site.html" %} {# Noncompliant #}
+{% block branding %}
+  <h1>My Custom Admin</h1>
+{% endblock %}
 ----
 
 ==== Compliant solution
 
-[source,toml,diff-id=3,diff-type=compliant]
+[source,django,diff-id=1,diff-type=compliant]
 ----
-[project]
-dependencies = [
-    "Django>=4.2.0,<5.0",
-]
+{% comment %}
+File: templates/admin/base_site.html
+{% endcomment %}
+{% extends "admin/base_site.html" %}
+{% block branding %}
+  <h1>My Custom Admin</h1>
+{% endblock %}
 ----
 
 == Resources
 
 === Documentation
 
- * Django Release Notes - https://docs.djangoproject.com/en/stable/releases/[Official Django release notes with support status information]
+ * Django Template Overriding - https://docs.djangoproject.com/en/stable/howto/overriding-templates/[Official Django documentation on how to properly override templates]
 
- * Django Supported Versions - https://www.djangoproject.com/download/[Current Django versions and their support status]
-
- * Django Security Policy - https://docs.djangoproject.com/en/stable/internals/security/[Django's security policy and how security issues are handled]
-
-=== Standards
-
- * CWE-1104: Use of Unmaintained Third Party Components - https://cwe.mitre.org/data/definitions/1104.html[Using unmaintained third-party components can introduce security vulnerabilities]
-
- * OWASP Top 10:2021-A06-Vulnerable and Outdated Components - https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/[Security risks from using components with known vulnerabilities]
+ * Django Template Extends Tag - https://docs.djangoproject.com/en/stable/ref/templates/builtins/#extends[Documentation for the extends template tag]

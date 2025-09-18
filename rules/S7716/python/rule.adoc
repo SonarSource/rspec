@@ -1,33 +1,27 @@
-This rule raises an issue when a collection (list, tuple, set, or dict) is passed directly to a scalar type conversion function like `int()`, `float()`, `str()`, `bool()`, or `complex()`.
+This rule raises an issue when `logging.getLogger()` is called inside a function or method definition.
 
 == Why is this an issue?
 
-Scalar type conversion functions like `int()`, `float()`, and `str()` are designed to work with individual values, not collections. When you pass a collection to these functions, Python raises a `TypeError` because the function doesn't know how to convert multiple values into a single scalar.
+Declaring loggers inside functions or methods creates unnecessary overhead and goes against Django's recommended conventions.
 
-This error commonly occurs in several scenarios:
+When you call `logging.getLogger()` inside a function, Python creates a new logger instance every time the function runs. This is inefficient because the same logger could be reused across multiple function calls.
 
-* **Direct conversion attempts**: Trying to convert an entire list or tuple to a number
-* **API response handling**: When functions return collections but the calling code expects scalar values
-* **Data processing pipelines**: Where intermediate steps return collections that need element extraction
+The Django documentation specifically recommends declaring loggers at module level as a good convention. This approach:
 
-The root cause is usually a misunderstanding of what data type a function returns, or forgetting to extract the specific element needed from a collection. This can happen when working with APIs, database queries, or any function that returns structured data.
+* Improves performance by creating the logger only once per module
+* Makes the code more readable by clearly showing which loggers the module uses
+* Follows the standard Python logging pattern used throughout the Django framework
+* Ensures consistent logger naming when using `\__name__`
 
-For example, if an API returns `['123']` (a list with one string element) and you try `int(['123'])`, Python cannot determine which element to convert or how to handle multiple elements.
+Module-level logger declarations are the standard practice in Python applications and are explicitly recommended in Django's logging documentation.
 
 === What is the potential impact?
 
-This issue causes immediate runtime failures with `TypeError` exceptions, leading to application crashes. In production environments, this can result in:
-
-* **Service disruption**: Critical functionality becomes unavailable
-* **Data processing failures**: Batch jobs or data pipelines stop working
-* **User experience degradation**: Features that depend on the conversion become unusable
-* **Debugging overhead**: Developers need time to identify and fix the type mismatch
-
-The error is typically caught during testing, but if it occurs in edge cases or with specific data inputs, it might reach production and cause unexpected failures.
+Declaring loggers inside functions creates minor performance overhead due to repeated logger instantiation. While not critical, it violates established conventions and can make code less maintainable.
 
 == How to fix it
 
-Extract the specific element you need from the collection before converting it. Use indexing to access individual elements.
+Move the logger declaration to module level, outside of any function or method definition.
 
 === Code examples
 
@@ -35,22 +29,31 @@ Extract the specific element you need from the collection before converting it. 
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-data = ['123', '456', '789']
-value = int(data)  # Noncompliant
+import logging
+
+def some_view(request):
+    logger = logging.getLogger(__name__)  # Noncompliant
+    logger.warning('Something happened')
+    return HttpResponse('OK')
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-data = ['123', '456', '789']
-value = int(data[0])  # Convert first element
+import logging
+
+logger = logging.getLogger(__name__)  # Declared at module level
+
+def some_view(request):
+    logger.warning('Something happened')
+    return HttpResponse('OK')
 ----
 
 == Resources
 
 === Documentation
 
- * Python Built-in Functions - https://docs.python.org/3/library/functions.html[Official documentation for Python's built-in type conversion functions]
+ * Django Logging Documentation - https://docs.djangoproject.com/en/stable/howto/logging/[Official Django guide on configuring and using logging]
 
- * Python Data Structures - https://docs.python.org/3/tutorial/datastructures.html[Guide to working with lists, tuples, and other Python data structures]
+ * Python Logging HOWTO - https://docs.python.org/3/howto/logging.html[Python's official logging documentation and best practices]

@@ -1,33 +1,25 @@
-This is an issue when `Access-Control-Allow-Origin` is set to `*` (wildcard) while `Access-Control-Allow-Credentials` is set to `true`.
+This rule raises an issue when `logging.getLogger()` is called with a string literal instead of `__name__`.
 
 == Why is this an issue?
 
-Cross-Origin Resource Sharing (CORS) is a security mechanism that controls which origins can access resources from a different domain. When credentials are involved (cookies, authorization headers, or client certificates), browsers enforce stricter security rules.
+Using hardcoded strings when creating logger instances prevents proper logger namespacing and organization. The `__name__` variable automatically provides the current module's dotted path (like `myapp.views` or `myproject.utils.helpers`), which creates a hierarchical logger structure that matches your project organization.
 
-Using a wildcard (`*`) for `Access-Control-Allow-Origin` while enabling credentials creates a fundamental security vulnerability. This configuration would allow any website on the internet to make authenticated requests to your server on behalf of your users.
+This automatic namespacing offers several benefits:
 
-Browsers prevent this dangerous combination by rejecting requests when both conditions are present:
+* **Maintainability**: If you move or rename modules, logger names update automatically without code changes
+* **Debugging**: Clear, structured logger names help you quickly identify where log messages originate
+* **Configuration flexibility**: Django's logging configuration can target specific modules or entire namespaces using the hierarchical structure
+* **Collision prevention**: Using `__name__` ensures unique logger names across your project
 
-* `Access-Control-Allow-Origin: *`
-* `Access-Control-Allow-Credentials: true`
-
-The browser will throw an error like "Cannot use wildcard in Access-Control-Allow-Origin when credentials flag is true" and block the request entirely.
-
-Even if browsers allowed this combination, it would create severe security risks:
-
-* **Cross-Site Request Forgery (CSRF)**: Malicious websites could make authenticated requests using the user's credentials
-* **Data theft**: Any origin could access sensitive user data through authenticated API calls
-* **Session hijacking**: Attackers could potentially manipulate user sessions across different domains
-
-The solution is to explicitly specify trusted origins instead of using wildcards when credentials are required.
+Hardcoded logger names break this structure and make logging configuration more difficult. You lose the ability to configure logging at different levels of your application hierarchy.
 
 === What is the potential impact?
 
-This misconfiguration will cause browsers to block cross-origin requests entirely, breaking application functionality. If browsers allowed this combination, it would create severe security vulnerabilities including CSRF attacks, unauthorized data access, and potential session hijacking.
+Using hardcoded logger names reduces code maintainability and makes logging configuration more complex. It can lead to logger name collisions and makes it harder to trace the source of log messages during debugging.
 
 == How to fix it
 
-When setting CORS headers manually, use specific origins instead of wildcards when credentials are enabled.
+Replace the hardcoded string with `__name__` to automatically use the current module's dotted path as the logger name.
 
 === Code examples
 
@@ -35,142 +27,30 @@ When setting CORS headers manually, use specific origins instead of wildcards wh
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-from flask import Flask, Response
+import logging
 
-app = Flask(__name__)
-
-@app.after_request
-def after_request(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'  # Noncompliant
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
+logger = logging.getLogger('my_custom_logger')  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-from flask import Flask, Response
+import logging
 
-app = Flask(__name__)
-
-@app.after_request
-def after_request(response):
-    response.headers['Access-Control-Allow-Origin'] = 'https://trusted-domain.com'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
-----
-
-== How to fix it in Flask-CORS
-
-Replace the wildcard origin with specific trusted origins when credentials are enabled.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,python,diff-id=2,diff-type=noncompliant]
-----
-from flask import Flask
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app, origins='*', supports_credentials=True)  # Noncompliant
-----
-
-==== Compliant solution
-
-[source,python,diff-id=2,diff-type=compliant]
-----
-from flask import Flask
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app, origins=['https://trusted-domain.com'], supports_credentials=True)
-----
-
-== How to fix it in Django
-
-Configure django-cors-headers to use specific origins instead of allowing all origins when credentials are enabled.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,python,diff-id=3,diff-type=noncompliant]
-----
-# settings.py
-CORS_ALLOW_ALL_ORIGINS = True  # Noncompliant
-CORS_ALLOW_CREDENTIALS = True
-----
-
-==== Compliant solution
-
-[source,python,diff-id=3,diff-type=compliant]
-----
-# settings.py
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
-    'https://trusted-domain.com',
-    'https://another-trusted-domain.com',
-]
-CORS_ALLOW_CREDENTIALS = True
-----
-
-== How to fix it in FastAPI
-
-Specify exact origins in the CORSMiddleware configuration when allowing credentials.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,python,diff-id=4,diff-type=noncompliant]
-----
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=['*'],  # Noncompliant
-    allow_credentials=True
-)
-----
-
-==== Compliant solution
-
-[source,python,diff-id=4,diff-type=compliant]
-----
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=['https://trusted-domain.com'],
-    allow_credentials=True
-)
+logger = logging.getLogger(__name__)
 ----
 
 == Resources
 
 === Documentation
 
- * MDN - CORS - https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS[Comprehensive guide to Cross-Origin Resource Sharing]
+ * Django Logging Documentation - https://docs.djangoproject.com/en/stable/howto/logging/[Official Django guide on configuring and using logging]
 
- * MDN - Access-Control-Allow-Credentials - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials[Documentation for the Access-Control-Allow-Credentials header]
-
- * Flask-CORS Documentation - https://flask-cors.readthedocs.io/en/latest/[Official documentation for Flask-CORS extension]
-
- * Django CORS Headers - https://github.com/adamchainz/django-cors-headers[Django package for handling CORS headers]
-
-=== Standards
-
- * CWE-346: Origin Validation Error - https://cwe.mitre.org/data/definitions/346.html[Weakness related to improper validation of request origins]
-
- * OWASP Top 10:2021-A05-Security Misconfiguration - https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[Security misconfiguration including improper CORS setup]
+ * Python Logging Documentation - https://docs.python.org/3/library/logging.html[Python's built-in logging module documentation]
 
 === Related rules
 
- * RSPEC-5122 - https://rules.sonarsource.com/javascript/RSPEC-5122/[Same rule for JavaScript applications]
+ * S3416 - https://rules.sonarsource.com/java/RSPEC-3416/[Loggers should be named for their enclosing classes (Java)]
+
+ * S6672 - https://rules.sonarsource.com/csharp/RSPEC-6672/[Loggers should be named for their enclosing classes (C#)]
