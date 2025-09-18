@@ -1,0 +1,94 @@
+This is an issue when time or date methods like `Date.today`, `Time.now`, or their derivatives are used directly in class-level contexts such as validations, default values, or other declarations where the value should be computed dynamically.
+
+== Why is this an issue?
+
+When Ruby evaluates time and date expressions in class-level contexts, they are computed only once when the class is first loaded, not each time they are needed. This creates a subtle but significant bug where the cached value becomes stale over time.
+
+For example, if a validation uses `Date.today.year` to check that a year field doesn't exceed the current year, this validation will use the year from when the server started, not the actual current year. This means that after New Year's Eve, the validation would still think it's the previous year until the server is restarted.
+
+This problem is particularly common in long-running applications like web servers, where classes are loaded once at startup and then reused for many requests over days, weeks, or months.
+
+Additionally, using Ruby's standard time methods (`Time.now`, `Date.today`) instead of Rails' timezone-aware equivalents (`Time.current`, `Date.current`) can lead to timezone-related bugs, especially in applications that serve users across different time zones.
+
+=== What is the potential impact?
+
+Applications may exhibit incorrect behavior related to time and date validation or processing. Users might be unable to submit valid data (like current year values) or conversely, invalid data might be accepted. In time-sensitive applications, this could lead to business logic errors, incorrect reporting, or compliance issues.
+
+== How to fix it
+
+In instance methods, prefer timezone-aware methods when available, or ensure time methods are called at runtime rather than cached.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class ReportGenerator
+  # This caches the time when the class is loaded
+  REPORT_DATE = Date.today  # Noncompliant
+  
+  def generate_report
+    puts "Report generated on #{REPORT_DATE}"
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class ReportGenerator
+  def generate_report
+    # This gets the current date each time the method is called
+    report_date = Date.current
+    puts "Report generated on #{report_date}"
+  end
+end
+----
+
+== How to fix it in Rails
+
+Use lambdas or procs to defer evaluation until runtime, and prefer Rails' timezone-aware methods over Ruby's standard time methods.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class Brewery < ActiveRecord::Base
+  # Static evaluation - calculated only once at class load time
+  validates :year, numericality: { 
+    only_integer: true, 
+    less_than_or_equal_to: Date.today.year  # Noncompliant
+  }
+  
+  # Static default value
+  attribute :created_year, :integer, default: Time.now.year  # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Brewery < ActiveRecord::Base
+  # Use lambda for dynamic evaluation
+  validates :year, numericality: { 
+    only_integer: true, 
+    less_than_or_equal_to: ->(_brewery) { Date.current.year }
+  }
+  
+  # Use proc for default values
+  attribute :created_year, :integer, default: -> { Date.current.year }
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Time and Date Helpers - https://guides.rubyonrails.org/active_support_core_extensions.html#time[Official Rails documentation on timezone-aware time and date methods]
+
+ * Ruby Time Class Documentation - https://ruby-doc.org/core/Time.html[Ruby's standard Time class documentation]
