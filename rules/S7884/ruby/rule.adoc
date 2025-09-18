@@ -1,0 +1,118 @@
+This rule raises an issue when code manually implements find-or-create patterns using conditional statements with methods like `exists?`, `find_by`, `where().first`, or find-destroy-create sequences instead of using Rails' built-in ActiveRecord methods.
+
+== Why is this an issue?
+
+Manual implementation of find-or-create logic is a common anti-pattern in Rails applications that leads to several problems.
+
+Rails provides dedicated ActiveRecord methods like `find_or_create_by`, `find_or_initialize_by`, and `first_or_create` specifically designed to handle these scenarios. These methods are not just convenience features - they offer important advantages over manual implementations.
+
+**Verbosity and readability issues**: Manual patterns require multiple lines of conditional logic to accomplish what built-in methods can do in a single, expressive statement. This makes the code harder to read and understand, especially for developers familiar with Rails conventions.
+
+**Race condition vulnerabilities**: In concurrent environments, manual existence checks followed by creation can lead to race conditions. Between the time you check if a record exists and when you create it, another process might create the same record, potentially causing duplicate key errors or unexpected behavior.
+
+**Error-prone implementation**: Manual patterns are more susceptible to bugs. Developers might forget to handle edge cases, use inconsistent query conditions between the check and creation, or make mistakes in the conditional logic.
+
+**Maintenance overhead**: Manual implementations require more code to maintain and test. Changes to the logic need to be applied in multiple places, increasing the chance of introducing inconsistencies.
+
+=== What is the potential impact?
+
+Using manual find-or-create patterns instead of Rails' built-in methods can lead to:
+
+* **Race conditions** in concurrent environments that may cause duplicate records or application errors
+* **Reduced code maintainability** due to verbose, repetitive conditional logic
+* **Increased bug risk** from manual implementation of complex database interaction patterns
+* **Poor code readability** that makes it harder for team members to understand and modify the code
+
+== How to fix it in Rails
+
+Replace manual existence checks with `find_or_create_by` for simple find-or-create scenarios. This method atomically finds an existing record or creates a new one if none exists.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Manual existence check with conditional creation
+def get_or_create_tag
+  tag = Tag.where(name: tag_name, user_id: user.id).first # Noncompliant
+  if tag.nil?
+    tag = Tag.create(name: tag_name, user_id: user.id)
+  end
+  tag
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use Rails' built-in find_or_create_by method
+def get_or_create_tag
+  Tag.find_or_create_by(name: tag_name, user_id: user.id)
+end
+----
+
+Use `find_or_create_by` with a block when you need to set additional attributes only for new records. The block is executed only when creating a new record.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Manual find-or-create with additional attributes
+user = User.find_by(email: email) # Noncompliant
+if user.nil?
+  user = User.create(email: email, name: name, role: 'member')
+end
+user
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Use find_or_create_by with block for additional attributes
+User.find_or_create_by(email: email) do |user|
+  user.name = name
+  user.role = 'member'
+end
+----
+
+Replace find-destroy-create patterns with `find_or_initialize_by` when you need to update existing records. This method finds an existing record or initializes a new one without saving it immediately.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Manual find-destroy-create pattern
+@student = Student.where(user_id: current_user.id).first # Noncompliant
+if @student
+  Student.destroy_all(user_id: current_user.id)
+end
+@student = Student.new(user_id: current_user.id, department: 1)
+@student.save!
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Use find_or_initialize_by for update scenarios
+@student = Student.find_or_initialize_by(user_id: current_user.id)
+@student.department = 1
+@student.save!
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Active Record Query Interface Guide - https://guides.rubyonrails.org/active_record_querying.html#find-or-build-a-new-object[Official Rails documentation covering find_or_create_by and related methods]
+
+ * Rails API Documentation - find_or_create_by - https://api.rubyonrails.org/classes/ActiveRecord/Relation.html#method-i-find_or_create_by[Detailed API documentation for the find_or_create_by method]
+
+ * Rails API Documentation - find_or_initialize_by - https://api.rubyonrails.org/classes/ActiveRecord/Relation.html#method-i-find_or_initialize_by[API documentation for find_or_initialize_by method]
