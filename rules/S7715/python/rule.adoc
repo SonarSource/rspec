@@ -1,25 +1,33 @@
-This rule raises an issue when FastAPI route functions have query parameters that should be optional but lack proper Union type annotations or default values.
+This is an issue when `Access-Control-Allow-Origin` is set to `*` (wildcard) while `Access-Control-Allow-Credentials` is set to `true`.
 
 == Why is this an issue?
 
-In FastAPI, query parameters are automatically validated based on their type annotations and default values. When a parameter is intended to be optional, it needs both a Union type annotation (like `Union[str, None]` or `Optional[str]`) and a default value (typically `None`) to work correctly.
+Cross-Origin Resource Sharing (CORS) is a security mechanism that controls which origins can access resources from a different domain. When credentials are involved (cookies, authorization headers, or client certificates), browsers enforce stricter security rules.
 
-Without the Union type annotation, FastAPI treats the parameter as required, even if you provide a default value. Without the default value, Python treats the parameter as mandatory, causing validation errors.
+Using a wildcard (`*`) for `Access-Control-Allow-Origin` while enabling credentials creates a fundamental security vulnerability. This configuration would allow any website on the internet to make authenticated requests to your server on behalf of your users.
 
-This creates a poor API experience where clients receive unexpected validation errors when they don't provide parameters that should be optional. The API documentation will also incorrectly show these parameters as required, misleading API consumers about the expected interface.
+Browsers prevent this dangerous combination by rejecting requests when both conditions are present:
+
+* `Access-Control-Allow-Origin: *`
+* `Access-Control-Allow-Credentials: true`
+
+The browser will throw an error like "Cannot use wildcard in Access-Control-Allow-Origin when credentials flag is true" and block the request entirely.
+
+Even if browsers allowed this combination, it would create severe security risks:
+
+* **Cross-Site Request Forgery (CSRF)**: Malicious websites could make authenticated requests using the user's credentials
+* **Data theft**: Any origin could access sensitive user data through authenticated API calls
+* **Session hijacking**: Attackers could potentially manipulate user sessions across different domains
+
+The solution is to explicitly specify trusted origins instead of using wildcards when credentials are required.
 
 === What is the potential impact?
 
-API clients will receive validation errors when they don't provide parameters that should be optional. This leads to:
+This misconfiguration will cause browsers to block cross-origin requests entirely, breaking application functionality. If browsers allowed this combination, it would create severe security vulnerabilities including CSRF attacks, unauthorized data access, and potential session hijacking.
 
-* Poor developer experience for API consumers
-* Incorrect API documentation showing optional parameters as required
-* Potential integration failures when clients assume parameters are optional
-* Reduced API usability and adoption
+== How to fix it
 
-== How to fix it in FastAPI
-
-Add Union type annotation and default value to make the query parameter truly optional. Use `Union[Type, None] = None` or `Optional[Type] = None` to indicate the parameter can be either the specified type or None.
+When setting CORS headers manually, use specific origins instead of wildcards when credentials are enabled.
 
 === Code examples
 
@@ -27,30 +35,35 @@ Add Union type annotation and default value to make the query parameter truly op
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-from fastapi import FastAPI
+from flask import Flask, Response
 
-app = FastAPI()
+app = Flask(__name__)
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: str):  # Noncompliant
-    return {"item_id": item_id, "q": q}
+@app.after_request
+def after_request(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'  # Noncompliant
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-from typing import Union
-from fastapi import FastAPI
+from flask import Flask, Response
 
-app = FastAPI()
+app = Flask(__name__)
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@app.after_request
+def after_request(response):
+    response.headers['Access-Control-Allow-Origin'] = 'https://trusted-domain.com'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
 ----
 
-Add a default value when you already have the Union type annotation. The default value (typically None) is required to make the parameter optional in the function signature.
+== How to fix it in Flask-CORS
+
+Replace the wildcard origin with specific trusted origins when credentials are enabled.
 
 === Code examples
 
@@ -58,25 +71,27 @@ Add a default value when you already have the Union type annotation. The default
 
 [source,python,diff-id=2,diff-type=noncompliant]
 ----
-from typing import Union
+from flask import Flask
+from flask_cors import CORS
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None]):  # Noncompliant
-    return {"item_id": item_id, "q": q}
+app = Flask(__name__)
+CORS(app, origins='*', supports_credentials=True)  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=2,diff-type=compliant]
 ----
-from typing import Union
+from flask import Flask
+from flask_cors import CORS
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+app = Flask(__name__)
+CORS(app, origins=['https://trusted-domain.com'], supports_credentials=True)
 ----
 
-Use the Optional type alias for cleaner code. `Optional[Type]` is equivalent to `Union[Type, None]` and can make the code more readable.
+== How to fix it in Django
+
+Configure django-cors-headers to use specific origins instead of allowing all origins when credentials are enabled.
 
 === Code examples
 
@@ -84,35 +99,78 @@ Use the Optional type alias for cleaner code. `Optional[Type]` is equivalent to 
 
 [source,python,diff-id=3,diff-type=noncompliant]
 ----
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/search")
-def search_items(query: str, limit: int):  # Noncompliant
-    return {"query": query, "limit": limit}
+# settings.py
+CORS_ALLOW_ALL_ORIGINS = True  # Noncompliant
+CORS_ALLOW_CREDENTIALS = True
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=3,diff-type=compliant]
 ----
-from typing import Optional
+# settings.py
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    'https://trusted-domain.com',
+    'https://another-trusted-domain.com',
+]
+CORS_ALLOW_CREDENTIALS = True
+----
+
+== How to fix it in FastAPI
+
+Specify exact origins in the CORSMiddleware configuration when allowing credentials.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=4,diff-type=noncompliant]
+----
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],  # Noncompliant
+    allow_credentials=True
+)
+----
 
-@app.get("/search")
-def search_items(query: Optional[str] = None, limit: Optional[int] = 10):
-    return {"query": query, "limit": limit}
+==== Compliant solution
+
+[source,python,diff-id=4,diff-type=compliant]
+----
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['https://trusted-domain.com'],
+    allow_credentials=True
+)
 ----
 
 == Resources
 
 === Documentation
 
- * FastAPI Query Parameters - https://fastapi.tiangolo.com/tutorial/query-params/[Official FastAPI documentation on query parameters and optional parameters]
+ * MDN - CORS - https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS[Comprehensive guide to Cross-Origin Resource Sharing]
 
- * FastAPI Query Parameters and String Validations - https://fastapi.tiangolo.com/tutorial/query-params-str-validations/[Advanced query parameter handling and validation in FastAPI]
+ * MDN - Access-Control-Allow-Credentials - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials[Documentation for the Access-Control-Allow-Credentials header]
 
- * Python typing - Union - https://docs.python.org/3/library/typing.html#typing.Union[Python documentation on Union types for type annotations]
+ * Flask-CORS Documentation - https://flask-cors.readthedocs.io/en/latest/[Official documentation for Flask-CORS extension]
+
+ * Django CORS Headers - https://github.com/adamchainz/django-cors-headers[Django package for handling CORS headers]
+
+=== Standards
+
+ * CWE-346: Origin Validation Error - https://cwe.mitre.org/data/definitions/346.html[Weakness related to improper validation of request origins]
+
+ * OWASP Top 10:2021-A05-Security Misconfiguration - https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[Security misconfiguration including improper CORS setup]
+
+=== Related rules
+
+ * RSPEC-5122 - https://rules.sonarsource.com/javascript/RSPEC-5122/[Same rule for JavaScript applications]
