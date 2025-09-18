@@ -1,0 +1,83 @@
+This rule raises an issue when code uses conditional statements to check if ActiveRecord associations are loaded (via `loaded?` or `association().loaded?`) and then branches to different query strategies.
+
+== Why is this an issue?
+
+Checking whether associations are loaded to decide between different query strategies creates unnecessary complexity in your code. This pattern, while seemingly optimized for performance, introduces several problems.
+
+First, it makes your code harder to read and understand. Other developers need to understand both the loaded and unloaded code paths, which increases cognitive load.
+
+Second, it creates a maintenance burden. If the loading strategy changes elsewhere in your application, these conditional checks might break or become inefficient. Your method's behavior becomes dependent on external loading decisions.
+
+Third, it makes testing more complex. You need to test both scenarios - when associations are loaded and when they aren't - which doubles your test cases for what should be a simple operation.
+
+Finally, it can lead to inconsistent behavior. The same method call might return results in different ways depending on the loading state, which can be confusing and error-prone.
+
+=== What is the potential impact?
+
+This pattern increases code complexity and maintenance costs. It can lead to bugs when loading strategies change, makes testing more difficult, and creates inconsistent method behavior that can confuse other developers.
+
+== How to fix it in Rails
+
+Use a consistent querying approach instead of branching on loading state. Choose either database queries or ensure associations are loaded upfront.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def find_us_shipping_info
+  if item.shipping_infos.loaded? # Noncompliant
+    item.shipping_infos.detect { |si| si.region == "United States" }
+  else
+    item.shipping_infos.where(region: "United States").first
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def find_us_shipping_info
+  # Always use database query for consistency
+  item.shipping_infos.where(region: "United States").first
+end
+----
+
+Alternatively, use explicit eager loading strategies to ensure associations are loaded when needed, then use in-memory operations consistently.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def get_related_data
+  if item.association(:shipping_infos).loaded? # Noncompliant
+    process_loaded_data(item.shipping_infos)
+  else
+    process_unloaded_data(item)
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def find_us_shipping_info_with_preload
+  # Ensure associations are loaded upfront
+  items_with_shipping = Item.includes(:shipping_infos)
+  item = items_with_shipping.find(item_id)
+  item.shipping_infos.detect { |si| si.region == "United States" }
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html[Official Rails guide on querying with Active Record]
+
+ * Rails Active Record Associations - https://guides.rubyonrails.org/association_basics.html[Official Rails guide on Active Record associations]
