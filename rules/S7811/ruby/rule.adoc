@@ -1,0 +1,85 @@
+This is an issue when adding a NOT NULL column to an existing table without providing a default value, which will cause the migration to fail if the table contains existing records.
+
+== Why is this an issue?
+
+Database migrations are critical operations that must execute successfully during deployment. When you add a NOT NULL column to an existing table without specifying a default value, the database cannot satisfy the constraint for existing rows.
+
+Here's what happens: the database tries to add the new column to all existing records, but since no default value is provided, it would set the column to NULL for existing rows. However, the NOT NULL constraint prevents this, causing the migration to fail with an error like "Cannot add a NOT NULL column with default value NULL".
+
+This problem becomes more severe in production environments where:
+
+* Failed migrations can cause deployment rollbacks
+* Database inconsistencies may occur if the migration partially succeeds
+* Application downtime extends while the issue is resolved
+* Manual database intervention may be required
+
+The issue affects all database systems but is particularly common with SQLite, which is stricter about this constraint compared to other databases that might allow the operation in some cases.
+
+=== What is the potential impact?
+
+Failed migrations can cause deployment failures, application downtime, and require manual database intervention to resolve. In production environments, this can lead to extended outages and potential data inconsistencies.
+
+== How to fix it in Rails
+
+Add a default value when creating the NOT NULL column. This ensures existing records get a valid value that satisfies the constraint.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class AddDivisionIdToProfile < ActiveRecord::Migration
+  def change
+    add_column :profiles, :division_id, :integer, null: false # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class AddDivisionIdToProfile < ActiveRecord::Migration
+  def change
+    add_column :profiles, :division_id, :integer, null: false, default: 0
+  end
+end
+----
+
+Use a two-step approach: first add the column without constraints, then populate it with appropriate data, and finally add the NOT NULL constraint.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class AddDivisionIdToProfile < ActiveRecord::Migration
+  def change
+    add_column :profiles, :division_id, :integer, null: false # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class AddDivisionIdToProfile < ActiveRecord::Migration
+  def change
+    add_column :profiles, :division_id, :integer
+    # Populate the column with appropriate values
+    Profile.update_all(division_id: 1)
+    change_column_null :profiles, :division_id, false
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Migrations Guide - https://guides.rubyonrails.org/active_record_migrations.html[Official Rails documentation on database migrations and schema changes]
+
+ * ActiveRecord Migration Methods - https://api.rubyonrails.org/classes/ActiveRecord/Migration.html[API documentation for ActiveRecord migration methods including add_column]
