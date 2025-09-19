@@ -1,0 +1,111 @@
+This rule raises an issue when code uses `Time.now` in Rails applications, passes timestamp parameters directly to database operations without timezone conversion, or mixes different timezone handling approaches inconsistently.
+
+== Why is this an issue?
+
+Inconsistent timezone handling is a common source of subtle bugs in Ruby applications, especially those built with Rails. When working with timestamps, developers often mix different approaches without realizing the implications.
+
+Using `Time.now` in Rails applications can be problematic because it returns the system time in the server's timezone, which may not match the application's configured timezone (`Time.zone`). This can lead to inconsistencies when the application timezone differs from the server timezone.
+
+Passing timestamp parameters directly to database operations without explicit timezone conversion is another common issue. When user input contains timestamp data, it may come in various formats and timezones. Without explicit conversion, the ORM might make assumptions about the timezone, leading to incorrect data storage or retrieval.
+
+Mixing different timezone handling approaches within the same application creates maintenance challenges and increases the likelihood of bugs. For example, using `Time.now` in some places and `Time.current` in others, or sometimes converting to UTC and sometimes not, makes the codebase inconsistent and harder to reason about.
+
+These issues become particularly problematic in applications serving users across multiple timezones, where incorrect timestamp handling can result in scheduling conflicts, incorrect data filtering, or confusing user experiences.
+
+=== What is the potential impact?
+
+Inconsistent timezone handling can lead to several serious issues:
+
+* *Data integrity problems*: Timestamps may be stored with incorrect timezone offsets, corrupting historical data
+* *Incorrect business logic*: Time-based queries and comparisons may return wrong results, affecting features like scheduling, reporting, or time-sensitive operations
+* *User experience issues*: Users may see incorrect times, leading to confusion and loss of trust in the application
+* *Maintenance difficulties*: Mixed timezone handling approaches make the codebase harder to understand and modify safely
+
+== How to fix it
+
+For non-Rails Ruby applications, be explicit about timezone handling by using timezone-aware time objects and consistent conversion patterns throughout your application.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Bad: Inconsistent timezone handling
+def process_timestamps(start_time, end_time)
+  current = Time.now // Noncompliant
+  # Mixed approaches without explicit timezone handling
+  if start_time > current // Noncompliant
+    process_future_event(start_time)
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Good: Explicit timezone handling
+def process_timestamps(start_time, end_time)
+  current = Time.now.utc
+  # Convert all times to UTC for consistent comparison
+  start_utc = start_time.utc
+  if start_utc > current
+    process_future_event(start_utc)
+  end
+end
+----
+
+== How to fix it in Rails
+
+Use `Time.current` instead of `Time.now` in Rails applications to respect the application's configured timezone. When working with user input, explicitly convert timestamps to the desired timezone before database operations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class AppointmentController
+  def index
+    # Bad: Using Time.now ignores application timezone
+    current_time = Time.now // Noncompliant
+    @appointments = Appointment.where("created_at > ?", current_time)
+  end
+  
+  def create
+    # Bad: Using timestamp parameter without explicit conversion
+    appointment_time = params[:time] // Noncompliant
+    @appointment = Appointment.create(scheduled_at: appointment_time)
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class AppointmentController
+  def index
+    # Good: Use Time.current and explicit timezone handling
+    current_time = Time.current.in_time_zone(current_user.timezone)
+    @appointments = Appointment.where("created_at > ?", current_time.iso8601)
+  end
+  
+  def create
+    # Good: Explicitly convert to desired timezone
+    appointment_time = params[:time].in_time_zone('UTC')
+    @appointment = Appointment.create(scheduled_at: appointment_time)
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Time Zone Handling Guide - https://guides.rubyonrails.org/active_support_core_extensions.html#time-zones[Official Rails documentation on working with time zones and the Time.current method]
+
+ * Ruby Time Class Documentation - https://ruby-doc.org/core/Time.html[Official Ruby documentation for the Time class and timezone methods]
+
+ * Working with Time Zones in Rails - https://thoughtbot.com/blog/its-about-time-zones[Best practices guide for handling time zones in Rails applications]
