@@ -1,0 +1,110 @@
+This rule raises an issue when code directly accesses `Thread.current` to store or retrieve values, which can lead to testing difficulties, memory leaks, and architectural problems.
+
+== Why is this an issue?
+
+Direct usage of `Thread.current` creates several problems in Ruby applications:
+
+**Testing Difficulties**
+
+`Thread.current` creates hidden dependencies that make unit testing harder. Tests become unpredictable because they depend on thread-local state that may not be properly set up or cleaned up between test runs.
+
+**Memory Leak Risks**
+
+In web applications using thread pools (like Puma or Unicorn), threads are reused across requests. If thread-local variables are not properly cleaned up, they can persist between requests, causing memory leaks and potential security issues where one user's data might leak to another user's request.
+
+**Architectural Problems**
+
+Using `Thread.current` violates the Law of Demeter and breaks MVC patterns. It creates tight coupling between different layers of the application, making code harder to understand, maintain, and refactor. Models and services become dependent on global thread state instead of explicit dependencies.
+
+**Concurrency Issues**
+
+Thread-local storage can mask concurrency problems and make debugging more difficult. It's harder to reason about code behavior when state is stored in thread-local variables rather than being passed explicitly.
+
+=== What is the potential impact?
+
+Using `Thread.current` can lead to memory leaks in production environments, unpredictable test behavior, security vulnerabilities where user data leaks between requests, and code that is difficult to maintain and debug. In severe cases, it can cause application instability and data corruption.
+
+== How to fix it in Ruby
+
+Use dependency injection to pass required data explicitly instead of storing it in thread-local variables. This makes dependencies clear and code easier to test.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class UserService
+  def process_data
+    current_user = Thread.current[:current_user] # Noncompliant
+    current_user.process_something
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class UserService
+  def initialize(current_user)
+    @current_user = current_user
+  end
+  
+  def process_data
+    @current_user.process_something
+  end
+end
+----
+
+== How to fix it in Rails
+
+Use Rails' `CurrentAttributes` (Rails 5+) which provides a safer way to manage request-scoped data with automatic cleanup.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class ApplicationController
+  before_action :set_current_user
+  
+  private
+  
+  def set_current_user
+    Thread.current[:current_user] = authenticate_user # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Current < ActiveSupport::CurrentAttributes
+  attribute :user
+end
+
+class ApplicationController
+  before_action :set_current_user
+  
+  private
+  
+  def set_current_user
+    Current.user = authenticate_user
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails CurrentAttributes Guide - https://api.rubyonrails.org/classes/ActiveSupport/CurrentAttributes.html[Official Rails documentation for CurrentAttributes, a safer alternative to Thread.current]
+
+ * Ruby Thread Documentation - https://ruby-doc.org/core/Thread.html[Official Ruby documentation for Thread class and thread-local variables]
+
+=== Standards
+
+ * CWE-200: Exposure of Sensitive Information to an Unauthorized Actor - https://cwe.mitre.org/data/definitions/200.html[Thread-local variables without proper cleanup can leak sensitive data between requests]
