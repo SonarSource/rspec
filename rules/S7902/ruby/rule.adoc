@@ -1,0 +1,147 @@
+This rule raises an issue when Rails migrations create tables or add columns that are likely to be queried frequently but lack proper database indexes.
+
+== Why is this an issue?
+
+Database indexes are essential data structures that dramatically improve query performance by creating efficient lookup paths to table data. Without proper indexes, the database must perform full table scans to find matching records, which becomes increasingly slow as data volume grows.
+
+When columns are frequently used in WHERE clauses, ORDER BY statements, JOIN conditions, or as foreign keys, missing indexes can cause severe performance degradation. A query that takes milliseconds with an index might take seconds or even minutes without one on large datasets.
+
+Foreign key columns are particularly important to index because they are commonly used in JOIN operations and relationship queries. Rails applications heavily rely on ActiveRecord associations, which generate queries that filter and join on these columns.
+
+Other commonly queried columns like email addresses, status fields, category identifiers, and timestamp fields also benefit significantly from indexing. These columns are often used for user lookups, filtering, and sorting operations that occur frequently in web applications.
+
+=== What is the potential impact?
+
+Missing database indexes can severely impact application performance and user experience:
+
+* *Query Performance*: Database queries can become exponentially slower as data grows, potentially taking seconds instead of milliseconds
+* *Application Responsiveness*: Slow queries block application threads, making the entire application feel sluggish
+* *Database Load*: Full table scans consume more CPU and I/O resources, affecting overall database performance
+* *Scalability Issues*: Applications may become unusable as data volume increases, requiring expensive hardware upgrades
+* *User Experience*: Page load times increase dramatically, leading to user frustration and potential business impact
+* *Resource Consumption*: Higher database server costs due to increased CPU and memory usage for inefficient queries
+
+== How to fix it in Rails
+
+Add an index for foreign key columns using `add_index` in your migration. Foreign keys are frequently used in JOIN operations and should always be indexed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class CreatePosts < ActiveRecord::Migration[7.0]
+  def change
+    create_table :posts do |t|
+      t.references :user, null: false, foreign_key: true  # Noncompliant
+      t.string :title
+      t.timestamps
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class CreatePosts < ActiveRecord::Migration[7.0]
+  def change
+    create_table :posts do |t|
+      t.references :user, null: false, foreign_key: true, index: true
+      t.string :title
+      t.timestamps
+    end
+  end
+end
+----
+
+Add indexes for frequently queried columns like email addresses, which are commonly used for user authentication and lookups.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class CreateUsers < ActiveRecord::Migration[7.0]
+  def change
+    create_table :users do |t|
+      t.string :email  # Noncompliant
+      t.timestamps
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class CreateUsers < ActiveRecord::Migration[7.0]
+  def change
+    create_table :users do |t|
+      t.string :email
+      t.timestamps
+    end
+    add_index :users, :email
+  end
+end
+----
+
+Add indexes for columns used in filtering and categorization, such as category_id or status fields that are frequently used in WHERE clauses.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+class CreateProducts < ActiveRecord::Migration[7.1]
+  def change
+    create_table :products do |t|
+      t.string :name
+      t.integer :category_id  # Noncompliant
+      t.string :status        # Noncompliant
+      t.timestamps
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+class CreateProducts < ActiveRecord::Migration[7.1]
+  def change
+    create_table :products do |t|
+      t.string :name
+      t.integer :category_id
+      t.string :status
+      t.timestamps
+    end
+    add_index :products, :category_id
+    add_index :products, :status
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Active Record Migrations - https://guides.rubyonrails.org/active_record_migrations.html#creating-indexes[Official Rails documentation on creating database indexes in migrations]
+
+ * Rails API - add_index - https://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/SchemaStatements.html#method-i-add_index[API documentation for the add_index method used to create database indexes]
+
+ * PostgreSQL Documentation - Indexes - https://www.postgresql.org/docs/current/indexes.html[Comprehensive guide to database indexes in PostgreSQL]
+
+=== Standards
+
+ * OWASP Top 10:2021-A06-Vulnerable and Outdated Components - https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/[Performance issues can lead to denial of service vulnerabilities]
+
+=== Related rules
+
+ * RSPEC-2068 - https://rules.sonarsource.com/ruby/RSPEC-2068[Database queries should not be vulnerable to injection attacks]
