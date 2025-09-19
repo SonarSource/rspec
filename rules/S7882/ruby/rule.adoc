@@ -1,0 +1,122 @@
+This rule raises an issue when Rails models directly access controller-specific methods like `current_user`, `session`, `params`, `request`, `flash`, or `cookies`.
+
+== Why is this an issue?
+
+Rails follows the Model-View-Controller (MVC) architectural pattern, which separates concerns into distinct layers. Models should focus on business logic and data persistence, while controllers handle web-specific concerns like user sessions, request parameters, and HTTP context.
+
+When models directly access web layer components, several problems arise:
+
+* *Tight coupling*: The model becomes dependent on the web layer, making it harder to change either layer independently.
+* *Reduced testability*: Testing models becomes more complex because they require web context to function properly.
+* *Limited reusability*: Models cannot be used outside of web requests, such as in background jobs, rake tasks, or console operations.
+* *Runtime errors*: Controller methods are not available in model contexts, leading to `undefined method` errors.
+* *Violation of separation of concerns*: Models should not know about HTTP requests, sessions, or user interface concerns.
+
+This architectural violation makes the codebase harder to maintain, test, and extend over time.
+
+=== What is the potential impact?
+
+Applications with models that access web layer components directly face several risks:
+
+* *Runtime failures*: Models may crash with `undefined method` errors when used outside of controller contexts, such as in background jobs or console operations.
+* *Testing difficulties*: Unit tests for models become complex and brittle, requiring mock web contexts and making tests slower and harder to maintain.
+* *Reduced code reusability*: Models cannot be easily reused in different contexts like API endpoints, background processing, or command-line tools.
+* *Maintenance overhead*: Changes to controller interfaces may break model functionality, creating unexpected dependencies and making refactoring more difficult.
+* *Architectural debt*: The codebase becomes harder to understand and modify as the separation between layers becomes blurred.
+
+== How to fix it in Rails
+
+Pass user data as explicit parameters instead of accessing `current_user` directly in models. Handle web-specific concerns like session tracking in the controller layer.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class Document < ActiveRecord::Base
+  belongs_to :user
+  
+  def can_edit?
+    current_user && (current_user.admin? || self.user_id == current_user.id) # Noncompliant
+  end
+  
+  def track_access
+    session[:last_accessed] = Time.current # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class Document < ActiveRecord::Base
+  belongs_to :user
+  
+  def can_edit?(user)
+    user && (user.admin? || self.user_id == user.id)
+  end
+end
+
+# In controller
+class DocumentsController < ApplicationController
+  def show
+    @document = Document.find(params[:id])
+    session[:last_accessed] = Time.current
+    redirect_to root_path unless @document.can_edit?(current_user)
+  end
+end
+----
+
+Extract request data in the controller and pass it as parameters to model methods instead of accessing request objects directly in models.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class User < ActiveRecord::Base
+  def save_with_tracking
+    self.source_url = request.request_uri # Noncompliant
+    self.created_from_ip = request.remote_ip # Noncompliant
+    save
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class User < ActiveRecord::Base
+  def save_with_tracking(source_url, ip_address)
+    self.source_url = source_url
+    self.created_from_ip = ip_address
+    save
+  end
+end
+
+# In controller
+class UsersController < ApplicationController
+  def create
+    @user = User.new(user_params)
+    @user.save_with_tracking(request.request_uri, request.remote_ip)
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Models - https://guides.rubyonrails.org/active_record_basics.html[Official Rails documentation on Active Record models and their responsibilities]
+
+ * Rails Guides - Controllers - https://guides.rubyonrails.org/action_controller_overview.html[Official Rails documentation on Action Controller and handling web requests]
+
+ * MVC Architecture Pattern - https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller[Overview of the Model-View-Controller architectural pattern and separation of concerns]
+
+=== Standards
+
+ * SOLID Principles - Single Responsibility Principle - https://en.wikipedia.org/wiki/Single-responsibility_principle[Each class should have only one reason to change, supporting separation of concerns]
