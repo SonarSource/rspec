@@ -1,0 +1,95 @@
+This rule raises an issue when code attempts to directly compare a `Date` object with an `ActiveSupport::TimeWithZone` object using comparison operators (`<`, `>`, `<=`, `>=`, `==`, `!=`).
+
+== Why is this an issue?
+
+Direct comparison between `Date` and `ActiveSupport::TimeWithZone` objects will fail at runtime with an `ArgumentError`. This happens because Ruby cannot automatically convert between these different time representations.
+
+`Date` objects represent calendar dates without time information, while `TimeWithZone` objects include both date and time with timezone information. When Ruby encounters a comparison operator between these incompatible types, it cannot determine how to perform the comparison and raises an error.
+
+This issue is particularly common in Rails applications where:
+
+* Model attributes are often stored as datetime fields (which become `TimeWithZone` objects)
+* Business logic frequently works with `Date.today` or other `Date` objects
+* Calculations involving date arithmetic (like `+ age.years`) return `TimeWithZone` objects
+
+The error only appears at runtime, making it harder to catch during development and potentially causing production failures.
+
+=== What is the potential impact?
+
+This issue causes immediate runtime failures with `ArgumentError: comparison of Date with ActiveSupport::TimeWithZone failed`. These errors can break critical application functionality, especially in date-sensitive operations like age calculations, deadline checks, or scheduling logic.
+
+Since the error only occurs when the specific code path is executed, it may not be caught during testing if test coverage is incomplete, leading to production outages.
+
+== How to fix it in Rails
+
+Convert the TimeWithZone object to a Date using `.to_date` when you only need date-level precision for the comparison.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def age(date = nil)
+  date = Date.today if date.nil?
+  age = 0
+  unless date_of_birth.nil?
+    age = date.year - date_of_birth.year
+    age -= 1 if date < date_of_birth + age.years # Noncompliant
+  end
+  age
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def age(date = nil)
+  date = Date.today if date.nil?
+  age = 0
+  unless date_of_birth.nil?
+    age = date.year - date_of_birth.year
+    age -= 1 if date < (date_of_birth + age.years).to_date
+  end
+  age
+end
+----
+
+Convert the Date object to a Time using `.to_time` when you need full datetime precision for the comparison.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def deadline_passed?(deadline_date)
+  current_time = Time.current
+  deadline_date > current_time # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def deadline_passed?(deadline_date)
+  current_time = Time.current
+  deadline_date.to_time > current_time
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby Date Class Documentation - https://ruby-doc.org/stdlib-3.0.0/libdoc/date/rdoc/Date.html[Official Ruby documentation for the Date class and its methods]
+
+ * Rails TimeWithZone Documentation - https://api.rubyonrails.org/classes/ActiveSupport/TimeWithZone.html[Rails documentation for ActiveSupport::TimeWithZone class]
+
+ * Rails Time and Date Handling Guide - https://guides.rubyonrails.org/active_support_core_extensions.html#time[Rails guide covering time and date extensions and best practices]
+
+=== Related rules
+
+ * S6886 - https://rules.sonarsource.com/python/RSPEC-6886/[Similar rule for Python datetime comparisons]
