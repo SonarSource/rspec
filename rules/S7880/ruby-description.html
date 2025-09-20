@@ -1,0 +1,147 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when date validation relies on regular expressions instead of Ruby&#8217;s Date class methods, or when date operations lack proper exception handling.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Date validation is a common requirement in web applications, but implementing it incorrectly can lead to serious data integrity and user experience problems.</p>
+</div>
+<div class="paragraph">
+<p>Regular expressions are insufficient for date validation because they can only check format, not logical constraints. A regex pattern like <code>/\d{2}-\d{2}-\d{4}/</code> will match "31-02-2010" even though February 31st doesn&#8217;t exist. This creates a false sense of security while allowing invalid data to enter your system.</p>
+</div>
+<div class="paragraph">
+<p>Ruby&#8217;s automatic date conversion adds another layer of complexity. When you pass an invalid date like February 31st to Ruby&#8217;s date constructors, it doesn&#8217;t reject the date - instead, it silently converts it to a valid but incorrect date (March 3rd in this case). This "helpful" behavior can corrupt your data without any warning.</p>
+</div>
+<div class="paragraph">
+<p>Unhandled date operations create poor user experiences. When <code>Date.new</code> receives invalid parameters, it raises an <code>ArgumentError</code>. If this exception isn&#8217;t caught, users see generic 500 server errors instead of helpful validation messages.</p>
+</div>
+<div class="paragraph">
+<p>These issues compound in web applications where user input is unpredictable. Users might enter dates in unexpected formats, test edge cases, or make honest mistakes. Without proper validation and error handling, your application becomes fragile and unreliable.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Invalid dates can corrupt application data, leading to incorrect calculations, reports, and business logic. Silent date corrections can cause scheduling conflicts, billing errors, and data inconsistencies that are difficult to trace and fix. Unhandled exceptions create poor user experiences with cryptic error messages and can expose sensitive system information in error pages.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace regex-based date validation with Ruby&#8217;s <code>Date.valid_date?</code> method, which properly validates logical date constraints.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Regex cannot validate logical date constraints
+def validate_date(date_string)
+  /(\d{2}-\d{2}-\d{4})/.match(date_string) != nil # Noncompliant
+end
+
+# This incorrectly returns true for invalid dates
+result = validate_date("31-02-2010") # returns true, but Feb 31st is invalid</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Using Date.valid_date? for proper validation
+def validate_date(date_string)
+  d, m, y = date_string.split('-')
+  Date.valid_date?(y.to_i, m.to_i, d.to_i)
+end
+
+# This correctly returns false for invalid dates
+result = validate_date("31-02-2010") # returns false</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Implement custom setters in ActiveRecord models to validate dates before assignment and prevent silent corrections.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Event &lt; ActiveRecord::Base
+  # Direct assignment allows automatic conversion
+  # February 31st becomes March 3rd silently
+  validates :event_date, presence: true # Noncompliant
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Event &lt; ActiveRecord::Base
+  def event_date=(value)
+    if value.is_a?(String)
+      begin
+        parsed_date = Date.parse(value)
+        self.write_attribute(:event_date, parsed_date)
+      rescue ArgumentError
+        self.write_attribute(:event_date, nil)
+        errors.add(:event_date, "is not a valid date")
+      end
+    else
+      self.write_attribute(:event_date, value)
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Ruby Date Class Documentation - <a href="https://ruby-doc.org/stdlib-3.0.0/libdoc/date/rdoc/Date.html">Official documentation for Ruby&#8217;s Date class, including validation methods</a></p>
+</li>
+<li>
+<p>Rails Active Record Validations Guide - <a href="https://guides.rubyonrails.org/active_record_validations.html">Comprehensive guide to implementing validations in Rails applications</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-20: Improper Input Validation - <a href="https://cwe.mitre.org/data/definitions/20.html">Covers the security implications of insufficient input validation</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
