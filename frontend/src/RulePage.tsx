@@ -165,6 +165,7 @@ const languageToJiraProject = new Map(Object.entries({
   'RUST': 'SKUNK',
   'KOTLIN': 'SONARKT',
   'SCALA': 'SONARSCALA',
+  'GITHUB_ACTIONS': 'SONARIAC',
   'GO': 'SONARGO',
   'SECRETS': 'SONARTEXT',
   'SWIFT': 'SONARSWIFT',
@@ -176,6 +177,9 @@ const languageToJiraProject = new Map(Object.entries({
   'KUBERNETES': 'SONARIAC',
   'TEXT': 'SONARTEXT',
   'ANSIBLE': 'SONARIAC',
+  'JSON': 'SONARIAC',
+  'YAML': 'SONARIAC',
+  'SHELL': 'SKUNK'
 }));
 
 const languageToGithubProject = new Map(Object.entries({
@@ -189,6 +193,7 @@ const languageToGithubProject = new Map(Object.entries({
   'TYPESCRIPT': 'SonarJS',
   'SWIFT': 'sonar-swift',
   'KOTLIN': 'sonar-kotlin',
+  'GITHUB_ACTIONS': 'sonar-iac-enterprise',
   'GO': 'sonar-go',
   'SCALA': 'sonar-scala',
   'RUBY': 'sonar-ruby',
@@ -215,6 +220,9 @@ const languageToGithubProject = new Map(Object.entries({
   'SECRETS': 'sonar-text',
   'TEXT': 'sonar-text',
   'ANSIBLE': 'sonar-iac-enterprise',
+  'JSON': 'sonar-iac-enterprise',
+  'YAML': 'sonar-iac-enterprise',
+  'SHELL': 'sonar-skunk',
 }));
 
 function ticketsAndImplementationPRsLinks(ruleNumber: string, title: string, language?: string) {
@@ -269,7 +277,7 @@ interface PageMetadata {
 }
 
 function usePageMetadata(ruleid: string, language: string, classes: UsedStyles): PageMetadata {
-  const metadataUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
+  const metadataUrl = `/rspec/rules/${ruleid}/${language ?? 'default'}-metadata.json`;
   let [metadataJSON, metadataError, metadataIsLoading] = useFetch<RuleMetadata>(metadataUrl);
 
   let coverage: Coverage = 'Loading...';
@@ -360,7 +368,7 @@ function useDescription(metadata: PageMetadata, ruleid: string, language?: strin
     return undefined; // No modification.
   }
 
-  const descUrl = `${process.env.PUBLIC_URL}/rules/${ruleid}/${language ?? 'default'}-description.html`;
+  const descUrl = `/rspec/rules/${ruleid}/${language ?? 'default'}-description.html`;
 
   const [descHTML, descError, descIsLoading] = useFetch<string>(descUrl, false);
 

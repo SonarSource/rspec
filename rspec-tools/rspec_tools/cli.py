@@ -53,10 +53,11 @@ def check_links(d, history_file):
 @cli.command()
 @click.option("--languages", required=True)
 @click.option("--user", required=False)
-def create_rule(languages: str, user: Optional[str]):
-    """Create a new rule."""
+@click.option("--count", required=False, default=1)
+def create_rule(languages: str, user: Optional[str], count: int):
+    """Create one or several new rules, depending on the count."""
     token = os.environ.get("GITHUB_TOKEN")
-    rspec_tools.create_rule.create_new_rule(languages, token, user)
+    rspec_tools.create_rule.create_new_rule(languages, token, user, count)
 
 
 @cli.command()

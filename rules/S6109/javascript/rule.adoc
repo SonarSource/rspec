@@ -1,111 +1,173 @@
 == Why is this an issue?
 
-Prototype Pollution vulnerabilities allow to inject new properties into the built-in ``++Object.prototype++`` object. Since most objects inherit from this prototype, it can result in unexpected behavior, e.g., crashes or more severe vulnerabilities.
+Prototype pollution is a vulnerability that occurs when an attacker can modify
+an object's base prototype. +
+In JavaScript, almost all objects inherit properties and methods from a shared
+``++Object.prototype++``. If an attacker can add or change properties on this
+shared entity, every object in the application will inherit those malicious
+changes.
 
+=== What is the potential impact?
 
-In the past, it has led to the following vulnerabilities:
+To exploit prototype pollution vulnerabilities, attackers add faulty
+instructions to ``++Object.prototype++``, used to build every object.
 
-* https://www.cve.org/CVERecord?id=CVE-2019-10744[CVE-2019-10744]
-* https://www.cve.org/CVERecord?id=CVE-2019-11358[CVE-2019-11358]
+Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.
 
+==== Property Injection and Logic Hijacking
+This attack involves injecting properties that your application's code later
+uses in security-sensitive decisions. +
+In a fictional scenario where the app checks for administrative privileges by
+looking for the property `isAdmin`, an attacker polluting Object.prototype could
+set this property to `true` and gain unauthorized access without proper
+credentials.
+
+==== Arbitrary Code Execution
+In addition to logic hijiacking, this vulnerability leads to code execution when
+the vulnerable application uses a polluted property to dynamically execute
+commands.
+
+==== Application Denial of Service (DoS)
+An attacker can pollute the prototype with properties that cause the application
+to crash or become unresponsive. +
+For example, they might add a property that your application's code expects to
+be a function but is now a simple string.
+When the code tries to execute this property as a function, it will trigger an
+error, potentially halting the application for all users.
+
+== How to fix it
+
+=== Code examples
 
 === Noncompliant code example
 
-For merge functions:
-
-[source,javascript]
+[source,javascript,diff-id=1,diff-type=noncompliant]
 ----
-function for_in_merge(dst, src) {
-    for (let key in src) {
-        if (dst[key]) {
-            for_in_merge(dst[key], src[key]);
+function merge(target, source) {
+    for (let key in source) {
+        if (typeof target[key] === 'object' && typeof source[key] === 'object') {
+            merge(target[key], source[key]);
         } else {
-            dst[key] = src[key];
+            target[key] = source[key]; // Noncompliant
         }
     }
+    return target;
 }
 
-let obj1 = {};
-for_in_merge(obj1, req.query.obj2); // Noncompliant
+const userDefaults = {};
+userDefaults.isAdmin = false;
+
+function isAdmin(req, res) {
+    const user = merge(userDefaults, req.body);
+    return user.isAdmin;
+};
 ----
-
-For set-path functions:
-
-[source,javascript]
-----
-function for_set(target, path, value) {
-    let keys = path.split('.');
-    for (let i = 0; i < keys.length; ++i) {
-        let key = keys[i];
-        if (i < keys.length - 1) {
-            if (!target[key]) {
-                target[key] = {};
-            }
-            target = target[key];
-        } else {
-            target[key] = value;
-        }
-    }
-}
-
-for_set(req.query.path, req.query.val); // Noncompliant
-----
-
 
 === Compliant solution
 
-For merge functions:
+The following samples adopt secure coding practices to prevent unauthorized
+modifications to object prototypes by creating objects without a prototype:
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+Object.freeze(Object.prototype);
+
+function merge(target, source) {
+    for (let key in source) {
+        if (typeof target[key] === 'object' && typeof source[key] === 'object') {
+            merge(target[key], source[key]);
+        } else {
+            target[key] = source[key];
+        }
+    }
+    return target;
+}
+
+const userDefaults = {};
+userDefaults.isAdmin = false;
+
+function isAdmin(req, res) {
+    const user = merge(userDefaults, req.body);
+    return user.isAdmin;
+};
+----
+
+=== How does this work?
+
+==== Freeze the Object Prototype
+One of the most effective ways to prevent prototype pollution is to make the
+global ``++Object.prototype++`` immutable. You can do this using
+``++Object.freeze()++``. Once frozen, its properties can no longer be added,
+deleted, or changed.
+
+You should apply this fix at the very beginning of your application's entry
+point to ensure it is protected from the start.
+
+==== Create Objects Without Prototypes
+When you create a new object that will be populated with user-controlled data,
+such as parsing a JSON string from a request, you can create it without
+a prototype: ``++Object.create(null)++``.
+
+For creating dictionaries or maps, a `Map` should be preferred over a plain object like `Object.create(null)`.
+It has a built-in method `Map.get()` which is safer, as it only finds keys that were directly added to the map. This avoids accidentally accessing built-in object properties inherited from the Object prototype, such as `toString()` or `constructor`.
+
+==== Sanitize and Validate Input
+Finally, the most obvious way to prevent prototype pollution is to sanitize
+property keys before merging into objects.
+
+Ensure they do not match sensitive property names like ``++__proto__++``,
+constructor, or prototype. +
+If you find such keys in the input, you should reject the request or sanitize
+the data by removing them.
 
 [source,javascript]
 ----
-function for_in_merge(dst, src) {
-    for (let key in src) {
-        // Recommended Secure Coding Practices: prevent sensible keys
-        if (key === "constructor" || key === "prototype" || key === "__proto__") {
+function merge(target, source) {
+    for (let key in source) {
+        // Block dangerous keys
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
             continue;
         }
 
-        if (dst[key]) {
-            for_in_merge(dst[key], src[key]);
+        if (typeof target[key] === 'object' && typeof source[key] === 'object') {
+            merge(target[key], source[key]);
         } else {
-            dst[key] = src[key];
+            target[key] = source[key];
         }
     }
+    return target;
 }
-
-let obj1 = {};
-for_in_merge(obj1, req.query.obj2); // Compliant
 ----
-
-For set-path functions:
-
-[source,javascript]
-----
-function for_set(target, path, value) {
-    let keys = path.split('.');
-    for (let i = 0; i < keys.length; ++i) {
-        let key = keys[i];
-        // Recommended Secure Coding Practices: prevent sensible keys
-        if (key === "constructor" || key === "prototype" || key === "__proto__") {
-            break;
-        }
-        if (i < keys.length - 1) {
-            if (!target[key]) {
-                target[key] = {};
-            }
-            target = target[key];
-        } else {
-            target[key] = value;
-        }
-    }
-}
-
-for_set(req.query.path, req.query.val); // Compliant
-----
-
 
 == Resources
 
-* https://github.com/HoLyVieR/prototype-pollution-nsec18/blob/master/paper/JavaScript_prototype_pollution_attack_in_NodeJS.pdf[Prototype pollution attack in NodeJS application - Olivier Arteau]
+=== Articles & blog posts
+
+* PortSwigger - https://portswigger.net/web-security/prototype-pollution[Prototype pollution]
+
+=== Standards
+
 * CWE - https://cwe.mitre.org/data/definitions/1321[CWE-1321 - Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution')]
 
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Change this code to not construct prototype properties directly from user-controlled data.
+
+=== Highlighting
+
+"[varname]" is tainted (assignments and parameters)
+
+this argument is tainted (method invocations)
+
+the returned value is tainted (returns & method invocations results)
+
+'''
+
+endif::env-github,rspecator-view[]
