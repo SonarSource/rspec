@@ -1,0 +1,106 @@
+This is an issue when using comparison operators like `!=`, `<`, `>` directly in ActiveRecord's `where` method hash syntax, or when using symbol comparisons that don't evaluate database columns properly.
+
+== Why is this an issue?
+
+ActiveRecord's hash conditions in the `where` method only support equality (`=>`), range checking, and subset operations. When you try to use comparison operators like `!=`, `<>`, `>`, or `<` directly in hash syntax, Ruby throws a syntax error because these operators cannot be used as hash keys.
+
+Additionally, symbol comparisons like `:column != value` don't work as expected. Instead of comparing the database column, Ruby evaluates the symbol itself, which often results in the comparison always being true and returning all records.
+
+These syntax limitations can be confusing because the code looks like it should work, but ActiveRecord requires specific syntax patterns to generate proper SQL queries.
+
+=== What is the potential impact?
+
+Using incorrect syntax causes immediate syntax errors that prevent the application from running. Symbol comparisons that appear to work but don't actually filter records can lead to performance issues, incorrect business logic, and potential security vulnerabilities if sensitive data is inadvertently exposed.
+
+== How to fix it in Rails
+
+Use chained `where` methods with `where.not()` for inequality conditions instead of hash syntax with operators.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Syntax error - inequality operators not supported in hash conditions
+User.where(user_id: current_user.id, author_id != current_user.id) // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Using chained where methods
+User.where(user_id: current_user.id).where.not(author_id: current_user.id)
+----
+
+Use string conditions with parameter placeholders for comparison operations to ensure proper SQL generation and prevent SQL injection.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Syntax error - comparison operator used directly in hash syntax
+Announcement.where(publish: true, :expires < Date.today) // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Using string interpolation with placeholders
+Announcement.where("publish = ? AND expires < ?", true, Date.today)
+----
+
+Replace symbol comparisons with proper Rails query methods like `where.not()` to ensure the database column is actually queried.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Symbol comparison - evaluates to true, returns all records
+Post.where(:sourceurl != '') // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Using Rails where.not method
+Post.where.not(sourceurl: '')
+----
+
+Use Arel for complex type-safe queries when you need more control over the SQL generation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=4,diff-type=noncompliant]
+----
+# Syntax error with greater than operator
+User.where(age > 18, status: 'active') // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=4,diff-type=compliant]
+----
+# Using Arel for type-safe queries
+users = User.arel_table
+User.where(users[:age].gt(18).and(users[:status].eq('active')))
+----
+
+== Resources
+
+=== Documentation
+
+ * Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html[Official Rails guide covering proper ActiveRecord query syntax and methods]
+
+ * ActiveRecord::QueryMethods - https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html[API documentation for ActiveRecord query methods including where, where.not, and conditions]
+
+ * Arel Documentation - https://github.com/rails/arel[Documentation for Arel, the SQL AST manager for Ruby used by ActiveRecord]
