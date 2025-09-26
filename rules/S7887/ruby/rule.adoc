@@ -1,4 +1,4 @@
-This is an issue when a `before_destroy` callback adds validation errors but fails to properly halt the destruction process, or when using `return false` in Rails 5+ where it no longer prevents destruction.
+This is an issue when a `before_destroy` callback adds validation errors but fails to properly halt the destruction process.
 
 == Why is this an issue?
 
@@ -16,13 +16,14 @@ Records may be destroyed despite validation failures, leading to data integrity 
 
 == How to fix it in Rails 5+
 
-Use `throw :abort` to properly halt the destruction process when validation errors are added.
+In Rails <5, use `return false` to halt the destruction process when validation errors are added.
+In Rails 5+, use `throw :abort` to properly halt the destruction process when validation errors are added.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,ruby,diff-id=1,diff-type=noncompliant]
+[source,ruby]
 ----
 class Administratorship < ActiveRecord::Base
   before_destroy :validate_destruction
@@ -40,7 +41,7 @@ end
 
 ==== Compliant solution
 
-[source,ruby,diff-id=1,diff-type=compliant]
+[source,ruby]
 ----
 class Administratorship < ActiveRecord::Base
   before_destroy :validate_destruction
@@ -56,82 +57,18 @@ class Administratorship < ActiveRecord::Base
 end
 ----
 
-Replace `return false` with `throw :abort` in Rails 5+ applications, as returning false no longer prevents destruction.
+or
 
-=== Code examples
-
-==== Noncompliant code example
-
-[source,ruby,diff-id=2,diff-type=noncompliant]
+[source,ruby]
 ----
-class Submission < ActiveRecord::Base
-  before_destroy :check_for_payments
-
-  private
-
-  def check_for_payments
-    if has_payments?
-      errors[:base] << "Cannot delete submission with payments"
-      return false # Incorrect: doesn't prevent destruction in Rails 5+ // Noncompliant
-    end
-  end
-end
-----
-
-==== Compliant solution
-
-[source,ruby,diff-id=2,diff-type=compliant]
-----
-class Submission < ActiveRecord::Base
-  before_destroy :check_for_payments
-
-  private
-
-  def check_for_payments
-    if has_payments?
-      errors[:base] << "Cannot delete submission with payments"
-      throw :abort # Correct: Use throw :abort in Rails 5+
-    end
-  end
-end
-----
-
-== How to fix it in Rails < 5.0
-
-In Rails versions prior to 5.0, use `return false` to halt the destruction process when validation errors are added.
-
-=== Code examples
-
-==== Noncompliant code example
-
-[source,ruby,diff-id=3,diff-type=noncompliant]
-----
-class Document < ActiveRecord::Base
+class Administratorship < ActiveRecord::Base
   before_destroy :validate_destruction
 
   private
 
   def validate_destruction
-    if has_dependencies?
-      errors.add(:base, "Cannot destroy document with dependencies")
-      # Missing return false - destruction will proceed // Noncompliant
-    end
-  end
-end
-----
-
-==== Compliant solution
-
-[source,ruby,diff-id=3,diff-type=compliant]
-----
-class Document < ActiveRecord::Base
-  before_destroy :validate_destruction
-
-  private
-
-  def validate_destruction
-    if has_dependencies?
-      errors.add(:base, "Cannot destroy document with dependencies")
+    unless can_be_destroyed?
+      errors.add(:base, "Cannot destroy this record")
       return false # Properly halts destruction in Rails < 5.0
     end
   end
