@@ -1,0 +1,59 @@
+This rule raises an issue when `raise` is called with a string literal instead of a specific exception class.
+
+== Why is this an issue?
+
+Raising generic string messages as exceptions creates several problems that make code harder to maintain and test.
+
+When you use `raise "message"`, Ruby automatically wraps the string in a `RuntimeError`. This means all your different error conditions become indistinguishable `RuntimeError` exceptions. Your calling code cannot handle different types of errors appropriately.
+
+For example, you might want to retry on network errors but immediately fail on validation errors. With generic string exceptions, this becomes impossible because both errors look the same to exception handlers.
+
+Testing also becomes problematic. Your tests must catch the generic `RuntimeError` class, which means they cannot verify that the right type of error occurred. This makes tests less precise and more likely to pass when they should fail.
+
+Using specific exception classes solves these problems. Each error condition gets its own class, making error handling more precise. Tests can verify the exact type of exception, improving test reliability. Code becomes more self-documenting because exception names clearly indicate what went wrong.
+
+=== What is the potential impact?
+
+Using generic string exceptions reduces code maintainability and makes error handling imprecise. Tests become less reliable because they cannot distinguish between different error conditions. This can lead to bugs being missed in testing and inappropriate error handling in production code.
+
+== How to fix it
+
+Define specific exception classes that inherit from StandardError, then raise instances of these classes instead of generic strings. This allows for precise error handling and more reliable testing.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def merge(release_to_delete)
+  raise "Can't merge a release with itself!" if self.id == release_to_delete.id # Noncompliant
+  raise "Can only merge releases by the same artist" if self.artist != release_to_delete.artist # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class SelfMergeError < StandardError; end
+class ArtistMismatchError < StandardError; end
+
+def merge(release_to_delete)
+  raise SelfMergeError, "Can't merge a release with itself!" if self.id == release_to_delete.id
+  raise ArtistMismatchError, "Can only merge releases by the same artist" if self.artist != release_to_delete.artist
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby Exception Handling - https://ruby-doc.org/core/Exception.html[Official Ruby documentation on exception classes and handling]
+
+ * Ruby Style Guide - Exceptions - https://rubystyle.guide/#exception-class-messages[Community style guide recommendations for exception handling]
+
+=== Standards
+
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Relates to proper error handling and exception management]
+
