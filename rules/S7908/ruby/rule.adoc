@@ -1,0 +1,79 @@
+This rule raises an issue when methods are called on objects that might be nil without using the safe navigation operator (&.).
+
+== Why is this an issue?
+
+In Ruby, calling a method on a nil object raises a `NoMethodError` exception, which can crash your application at runtime. This commonly happens in several scenarios:
+
+* When accessing nested associations in ActiveRecord models where intermediate objects might not exist
+* When working with array elements that could be nil after operations like `pluck` or `compact`
+* In conditional blocks where objects might not be initialized
+* When dealing with optional parameters or return values from methods
+
+The safe navigation operator (`&.`) was introduced in Ruby 2.3 specifically to handle these situations gracefully. When you use `object&.method`, Ruby checks if `object` is nil before calling the method. If it is nil, the entire expression returns nil instead of raising an exception.
+
+This defensive programming approach makes your code more robust and prevents unexpected crashes, especially in production environments where nil values might occur due to data inconsistencies or edge cases you didn't anticipate during development.
+
+=== What is the potential impact?
+
+Without using the safe navigation operator, your application can crash with `NoMethodError` exceptions when encountering nil objects. This leads to:
+
+* Application downtime and poor user experience
+* Difficult-to-debug runtime errors that may only surface in production
+* Increased error monitoring alerts and support tickets
+* Potential data loss if transactions are interrupted by exceptions
+
+== How to fix it
+
+Replace direct method calls with the safe navigation operator (&.) when the receiver might be nil. This prevents NoMethodError exceptions by returning nil instead of crashing.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+field :name, as: :text, visible -> { resource.record.enabled? } # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+field :name, as: :text, visible -> { resource.record&.enabled? }
+----
+
+== How to fix it in ActiveRecord
+
+Use safe navigation when accessing nested associations where intermediate models might not exist.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+user.profile.company.name # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+user.profile&.company&.name
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby Safe Navigation Operator - https://ruby-doc.org/core-3.0.0/doc/syntax/calling_methods_rdoc.html#label-Safe+navigation+operator[Official Ruby documentation on the safe navigation operator]
+
+ * Ruby 2.3.0 Release Notes - https://www.ruby-lang.org/en/news/2015/12/25/ruby-2-3-0-released/[Release notes introducing the safe navigation operator]
+
+=== Standards
+
+ * CWE-476: NULL Pointer Dereference - https://cwe.mitre.org/data/definitions/476.html[Covers the security implications of dereferencing null pointers]
+
+=== Related rules
+
+ * RSPEC-6582 - https://rules.sonarsource.com/dart/RSPEC-6582/[Similar rule for Dart language regarding null-aware operators]
