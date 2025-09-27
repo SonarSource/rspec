@@ -1,0 +1,172 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Successful Zip Bomb attacks occur when an application expands untrusted archive files without controlling the size of the expanded data, which can lead to denial of service. A Zip bomb is usually a malicious archive file of a few kilobytes of compressed data but turned into gigabytes of uncompressed data. To achieve this extreme <a href="https://en.wikipedia.org/wiki/Data_compression_ratio">compression ratio</a>, attackers will compress irrelevant data (eg: a long string of repeated bytes).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Archives to expand are untrusted and:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>There is no validation of the number of entries in the archive.</p>
+</li>
+<li>
+<p>There is no validation of the total size of the uncompressed data.</p>
+</li>
+<li>
+<p>There is no validation of the ratio between the compressed and uncompressed archive entry.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Define and control the ratio between compressed and uncompressed data, in general the data compression ratio for most of the legit archives is 1 to 3.</p>
+</li>
+<li>
+<p>Define and control the threshold for maximum total size of the uncompressed data.</p>
+</li>
+<li>
+<p>Count the number of file entries extracted from the archive and abort the extraction if their number is greater than a predefined threshold, in particular it&#8217;s not recommended to recursively expand archives (an entry of an archive could be also an archive).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>For Each entry As ZipArchiveEntry in archive.Entries
+    ' entry.FullName could contain parent directory references ".." and the destinationPath variable could become outside of the desired path
+    string destinationPath = Path.GetFullPath(Path.Combine(path, entry.FullName))
+    entry.ExtractToFile(destinationPath) ' Sensitive, extracts the entry to a file
+
+    Dim stream As Stream
+    stream = entry.Open() ' Sensitive, the entry is about to be extracted
+Next</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Const ThresholdRatio As Double = 10
+Const ThresholdSize As Integer = 1024 * 1024 * 1024 ' 1 GB
+Const ThresholdEntries As Integer = 10000
+Dim TotalSizeArchive, TotalEntryArchive, TotalEntrySize, Cnt As Integer
+Dim Buffer(1023) As Byte
+Using ZipToOpen As New FileStream("ZipBomb.zip", FileMode.Open), Archive As New ZipArchive(ZipToOpen, ZipArchiveMode.Read)
+    For Each Entry As ZipArchiveEntry In Archive.Entries
+        Using s As Stream = Entry.Open
+            TotalEntryArchive += 1
+            TotalEntrySize = 0
+            Do
+                Cnt = s.Read(Buffer, 0, Buffer.Length)
+                TotalEntrySize += Cnt
+                TotalSizeArchive += Cnt
+                If TotalEntrySize / Entry.CompressedLength &gt; ThresholdRatio Then Exit Do    ' Ratio between compressed And uncompressed data Is highly suspicious, looks Like a Zip Bomb Attack
+            Loop While Cnt &gt; 0
+        End Using
+        If TotalSizeArchive &gt; ThresholdSize Then Exit For       ' The uncompressed data size Is too much for the application resource capacity
+        If TotalEntryArchive &gt; ThresholdEntries Then Exit For   ' Too much entries in this archive, can lead to inodes exhaustion of the system
+    Next
+End Using</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/">Top 10 2021 Category A5 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control">Top 10 2017 Category A5 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/409">CWE-409 - Improper Handling of Highly Compressed Data (Data Amplification)</a></p>
+</li>
+<li>
+<p><a href="https://www.bamsoftware.com/hacks/zipbomb/">bamsoftware.com</a> - A better Zip Bomb</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure that expanding this archive file is safe here.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_16_nov_2018_154842_alexandre_gigleux_wrote">on 16 Nov 2018, 15:48:42 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>TODO: update CERT WIKI once implemented</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_16_nov_2018_155932_ann_campbell_wrote">on 16 Nov 2018, 15:59:32 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~alexandre.gigleux] can "Expanding" be used here instead of "Uncompressing"? It sounds more natural to me.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_17_nov_2018_150121_alexandre_gigleux_wrote">on 17 Nov 2018, 15:01:21 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] What about "Unpacking"?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_19_nov_2018_130935_ann_campbell_wrote">on 19 Nov 2018, 13:09:35 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>It&#8217;s not common usage [~alexandre.gigleux]</p>
+</div>
+</div>
+</div>
+</div>

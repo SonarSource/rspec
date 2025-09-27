@@ -1,0 +1,217 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Passing <code>NULL</code> to a C library function that requires non-null pointer arguments results in undefined behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The standard C library includes a variety of functions for string and general memory manipulations.
+Many of these functions require valid parameters and when given values outside a function&#8217;s domain, the behavior is undefined.
+Functions like <code>strlen</code>, <code>memset</code>, <code>memcpy</code>, <code>qsort</code>, <code>fread</code>, etc., for instance, require non-<code>NULL</code> parameters, and passing a <code>NULL</code> value introduces undefined behavior.
+In that case, the application may crash or, even worse, silently lose data or produce incorrect results.</p>
+</div>
+<div class="paragraph">
+<p>Consider the following code.
+If the pointer-typed variable <code>buf</code> is <code>NULL</code> due to a failed memory allocation, for instance, the call to <code>memset()</code> will cause undefined behavior.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;string.h&gt;
+
+void process_buffer(char *buf, size_t size) {
+  // Call to `memset()` may lead to undefined behavior, if `buf` is NULL.
+  memset(buf, 0, size);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Similarly, if for some reason a <code>NULL</code> pointer slips through and reaches the string manipulation code shown in the following, the application&#8217;s behavior is undefined.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;string.h&gt;
+
+int compare_strings(const char *str_a, const char *str_b) {
+  // Both functions `strlen()` and `strncmp()` may not receive a `NULL` pointer.
+  size_t len_a = strlen(str_a);
+  size_t len_b = strlen(str_b);
+  size_t min = (len_a &lt;= len_b) ? len_a : len_b;
+  return strncmp(str_a, str_b, min);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Hence, users have to ensure that the C standard library functions' preconditions are met and valid parameters are passed.</p>
+</div>
+<div class="paragraph">
+<p>The C library functions that are considered by this rule and that require non-<code>NULL</code> pointer parameters are listed in this rule&#8217;s Resources section.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>If an argument to one of the C library functions mentioned by this rule is a <code>NULL</code> pointer, the behavior of the application is undefined.</p>
+</div>
+<div class="paragraph">
+<p>When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.</p>
+</div>
+<div class="paragraph">
+<p>Due to the resulting <code>NULL</code> pointer dereferences in the C library functions, the application might just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.</p>
+</div>
+<div class="paragraph">
+<p>Besides affecting the application&#8217;s availability, <code>NULL</code> pointer dereferences may lead to code execution, in rare circumstances.
+If <code>NULL</code> is equivalent to the <code>0x0</code> memory address that can be accessed by privileged code, writing and reading memory is possible, which compromises the integrity and confidentiality of the application.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ensure that any pointer passed to any of the C library functions mentioned by this rule <em>is not</em> <code>NULL</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+int process_string() {
+  char buffer[] = "Hello, World!";
+  char *str = (char *)malloc(sizeof(buffer));
+  if (!str) {
+    printf("Memory allocation failed!\n");
+  }
+  // Noncompliant: 1st parameter in the subsequent call to `memcpy()` might be
+  // NULL due to insufficient handling of a potentially failed memory
+  // allocation.
+  memcpy(str, buffer, sizeof(buffer));
+  // Process dynamically alloacted `str` variable.
+  // ...
+  // Free memory, if it is no longer in use.
+  free(str);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+int process_string() {
+  char buffer[] = "Hello, World!";
+  char *str = (char *)malloc(sizeof(buffer));
+  if (!str) {
+    printf("Memory allocation failed!\n");
+    return 1;
+  }
+  // Compliant: 1st parameter will always denote a non-null pointer.
+  memcpy(str, buffer, sizeof(buffer));
+  // Process dynamically alloacted `str` variable.
+  // ...
+  // Free memory, if it is no longer in use.
+  free(str);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="paragraph">
+<p>The list of functions considered by this rule is shown in the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">aio_suspend, bcmp, bcopy, bsearch, bzero, confstr, encrypt, erand48,
+explicit_bzero, explicit_memset, fgetpwent_r, fgets, fgetws, fread, fwrite,
+getdelim, getgrgid_r, getgrnam_r, gethostbyaddr_r, gethostbyname2_r,
+gethostbyname_r, gethostent_r, gethostname, getline, getlogin_r,
+getnetbyaddr_r, getnetbyname_r, getnetent_r, getnetgrent_r, getopt,
+getopt_long, getopt_long_only, getprotobyname_r, getprotobynumber_r,
+getprotoent_r, getpwent_r, getpwnam_r, getpwuid_r, getservbyname_r,
+getservbyport_r, getservent_r, iconv, initstate, jrand48, lcong48, lfind,
+lio_listio, lsearch, mblen, mbrlen, mbrtowc, mbsnrtowcs, mbsrtowcs,
+mbstowcs, mbtowc, memccpy, memchr, memcmp, memcpy, memmove, mempcpy,
+memset, mq_receive, mq_send, mq_timedreceive, mq_timedsend, nrand48,
+posix_trace_event, posix_trace_trygetnext_event, pread, preadv, preadv2,
+pthread_attr_setstack, pwrite, pwritev, pwritev2, qsort, qsort_r, read,
+readlink, readlinkat, readv, realpath, recv, recvfrom, regerror, regexec,
+seed48, semop, semtimedop, send, sendto, setbuf, setbuffer, setvbuf,
+snprintf, socketpair, std::copy (for C++), std::copy_backward (for C++),
+stpcpy, strcasecmp, strcat, strcmp, strcpy, strfmon, strfmon_l, strftime,
+strftime_l, strlcat, strlcpy, strlen, strncasecmp, strncat, strncmp, strncpy,
+strnlen, strsep, swab, swprintf, ttyname_r, utimes, vsnprintf, vswprintf,
+wcpncpy, wcsftime, wcslen, wcsncasecmp, wcsncasecmp_l, wcsncmp, wcsncpy,
+wcsnlen, wcsnrtombs, wcsrtombs, wcstombs, wcswidth, wcsxfrm, wcsxfrm_l,
+wmemchr, wmemcmp, wmemcpy, wmemmove, wmemcpy, wmemset, write, writev</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/476">CWE-476 NULL Pointer Dereference</a>
+CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/QdcxBQ">EXP34-C.Do not dereference null pointers</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2259" class="rspec-auto-link">S2259</a> detects dereferences of null pointers</p>
+</li>
+<li>
+<p><a data-rspec-id="S2637" class="rspec-auto-link">S2637</a> detects uses of null pointers as arguments for parameters that are annotated with <code>nonnull</code></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this parameter to not be {null/zero}.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>parameter</p>
+</div>
+</div>
+</div>
+</div>

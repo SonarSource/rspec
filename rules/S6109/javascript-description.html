@@ -1,0 +1,238 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Prototype pollution is a vulnerability that occurs when an attacker can modify
+an object&#8217;s base prototype.<br>
+In JavaScript, almost all objects inherit properties and methods from a shared
+<code>Object.prototype</code>. If an attacker can add or change properties on this
+shared entity, every object in the application will inherit those malicious
+changes.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>To exploit prototype pollution vulnerabilities, attackers add faulty
+instructions to <code>Object.prototype</code>, used to build every object.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_property_injection_and_logic_hijacking">Property Injection and Logic Hijacking</h4>
+<div class="paragraph">
+<p>This attack involves injecting properties that your application&#8217;s code later
+uses in security-sensitive decisions.<br>
+In a fictional scenario where the app checks for administrative privileges by
+looking for the property <code>isAdmin</code>, an attacker polluting Object.prototype could
+set this property to <code>true</code> and gain unauthorized access without proper
+credentials.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_arbitrary_code_execution">Arbitrary Code Execution</h4>
+<div class="paragraph">
+<p>In addition to logic hijiacking, this vulnerability leads to code execution when
+the vulnerable application uses a polluted property to dynamically execute
+commands.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_application_denial_of_service_dos">Application Denial of Service (DoS)</h4>
+<div class="paragraph">
+<p>An attacker can pollute the prototype with properties that cause the application
+to crash or become unresponsive.<br>
+For example, they might add a property that your application&#8217;s code expects to
+be a function but is now a simple string.
+When the code tries to execute this property as a function, it will trigger an
+error, potentially halting the application for all users.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">function merge(target, source) {
+    for (let key in source) {
+        if (typeof target[key] === 'object' &amp;&amp; typeof source[key] === 'object') {
+            merge(target[key], source[key]);
+        } else {
+            target[key] = source[key]; // Noncompliant
+        }
+    }
+    return target;
+}
+
+const userDefaults = {};
+userDefaults.isAdmin = false;
+
+function isAdmin(req, res) {
+    const user = merge(userDefaults, req.body);
+    return user.isAdmin;
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="paragraph">
+<p>The following samples adopt secure coding practices to prevent unauthorized
+modifications to object prototypes by creating objects without a prototype:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">Object.freeze(Object.prototype);
+
+function merge(target, source) {
+    for (let key in source) {
+        if (typeof target[key] === 'object' &amp;&amp; typeof source[key] === 'object') {
+            merge(target[key], source[key]);
+        } else {
+            target[key] = source[key];
+        }
+    }
+    return target;
+}
+
+const userDefaults = {};
+userDefaults.isAdmin = false;
+
+function isAdmin(req, res) {
+    const user = merge(userDefaults, req.body);
+    return user.isAdmin;
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_freeze_the_object_prototype">Freeze the Object Prototype</h4>
+<div class="paragraph">
+<p>One of the most effective ways to prevent prototype pollution is to make the
+global <code>Object.prototype</code> immutable. You can do this using
+<code>Object.freeze()</code>. Once frozen, its properties can no longer be added,
+deleted, or changed.</p>
+</div>
+<div class="paragraph">
+<p>You should apply this fix at the very beginning of your application&#8217;s entry
+point to ensure it is protected from the start.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_create_objects_without_prototypes">Create Objects Without Prototypes</h4>
+<div class="paragraph">
+<p>When you create a new object that will be populated with user-controlled data,
+such as parsing a JSON string from a request, you can create it without
+a prototype: <code>Object.create(null)</code>.</p>
+</div>
+<div class="paragraph">
+<p>For creating dictionaries or maps, a <code>Map</code> should be preferred over a plain object like <code>Object.create(null)</code>.
+It has a built-in method <code>Map.get()</code> which is safer, as it only finds keys that were directly added to the map. This avoids accidentally accessing built-in object properties inherited from the Object prototype, such as <code>toString()</code> or <code>constructor</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_sanitize_and_validate_input">Sanitize and Validate Input</h4>
+<div class="paragraph">
+<p>Finally, the most obvious way to prevent prototype pollution is to sanitize
+property keys before merging into objects.</p>
+</div>
+<div class="paragraph">
+<p>Ensure they do not match sensitive property names like <code>__proto__</code>,
+constructor, or prototype.<br>
+If you find such keys in the input, you should reject the request or sanitize
+the data by removing them.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">function merge(target, source) {
+    for (let key in source) {
+        // Block dangerous keys
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            continue;
+        }
+
+        if (typeof target[key] === 'object' &amp;&amp; typeof source[key] === 'object') {
+            merge(target[key], source[key]);
+        } else {
+            target[key] = source[key];
+        }
+    }
+    return target;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PortSwigger - <a href="https://portswigger.net/web-security/prototype-pollution">Prototype pollution</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/1321">CWE-1321 - Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution')</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct prototype properties directly from user-controlled data.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>"[varname]" is tainted (assignments and parameters)</p>
+</div>
+<div class="paragraph">
+<p>this argument is tainted (method invocations)</p>
+</div>
+<div class="paragraph">
+<p>the returned value is tainted (returns &amp; method invocations results)</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
