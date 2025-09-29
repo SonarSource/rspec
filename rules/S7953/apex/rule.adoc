@@ -1,16 +1,25 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when a method annotated with `@future` is called within a loop construct (for, while, do-while).
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Salesforce enforces a governor limit of maximum 10 `@future` method calls per Apex transaction. When `@future` methods are called inside loops, each iteration invokes a separate asynchronous method call, making it very easy to exceed this limit.
 
-//=== What is the potential impact?
+`@future` methods are designed for asynchronous processing and should be used sparingly. They are intended for operations like web service callouts or long-running processes that need to run in their own thread. Calling them repeatedly in loops defeats their purpose and creates performance bottlenecks.
+
+The governor limit exists to prevent resource exhaustion and ensure fair usage of Salesforce's shared infrastructure. When this limit is exceeded, the system throws a runtime exception, causing the entire transaction to fail.
+
+=== What is the potential impact?
+
+Exceeding the `@future` method governor limit will cause a runtime exception that terminates the entire Apex transaction. This can lead to:
+
+* Application failures and poor user experience
+* Data inconsistency if the transaction was partially completed
+* System instability under high load conditions
+* Difficulty in debugging and troubleshooting production issues
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Collect the data that needs to be processed and pass it to a single @future method call outside the loop. This approach processes all records in bulk using just one asynchronous call.
 
 === Code examples
 
@@ -18,27 +27,34 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,apex,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+trigger accountAsyncTrigger on Account (after insert, after update) {
+    for(Account a: Trigger.new){
+        // Invoke the @future method for each Account
+        // This will easily exceed the governor limit
+        asyncApex.processAccount(a.id); // Noncompliant
+    }
+}
 ----
 
 ==== Compliant solution
 
 [source,apex,diff-id=1,diff-type=compliant]
 ----
-FIXME
+trigger accountAsyncTrigger on Account (after insert, after update) {
+    // By passing the @future method a set of Ids, it only needs to be
+    // invoked once to handle all of the data
+    asyncApex.processAccount(Trigger.newMap.keySet());
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Salesforce Apex Developer Guide - Future Methods - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm[Official Salesforce documentation on @future methods and their limitations]
 
+ * Apex Code Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_best_practices.htm[Salesforce best practices for writing efficient Apex code]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+=== Standards
+
+ * Salesforce Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Official documentation on Salesforce governor limits including @future method restrictions]
