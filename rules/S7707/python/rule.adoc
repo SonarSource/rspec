@@ -1,0 +1,60 @@
+This rule raises an issue when a DataLoader is used with Lightning Fabric but is not wrapped with `fabric.setup_dataloaders()`.
+
+== Why is this an issue?
+
+Lightning Fabric is a framework that simplifies distributed training and device management in PyTorch. When you use Fabric, it needs to coordinate data loading across multiple devices or processes to ensure proper data distribution and avoid issues like data duplication or uneven batch sizes.
+
+When you create a DataLoader without wrapping it with `fabric.setup_dataloaders()`, Fabric cannot properly manage the data loading process. This can lead to several problems:
+
+* **Incorrect data distribution**: In multi-device setups, each device might receive the same data instead of different portions, leading to inefficient training
+* **Synchronization issues**: The data loading might not be properly synchronized with Fabric's training loop, causing timing problems
+* **Memory inefficiency**: Without proper setup, data might be loaded redundantly across devices
+* **Inconsistent batch sizes**: Different devices might end up with different batch sizes, affecting gradient computation
+
+Fabric's `setup_dataloaders()` method handles these concerns automatically by configuring the DataLoader to work correctly with the chosen accelerator, strategy, and number of devices.
+
+=== What is the potential impact?
+
+Without proper DataLoader setup, distributed training may fail or produce incorrect results due to improper data distribution across devices. This can lead to poor model performance, training instability, or wasted computational resources.
+
+=== How to fix?
+
+
+Wrap your DataLoader with `fabric.setup_dataloaders()` after creating the Fabric instance. This ensures proper data distribution and compatibility with Fabric's distributed training features.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import lightning as L
+from torch.utils.data import DataLoader
+
+fabric = L.Fabric()
+dataloader = DataLoader(dataset, batch_size=32)
+
+# DataLoader used without setup
+for batch in dataloader:  # Noncompliant
+    pass
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import lightning as L
+from torch.utils.data import DataLoader
+
+fabric = L.Fabric()
+dataloader = DataLoader(dataset, batch_size=32)
+dataloader = fabric.setup_dataloaders(dataloader)
+
+# DataLoader properly configured for Fabric
+for batch in dataloader:
+    pass
+----
+
+=== Documentation
+
+ * Lightning Fabric - Convert PyTorch code to Fabric - https://lightning.ai/docs/fabric/stable/fundamentals/convert.html[Official guide on converting PyTorch code to use Lightning Fabric, including DataLoader setup]
+ * Lightning Fabric API - setup_dataloaders - https://lightning.ai/docs/fabric/stable/api/generated/lightning.fabric.fabric.Fabric.html#lightning.fabric.fabric.Fabric.setup_dataloaders[API documentation for the setup_dataloaders method]
+
