@@ -26,13 +26,13 @@ def _rule_creator(token: str, user: Optional[str]):
         yield RuleCreator(repo)
 
 
-def create_new_rule(languages: str, token: str, user: Optional[str]):
+def create_new_rule(languages: str, token: str, user: Optional[str], count: int = 1):
     lang_list = parse_and_validate_language_list(languages)
     label_list = get_labels_for_languages(lang_list)
     with _rule_creator(token, user) as rule_creator:
-        rule_number = rule_creator.rspec_repo.reserve_rule_number()
+        rule_numbers = rule_creator.rspec_repo.reserve_rule_number(count)
         rule_creator.create_new_rule_pull_request(
-            token, rule_number, lang_list, label_list, user
+            token, rule_numbers, lang_list, label_list, user
         )
 
 
@@ -88,22 +88,34 @@ class RuleCreator:
             )
         return branch_name
 
-    def create_new_rule_branch(self, rule_number: int, languages: Iterable[str]) -> str:
+    def _make_branch_name(self, rule_numbers: list[int]) -> str:
+        if len(rule_numbers) <= 2:
+            return "-".join([str(r) for r in rule_numbers])
+        return f"{rule_numbers[0]}-to-{rule_numbers[-1]}"
+
+    def create_new_rule_branch(
+        self, rule_numbers: list[int], languages: Iterable[str]
+    ) -> str:
         """Create all the files required for a new rule."""
-        branch_name = f"rule/add-RSPEC-S{rule_number}"
+        branch_name = f"rule/add-RSPEC-S{self._make_branch_name(rule_numbers)}"
         with self.rspec_repo.checkout_branch(
             self.rspec_repo.MASTER_BRANCH, branch_name
         ):
-            rule_dir = self.repo_dir / "rules" / f"S{rule_number}"
-            rule_dir.mkdir()
-            lang_count = sum(1 for _ in languages)
-            if lang_count > 1:
-                self._fill_multi_lang_template_files(rule_dir, rule_number, languages)
-            else:
-                self._fill_single_lang_template_files(
-                    rule_dir, rule_number, next(iter(languages))
-                )
-            self.rspec_repo.commit_all_and_push(f"Create rule S{rule_number}")
+            for rule_number in rule_numbers:
+                rule_dir = self.repo_dir / "rules" / f"S{rule_number}"
+                rule_dir.mkdir()
+                lang_count = sum(1 for _ in languages)
+                if lang_count > 1:
+                    self._fill_multi_lang_template_files(
+                        rule_dir, rule_number, languages
+                    )
+                else:
+                    self._fill_single_lang_template_files(
+                        rule_dir, rule_number, next(iter(languages))
+                    )
+            self.rspec_repo.commit_all_and_push(
+                f"Create rule S{", S".join([str(r) for r in rule_numbers])}"
+            )
 
         return branch_name
 
@@ -180,22 +192,40 @@ class RuleCreator:
             user,
         )
 
+    def _make_pr_title(self, rule_numbers: list[int]) -> str:
+        if len(rule_numbers) == 1:
+            return f"Create rule S{rule_numbers[0]}"
+        return f"Create rules S{rule_numbers[0]} to S{rule_numbers[-1]}"
+
+    def _make_pr_description(
+        self, rule_numbers: list[int], languages: Iterable[str]
+    ) -> str:
+        if len(rule_numbers) == 1 and sum(1 for _ in languages) == 1:
+            return f"You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_numbers[0]}/{next(iter(languages))}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}"
+
+        description = "You can preview the rules here:"
+        for lang in languages:
+            for rule_number in rule_numbers:
+                description += f"\n- [S{rule_number} in {lang}](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{lang})"
+        description += "\n\n"
+        description += self.PR_TEMPLATE_PATH.read_text()
+        return description
+
     def create_new_rule_pull_request(
         self,
         token: str,
-        rule_number: int,
+        rule_numbers: list[int],
         languages: Iterable[str],
         labels: Iterable[str],
         user: Optional[str],
     ) -> PullRequest:
-        branch_name = self.create_new_rule_branch(rule_number, languages)
+        branch_name = self.create_new_rule_branch(rule_numbers, languages)
         click.echo(f"Created rule branch {branch_name}")
-        first_lang = next(iter(languages))
         return self.rspec_repo.create_pull_request(
             token,
             branch_name,
-            f"Create rule S{rule_number}",
-            f"You can preview this rule [here](https://sonarsource.github.io/rspec/#/rspec/S{rule_number}/{first_lang}) (updated a few minutes after each push).\n\n{self.PR_TEMPLATE_PATH.read_text()}",
+            self._make_pr_title(rule_numbers),
+            self._make_pr_description(rule_numbers, languages),
             labels,
             user,
         )

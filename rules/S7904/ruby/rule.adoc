@@ -1,0 +1,97 @@
+This rule raises an issue when a method used as a Rails model callback (such as `before_save`, `after_create`, `after_update`, etc.) is declared as a public method instead of private.
+
+== Why is this an issue?
+
+In Rails applications, callback methods are internal implementation details that should not be part of a model's public interface. When callback methods are declared as public, they can be called directly from outside the model, which violates the principle of encapsulation and can lead to several problems.
+
+Callback methods are designed to be invoked automatically by the Rails framework at specific points in an object's lifecycle. They often contain logic that assumes certain preconditions or state changes that only occur during the normal Rails callback chain. When these methods are called directly, they may not work as expected or could cause data inconsistency.
+
+Additionally, public callback methods expose internal implementation details that other parts of the application might inadvertently depend on. This creates tight coupling and makes the code harder to refactor or maintain over time.
+
+Following the Rails convention of making callback methods private also improves code readability by clearly distinguishing between the model's public API and its internal implementation details.
+
+=== What is the potential impact?
+
+When callback methods are public, they can be called directly from outside the model, potentially bypassing important validation or state management logic. This can lead to data inconsistency, unexpected behavior, or security vulnerabilities if the callback methods contain sensitive operations that should only be triggered through the normal Rails lifecycle.
+
+== How to fix it in Rails
+
+Move the callback method below a `private` declaration to make it inaccessible from outside the model. This follows Rails conventions and prevents the method from being called directly.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class Article < ApplicationRecord
+  before_save :normalize_title
+
+  def normalize_title # Noncompliant
+    self.title = title.downcase.titleize
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class Article < ApplicationRecord
+  before_save :normalize_title
+
+  private
+
+  def normalize_title
+    self.title = title.downcase.titleize
+  end
+end
+----
+
+For models with multiple callback methods, group them together under the `private` section to maintain clear separation between public and private methods.
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class Board < ApplicationRecord
+  after_update :notify_stage_change
+  before_destroy :cleanup_resources
+
+  def notify_stage_change # Noncompliant
+    BoardNotificationService.new(self).notify_stage_update
+  end
+
+  def cleanup_resources # Noncompliant
+    associated_items.destroy_all
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Board < ApplicationRecord
+  after_update :notify_stage_change
+  before_destroy :cleanup_resources
+
+  private
+
+  def notify_stage_change
+    BoardNotificationService.new(self).notify_stage_update
+  end
+
+  def cleanup_resources
+    associated_items.destroy_all
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Active Record Callbacks - https://guides.rubyonrails.org/active_record_callbacks.html[Official Rails documentation on Active Record callbacks and best practices]
+
+ * Ruby Access Control - https://ruby-doc.org/3.4.1/syntax/modules_and_classes_rdoc.html#label-Visibility[Ruby documentation on method visibility and access control]

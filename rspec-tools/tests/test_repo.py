@@ -14,7 +14,7 @@ def _read_counter_file(repo: Repo):
 
 def test_reserve_rule_number_simple(rspec_repo: RspecRepo, mock_git_rspec_repo: Repo):
     """Test that RspecRepo.reserve_rule_number() increments the id and returns the old value."""
-    assert rspec_repo.reserve_rule_number() == 0
+    assert rspec_repo.reserve_rule_number() == [0]
 
     assert _read_counter_file(mock_git_rspec_repo) == "1"
 
@@ -32,8 +32,8 @@ def test_reserve_rule_number_parallel_reservations(
         mock_git_rspec_repo.working_dir, str(cloned_repo2), git_config
     )
 
-    assert rule_creator1.reserve_rule_number() == 0
-    assert rule_creator2.reserve_rule_number() == 1
-    assert rule_creator1.reserve_rule_number() == 2
+    assert rule_creator1.reserve_rule_number() == [0]
+    assert rule_creator2.reserve_rule_number() == [1]
+    assert rule_creator1.reserve_rule_number() == [2]
 
     assert _read_counter_file(mock_git_rspec_repo) == "3"
