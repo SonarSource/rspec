@@ -1,0 +1,79 @@
+This rule raises an issue when DML operations (insert, update, delete, upsert) are performed on both setup objects and non-setup objects within the same transaction context.
+
+== Why is this an issue?
+
+Salesforce enforces a strict separation between DML operations on setup objects and non-setup objects to maintain security and data integrity.
+
+Setup objects are special sObjects that affect user access and permissions in your organization. These include User, Profile, PermissionSet, UserRole, and other objects that control who can see and do what in your org.
+
+When you try to perform DML operations on both setup and non-setup objects in the same transaction, Salesforce throws a `MIXED_DML_OPERATION` runtime error. This restriction exists because setup object changes can affect record access permissions, and Salesforce needs to ensure these changes don't interfere with ongoing operations on regular data objects.
+
+The error prevents your code from running and can cause unexpected failures in production environments, especially in complex business processes that involve user management alongside regular data operations.
+
+=== What is the potential impact?
+
+When this restriction is violated, your application will fail at runtime with a `MIXED_DML_OPERATION` error. This can cause:
+
+* Complete failure of business processes that involve both user management and data operations
+* Inconsistent data states where some operations succeed while others fail
+* Poor user experience due to unexpected errors
+* Difficulty in automated testing where setup data needs to be created alongside test data
+
+== How to fix it in Test Methods
+
+In test methods, use System.runAs blocks to isolate setup object DML operations. This creates a separate execution context that bypasses the mixed DML restriction.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@isTest
+static void testMixedDML() {
+    Account acc = new Account(Name = 'Test Account');
+    insert acc;
+    
+    User usr = new User(
+        FirstName = 'Test',
+        LastName = 'User',
+        Email = 'test@example.com',
+        Username = 'test@example.com',
+        Alias = 'test'
+    );
+    insert usr; // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@isTest
+static void testMixedDML() {
+    Account acc = new Account(Name = 'Test Account');
+    insert acc;
+    
+    User thisUser = [SELECT Id FROM User WHERE Id = :UserInfo.getUserId()];
+    System.runAs(thisUser) {
+        User usr = new User(
+            FirstName = 'Test',
+            LastName = 'User',
+            Email = 'test@example.com',
+            Username = 'test@example.com',
+            Alias = 'test'
+        );
+        insert usr;
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Mixed DML Operations - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_dml_non_mix_sobjects.htm[Official Salesforce documentation on mixed DML operation restrictions]
+
+ * Setup Objects - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_dml_non_mix_sobjects_list.htm[Complete list of setup objects that cannot be mixed with regular DML operations]
+
+ * Future Methods - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm[Documentation on using @future methods for asynchronous processing]
