@@ -1,0 +1,81 @@
+This rule raises an issue when HTTP callouts in Apex code lack proper error handling, including missing try-catch blocks, no status code validation, or absent error logging.
+
+== Why is this an issue?
+
+HTTP callouts are inherently unreliable operations that can fail for various reasons including network issues, service unavailability, timeouts, or invalid responses. Without proper error handling, applications may process invalid responses as successful operations, fail silently making debugging difficult, or crash unexpectedly.
+
+When making HTTP callouts, several types of failures can occur:
+
+* *Network failures*: Connection timeouts, DNS resolution failures, or network connectivity issues
+* *Service errors*: The external service returns error status codes (4xx, 5xx)
+* *Invalid responses*: Malformed JSON, unexpected data formats, or empty responses
+* *Platform exceptions*: CalloutException thrown by the Salesforce platform
+
+Without comprehensive error handling, these failures can lead to data inconsistencies, poor user experience, and difficult-to-diagnose integration issues. The application may continue processing as if the callout succeeded, leading to incomplete or incorrect business logic execution.
+
+=== What is the potential impact?
+
+Applications may process invalid responses as successful operations, leading to data inconsistencies and incorrect business logic execution. Silent failures make it extremely difficult to diagnose integration issues, potentially causing prolonged service disruptions. Users may experience unexpected application behavior or crashes when external services are unavailable.
+
+== How to fix it
+
+Wrap HTTP callouts in try-catch blocks, validate response status codes, and implement proper error logging. Always check the HTTP status code before processing the response body.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class ApiIntegration {
+    public static String makeCallout() {
+        Http http = new Http();
+        HttpRequest request = new HttpRequest();
+        request.setEndpoint('https://api.example.com/data');
+        request.setMethod('GET');
+        HttpResponse response = http.send(request); // Noncompliant
+        return response.getBody(); // No error handling
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class ApiIntegration {
+    public static String makeCallout() {
+        try {
+            Http http = new Http();
+            HttpRequest request = new HttpRequest();
+            request.setEndpoint('https://api.example.com/data');
+            request.setMethod('GET');
+            HttpResponse response = http.send(request);
+            
+            if (response.getStatusCode() == 200) {
+                return response.getBody();
+            } else {
+                System.debug('API call failed with status: ' + response.getStatusCode());
+                throw new CalloutException('External service returned error: ' + response.getStatus());
+            }
+        } catch (CalloutException e) {
+            System.debug('Callout failed: ' + e.getMessage());
+            throw e;
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex HTTP Classes - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_classes_restful_http.htm[Official Salesforce documentation for HTTP classes and callout methods]
+
+ * Invoking Callouts Using Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_callouts.htm[Comprehensive guide on making HTTP callouts in Apex with best practices]
+
+ * Exception Handling in Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_definition.htm[Documentation on exception handling patterns and best practices in Apex]
+
+=== Standards
+
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Addresses the security implications of not properly handling exceptional conditions]
