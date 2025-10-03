@@ -1,0 +1,64 @@
+This rule raises an issue when SOQL queries use non-selective filters, fetch unnecessary fields, or lack proper optimization techniques that could lead to performance degradation.
+
+== Why is this an issue?
+
+SOQL queries are a critical component of Salesforce applications, but poorly optimized queries can severely impact performance and lead to governor limit violations.
+
+Salesforce operates on a multi-tenant architecture where resources are shared across multiple customers. To maintain platform stability, Salesforce enforces strict governor limits, including a maximum of 100 SOQL queries per transaction. When queries are not optimized, they can consume excessive resources and cause applications to hit these limits.
+
+Non-selective queries are particularly problematic because they force the database to perform full table scans instead of using indexes. This happens when queries use filters on non-indexed fields or use operations like `LIKE` with leading wildcards. Such queries become exponentially slower as data volume grows, potentially causing timeouts or performance degradation.
+
+Indexed fields in Salesforce include standard fields like `Id`, `Name`, `RecordTypeId`, `CreatedDate`, and custom fields marked as External Id or Unique. Using these fields in WHERE clauses allows the query optimizer to use indexes, dramatically improving performance.
+
+Additionally, fetching unnecessary fields wastes bandwidth and memory. When queries select all fields using `SELECT *` equivalent patterns or include fields that are not actually used, they transfer more data than needed, increasing heap size usage and potentially causing memory-related governor limit violations.
+
+In large data volume (LDV) environments, these issues become even more critical. Organizations with millions of records can experience significant performance problems if queries are not properly optimized, affecting user experience and system reliability.
+
+=== What is the potential impact?
+
+Poor SOQL query optimization can lead to several serious consequences:
+
+* *Performance degradation*: Non-selective queries cause slow response times, especially as data volume grows, leading to poor user experience
+* *Governor limit violations*: Inefficient queries can cause applications to exceed Salesforce's resource limits, resulting in runtime exceptions and application failures
+* *System timeouts*: Queries that take too long to execute may timeout, causing incomplete operations and data inconsistency
+* *Increased resource consumption*: Unnecessary field selection and non-selective filters consume more CPU time, heap memory, and database resources
+* *Scalability issues*: Applications may work fine with small datasets but fail catastrophically when data volume increases
+* *Reduced system reliability*: Frequent limit violations and timeouts can make the application unreliable for business-critical operations
+
+== How to fix it
+
+Use selective filters with indexed fields and select only necessary fields. Replace non-selective operations with indexed field filters and add appropriate LIMIT clauses.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+List<Account> accounts = [SELECT Id, Name, BillingAddress, ShippingAddress, Description, Industry, AnnualRevenue FROM Account WHERE Description LIKE '%test%']; // Noncompliant
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+List<Account> accounts = [SELECT Id, Name FROM Account WHERE Industry = 'Technology' AND RecordTypeId = :recordTypeId LIMIT 100];
+----
+
+== Resources
+
+=== Documentation
+
+ * SOQL Best Practices - https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_best_practices.htm[Official Salesforce documentation on SOQL query optimization and best practices]
+
+ * Large Data Volumes Best Practices - https://developer.salesforce.com/docs/atlas.en-us.salesforce_large_data_volumes_bp.meta/salesforce_large_data_volumes_bp/ldv_deployments_introduction.htm[Salesforce guide for handling large data volumes and query optimization]
+
+ * Query Plan Tool - https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_query_plan.htm[Documentation on using the Query Plan Tool to analyze SOQL query performance]
+
+=== Standards
+
+ * Salesforce Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_apexgov.htm[Official documentation on Salesforce platform limits including SOQL query limits]
+
+=== Related rules
+
+ * RSPEC-2259 - https://rules.sonarsource.com/apex/RSPEC-2259/[SOQL queries should not be vulnerable to injection attacks]
