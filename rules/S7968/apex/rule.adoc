@@ -1,0 +1,90 @@
+This rule raises an issue when Apex classes implementing Agentforce Actions lack proper input validation, exception handling, or safe SOQL query practices.
+
+== Why is this an issue?
+
+Agentforce Actions are critical components that power AI-driven automation in Salesforce. When these actions lack proper validation and error handling, several problems can occur:
+
+First, runtime exceptions can cause the entire action to fail unexpectedly. For example, a SOQL query that assumes a record exists might throw a `QueryException` when no records are found, causing the action to terminate abruptly.
+
+Second, invalid or missing input parameters can lead to unpredictable behavior. Without proper validation, an action might attempt to process null values or empty strings, resulting in meaningless results or system errors.
+
+Third, poor error handling makes troubleshooting difficult. When exceptions occur without proper logging or user-friendly error messages, developers and administrators struggle to identify and resolve issues quickly.
+
+Finally, unreliable actions undermine user trust in AI-powered features. Users expect consistent, predictable behavior from automated systems. When actions fail silently or produce unexpected results, it damages confidence in the platform's capabilities.
+
+Proper validation and error handling ensure that Agentforce Actions are robust, reliable, and provide meaningful feedback when issues occur.
+
+=== What is the potential impact?
+
+Without proper validation and error handling, Agentforce Actions may fail unexpectedly, causing:
+
+• Runtime exceptions that terminate action execution
+• Poor user experience due to unclear error messages
+• Difficulty troubleshooting issues in production
+• Reduced reliability of AI-powered automation
+• Potential data inconsistencies when actions fail partially
+
+== How to fix it
+
+Implement comprehensive input validation, exception handling, and safe SOQL queries in your Agentforce Action methods. Always validate input parameters, use try-catch blocks to handle exceptions gracefully, and provide meaningful error messages to users.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@InvocableMethod(label='Process Customer Data')
+public static List<String> processCustomerData(List<CustomerRequest> requests) {
+    List<String> results = new List<String>();
+    for (CustomerRequest req : requests) {
+        Account acc = [SELECT Id, Name FROM Account WHERE Id = :req.customerId]; // Noncompliant
+        String result = DataCloudService.getCustomerInsights(req.customerId);
+        results.add(acc.Name + ': ' + result);
+    }
+    return results;
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@InvocableMethod(label='Process Customer Data')
+public static List<String> processCustomerData(List<CustomerRequest> requests) {
+    List<String> results = new List<String>();
+    try {
+        for (CustomerRequest req : requests) {
+            if (req.customerId == null || String.isBlank(req.customerId)) {
+                results.add('Error: Invalid customer ID');
+                continue;
+            }
+            List<Account> accounts = [SELECT Id, Name FROM Account WHERE Id = :req.customerId LIMIT 1];
+            if (accounts.isEmpty()) {
+                results.add('Error: Account not found');
+                continue;
+            }
+            String result = DataCloudService.getCustomerInsights(req.customerId);
+            results.add(accounts[0].Name + ': ' + result);
+        }
+    } catch (Exception e) {
+        System.debug('Error in processCustomerData: ' + e.getMessage());
+        results.add('Error processing request: ' + e.getMessage());
+    }
+    return results;
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Agentforce Actions Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.agentforce.meta/agentforce/[Official documentation for building custom Agentforce Actions]
+
+ * Apex Exception Handling - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_handling.htm[Best practices for exception handling in Apex]
+
+ * SOQL Best Practices - https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_best_practices.htm[Guidelines for writing safe and efficient SOQL queries]
+
+=== Standards
+
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Addresses the importance of proper error handling and validation]
