@@ -1,0 +1,64 @@
+This rule raises an issue when trigger logic executes in update triggers without comparing current field values to previous values using `Trigger.oldMap`.
+
+== Why is this an issue?
+
+In Salesforce, triggers fire on every DML operation, regardless of whether the fields that matter to your business logic have actually changed. This can lead to several problems:
+
+First, unnecessary processing occurs when trigger logic runs even though no relevant field values have changed. This wastes computational resources and can impact performance, especially with large data volumes.
+
+Second, recursion issues can arise. When workflow field updates occur during Salesforce's order of execution, before and after update triggers fire one additional time. Without proper field comparison, this can cause duplicate processing or infinite loops.
+
+Third, duplicate records or actions may be created. For example, if a trigger creates a Task when an Opportunity reaches 'Closed Won' status, it might create multiple Tasks due to workflow re-execution if it doesn't check whether the stage actually changed.
+
+Using `Trigger.oldMap` allows you to compare the current field values with their previous values. This ensures your trigger logic only executes when specific field values actually change, preventing unnecessary executions and potential recursion issues.
+
+=== What is the potential impact?
+
+Without proper field comparison, triggers may execute unnecessarily, leading to performance degradation, duplicate record creation, or infinite recursion that could hit Salesforce governor limits and cause system failures.
+
+== How to fix it
+
+Compare current field values with previous values using Trigger.oldMap before executing trigger logic. Access the old record using Trigger.oldMap.get(recordId) and compare specific field values.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+trigger OpportunityTrigger on Opportunity (after update) {
+    for(Opportunity opp : Trigger.New) {
+        // Logic executes on every update regardless of field changes
+        if(opp.StageName == 'Closed Won') { // Noncompliant
+            updateRelatedRecords(opp);
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+trigger OpportunityTrigger on Opportunity (after update) {
+    for(Opportunity opp : Trigger.New) {
+        Opportunity oldOpp = Trigger.oldMap.get(opp.Id);
+        // Logic only executes when Stage actually changes
+        if(opp.StageName == 'Closed Won' && oldOpp.StageName != 'Closed Won') {
+            updateRelatedRecords(opp);
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Trigger Context Variables - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_context_variables.htm[Official documentation on trigger context variables including Trigger.oldMap]
+
+ * Order of Execution in Salesforce - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_order_of_execution.htm[Understanding how workflow field updates affect trigger execution order]
+
+=== Standards
+
+ * Salesforce Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_best_practices.htm[Official Salesforce guidelines for writing efficient and maintainable Apex code]
