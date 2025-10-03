@@ -1,0 +1,73 @@
+This is an issue when Apex code in Transaction Security Policy classes contains operations that could throw exceptions without proper error handling.
+
+== Why is this an issue?
+
+Transaction Security Policies are critical components of Salesforce security monitoring. They evaluate events in real-time to detect suspicious activities and enforce security rules.
+
+When exceptions occur in these policies, the entire policy evaluation can fail. This creates several serious problems:
+
+* *Silent failures*: The policy may fail without clear error messages, making it difficult to detect and diagnose issues.
+* *Security gaps*: Failed policies cannot monitor or block suspicious activities, potentially allowing unauthorized access to go undetected.
+* *Unreliable monitoring*: Intermittent exceptions can cause inconsistent policy enforcement, reducing the effectiveness of security controls.
+
+Common causes of exceptions in Transaction Security Policies include:
+
+* Null pointer exceptions when accessing event data
+* Type casting errors when processing event attributes
+* String operations on null or unexpected values
+* External service calls that may timeout or fail
+
+These failures are particularly dangerous because they can occur during active security incidents, precisely when reliable policy enforcement is most critical.
+
+=== What is the potential impact?
+
+Unhandled exceptions in Transaction Security Policies can compromise the security monitoring of your Salesforce org. Failed policies may allow unauthorized activities to proceed undetected, potentially leading to data breaches, unauthorized access, or compliance violations. The silent nature of these failures makes them especially dangerous, as security teams may not realize their monitoring is compromised.
+
+== How to fix it
+
+Wrap potentially risky operations in try-catch blocks. Always check for null values before using them, and provide appropriate logging for debugging. Return a safe default value (typically false) when exceptions occur.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class MyTransactionSecurityPolicy implements TxnSecurity.PolicyCondition {
+    public boolean evaluate(TxnSecurity.Event e) {
+        String userLocation = e.getData().get('SourceIp');
+        return userLocation.contains('suspicious'); // Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class MyTransactionSecurityPolicy implements TxnSecurity.PolicyCondition {
+    public boolean evaluate(TxnSecurity.Event e) {
+        try {
+            String userLocation = e.getData().get('SourceIp');
+            return userLocation != null && userLocation.contains('suspicious');
+        } catch (Exception ex) {
+            System.debug('Transaction security policy error: ' + ex.getMessage());
+            return false; // Safe default
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Transaction Security Policies - https://help.salesforce.com/s/articleView?id=sf.enhanced_transaction_security_overview.htm[Official Salesforce documentation on Transaction Security Policies]
+
+ * TxnSecurity.PolicyCondition Interface - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_interface_TxnSecurity_PolicyCondition.htm[Apex reference for the PolicyCondition interface]
+
+ * Salesforce Shield Trail - https://trailhead.salesforce.com/en/content/learn/trails/shield[Comprehensive learning path for Salesforce Shield security features]
+
+=== Standards
+
+ * CWE-248: Uncaught Exception - https://cwe.mitre.org/data/definitions/248.html[Weakness related to uncaught exceptions that can lead to system instability]
