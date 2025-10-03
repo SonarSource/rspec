@@ -1,0 +1,54 @@
+This rule raises an issue when Apex code accesses sharing entries (objects ending with `__Share`) for custom objects through SOQL queries or DML operations.
+
+== Why is this an issue?
+
+Accessing sharing entries for custom objects in Apex code creates a permanent restriction on your Salesforce organization's configuration flexibility.
+
+When your code queries or manipulates sharing entries (like `Invoice__Share` for a custom `Invoice__c` object), Salesforce locks the organization-wide default (OWD) sharing settings for that object. This means administrators can no longer change the OWD setting from "Private" to "Public" or "Public Read Only" to "Public Read/Write".
+
+This limitation exists because Salesforce needs to maintain data consistency. If sharing entries exist in the system and code depends on them, changing to a more permissive OWD setting could create conflicts between explicit sharing rules and the new default access levels.
+
+The restriction is permanent and cannot be reversed, even if you later remove the code that accesses sharing entries. This can significantly impact your organization's ability to adapt sharing models as business requirements evolve.
+
+=== What is the potential impact?
+
+Once sharing entries are accessed in code, administrators lose the ability to make organization-wide default settings more permissive. This can limit business flexibility and may require complex workarounds or data migration if sharing requirements change in the future.
+
+== How to fix it
+
+Instead of accessing sharing entries directly, use ownership-based queries or permission-based approaches to control record access.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+// Accessing sharing entries locks OWD settings
+List<Invoice__Share> shareRecords = [SELECT Id, UserOrGroupId 
+                                    FROM Invoice__Share 
+                                    WHERE ParentId = :invoiceId]; // Noncompliant
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+// Use ownership-based access control instead
+List<Invoice__c> accessibleInvoices = [SELECT Id, Name, Amount__c 
+                                      FROM Invoice__c 
+                                      WHERE Id = :invoiceId 
+                                      AND OwnerId = :UserInfo.getUserId()];
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Sharing and Security Guide - https://developer.salesforce.com/docs/atlas.en-us.securityImplGuide.meta/securityImplGuide/[Official Salesforce documentation on sharing and security implementation]
+
+ * Organization-Wide Sharing Defaults - https://help.salesforce.com/s/articleView?id=sf.security_owd.htm[Salesforce Help documentation on organization-wide default settings]
+
+=== Standards
+
+ * Salesforce Security Best Practices - https://developer.salesforce.com/docs/atlas.en-us.securityImplGuide.meta/securityImplGuide/security_best_practices.htm[Salesforce platform security implementation guidelines]
