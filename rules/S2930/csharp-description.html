@@ -1,0 +1,315 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When writing <a href="https://learn.microsoft.com/en-us/dotnet/standard/managed-code">managed code</a>, there is no need to worry about memory allocation or deallocation as it is taken care of by the <a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection">garbage collector</a>. However, certain objects, such as <code>Bitmap</code>, utilize unmanaged memory for specific purposes like <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/unsafe-code">pointer arithmetic</a>. These objects may have substantial unmanaged memory footprints while having minimal managed footprints. Unfortunately, the garbage collector only recognizes the small managed footprint and does not promptly reclaim the corresponding unmanaged memory (by invoking the finalizer method of <code>Bitmap</code>) for efficiency reasons.</p>
+</div>
+<div class="paragraph">
+<p>In addition, it&#8217;s essential to manage other system resources besides memory. The operating system has limits on the number of <a href="https://en.wikipedia.org/wiki/File_descriptor">file descriptors</a> (e.g., <code>FileStream</code>) or <a href="https://en.wikipedia.org/wiki/Network_socket">sockets</a> (e.g., <code>WebClient</code>) that can remain open simultaneously. Therefore, it&#8217;s crucial to <code>Dispose</code> of these resources promptly when they are no longer required, instead of relying on the garbage collector to invoke the finalizers of these objects at an unpredictable time in the future.</p>
+</div>
+<div class="paragraph">
+<p>This rule keeps track of <code>private</code> fields and local variables of specific types that implement <code>IDisposable</code> or <code>IAsyncDisposable</code>. It identifies instances of these types that are not properly disposed, closed, aliased, returned, or passed to other methods. This applies to instances that are either directly created using the <code>new</code> operator or instantiated through a predefined list of factory methods.</p>
+</div>
+<div class="paragraph">
+<p>Here is the list of the types tracked by this rule:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>FluentAssertions.Execution.AssertionScope</code></p>
+</li>
+<li>
+<p><code>System.Drawing.Bitmap</code></p>
+</li>
+<li>
+<p><code>System.Drawing.Image</code></p>
+</li>
+<li>
+<p><code>System.IO.FileStream</code></p>
+</li>
+<li>
+<p><code>System.IO.StreamReader</code></p>
+</li>
+<li>
+<p><code>System.IO.StreamWriter</code></p>
+</li>
+<li>
+<p><code>System.Net.Sockets.TcpClient</code></p>
+</li>
+<li>
+<p><code>System.Net.Sockets.UdpClient</code></p>
+</li>
+<li>
+<p><code>System.Net.WebClient</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Here is the list of predefined factory methods tracked by this rule:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>System.Drawing.Image.FromFile()</code></p>
+</li>
+<li>
+<p><code>System.Drawing.Image.FromStream()</code></p>
+</li>
+<li>
+<p><code>System.IO.File.Create()</code></p>
+</li>
+<li>
+<p><code>System.IO.File.Open()</code></p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p><code>IDisposable</code> / <code>IAsyncDisposable</code> variables returned from a method or passed to other methods are ignored, as are local <code>IDisposable</code> / <code>IAsyncDisposable</code> objects that are initialized with other <code>IDisposable</code> / <code>IAsyncDisposable</code> objects.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public Stream WriteToFile(string path, string text)
+{
+  var fs = new FileStream(path, FileMode.Open); // Compliant: it is returned
+  var bytes = Encoding.UTF8.GetBytes(text);
+  fs.Write(bytes, 0, bytes.Length);
+  return fs;
+}
+
+public void ReadFromStream(Stream s)
+{
+  var sr = new StreamReader(s); // Compliant: it would close the underlying stream.
+  // ...
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>It is essential to identify what kind of disposable resource variable is used to know how to fix this issue.</p>
+</div>
+<div class="paragraph">
+<p>In the case of a disposable resource store as a member (either as field or property), it should be disposed at the same time as the class. The best way to achieve this is to follow the <a href="https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/dispose-pattern">dispose pattern</a>.</p>
+</div>
+<div class="paragraph">
+<p>When creating the disposable resource for a one-time use (cases not covered by the exceptions), it should be disposed at the end of its creation scope. The easiest to ensure your resource is disposed when reaching the end of a scope is to either use <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/using">the using statement or the using declaration</a></p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public class ResourceHolder
+{
+  private FileStream fs; // Noncompliant: dispose or close are never called
+
+  public void OpenResource(string path)
+  {
+    this.fs = new FileStream(path, FileMode.Open);
+  }
+
+  public void WriteToFile(string path, string text)
+  {
+    var fs = new FileStream(path, FileMode.Open); // Noncompliant: not disposed, returned or initialized with another disposable object
+    var bytes = Encoding.UTF8.GetBytes(text);
+    fs.Write(bytes, 0, bytes.Length);
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public class ResourceHolder : IDisposable, IAsyncDisposable
+{
+  private FileStream fs; // Compliant: disposed in Dispose/DisposeAsync methods
+
+  public void OpenResource(string path)
+  {
+    this.fs = new FileStream(path, FileMode.Open);
+  }
+
+  public void Dispose()
+  {
+    this.fs.Dispose();
+  }
+
+  public async ValueTask DisposeAsync()
+  {
+    await fs.DisposeAsync().ConfigureAwait(false);
+  }
+
+  public void WriteToFile(string path, string text)
+  {
+    using (var fs = new FileStream(path, FileMode.Open)) // Compliant: disposed at the end of the using block
+    {
+      var bytes = Encoding.UTF8.GetBytes(text);
+      fs.Write(bytes, 0, bytes.Length);
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/standard/managed-code">What is "managed code"?</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection">Garbage collection</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/finalizers">Finalizers</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/unsafe-code">Unsafe code, pointer types, and function pointers</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/File_descriptor">File descriptor</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Network_socket">Network socket</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/dispose-pattern">Dispose pattern</a></p>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn -  <a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-dispose">Implement a Dispose method</a></p>
+</li>
+<li>
+<p>Microsoft Learn -  <a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync">Implement a DisposeAsync method</a></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/using">using statement and using declaration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/459">CWE-459 - Incomplete Cleanup</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Dispose "xxx" when it is no longer needed.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s2095">relates to: <a data-rspec-id="S2095" class="rspec-auto-link">S2095</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2952">is related to: <a data-rspec-id="S2952" class="rspec-auto-link">S2952</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_13_may_2015_192206_ann_campbell_wrote">on 13 May 2015, 19:22:06 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~tamas.vajk] if this rule comes from R#, please provide the R# rule key.</p>
+</div>
+<div class="paragraph">
+<p>Also, there is the question of classes that <code>Dispose</code> of their <code>IDisposable</code> members, but not from their own <code>Dispose</code> methods. I.e. they call <code>Dispose</code> from some other, randomly-named method. Does this case merit coverage under this rule? A separate rule?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_13_may_2015_192215_ann_campbell_wrote">on 13 May 2015, 19:22:15 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>consulted: http://stackoverflow.com/questions/10956140/does-a-class-need-to-implement-idisposable-when-all-members-are-explicitly-dispo</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_18_may_2015_082057_tamas_vajk_wrote">on 18 May 2015, 08:20:57 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I think the separate rule for "implementing IDisposable" (http://jira.sonarsource.com/browse/RSPEC-2931) is a good idea. Let&#8217;s keep it this way, we&#8217;ll see if it generates loads of duplicate issues or not.</p>
+</div>
+<div class="paragraph">
+<p>This rule is not in Resharper.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_094819_tamas_vajk_wrote">on 22 May 2015, 09:48:19 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>LGTM</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_jun_2015_135145_ann_campbell_wrote">on 8 Jun 2015, 13:51:45 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>updated per SONARCSANA-129. See what you think [~tamas.vajk]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_12_jun_2015_122801_tamas_vajk_wrote">on 12 Jun 2015, 12:28:01 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] it looks good. I added the exceptions part, could you run through it?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_12_jun_2015_180236_ann_campbell_wrote">on 12 Jun 2015, 18:02:36 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>This begins to feel like a game of tennis. :-)</p>
+</div>
+<div class="paragraph">
+<p>I edited "block" to "method". Double-check me, please.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_jun_2015_062858_tamas_vajk_wrote">on 15 Jun 2015, 06:28:58 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] It looks good.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_5_feb_2021_173539_čaba_šagi_wrote">on 5 Feb 2021, 17:35:39 Čaba Šagi wrote:</h3>
+<div class="paragraph">
+<p>Beside the types covered in the description, all types implementing IDisposable should be covered as well. See <a href="https://docs.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2000">CA2000</a></p>
+</div>
+</div>
+</div>
+</div>

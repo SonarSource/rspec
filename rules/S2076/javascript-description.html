@@ -1,0 +1,562 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>OS command injections occur when applications build command lines from
+untrusted data before executing them with a system shell.<br>
+In that case, an attacker can tamper with the command line construction and
+force the execution of unexpected commands. This can lead to the compromise of
+the underlying operating system.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>An attacker exploiting an OS command injection vulnerability will be able to
+execute arbitrary commands on the underlying operating system.</p>
+</div>
+<div class="paragraph">
+<p>The impact depends on the access control measures taken on the target system
+OS. In the worst-case scenario, the process runs with root privileges, and
+therefore any OS commands or programs may be affected.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_denial_of_service_and_data_leaks">Denial of service and data leaks</h4>
+<div class="paragraph">
+<p>In this scenario, the attack aims to disrupt the organization&#8217;s activities and
+profit from data leaks.</p>
+</div>
+<div class="paragraph">
+<p>An attacker could, for example:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>download the internal server&#8217;s data, most likely to sell it</p>
+</li>
+<li>
+<p>modify data, send malware</p>
+</li>
+<li>
+<p>stop services or exhaust resources (with fork bombs for example)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_root_privilege_escalation_and_pivot">Root privilege escalation and pivot</h4>
+<div class="paragraph">
+<p>In this scenario, the attacker can do everything described in the previous
+section. The difference is that the attacker also manages to elevate their
+privileges to an administrative level and attacks other servers.</p>
+</div>
+<div class="paragraph">
+<p>Here, the impact depends on how much the target company focuses on its Defense
+In Depth. For example, the entire infrastructure can be compromised by a
+combination of OS injections and <strong>misconfiguration</strong> of:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Docker or Kubernetes clusters</p>
+</li>
+<li>
+<p>cloud services</p>
+</li>
+<li>
+<p>network firewalls and routing</p>
+</li>
+<li>
+<p>OS access control</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_node_js">How to fix it in Node.js</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to command injections because it is using untrusted inputs to set up a new process.
+Therefore an attacker can execute an arbitrary program that is installed on the system.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const { execSync } = require('child_process')
+
+cmd = req.query.cmd
+execSync(cmd) // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const { spawnSync } = require('child_process')
+
+const cmdId = parseInt(req.query.cmdId)
+let host = req.query.host
+host = typeof host === "string"? host : "example.org"
+
+const allowedCommands = [
+    {exe:"/bin/ping", args:["-c","1","--"]},
+    {exe:"/bin/host", args:["--"]}
+]
+const cmd = allowedCommands[cmdId]
+spawnSync(cmd.exe, cmd.args.concat(host))</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>Allowing users to execute operating system commands generally creates more
+problems than it solves.</p>
+</div>
+<div class="paragraph">
+<p>Anything that can be done via operating system commands can usually be done via
+a language&#8217;s native SDK.<br>
+Therefore, our first suggestion is to avoid using OS commands in the first
+place.<br>
+However, if the application requires running OS commands with user-controlled
+data, here are some security suggestions.</p>
+</div>
+<div class="sect3">
+<h4 id="_pre_approved_commands">Pre-Approved commands</h4>
+<div class="paragraph">
+<p>If the application aims to execute only a small number of OS commands (for
+example, <code>ls</code>, <code>pwd</code>, and <code>grep</code>), the cleanest way to avoid this problem is to
+validate the input before using it in an OS command.</p>
+</div>
+<div class="paragraph">
+<p>Create a list of authorized and secure commands that you want the application
+to be able to execute. Use absolute paths to avoid any ambiguity.<br>
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the number of commands you want the application to support, the
+list can be either a regex string or any array type. If you use regexes, choose
+simple regexes to avoid ReDOS attacks. For example, you can accept only a
+specific set of executables, by using <code>^/bin/(ls|pwd|grep)$</code>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must do validation on the server side. Not on
+client-side front-ends.</p>
+</div>
+<div class="paragraph">
+<p>In the example compliant code, a static list of trusted commands is used. Users are only allowed to
+submit an index in this array in place of a full command name.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_neutralize_special_characters">Neutralize special characters</h4>
+<div class="paragraph">
+<p>If the application is to execute complex commands that cannot be controlled
+thanks to pre-approved lists, the cleanest approach is to use special
+sanitization components, such as <code>child_process.spawn</code>.</p>
+</div>
+<div class="paragraph">
+<p>The library helps you to get rid of common dangerous characters, such as:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>&amp;</code></p>
+</li>
+<li>
+<p><code>|</code></p>
+</li>
+<li>
+<p><code>;</code></p>
+</li>
+<li>
+<p><code>$</code></p>
+</li>
+<li>
+<p><code>&gt;</code></p>
+</li>
+<li>
+<p><code>&lt;</code></p>
+</li>
+<li>
+<p><code>`</code></p>
+</li>
+<li>
+<p><code>\</code></p>
+</li>
+<li>
+<p><code>!</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If user input is to be included in the arguments of a command, the application
+must ensure that dangerous options or argument delimiters are neutralized.<br>
+Argument delimiters count <code>'</code>, <code>-</code> and spaces.</p>
+</div>
+<div class="paragraph">
+<p>For example, the <code>find</code> command from UNIX supports the dangerous argument
+<code>-exec</code>.<br>
+In this case, option processing can be terminated with a string containing <code>--</code>
+or with special options. For example, <code>git</code> supports
+<code>--end-of-options</code> <a href="https://github.blog/2019-11-03-highlights-from-git-2-24/#tidbits">since its version 2.24</a>.</p>
+</div>
+<div class="paragraph">
+<p>In the example compliant code, the <code>spawn</code> function from <code>child_process</code> is used in place of its less
+secure <code>exec</code> counterpart. It accepts command arguments as an array and
+performs a proper escaping of its element before building the command line to
+run.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_disable_shell_integration">Disable shell integration</h4>
+<div class="paragraph">
+<p>In most cases, command execution libraries propose two ways to execute external
+program: with or without shell integration.</p>
+</div>
+<div class="paragraph">
+<p>When shell integration is allowed, an attacker with control over the command
+arguments can simply execute additional external programs using system shell
+features. For example, on Unix, command pipelining (<code>|</code>) or string
+interpolation (<code>$()</code>, <code>&lt;()</code>, etc.) can be used to break out of a command call.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, it is generally preferable to disable shell integration.</p>
+</div>
+<div class="paragraph">
+<p>The <code>spawn</code> function that is used in the example compliant code disables shell integration by default.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_loose_typing">Loose typing</h4>
+<div class="paragraph">
+<p>Because JavaScript is a loosely typed language, extra care should be taken
+when accepting user-controlled parameters. Indeed, some methods, that can be
+used to sanitize untrusted parameters, sometimes accept both objects and object
+arrays.</p>
+</div>
+<div class="paragraph">
+<p>For example, the <code>Array.concat</code> function accepts an array as argument and will
+append all of its elements to its target. When an untrusted parameter is an
+array, while a single string was expected, using <code>concat</code> to build a command
+argument list can result in an arbitrary argument injection.</p>
+</div>
+<div class="paragraph">
+<p>It is therefore of prime importance to check the type of untrusted parameters
+before processing them.</p>
+</div>
+<div class="paragraph">
+<p>In the above compliant code example, the ambiguous <code>concat</code> function is used.
+However, a type check has been introduced to prevent any unexpected issue.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_ssh2">How to fix it in SSH2</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to command injections because it is using untrusted inputs to set up a new process.
+Therefore an attacker can execute an arbitrary program that is installed on the system.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const { Client } = require('ssh2')
+
+const conn = new Client()
+
+conn.on('ready', () =&gt; {
+    conn.exec(req.query.cmd, (err, stream) =&gt; {}) // Noncompliant
+})
+
+conn.connect({
+    host: 'example.org',
+    username: 'user',
+    password: 'password'
+})</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const { Client } = require('ssh2')
+const shell = require('shell-escape-tag')
+
+const cmdId = parseInt(req.query.cmdId)
+let host = req.query.host
+host = typeof host === "string"? host : "example.org"
+host = shell.escape(host)
+
+const allowedCommands = ["/bin/ping -c 1 --", "/bin/host --"]
+const cmd = `${allowedCommands[cmdId]} ${host}`
+
+const conn = new Client()
+
+conn.on('ready', () =&gt; {
+    conn.exec(cmd, (err, stream) =&gt; {})
+})
+
+conn.connect({
+    host: 'example.org',
+    username: 'user',
+    password: 'password'
+})</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>Allowing users to execute operating system commands generally creates more
+problems than it solves.</p>
+</div>
+<div class="paragraph">
+<p>Anything that can be done via operating system commands can usually be done via
+a language&#8217;s native SDK.<br>
+Therefore, our first suggestion is to avoid using OS commands in the first
+place.<br>
+However, if the application requires running OS commands with user-controlled
+data, here are some security suggestions.</p>
+</div>
+<div class="sect3">
+<h4 id="_pre_approved_commands_2">Pre-Approved commands</h4>
+<div class="paragraph">
+<p>If the application aims to execute only a small number of OS commands (for
+example, <code>ls</code>, <code>pwd</code>, and <code>grep</code>), the cleanest way to avoid this problem is to
+validate the input before using it in an OS command.</p>
+</div>
+<div class="paragraph">
+<p>Create a list of authorized and secure commands that you want the application
+to be able to execute. Use absolute paths to avoid any ambiguity.<br>
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the number of commands you want the application to support, the
+list can be either a regex string or any array type. If you use regexes, choose
+simple regexes to avoid ReDOS attacks. For example, you can accept only a
+specific set of executables, by using <code>^/bin/(ls|pwd|grep)$</code>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must do validation on the server side. Not on
+client-side front-ends.</p>
+</div>
+<div class="paragraph">
+<p>In the example compliant code, a static list of trusted commands is used. Users are only allowed to
+submit an index in this array in place of a full command name.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_neutralize_special_characters_2">Neutralize special characters</h4>
+<div class="paragraph">
+<p>If the application is to execute complex commands that cannot be controlled
+thanks to pre-approved lists, the cleanest approach is to use special
+sanitization components, such as <code>shell-escape-tag</code>.</p>
+</div>
+<div class="paragraph">
+<p>The library helps you to get rid of common dangerous characters, such as:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>&amp;</code></p>
+</li>
+<li>
+<p><code>|</code></p>
+</li>
+<li>
+<p><code>;</code></p>
+</li>
+<li>
+<p><code>$</code></p>
+</li>
+<li>
+<p><code>&gt;</code></p>
+</li>
+<li>
+<p><code>&lt;</code></p>
+</li>
+<li>
+<p><code>`</code></p>
+</li>
+<li>
+<p><code>\</code></p>
+</li>
+<li>
+<p><code>!</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If user input is to be included in the arguments of a command, the application
+must ensure that dangerous options or argument delimiters are neutralized.<br>
+Argument delimiters count <code>'</code>, <code>-</code> and spaces.</p>
+</div>
+<div class="paragraph">
+<p>For example, the <code>find</code> command from UNIX supports the dangerous argument
+<code>-exec</code>.<br>
+In this case, option processing can be terminated with a string containing <code>--</code>
+or with special options. For example, <code>git</code> supports
+<code>--end-of-options</code> <a href="https://github.blog/2019-11-03-highlights-from-git-2-24/#tidbits">since its version 2.24</a>.</p>
+</div>
+<div class="paragraph">
+<p>In the example compliant code, the <code>escape</code> function from the <code>shell-escape-tag</code> is used to properly
+escape the user-supplied command argument. It can then safely be used in the
+trusted command template.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls_2">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_loose_typing_2">Loose typing</h4>
+<div class="paragraph">
+<p>Because JavaScript is a loosely typed language, extra care should be taken
+when accepting user-controlled parameters. Indeed, some methods, that can be
+used to sanitize untrusted parameters, sometimes accept both objects and object
+arrays.</p>
+</div>
+<div class="paragraph">
+<p>For example, the <code>Array.concat</code> function accepts an array as argument and will
+append all of its elements to its target. When an untrusted parameter is an
+array, while a single string was expected, using <code>concat</code> to build a command
+argument list can result in an arbitrary argument injection.</p>
+</div>
+<div class="paragraph">
+<p>It is therefore of prime importance to check the type of untrusted parameters
+before processing them.</p>
+</div>
+<div class="paragraph">
+<p>In the above compliant code example, the <code>shell.escape</code> function has this
+behavior. However, a type check has been introduced to prevent any unexpected
+issue.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html">OS Command Injection Defense Cheat Sheet</a></p>
+</li>
+<li>
+<p>GTFOBins - <a href="https://gtfobins.github.io/#+shell">list of Unix binaries that can be used to bypass local security restrictions</a></p>
+</li>
+<li>
+<p>LOLBAS - <a href="https://lolbas-project.github.io/#">list of Windows binaries that can be used to bypass local security restrictions</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/78">CWE-78 - Improper Neutralization of Special Elements used in an OS Command</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222604">Application Security and Development: V-222604</a> - The application must protect from command injection.</p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct the OS command from user-controlled data.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s4721">is related to: <a data-rspec-id="S4721" class="rspec-auto-link">S4721</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_9_apr_2015_184102_ann_campbell_wrote">on 9 Apr 2015, 18:41:02 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Applies to JavaScript via HTML5</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_26_apr_2018_174916_ann_campbell_wrote">on 26 Apr 2018, 17:49:16 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~dinesh.bolkensteyn] this rule is implemented for ABAP, &amp; that description content you just dropped probably still applies there&#8230;&#8203;</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_apr_2018_203622_ann_campbell_wrote">on 27 Apr 2018, 20:36:22 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~dinesh] we do trac CERT references (there&#8217;s even a field for that! :)). Feel free to add the reference you found.</p>
+</div>
+</div>
+</div>
+</div>

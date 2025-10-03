@@ -1,0 +1,207 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a cancellation scope (timeout context) is used without any checkpoints making the timeout functionality ineffective.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When using asynchronous programming with libraries like <code>trio</code> or <code>anyio</code>, cancellation scopes (timeout contexts) are used to implement timeouts and cancellation.
+However, these mechanisms only work when there are checkpoints within the scope where cancellation can occur. Without any checkpoints, the timeout will never be triggered, making it ineffective.</p>
+</div>
+<div class="paragraph">
+<p>A checkpoint is a point in the code where cancellation can be detected and acted upon. Common checkpoints include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Explicit calls to the checkpoint method of the used framework</p>
+</li>
+<li>
+<p><code>yield</code> statements</p>
+</li>
+<li>
+<p><code>await</code> statements</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Without proper checkpoints in cancel scopes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Timeouts won&#8217;t work as expected</p>
+</li>
+<li>
+<p>Resources might be held longer than intended</p>
+</li>
+<li>
+<p>The application might become unresponsive or hang</p>
+</li>
+<li>
+<p>Cancellation operations won&#8217;t be honored</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_asyncio">How to fix it in Asyncio</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There is no direct checkpoint method in <code>asyncio</code>, but you can use <code>await asyncio.sleep(0)</code> as a workaround.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import asyncio
+
+async def process_data(data):
+    try:
+        async with asyncio.timeout(1.0):  # Noncompliant
+            result = expensive_computation(data)
+            return result
+    except asyncio.TimeoutError:
+        return None</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import asyncio
+
+async def process_data(data):
+    try:
+        async with asyncio.timeout(1.0):  # Compliant
+            result = expensive_computation(data)
+            await asyncio.sleep(0)
+            return result
+    except asyncio.TimeoutError:
+        return None</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_trio">How to fix it in Trio</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import trio
+
+async def process_data(data):
+    async with trio.move_on_after(1.0):  # Noncompliant
+        result = expensive_computation(data)
+        return result</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import trio
+
+async def process_data(data):
+    async with trio.move_on_after(1.0):  # Compliant
+        result = expensive_computation(data)
+        await trio.lowlevel.checkpoint()
+        return result</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_anyio">How to fix it in AnyIO</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import anyio
+
+async def process_data(data):
+    async with anyio.move_on_after(1.0):  # Noncompliant
+        result = expensive_computation(data)
+        return result</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import anyio
+
+async def process_data(data):
+    async with anyio.move_on_after(1.0):  # Compliant
+        result = expensive_computation(data)
+        await anyio.lowlevel.checkpoint()
+        return result</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Trio documentation - <a href="https://trio.readthedocs.io/en/stable/reference-core.html#cancellation-and-timeouts">Cancellation and timeouts</a></p>
+</li>
+<li>
+<p>AnyIO documentation - <a href="https://anyio.readthedocs.io/en/stable/cancellation.html#timeouts">Timeouts</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Add a checkpoint to the cancel scope.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>The async with statement</p>
+</div>
+</div>
+</div>
+</div>

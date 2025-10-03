@@ -1,0 +1,191 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when Rails models directly access controller-specific methods like <code>current_user</code>, <code>session</code>, <code>params</code>, <code>request</code>, <code>flash</code>, or <code>cookies</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Rails follows the Model-View-Controller (MVC) architectural pattern, which separates concerns into distinct layers. Models should focus on business logic and data persistence, while controllers handle web-specific concerns like user sessions, request parameters, and HTTP context.</p>
+</div>
+<div class="paragraph">
+<p>When models directly access web layer components, several problems arise:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Tight coupling</strong>: The model becomes dependent on the web layer, making it harder to change either layer independently.</p>
+</li>
+<li>
+<p><strong>Reduced testability</strong>: Testing models becomes more complex because they require web context to function properly.</p>
+</li>
+<li>
+<p><strong>Limited reusability</strong>: Models cannot be used outside of web requests, such as in background jobs, rake tasks, or console operations.</p>
+</li>
+<li>
+<p><strong>Runtime errors</strong>: Controller methods are not available in model contexts, leading to <code>undefined method</code> errors.</p>
+</li>
+<li>
+<p><strong>Violation of separation of concerns</strong>: Models should not know about HTTP requests, sessions, or user interface concerns.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This architectural violation makes the codebase harder to maintain, test, and extend over time.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Applications with models that access web layer components directly face several risks:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Runtime failures</strong>: Models may crash with <code>undefined method</code> errors when used outside of controller contexts, such as in background jobs or console operations.</p>
+</li>
+<li>
+<p><strong>Testing difficulties</strong>: Unit tests for models become complex and brittle, requiring mock web contexts and making tests slower and harder to maintain.</p>
+</li>
+<li>
+<p><strong>Reduced code reusability</strong>: Models cannot be easily reused in different contexts like API endpoints, background processing, or command-line tools.</p>
+</li>
+<li>
+<p><strong>Maintenance overhead</strong>: Changes to controller interfaces may break model functionality, creating unexpected dependencies and making refactoring more difficult.</p>
+</li>
+<li>
+<p><strong>Architectural debt</strong>: The codebase becomes harder to understand and modify as the separation between layers becomes blurred.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Pass user data as explicit parameters instead of accessing <code>current_user</code> directly in models. Handle web-specific concerns like session tracking in the controller layer.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Document &lt; ActiveRecord::Base
+  belongs_to :user
+
+  def can_edit?
+    current_user &amp;&amp; (current_user.admin? || self.user_id == current_user.id) # Noncompliant
+  end
+
+  def track_access
+    session[:last_accessed] = Time.current # Noncompliant
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Document &lt; ActiveRecord::Base
+  belongs_to :user
+
+  def can_edit?(user)
+    user &amp;&amp; (user.admin? || self.user_id == user.id)
+  end
+end
+
+# In controller
+class DocumentsController &lt; ApplicationController
+  def show
+    @document = Document.find(params[:id])
+    session[:last_accessed] = Time.current
+    redirect_to root_path unless @document.can_edit?(current_user)
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Extract request data in the controller and pass it as parameters to model methods instead of accessing request objects directly in models.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class User &lt; ActiveRecord::Base
+  def save_with_tracking
+    self.source_url = request.request_uri # Noncompliant
+    self.created_from_ip = request.remote_ip # Noncompliant
+    save
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class User &lt; ActiveRecord::Base
+  def save_with_tracking(source_url, ip_address)
+    self.source_url = source_url
+    self.created_from_ip = ip_address
+    save
+  end
+end
+
+# In controller
+class UsersController &lt; ApplicationController
+  def create
+    @user = User.new(user_params)
+    @user.save_with_tracking(request.request_uri, request.remote_ip)
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Guides - Models - <a href="https://guides.rubyonrails.org/active_record_basics.html">Official Rails documentation on Active Record models and their responsibilities</a></p>
+</li>
+<li>
+<p>Rails Guides - Controllers - <a href="https://guides.rubyonrails.org/action_controller_overview.html">Official Rails documentation on Action Controller and handling web requests</a></p>
+</li>
+<li>
+<p>MVC Architecture Pattern - <a href="https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller">Overview of the Model-View-Controller architectural pattern and separation of concerns</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>SOLID Principles - Single Responsibility Principle - <a href="https://en.wikipedia.org/wiki/Single-responsibility_principle">Each class should have only one reason to change, supporting separation of concerns</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

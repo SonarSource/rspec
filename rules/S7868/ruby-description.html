@@ -1,0 +1,185 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when iterating over ActiveRecord collections that may contain large numbers of records using methods like <code>all.each</code>, <code>each</code>, <code>map</code>, or <code>to_a</code>, which load all records into memory simultaneously.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When working with ActiveRecord collections, methods like <code>all.each</code>, <code>each</code>, <code>map</code>, or <code>to_a</code> load all matching records into memory at once. This approach can cause serious problems:</p>
+</div>
+<div class="paragraph">
+<p><strong>Memory Exhaustion</strong>: Loading thousands or millions of records simultaneously can consume excessive memory, potentially causing the application to crash with out-of-memory errors.</p>
+</div>
+<div class="paragraph">
+<p><strong>Poor Performance</strong>: Large memory allocations can trigger frequent garbage collection cycles, significantly slowing down the application.</p>
+</div>
+<div class="paragraph">
+<p><strong>Resource Contention</strong>: High memory usage can impact other parts of the application and the system as a whole.</p>
+</div>
+<div class="paragraph">
+<p><strong>Scalability Issues</strong>: As the dataset grows, the memory requirements grow proportionally, making the application less scalable.</p>
+</div>
+<div class="paragraph">
+<p>ActiveRecord provides batch processing methods specifically designed to handle large datasets efficiently. These methods process records in manageable chunks (batches), keeping memory usage constant regardless of the total dataset size. The default batch size is 1000 records, but this can be customized based on your needs.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Memory exhaustion can cause application crashes, especially in production environments with large datasets. Poor performance due to excessive memory allocation and garbage collection can significantly degrade user experience. In extreme cases, the application may become unresponsive or require restart.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use <code>find_each</code> instead of <code>each</code> for iterating over individual records. This method processes records in batches of 1000 by default, keeping memory usage constant.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">User.all.each do |user|
+  user.send_notification # Noncompliant
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">User.find_each do |user|
+  user.send_notification
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use <code>find_in_batches</code> when you need to process records in batches rather than individually. This is useful for operations that can be optimized by working with groups of records.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">Person.where("age &gt; 21").to_a.each do |person|
+  process(person) # Noncompliant
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">Person.where("age &gt; 21").find_in_batches(batch_size: 1000) do |batch|
+  batch.each { |person| process(person) }
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use <code>update_all</code> for bulk updates instead of iterating over records and updating them individually. This generates a single SQL UPDATE statement instead of multiple queries.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">Product.where(category: 'electronics').each do |product|
+  product.update(stale: true) # Noncompliant
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">Product.where(category: 'electronics').update_all(stale: true)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use <code>in_batches</code> when you need to chain additional query methods on batches. This method returns ActiveRecord relations that can be further queried.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_4">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">User.where(active: true).all.each do |user|
+  update_user_stats(user) # Noncompliant
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">User.where(active: true).in_batches(of: 1000) do |users|
+  users.update_all(last_processed: Time.current)
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Guides - Active Record Query Interface - <a href="https://guides.rubyonrails.org/active_record_querying.html#retrieving-multiple-objects-in-batches">Official Rails documentation on batch processing methods including find_each, find_in_batches, and in_batches</a></p>
+</li>
+<li>
+<p>Rails API Documentation - Batches - <a href="https://api.rubyonrails.org/classes/ActiveRecord/Batches.html">Complete API reference for ActiveRecord batch processing methods</a></p>
+</li>
+<li>
+<p>Rails Style Guide - find_each - <a href="https://rails.rubystyle.guide/#find-each">Community style guide recommendations for using find_each with large collections</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-400: Uncontrolled Resource Consumption - <a href="https://cwe.mitre.org/data/definitions/400.html">Describes the security implications of uncontrolled resource consumption, including memory exhaustion</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2068" class="rspec-auto-link">RSPEC-2068</a> - <a href="https://rules.sonarsource.com/ruby/RSPEC-2068/">Objects should not be created only to getClass</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
