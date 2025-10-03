@@ -1,0 +1,97 @@
+This rule raises an issue when an Apex HTTP callout is made without implementing retry logic to handle transient failures.
+
+== Why is this an issue?
+
+Unlike Outbound Messaging, Apex callouts do not have built-in retry mechanisms. When you make an HTTP callout without retry logic, temporary network issues, service timeouts, or brief service unavailability will cause the callout to fail permanently.
+
+This creates several problems:
+
+* *Data loss*: Failed callouts may result in lost data that cannot be recovered
+* *Poor user experience*: Users may see errors for temporary issues that could be resolved with a simple retry
+* *Reduced system reliability*: Your integration becomes fragile and prone to failure
+* *Increased support burden*: More manual intervention needed to handle failed integrations
+
+Transient failures are common in distributed systems. Network hiccups, temporary service overload, or brief maintenance windows can cause callouts to fail even when the target service is generally available. Without retry logic, these temporary issues become permanent failures.
+
+Implementing retry logic with exponential backoff helps distinguish between temporary issues (which can be resolved by waiting and retrying) and permanent failures (which need different handling). This makes your integrations more robust and reliable.
+
+=== What is the potential impact?
+
+Failed callouts due to transient network issues can result in data loss, poor user experience, and reduced system reliability. Critical business processes that depend on external integrations may fail unnecessarily.
+
+== How to fix it
+
+Wrap HTTP callouts in retry logic with proper exception handling. Use a loop to retry failed requests, and implement exponential backoff to avoid overwhelming failing services.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@future(callout=true)
+public static void makeCallout() {
+    Http http = new Http();
+    HttpRequest request = new HttpRequest();
+    request.setEndpoint('https://api.example.com/data');
+    request.setMethod('POST');
+    HttpResponse response = http.send(request); // Noncompliant
+    // No retry logic - fails permanently on transient issues
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@future(callout=true)
+public static void makeCallout() {
+    Integer maxRetries = 3;
+    Integer retryDelay = 1000; // Start with 1 second
+    
+    for (Integer attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            Http http = new Http();
+            HttpRequest request = new HttpRequest();
+            request.setEndpoint('https://api.example.com/data');
+            request.setMethod('POST');
+            request.setTimeout(10000);
+            
+            HttpResponse response = http.send(request);
+            
+            // Success - exit retry loop
+            if (response.getStatusCode() >= 200 && response.getStatusCode() < 300) {
+                break;
+            }
+            
+            // Server error - retry
+            if (response.getStatusCode() >= 500 && attempt < maxRetries - 1) {
+                System.debug('Server error, retrying in ' + retryDelay + 'ms');
+                // Exponential backoff
+                retryDelay *= 2;
+                continue;
+            }
+            
+        } catch (Exception e) {
+            if (attempt == maxRetries - 1) {
+                // Final attempt failed - rethrow
+                throw e;
+            }
+            System.debug('Callout failed, retrying: ' + e.getMessage());
+            retryDelay *= 2;
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex HTTP Callouts - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_callouts_http.htm[Official Salesforce documentation on making HTTP callouts in Apex]
+
+ * Callout Limits and Timeouts - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_callouts_timeouts.htm[Documentation on Apex callout limits and timeout handling]
+
+=== Standards
+
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Failure to handle exceptional conditions like network timeouts]
