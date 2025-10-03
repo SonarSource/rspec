@@ -1,0 +1,86 @@
+This rule raises an issue when Apex methods that handle integration operations lack try-catch blocks and appropriate error handling mechanisms.
+
+== Why is this an issue?
+
+Integration operations in Apex are inherently prone to failures due to network issues, data inconsistencies, external system unavailability, or unexpected data formats. Without proper error handling, these failures can cause several problems:
+
+**Silent Failures**: When integration code fails without proper error handling, exceptions may be swallowed or go unnoticed, making it extremely difficult to diagnose issues. This leads to data processing gaps that might only be discovered much later.
+
+**Workflow Disruption**: Unhandled exceptions in integration methods can cause entire workflows to fail abruptly. In Data Cloud operations, async triggers, or flow-based integrations, this can result in incomplete data processing and inconsistent system states.
+
+**Poor Debugging Experience**: Without proper logging and error context, developers spend significantly more time troubleshooting integration issues. Error messages become generic and unhelpful, making root cause analysis challenging.
+
+**Data Integrity Risks**: Failed integration operations without proper rollback mechanisms can leave data in inconsistent states across systems. This is particularly critical in Data Cloud scenarios where real-time data synchronization is essential.
+
+**Reduced System Reliability**: Integration methods without error handling create fragile systems that are vulnerable to cascading failures, especially in complex integration scenarios involving multiple external systems.
+
+=== What is the potential impact?
+
+Without proper error handling in integration code, applications face increased risk of data loss, system instability, and difficult-to-diagnose failures. Silent integration failures can lead to data inconsistencies across systems, while unhandled exceptions can disrupt critical business workflows and reduce overall system reliability.
+
+== How to fix it
+
+Wrap integration operations in try-catch blocks and implement appropriate logging. Use specific exception types when possible to provide better error context.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class DataIntegrationService {
+    @future
+    public static void processDataCloudEvent(String eventData) {
+        // Process without error handling
+        DataCloudService.processEvent(eventData); // Noncompliant
+    }
+    
+    public void processIntegrationData(List<SObject> records) {
+        // Custom logic for integration
+        Database.insert(records); // Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class DataIntegrationService {
+    @future
+    public static void processDataCloudEvent(String eventData) {
+        try {
+            DataCloudService.processEvent(eventData);
+        } catch (Exception e) {
+            System.debug('Error processing Data Cloud event: ' + e.getMessage());
+            // Log error for monitoring and alerting
+        }
+    }
+    
+    public void processIntegrationData(List<SObject> records) {
+        try {
+            Database.insert(records);
+        } catch (DmlException e) {
+            System.debug('Integration DML error: ' + e.getMessage());
+            throw new IntegrationException('Failed to process integration data: ' + e.getDmlMessage(0));
+        } catch (Exception e) {
+            System.debug('Unexpected integration error: ' + e.getMessage());
+            throw new IntegrationException('Unexpected error during data processing');
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Exception Handling - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_handling.htm[Official Salesforce documentation on exception handling in Apex]
+
+ * Data Cloud Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.c360a_api.meta/c360a_api/[Comprehensive guide for developing with Salesforce Data Cloud]
+
+ * Apex Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_best_practices.htm[Best practices for writing robust Apex code]
+
+=== Standards
+
+ * CWE-248: Uncaught Exception - https://cwe.mitre.org/data/definitions/248.html[Weakness related to uncaught exceptions that can lead to system instability]
