@@ -1,0 +1,57 @@
+This rule raises an issue when a test method calls a future method without wrapping the call between `Test.startTest()` and `Test.stopTest()`.
+
+== Why is this an issue?
+
+Future methods in Apex execute asynchronously, meaning they run in a separate thread when system resources are available. In test methods, this creates a timing problem: assertions may execute before the future method completes its work, leading to unreliable test results.
+
+When you call a future method in a test without proper synchronization, the test continues executing immediately after the method call. Any assertions that depend on the future method's side effects (like database changes) will likely fail because they run before the asynchronous operation finishes.
+
+The `Test.startTest()` and `Test.stopTest()` methods provide a solution by creating a synchronization boundary. When `Test.stopTest()` is called, it waits for all queued asynchronous operations to complete before allowing the test to continue. This ensures that assertions run after the future method has finished its work.
+
+Without this pattern, tests become flaky and unreliable, potentially passing or failing based on system load and timing rather than actual code correctness.
+
+=== What is the potential impact?
+
+Tests may produce inconsistent results, sometimes passing and sometimes failing based on system timing rather than code correctness. This leads to unreliable test suites that can miss real bugs or create false alarms during deployment processes.
+
+== How to fix it
+
+Wrap the future method call between `Test.startTest()` and `Test.stopTest()` to ensure the asynchronous operation completes before assertions run.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@isTest
+static void testFutureMethod() {
+    Set<Id> ids = new Set<Id>{'001000000000001'};
+    MyClass.futureMethod(ids); // Noncompliant
+    // Assertions may run before future method completes
+    System.assertEquals(1, [SELECT COUNT() FROM Account]);
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@isTest
+static void testFutureMethod() {
+    Set<Id> ids = new Set<Id>{'001000000000001'};
+    Test.startTest();
+    MyClass.futureMethod(ids);
+    Test.stopTest(); // Waits for future method to complete
+    // Assertions now run after future method finishes
+    System.assertEquals(1, [SELECT COUNT() FROM Account]);
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Test Class Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_testing_best_practices.htm[Official Salesforce documentation on test class best practices including asynchronous testing]
+
+ * Testing Future Methods - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_testing_future_methods.htm[Salesforce documentation specifically about testing future methods]
