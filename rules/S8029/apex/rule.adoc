@@ -1,0 +1,65 @@
+This rule raises an issue when DML operations (insert, update, delete, upsert) are performed on the same records (`Trigger.new` or `Trigger.old`) within an after trigger context.
+
+== Why is this an issue?
+
+In Salesforce Apex, after triggers have a specific purpose and limitation that developers must understand.
+
+After triggers fire after the database operation has completed. At this point, the records that triggered the event (`Trigger.new` and `Trigger.old`) are read-only and cannot be modified through DML operations. This is by design in the Salesforce platform.
+
+The Salesforce trigger framework provides two distinct contexts:
+
+* *Before triggers* execute before the record is saved to the database. In this context, you can directly modify field values on the triggering records without performing DML operations.
+* *After triggers* execute after the record is committed to the database. These records now have system-generated values like `Id` and `LastModifiedDate`, but they cannot be modified.
+
+Attempting DML operations on the same records in an after trigger will result in a runtime exception, causing the entire transaction to fail. This can break functionality and create a poor user experience.
+
+=== What is the potential impact?
+
+When this pattern is used, the application will throw a runtime exception during trigger execution, causing the entire database transaction to roll back. This results in:
+
+* Failed record operations that users expect to succeed
+* Poor user experience with cryptic error messages
+* Potential data inconsistency if the failure occurs in complex business processes
+* Increased support burden from users reporting "broken" functionality
+
+== How to fix it
+
+Move the field updates to a before trigger where you can directly modify the record fields without DML operations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+trigger AccountAfterTrigger on Account (after insert) {
+    List<Account> accountsToUpdate = new List<Account>();
+    for(Account acc : Trigger.new) {
+        acc.Description = 'Updated in after trigger'; // Noncompliant
+        accountsToUpdate.add(acc);
+    }
+    update accountsToUpdate; // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+trigger AccountBeforeTrigger on Account (before insert) {
+    for(Account acc : Trigger.new) {
+        acc.Description = 'Updated in before trigger';
+        // No DML needed - direct field assignment
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Triggers - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers.htm[Official Salesforce documentation on Apex triggers]
+
+ * Trigger Context Variables - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_context_variables.htm[Documentation on trigger context variables and their usage]
+
+ * Before vs After Triggers - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_best_practices.htm[Best practices for using before and after triggers]
