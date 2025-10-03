@@ -1,0 +1,51 @@
+This rule raises an issue when `System.abortJob()` is called on batch jobs without first filtering by job status.
+
+== Why is this an issue?
+
+When you call `System.abortJob()` without checking the job status first, you may attempt to abort jobs that are already completed, failed, or aborted. This creates unnecessary overhead and can lead to confusing error messages.
+
+Batch jobs in Salesforce can have various statuses: Queued, Processing, Completed, Failed, Aborted, and others. Only jobs with "Queued" or "Processing" status can be successfully aborted. Attempting to abort jobs in other states will either fail silently or throw exceptions, depending on the specific status.
+
+This pattern often occurs when developers query all batch jobs and then loop through them calling `System.abortJob()` without consideration for the current state. While this might seem like a simple approach, it wastes system resources and can mask real issues when legitimate abort operations fail.
+
+A better approach is to filter jobs by their status in the SOQL query itself, ensuring you only attempt to abort jobs that are actually running or waiting to run. This makes your code more efficient and your intentions clearer.
+
+=== What is the potential impact?
+
+Attempting to abort jobs that cannot be aborted wastes system resources and may generate unnecessary error logs. It can also mask legitimate failures when trying to abort jobs that should be abortable.
+
+== How to fix it
+
+Filter batch jobs by status in your SOQL query to only include jobs that can be aborted (Queued or Processing status).
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob WHERE JobType = 'BatchApex'];
+for (AsyncApexJob job : jobs) {
+    System.abortJob(job.Id); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+List<AsyncApexJob> jobs = [SELECT Id, Status FROM AsyncApexJob 
+                           WHERE JobType = 'BatchApex' 
+                           AND Status IN ('Queued', 'Processing')];
+for (AsyncApexJob job : jobs) {
+    System.abortJob(job.Id);
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * AsyncApexJob Object Reference - https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_asyncapexjob.htm[Official Salesforce documentation for the AsyncApexJob object and its Status field values]
+
+ * System.abortJob() Method - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_system.htm#apex_System_System_abortJob_1[Documentation for the System.abortJob() method and its behavior]
