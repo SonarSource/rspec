@@ -1,0 +1,50 @@
+This rule raises an issue when code manually iterates through SOQL query results to collect record IDs into a collection.
+
+== Why is this an issue?
+
+When you need to extract IDs from SOQL query results, manually looping through records is inefficient and consumes unnecessary CPU time.
+
+In Salesforce Apex, CPU time is limited (10 seconds for synchronous operations, 60 seconds for asynchronous). Every loop iteration adds to this CPU consumption, and with large datasets, this can quickly lead to governor limit exceptions.
+
+The Map constructor provides a built-in optimization for this common pattern. When you pass a SOQL query to a Map constructor like `new Map<Id, SObject>(soqlQuery)`, Salesforce automatically creates a map where record IDs become the keys. This happens at the platform level without additional CPU overhead from your code.
+
+This approach is not only more performant but also more concise and readable. You can then use `keySet()` to get the Set of IDs if needed, or work directly with the Map for lookups.
+
+=== What is the potential impact?
+
+Manual ID extraction loops consume unnecessary CPU time, which can lead to governor limit exceptions in environments with large datasets or complex processing. This becomes particularly problematic in batch operations or when multiple automations are running simultaneously.
+
+The inefficiency compounds when dealing with hundreds or thousands of records, potentially causing transaction failures and poor user experience.
+
+== How to fix it
+
+Replace the manual loop with a Map constructor that takes the SOQL query directly. Use the keySet() method to get the Set of IDs if needed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+List<Account> accList = [SELECT Id, Name FROM Account LIMIT 100];
+Set<Id> setIds = new Set<Id>();
+for(Account acc : accList) {
+    setIds.add(acc.Id); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+Map<Id, Account> accountMap = new Map<Id, Account>([SELECT Id, Name FROM Account LIMIT 100]);
+Set<Id> setIds = accountMap.keySet();
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Developer Guide - Maps - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/langCon_apex_collections_maps.htm[Official Salesforce documentation on Map collections and constructors]
+
+ * Apex CPU Time Limit Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Salesforce documentation on governor limits and CPU time optimization]
