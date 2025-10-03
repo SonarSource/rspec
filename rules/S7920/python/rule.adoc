@@ -1,0 +1,69 @@
+This is an issue when classes have bidirectional relationships and are serialized to JSON without proper Jackson annotations, causing infinite recursion and StackOverflowError.
+
+== Why is this an issue?
+
+When two entities reference each other bidirectionally, Jackson attempts to serialize the entire object graph. Without proper annotations, Jackson will serialize Entity A, which contains Entity B, which contains Entity A again, creating an infinite loop.
+
+This infinite recursion continues until the call stack is exhausted, resulting in a `StackOverflowError` that crashes the application. This is particularly common with JPA entities that have `@OneToMany` and `@ManyToOne` relationships.
+
+The problem occurs because Jackson's default behavior is to follow all object references during serialization. In bidirectional relationships, this creates a circular reference that Jackson cannot resolve on its own.
+
+For example, consider an `Order` entity with a collection of `OrderDetail` entities, where each `OrderDetail` has a reference back to its parent `Order`. During serialization, Jackson will serialize the `Order`, then each `OrderDetail`, then the `Order` reference within each `OrderDetail`, then the `OrderDetail` collection again, and so on indefinitely.
+
+=== What is the potential impact?
+
+Without proper Jackson annotations, applications will crash with `StackOverflowError` during JSON serialization of bidirectional relationships. This leads to:
+
+* Application crashes and service unavailability
+* Poor user experience with failed API responses
+* Potential data loss if the error occurs during critical operations
+* Difficult debugging due to very long stack traces
+* Performance degradation before the crash as the call stack grows
+
+=== How to fix?
+
+
+Use @JsonManagedReference on the parent/owning side (typically collections) and @JsonBackReference on the child/inverse side (typically single object references). These annotations work as a pair to break the circular reference.
+
+==== Non-compliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+@Entity
+public class Order {
+    @OneToMany(mappedBy = "order")
+    private Set<OrderDetail> orderDetails; // Noncompliant
+}
+
+@Entity
+public class OrderDetail {
+    @ManyToOne
+    private Order order; // Noncompliant
+}
+----
+
+==== Compliant code example
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@Entity
+public class Order {
+    @JsonManagedReference
+    @OneToMany(mappedBy = "order")
+    private Set<OrderDetail> orderDetails;
+}
+
+@Entity
+public class OrderDetail {
+    @JsonBackReference
+    @ManyToOne
+    private Order order;
+}
+----
+
+=== Documentation
+
+ * Jackson Bidirectional Relationships and Infinite Recursion - https://www.baeldung.com/jackson-bidirectional-relationships-and-infinite-recursion[Comprehensive guide on handling bidirectional relationships in Jackson]
+ * Jackson Annotations Guide - https://www.baeldung.com/jackson-annotations[Complete reference for Jackson annotations including @JsonManagedReference and @JsonBackReference]
+ * Jackson Reference Documentation - https://github.com/FasterXML/jackson-annotations/wiki/Jackson-Annotations[Official Jackson annotations documentation]
+

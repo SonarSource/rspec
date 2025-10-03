@@ -1,0 +1,90 @@
+This rule raises an issue when a class extends `TypeIdResolverBase` but does not implement the essential methods `idFromValueAndType()` and `typeFromId()`.
+
+== Why is this an issue?
+
+When creating a custom `TypeIdResolver` by extending `TypeIdResolverBase`, you need to implement specific methods to handle both serialization and deserialization of polymorphic types.
+
+The `TypeIdResolverBase` class provides a foundation for custom type ID resolution, but it requires you to implement the core logic:
+
+* `idFromValueAndType(Object obj, Class<?> subType)` - converts Java objects to type identifiers during serialization
+* `typeFromId(DatabindContext context, String id)` - converts type identifiers back to Java types during deserialization
+
+Without these implementations, Jackson cannot properly handle polymorphic type information. The serialization process will fail to include type metadata, and deserialization will fail to reconstruct the correct object types.
+
+While `getMechanism()` defines the type inclusion strategy, it alone is insufficient. The actual conversion logic must be provided through the missing methods.
+
+=== What is the potential impact?
+
+Incomplete `TypeIdResolver` implementations will cause runtime failures during JSON processing:
+
+* Serialization may fail to include necessary type information
+* Deserialization may fail to reconstruct objects with correct types
+* Applications may crash or produce incorrect results when processing polymorphic data
+* Data integrity issues may occur in systems relying on proper type preservation
+
+=== How to fix?
+
+
+Implement both `idFromValueAndType()` and `typeFromId()` methods to handle the conversion between Java types and type identifiers.
+
+==== Non-compliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+public class BeanIdResolver extends TypeIdResolverBase {
+    @Override
+    public Id getMechanism() {
+        return Id.NAME;
+    }
+    // Missing idFromValueAndType and typeFromId implementations // Noncompliant
+}
+----
+
+==== Compliant code example
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+public class BeanIdResolver extends TypeIdResolverBase {
+    private JavaType superType;
+    
+    @Override
+    public void init(JavaType baseType) {
+        superType = baseType;
+    }
+    
+    @Override
+    public Id getMechanism() {
+        return Id.NAME;
+    }
+    
+    @Override
+    public String idFromValueAndType(Object obj, Class<?> subType) {
+        // Convert object type to string identifier
+        return subType.getSimpleName().toLowerCase();
+    }
+    
+    @Override
+    public JavaType typeFromId(DatabindContext context, String id) {
+        // Convert string identifier back to Java type
+        Class<?> subType = resolveClassFromId(id);
+        return context.constructSpecializedType(superType, subType);
+    }
+    
+    private Class<?> resolveClassFromId(String id) {
+        // Implementation to map ID to actual class
+        // This depends on your specific type mapping logic
+        return MyTypeRegistry.getClassForId(id);
+    }
+}
+----
+
+=== Documentation
+
+ * Jackson Advanced Annotations - @JsonTypeIdResolver - https://www.baeldung.com/jackson-advanced-annotations#jsontypeidresolver[Comprehensive guide to implementing custom TypeIdResolver with Jackson]
+ * Jackson TypeIdResolverBase JavaDoc - https://fasterxml.github.io/jackson-databind/javadoc/2.9/com/fasterxml/jackson/databind/jsontype/impl/TypeIdResolverBase.html[Official documentation for the TypeIdResolverBase class]
+ * Jackson Polymorphic Type Handling - https://github.com/FasterXML/jackson-docs/wiki/JacksonPolymorphicDeserialization[Jackson documentation on handling polymorphic types during serialization and deserialization]
+
+=== Standards
+
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Incomplete implementations may lead to unhandled exceptional conditions during runtime]
+
