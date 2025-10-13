@@ -1,0 +1,66 @@
+This is an issue when you define a method in an ActiveRecord model with the same name as an automatically generated dirty tracking method (like `attribute_changed?` or `attribute_was`).
+
+== Why is this an issue?
+
+ActiveRecord automatically generates dirty tracking methods for each model attribute to help you track changes. These methods follow specific naming patterns like `attribute_changed?`, `attribute_was`, `attribute_change`, and `attribute_will_change!`.
+
+When you define a custom method with the same name as one of these generated methods, you override the ActiveRecord method. This creates a serious problem: if your custom method tries to call what it thinks is the ActiveRecord method using the same name, it actually calls itself instead.
+
+This self-referential call creates infinite recursion. The method keeps calling itself over and over until the call stack is exhausted, resulting in a `SystemStackError: stack level too deep` runtime error.
+
+The issue is particularly tricky because:
+
+* The error only appears at runtime, not when the code is loaded
+* The method name looks correct and seems like it should work
+* The stack trace can be confusing and point to framework internals
+* It can cause application crashes in production
+
+This problem commonly occurs when developers want to add custom logic around change detection but accidentally choose method names that conflict with ActiveRecord's conventions.
+
+=== What is the potential impact?
+
+This causes immediate application crashes with `SystemStackError: stack level too deep` when the conflicting method is called. The error can be difficult to debug and may only surface in specific user workflows, potentially causing production outages.
+
+== How to fix it
+
+Rename your custom method to avoid the conflict. Use a descriptive prefix like `check_`, `custom_`, or `validate_` to make the method name unique while keeping its purpose clear.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class Forum < ActiveRecord::Base
+  before_update :update_nested_objects, if: :forum_type_changed?
+
+  private
+
+  def forum_type_changed? # Noncompliant
+    self.forum_type_changed? # Infinite recursion!
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class Forum < ActiveRecord::Base
+  before_update :update_nested_objects, if: :check_forum_type_changed?
+
+  private
+
+  def check_forum_type_changed?
+    self.forum_type_changed? # Calls ActiveRecord's method
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Dirty Tracking - https://api.rubyonrails.org/classes/ActiveModel/Dirty.html[Official Rails documentation for dirty tracking methods and their naming conventions]
+
+ * ActiveRecord Attribute Methods - https://api.rubyonrails.org/classes/ActiveRecord/AttributeMethods.html[Documentation on how ActiveRecord generates attribute methods including dirty tracking]
