@@ -1,0 +1,68 @@
+This rule raises an issue when the `instanceof` operator is used on a field that could be null without a prior null check.
+
+== Why is this an issue?
+
+In Apex, polymorphic fields like `WhoId` and `WhatId` can reference different object types or be null. When you use the `instanceof` operator on a null reference, it throws a `NullPointerException` at runtime.
+
+Polymorphic fields are commonly used in Salesforce objects like Task and Event, where a single field can point to different types of records. For example, the `Who` field on a Task can reference either a Contact or a Lead record.
+
+Developers often use `instanceof` to determine the actual type of the polymorphic field before casting it to the specific type. However, if the field is null (which can happen when the related record is deleted or the field was never populated), the `instanceof` check will fail with a runtime exception.
+
+This issue is particularly problematic because:
+
+* It causes unexpected runtime failures that can break user workflows
+* The error might not be caught during testing if test data always has populated polymorphic fields
+* It can lead to poor user experience when operations fail unexpectedly
+
+=== What is the potential impact?
+
+When this issue occurs, it results in a `NullPointerException` at runtime, which can:
+
+* Cause transaction failures and rollbacks
+* Break user workflows and business processes
+* Lead to poor user experience with unexpected error messages
+* Make the application appear unreliable to end users
+
+== How to fix it
+
+Add a null check before using the `instanceof` operator. Use the logical AND operator (`&&`) to ensure both conditions are met: the field is not null AND it is an instance of the expected type.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+if(task.Who instanceof Contact) { // Noncompliant
+    Contact con = (Contact) task.Who;
+    System.debug('Contact: ' + con.Name);
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+if(task.Who != null && task.Who instanceof Contact) {
+    Contact con = (Contact) task.Who;
+    System.debug('Contact: ' + con.Name);
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Polymorphic Relationships in SOQL Queries - https://www.apexhours.com/working-with-polymorphic-relationships-in-soql-queries[Guide on working with polymorphic fields in Salesforce and using instanceof safely]
+
+ * Apex Developer Guide - instanceof Operator - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/langCon_apex_expressions_operators_instanceof.htm[Official Salesforce documentation on the instanceof operator in Apex]
+
+ * Null Pointer Exceptions in Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_exception_methods.htm[Salesforce documentation on handling exceptions including NullPointerException]
+
+=== Standards
+
+ * CWE-476: NULL Pointer Dereference - https://cwe.mitre.org/data/definitions/476.html[Common weakness related to dereferencing null pointers]
+
+=== Related rules
+
+ * RSPEC-4201 - https://rules.sonarsource.com/java/RSPEC-4201/[Java rule for null checks before instanceof operations]
