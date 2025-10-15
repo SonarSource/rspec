@@ -1,0 +1,129 @@
+This rule raises an issue when string literals are used as encryption keys in Apex code, particularly with the Crypto class methods.
+
+== Why is this an issue?
+
+Hardcoding encryption keys directly in source code creates serious security vulnerabilities. When encryption keys are embedded as string literals in Apex classes, they become visible to anyone with access to the codebase, including developers, administrators, and potentially attackers who gain unauthorized access.
+
+Encryption keys are sensitive secrets that protect confidential data. If these keys are compromised, attackers can decrypt sensitive information, potentially leading to data breaches and compliance violations. Hardcoded keys are particularly problematic because they:
+
+* Remain static and cannot be easily rotated without code changes
+* Are visible in version control systems and code repositories
+* Can be accidentally exposed in logs, error messages, or debugging output
+* Violate the principle of separation of concerns between code and configuration
+
+In Salesforce environments, this risk is amplified because Apex code can be accessed by users with appropriate permissions, and metadata can be retrieved through various APIs and tools.
+
+=== What is the potential impact?
+
+Exposure of hardcoded encryption keys can lead to unauthorized decryption of sensitive data, resulting in data breaches, compliance violations, and loss of customer trust. Attackers who obtain these keys can decrypt confidential information, potentially accessing personal data, financial records, or other protected information.
+
+== How to fix it in Salesforce
+
+Store encryption keys in Custom Settings to keep them separate from code and allow secure configuration management.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class DataEncryption {
+    private static final String ENCRYPTION_KEY = 'myEncryptionKey123456'; // Noncompliant
+    
+    public String encryptData(String data) {
+        Blob key = Blob.valueOf(ENCRYPTION_KEY);
+        return EncodingUtil.base64Encode(Crypto.encrypt('AES128', key, Blob.valueOf(data)));
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class DataEncryption {
+    private static final String ENCRYPTION_KEY = Encryption_Settings__c.getInstance().Key__c;
+    
+    public String encryptData(String data) {
+        Blob key = Blob.valueOf(ENCRYPTION_KEY);
+        return EncodingUtil.base64Encode(Crypto.encrypt('AES128', key, Blob.valueOf(data)));
+    }
+}
+----
+
+Use Custom Metadata Types for more flexible and deployable key management across different environments.
+
+==== Noncompliant code example
+
+[source,apex,diff-id=2,diff-type=noncompliant]
+----
+public class SecureProcessor {
+    public static String processSecureData(String input) {
+        String secretKey = 'hardcodedSecret123'; // Noncompliant
+        Blob keyBlob = Blob.valueOf(secretKey);
+        return EncodingUtil.base64Encode(Crypto.encrypt('AES256', keyBlob, Blob.valueOf(input)));
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=2,diff-type=compliant]
+----
+public class SecureProcessor {
+    public static String processSecureData(String input) {
+        Encryption_Config__mdt config = Encryption_Config__mdt.getInstance('Default');
+        String secretKey = config.Key_Value__c;
+        Blob keyBlob = Blob.valueOf(secretKey);
+        return EncodingUtil.base64Encode(Crypto.encrypt('AES256', keyBlob, Blob.valueOf(input)));
+    }
+}
+----
+
+Use Protected Custom Settings for enhanced security where keys are not visible to standard users and administrators.
+
+==== Noncompliant code example
+
+[source,apex,diff-id=3,diff-type=noncompliant]
+----
+public class CryptoUtil {
+    private static final String API_KEY = 'sk_live_abcd1234567890'; // Noncompliant
+    
+    public static String encryptApiData(String data) {
+        Blob keyBlob = Blob.valueOf(API_KEY);
+        return EncodingUtil.base64Encode(Crypto.encrypt('AES128', keyBlob, Blob.valueOf(data)));
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=3,diff-type=compliant]
+----
+public class CryptoUtil {
+    private static final String API_KEY = Protected_Keys__c.getInstance().API_Key__c;
+    
+    public static String encryptApiData(String data) {
+        Blob keyBlob = Blob.valueOf(API_KEY);
+        return EncodingUtil.base64Encode(Crypto.encrypt('AES128', keyBlob, Blob.valueOf(data)));
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Secure Secrets Storage - https://trailhead.salesforce.com/content/learn/modules/secure-secrets-storage[Comprehensive guide on storing and protecting application secrets in Salesforce]
+
+ * Apex Crypto Class Documentation - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_classes_restful_crypto.htm[Official documentation for Salesforce Apex Crypto class methods]
+
+ * Custom Settings Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_customsettings.htm[Guide to using Custom Settings for application configuration]
+
+ * Storing Sensitive Data Securely - https://developer.salesforce.com/docs/atlas.en-us.secure_coding_guide.meta/secure_coding_guide/secure_coding_storing_sensitive_data.htm[Best practices for storing sensitive data in Salesforce applications]
+
+=== Standards
+
+ * CWE-798: Use of Hard-coded Credentials - https://cwe.mitre.org/data/definitions/798.html[Common weakness related to hardcoded credentials in software]
+
+ * OWASP Top 10:2021-A07-Identification and Authentication Failures - https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/[OWASP guidance on authentication and credential management failures]
