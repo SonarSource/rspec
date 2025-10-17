@@ -1,0 +1,107 @@
+This is an issue when a trigger handler class contains multiple unrelated pieces of logic, such as validation, field assignment, and business rules all combined in one class.
+
+== Why is this an issue?
+
+Massive trigger handler classes violate the Single Responsibility Principle and create several problems:
+
+**Maintainability Issues**
+When all trigger logic is combined into one large class, it becomes difficult to understand what the code does. Developers must read through hundreds of lines to find specific functionality. Making changes becomes risky because modifying one piece of logic might accidentally break another unrelated feature.
+
+**Testing Challenges**
+Large trigger handlers are harder to test effectively. You cannot test individual pieces of logic in isolation, which makes it difficult to write focused unit tests. This leads to either incomplete test coverage or overly complex test methods that try to cover too many scenarios.
+
+**Code Reusability**
+When logic is bundled together, you cannot reuse specific pieces of functionality in other contexts. For example, validation logic that could be useful in other triggers or classes becomes tightly coupled to one specific handler.
+
+**Team Collaboration**
+Multiple developers working on the same large trigger handler class creates merge conflicts and coordination problems. Different team members cannot work independently on separate features.
+
+**Performance Impact**
+Large classes with multiple responsibilities often perform unnecessary operations. For example, validation logic might run even when only assignment logic is needed, leading to inefficient execution.
+
+=== What is the potential impact?
+
+Large, monolithic trigger handler classes significantly increase maintenance costs and development time. They make the codebase fragile and error-prone, leading to bugs that are difficult to trace and fix. The lack of modularity also makes it harder to implement new features or modify existing ones without risking unintended side effects.
+
+== How to fix it
+
+Break down the massive trigger handler into small, focused classes that each handle a single responsibility. Use the Trigger Actions Framework to organize and orchestrate these individual action classes.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class OpportunityTriggerHandler {
+  public void handleBeforeInsert(List<Opportunity> newList) {
+    // Stage validation logic
+    for (Opportunity opp : newList) {
+      if (opp.StageName != 'Prospecting') {
+        opp.addError('Invalid stage'); // Noncompliant
+      }
+    }
+    // Price validation logic
+    for (Opportunity opp : newList) {
+      if (opp.Amount < 0) {
+        opp.addError('Invalid amount'); // Noncompliant
+      }
+    }
+    // Owner assignment logic
+    for (Opportunity opp : newList) {
+      if (opp.OwnerId == null) {
+        opp.OwnerId = UserInfo.getUserId(); // Noncompliant
+      }
+    }
+  }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class ta_Opportunity_StageInsertRules implements TriggerAction.BeforeInsert {
+  public void beforeInsert(List<Opportunity> newList) {
+    for (Opportunity opp : newList) {
+      if (opp.StageName != 'Prospecting') {
+        opp.addError('The Stage must be Prospecting when an Opportunity is created');
+      }
+    }
+  }
+}
+
+public class ta_Opportunity_PriceValidation implements TriggerAction.BeforeInsert {
+  public void beforeInsert(List<Opportunity> newList) {
+    for (Opportunity opp : newList) {
+      if (opp.Amount < 0) {
+        opp.addError('Invalid amount');
+      }
+    }
+  }
+}
+
+public class ta_Opportunity_OwnerAssignment implements TriggerAction.BeforeInsert {
+  public void beforeInsert(List<Opportunity> newList) {
+    for (Opportunity opp : newList) {
+      if (opp.OwnerId == null) {
+        opp.OwnerId = UserInfo.getUserId();
+      }
+    }
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Trigger Actions Framework - https://www.apexhours.com/trigger-actions-framework[Comprehensive guide to implementing the Trigger Actions Framework for better trigger organization]
+
+ * Apex Trigger Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_best_practices.htm[Official Salesforce documentation on trigger best practices]
+
+ * Single Responsibility Principle - https://en.wikipedia.org/wiki/Single-responsibility_principle[Explanation of the Single Responsibility Principle in software design]
+
+=== Standards
+
+ * SOLID Principles - Single Responsibility Principle - https://en.wikipedia.org/wiki/SOLID[The Single Responsibility Principle states that a class should have only one reason to change]
