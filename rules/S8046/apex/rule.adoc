@@ -1,0 +1,75 @@
+This rule raises an issue when JSON data is deserialized and used without validating its structure or required fields.
+
+== Why is this an issue?
+
+When working with JSON data in Apex, especially from external sources or user input, the structure and content cannot be guaranteed. Directly accessing fields from deserialized JSON without validation can lead to several problems.
+
+First, runtime exceptions occur when expected fields are missing or have unexpected types. For example, attempting to cast a null value or wrong data type will throw a `TypeException` or `NullPointerException`.
+
+Second, security vulnerabilities can arise when malicious or malformed JSON is processed without validation. Attackers might exploit missing validation to cause application errors or inject unexpected data.
+
+Third, data integrity issues emerge when business logic operates on incomplete or invalid data, leading to incorrect calculations or corrupted application state.
+
+Proper JSON validation ensures that the data structure matches expectations before processing, making applications more robust and secure.
+
+=== What is the potential impact?
+
+Without proper JSON validation, applications face multiple risks:
+
+* *Runtime failures*: Unexpected `TypeException` or `NullPointerException` errors that crash functionality
+* *Security vulnerabilities*: Potential for injection attacks or data manipulation through malformed JSON
+* *Data corruption*: Business logic operating on invalid data can produce incorrect results
+* *Poor user experience*: Cryptic error messages instead of meaningful validation feedback
+
+== How to fix it
+
+Always validate JSON structure and required fields before processing. Check for null values, required keys, and expected data types.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class TaxCalculator {
+    public static void processIncome(String jsonInput) {
+        Map<String, Object> data = (Map<String, Object>) JSON.deserializeUntyped(jsonInput);
+        Decimal income = (Decimal) data.get('totalIncome'); // Noncompliant
+        calculateTax(income);
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class TaxCalculator {
+    public static void processIncome(String jsonInput) {
+        Map<String, Object> data = (Map<String, Object>) JSON.deserializeUntyped(jsonInput);
+        if (data == null || !data.containsKey('totalIncome')) {
+            throw new IllegalArgumentException('Invalid input: totalIncome is required');
+        }
+        Object incomeObj = data.get('totalIncome');
+        if (!(incomeObj instanceof Decimal)) {
+            throw new IllegalArgumentException('Invalid input: totalIncome must be a number');
+        }
+        Decimal income = (Decimal) incomeObj;
+        calculateTax(income);
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex JSON Support - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_class_System_Json.htm[Official Salesforce documentation for JSON handling in Apex]
+
+ * Apex Exception Handling - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_definition.htm[Guide to handling exceptions in Apex, including validation scenarios]
+
+=== Standards
+
+ * CWE-20: Improper Input Validation - https://cwe.mitre.org/data/definitions/20.html[Covers the security implications of insufficient input validation]
+
+ * OWASP Top 10:2021-A03-Injection - https://owasp.org/Top10/A03_2021-Injection/[Addresses injection vulnerabilities that can result from improper data validation]
