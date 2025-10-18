@@ -1,0 +1,111 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when you define a method in an ActiveRecord model with the same name as an automatically generated dirty tracking method (like <code>attribute_changed?</code> or <code>attribute_was</code>).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>ActiveRecord automatically generates dirty tracking methods for each model attribute to help you track changes. These methods follow specific naming patterns like <code>attribute_changed?</code>, <code>attribute_was</code>, <code>attribute_change</code>, and <code>attribute_will_change!</code>.</p>
+</div>
+<div class="paragraph">
+<p>When you define a custom method with the same name as one of these generated methods, you override the ActiveRecord method. This creates a serious problem: if your custom method tries to call what it thinks is the ActiveRecord method using the same name, it actually calls itself instead.</p>
+</div>
+<div class="paragraph">
+<p>This self-referential call creates infinite recursion. The method keeps calling itself over and over until the call stack is exhausted, resulting in a <code>SystemStackError: stack level too deep</code> runtime error.</p>
+</div>
+<div class="paragraph">
+<p>The issue is particularly tricky because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The error only appears at runtime, not when the code is loaded</p>
+</li>
+<li>
+<p>The method name looks correct and seems like it should work</p>
+</li>
+<li>
+<p>The stack trace can be confusing and point to framework internals</p>
+</li>
+<li>
+<p>It can cause application crashes in production</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This problem commonly occurs when developers want to add custom logic around change detection but accidentally choose method names that conflict with ActiveRecord&#8217;s conventions.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>This causes immediate application crashes with <code>SystemStackError: stack level too deep</code> when the conflicting method is called. The error can be difficult to debug and may only surface in specific user workflows, potentially causing production outages.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Rename your custom method to avoid the conflict. Use a descriptive prefix like <code>check_</code>, <code>custom_</code>, or <code>validate_</code> to make the method name unique while keeping its purpose clear.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Forum &lt; ActiveRecord::Base
+  before_update :update_nested_objects, if: :forum_type_changed?
+
+  private
+
+  def forum_type_changed? # Noncompliant
+    self.forum_type_changed? # Infinite recursion!
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Forum &lt; ActiveRecord::Base
+  before_update :update_nested_objects, if: :check_forum_type_changed?
+
+  private
+
+  def check_forum_type_changed?
+    self.forum_type_changed? # Calls ActiveRecord's method
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>ActiveRecord Dirty Tracking - <a href="https://api.rubyonrails.org/classes/ActiveModel/Dirty.html">Official Rails documentation for dirty tracking methods and their naming conventions</a></p>
+</li>
+<li>
+<p>ActiveRecord Attribute Methods - <a href="https://api.rubyonrails.org/classes/ActiveRecord/AttributeMethods.html">Documentation on how ActiveRecord generates attribute methods including dirty tracking</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

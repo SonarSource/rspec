@@ -1,0 +1,191 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Java, value-based classes are those for which instances are final and immutable, like <code>String</code>, <code>Integer</code> and so on, and their identity relies on their value and not their reference.
+When a variable of one of these types is instantiated, the JVM caches its value, and the variable is just a reference to that value.
+For example, multiple <code>String</code> variables with the same value "Hello world!" will refer to the same cached string literal in memory.</p>
+</div>
+<div class="paragraph">
+<p>The <code>synchronized</code> keyword tells the JVM to only allow the execution of the code contained in the following block to one <code>Thread</code> at a time.
+This mechanism relies on the identity of the object that is being synchronized between threads, to prevent that if object X is locked, it will still be possible to lock another object Y.</p>
+</div>
+<div class="paragraph">
+<p>It means that the JVM will fail to correctly synchronize threads on instances of the aforementioned value-based classes, for instance:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">// These variables "a" and "b" will effectively reference the same object in memory
+Integer a = 0;
+Integer b = 0;
+
+// This means that in the following code, the JVM could try to lock and execute
+// on the variable "a" because "b" was notified to be released, as the two Integer variables
+// are the same object to the JVM
+void syncMethod(int x) {
+    synchronized (a) {
+        if (a == x) {
+        // ... do something here
+        }
+    }
+    synchronized (b) {
+        if (b == x) {
+        // ... do something else
+        }
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This behavior can cause unrelated threads to deadlock with unclear stacktraces.</p>
+</div>
+<div class="paragraph">
+<p>Within the JDK, types which should not be used for synchronization include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>String</code> literals</p>
+</li>
+<li>
+<p>Primitive wrapper classes in <code>java.lang</code> (such as <code>Boolean</code> with <code>Boolean.FALSE</code> and <code>Boolean.TRUE</code>)</p>
+</li>
+<li>
+<p>The class <code>java.lang.Runtime.Version</code></p>
+</li>
+<li>
+<p>The <code>Optional*</code> classes in <code>java.util</code>: <code>Optional</code>, <code>OptionalInt</code>, <code>OptionalLong</code>, and <code>OptionalDouble</code></p>
+</li>
+<li>
+<p>Various classes in the <code>java.time</code> API: <code>Instant</code>, <code>LocalDate</code>, <code>LocalTime</code>, <code>LocalDateTime</code>, <code>ZonedDateTime</code>, <code>ZoneId</code>, <code>OffsetTime</code>, <code>OffsetDateTime</code>, <code>ZoneOffset</code>, <code>Duration</code>, <code>Period</code>, <code>Year</code>, <code>YearMonth</code>, and <code>MonthDay</code></p>
+</li>
+<li>
+<p>Various classes in the <code>java.time.chrono</code> API: <code>MinguoDate</code>, <code>HijrahDate</code>, <code>JapaneseDate</code>, and <code>ThaiBuddhistDate</code></p>
+</li>
+<li>
+<p>The interface <code>java.lang.ProcessHandle</code> and its implementation classes</p>
+</li>
+<li>
+<p>The implementation classes of the collection factories in <code>java.util</code>: <code>List.of</code>, <code>List.copyOf</code>, <code>Set.of</code>, <code>Set.copyOf</code>, <code>Map.of</code>, <code>Map.copyOf</code>, <code>Map.ofEntries</code>, and <code>Map.entry</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace instances of value-based classes with a new object instance to synchronize on.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">private static final Boolean bLock = Boolean.FALSE;
+private static final Integer iLock = Integer.valueOf(0);
+private static final String sLock = "LOCK";
+private static final List&lt;String&gt; listLock = List.of("a", "b", "c", "d");
+
+public void doSomething() {
+
+  synchronized(bLock) {  // Noncompliant
+      ...
+  }
+  synchronized(iLock) {  // Noncompliant
+      ...
+  }
+  synchronized(sLock) {  // Noncompliant
+      ...
+  }
+  synchronized(listLock) {  // Noncompliant
+      ...
+  }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">private static final Object lock1 = new Object();
+private static final Integer iLock = new Integer(42);
+private static final String sLock = new String("A brand new string in memory!");
+private static final List&lt;String&gt; listLock = new ArrayList&lt;&gt;();
+
+public void doSomething() {
+
+  synchronized(lock1) { // Compliant
+      ...
+  }
+  synchronized(iLock) { // Compliant
+      ...
+  }
+  synchronized(sLock) { // Compliant
+      ...
+  }
+  synchronized(listLock) { // Compliant
+      ...
+  }</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/1zdGBQ">Do not synchronize on objects that may be reused</a></p>
+</li>
+<li>
+<p>OpenJDK - <a href="https://openjdk.java.net/jeps/390">JEP 390: Warnings for Value-Based Classes</a></p>
+</li>
+<li>
+<p>Java Documentation - <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/doc-files/ValueBased.html">Value-based Classes</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Synchronize on a new "Object" instead.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_21_nov_2024_164800_alban_auzeill_wrote">on 21 Nov 2024, 16:48:00 Alban Auzeill wrote:</h3>
+<div class="paragraph">
+<p>[test-code-support-investigation-for-java] Decision for scope: Keep 'Main'. Rule could be improved, FP new Integer(0)</p>
+</div>
+</div>
+</div>
+</div>
