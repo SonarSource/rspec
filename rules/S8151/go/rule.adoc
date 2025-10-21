@@ -1,0 +1,55 @@
+This is an issue when calling C functions through cgo and checking the errno-based error without first verifying that the function call actually failed.
+
+== Why is this an issue?
+
+When calling C functions through Go's cgo, the errno value may be non-zero even when the function call succeeds. This behavior differs from typical Go error handling conventions where a non-nil error always indicates failure.
+
+In cgo, C functions return both a result value and an errno-based error. The errno value reflects the state from the last system call that set it, which might not be related to your current function call. Some C functions may internally make system calls that set errno but still succeed overall.
+
+If you check the error first without verifying the return value, you might incorrectly treat successful operations as failures. This can lead to:
+
+* False error reporting in your application
+* Unnecessary error handling that interrupts normal program flow
+* Confusion when debugging, as successful operations appear to fail
+* Inconsistent behavior that's difficult to reproduce
+
+The correct pattern is to first check the return value to determine if the C function succeeded, and only then examine the errno-based error if the function actually failed.
+
+=== What is the potential impact?
+
+Following incorrect error handling patterns can cause applications to report false failures, interrupt normal operation flow, and create confusing debugging scenarios where successful C function calls appear to have failed.
+
+== How to fix it
+
+Check the return value of the C function first to determine if it succeeded. Only examine the errno-based error if the return value indicates failure.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+n, err := C.setenv(key, value, 1)
+if err != nil { // Noncompliant
+    return err
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+n, err := C.setenv(key, value, 1)
+if n != 0 {
+    // we know the call failed, so it is now valid to use err
+    return err
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go cgo documentation - https://pkg.go.dev/cmd/cgo[Official Go documentation for cgo, including error handling patterns]
+
+ * Effective Go - Error handling - https://go.dev/doc/effective_go#errors[Go's general error handling conventions]
