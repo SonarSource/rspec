@@ -1,0 +1,56 @@
+This is an issue when using `context.WithCancel`, `context.WithTimeout`, or `context.WithDeadline` without deferring the returned cancel function.
+
+== Why is this an issue?
+
+When you create a cancelable context using functions like `context.WithCancel`, `context.WithTimeout`, or `context.WithDeadline`, these functions return two values: a new context and a cancel function.
+
+The cancel function is crucial for proper resource management. It releases resources associated with the context, such as timers and goroutines. If you don't call the cancel function, these resources may leak, leading to memory consumption and potential performance issues.
+
+The Go runtime cannot automatically clean up these resources because it doesn't know when you're done with the context. Only your code knows the appropriate time to release these resources.
+
+Using `defer cancel()` immediately after creating the context ensures that cleanup happens automatically when the function returns, regardless of how the function exits (normal return, early return, or panic). This follows the Go idiom of acquiring resources and immediately scheduling their cleanup.
+
+=== What is the potential impact?
+
+Failing to call the cancel function can lead to:
+
+* **Memory leaks**: Uncanceled contexts may hold references to resources that cannot be garbage collected
+* **Goroutine leaks**: Background goroutines associated with timeouts may continue running indefinitely
+* **Resource exhaustion**: In high-traffic applications, accumulated leaks can consume significant system resources
+* **Performance degradation**: Leaked goroutines and timers can impact application performance over time
+
+== How to fix it
+
+Add a `defer cancel()` statement immediately after creating the context. This ensures the cancel function is called when the function returns, preventing resource leaks.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func handleRequest() {
+    ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+    // Missing defer cancel() - resources may leak
+    doWork(ctx)
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func handleRequest() {
+    ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+    defer cancel() // Ensures cleanup when function returns
+    doWork(ctx)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Blog: Context - https://go.dev/blog/context[Official Go blog post explaining context usage patterns and best practices]
+
+ * Go Package Documentation: context - https://pkg.go.dev/context[Official documentation for the context package]
