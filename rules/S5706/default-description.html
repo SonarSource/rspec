@@ -1,0 +1,174 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>an <code>__exit__</code> method has a bare <code>raise</code> outside of an <code>except</code> block.</p>
+</li>
+<li>
+<p>an <code>__exit__</code> method raises the exception provided as parameter.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Methods <code>__enter__</code> and <code>__exit__</code> make it possible to implement objects which can be used as the expression of a <code>with</code> statement:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">with MyContextManager() as c :
+    ... # do something with c</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This statement can be rewritten as a <code>try...finally</code> and an explicit call to the <code>__enter__</code> and <code>__exit__</code> methods:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">c = MyContextManager()
+c.__enter__()
+try:
+    ... # do something with c
+finally:
+    c.__exit__()</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>__exit__</code> is the method of a statement context manager which is called when exiting the runtime context related to this object.</p>
+</div>
+<div class="paragraph">
+<p>If an exception is supplied as an argument, its propagation can be suppressed by having the method return a truthy value. Otherwise, the exception will be processed normally upon exit from the method.</p>
+</div>
+<div class="paragraph">
+<p>The special method <a href="https://docs.python.org/3/reference/datamodel.html?highlight=__exit__%20special#object.__exit__"><code>__exit__</code></a> should only raise an exception when it fails. It should never raise the provided exception, it is the caller&#8217;s responsibility. The <code>__exit__</code> method can filter provided exceptions by simply returning True or False. Raising this exception will make the stack trace difficult to understand.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue, make sure to avoid raising the exception provided to an <code>__exit__</code> method.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">class MyContextManager:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        raise  # Noncompliant: __exit__ method has a bare raise outside of an except block.
+
+class MyContextManager:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        raise args[2]  # Noncompliant: __exit__() methods should not reraise the provided exception; this is the caller’s responsibility.
+
+class MyContextManager:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        raise exc_value # Noncompliant: __exit__() methods should not reraise the provided exception; this is the caller’s responsibility.</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">class MyContextManager:
+    def __enter__(self, stop_exceptions):
+        return self
+
+    def __exit__(self, *args):
+        try:
+            ...
+        except:
+            raise  # No issue when raising another exception. The __exit__ method can fail and raise an exception
+
+class MyContextManager:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass # by default the function will return None, which is always False, and the exc_value will naturally raise.
+
+class MyContextManager:
+    def __enter__(self, stop_exceptions):
+        return self
+
+    def __exit__(self, *args):
+        raise MemoryError("No more memory")  # This is ok too.</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Python documentation – <a href="https://docs.python.org/3/reference/datamodel.html?highlight=__exit__%20special#object.__exit__">The <code>__exit__</code> special method</a></p>
+</li>
+<li>
+<p>PEP 343 – <a href="https://www.python.org/dev/peps/pep-0343/">The "with" Statement</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>remove this "raise" statement and return "False" instead.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>The "raise" statement.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5747">is related to: <a data-rspec-id="S5747" class="rspec-auto-link">S5747</a></h3>
+
+</div>
+</div>
+</div>

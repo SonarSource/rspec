@@ -1,0 +1,133 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a standard Go interface implementation contains intentional data races, typically involving shared mutable state accessed without synchronization.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Standard interface implementations should never contain intentional data races, even when done for performance optimization. Such implementations fundamentally break the composition principle that makes interfaces powerful in Go.</p>
+</div>
+<div class="paragraph">
+<p>When you implement a standard interface like <code>io.Reader</code>, <code>io.Writer</code>, or <code>io.ReaderFrom</code>, client code expects these implementations to be safe for concurrent use or at least behave predictably. Intentionally racy implementations violate this expectation and can cause subtle bugs in code that composes these interfaces.</p>
+</div>
+<div class="paragraph">
+<p>The problem becomes apparent when client code assumes ownership of buffers or data passed to interface methods. For example, a reader that calculates a hash while reading expects the buffer contents to remain stable during the operation. If the interface implementation races on shared buffers, it can corrupt the hash calculation or cause other unexpected behavior.</p>
+</div>
+<div class="paragraph">
+<p>These bugs are particularly dangerous because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>They are extremely difficult to debug and reproduce</p>
+</li>
+<li>
+<p>They may only manifest under specific timing conditions</p>
+</li>
+<li>
+<p>They break the fundamental contract that interfaces establish</p>
+</li>
+<li>
+<p>They can cause data corruption or security vulnerabilities</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The Go standard library itself learned this lesson when <code>ioutil.Discard</code> had to be fixed because its intentionally racy <code>ReadFrom</code> implementation caused real-world bugs in production systems.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Intentionally racy interface implementations can lead to data corruption, unpredictable behavior, and extremely difficult-to-debug race conditions. These issues may only manifest under specific timing conditions in production environments, potentially causing security vulnerabilities or data integrity problems.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Remove the intentional data race by using local variables instead of shared global state. This eliminates the race condition while maintaining the interface contract.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">// Intentionally racy implementation for performance
+type racyDiscard struct {
+    buf []byte // shared global buffer
+}
+
+func (d *racyDiscard) ReadFrom(r io.Reader) (int64, error) {
+    // Reuse global buffer without synchronization
+    n, err := r.Read(d.buf) // Noncompliant: data race on shared buffer
+    return int64(n), err
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">type safeDiscard struct{}
+
+func (d *safeDiscard) ReadFrom(r io.Reader) (int64, error) {
+    // Use local buffer to avoid data races
+    buf := make([]byte, 8192)
+    var total int64
+    for {
+        n, err := r.Read(buf)
+        total += int64(n)
+        if err != nil {
+            if err == io.EOF {
+                return total, nil
+            }
+            return total, err
+        }
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go Memory Model - <a href="https://golang.org/ref/mem">Official documentation on Go&#8217;s memory model and data race prevention</a></p>
+</li>
+<li>
+<p>Go Race Detector - <a href="https://golang.org/doc/articles/race_detector.html">Guide to using Go&#8217;s built-in race detector to find data races</a></p>
+</li>
+<li>
+<p>Effective Go - Concurrency - <a href="https://golang.org/doc/effective_go.html#concurrency">Best practices for concurrent programming in Go</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - <a href="https://cwe.mitre.org/data/definitions/362.html">Race conditions in concurrent execution</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

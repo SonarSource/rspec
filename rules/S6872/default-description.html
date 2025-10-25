@@ -1,0 +1,181 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Except for templated code, brace initialization should be preferred over C&#43;&#43;20&#8217;s parenthesis initialization for aggregates.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>With C&#43;&#43;20, it is now possible to initialize aggregate types using parentheses.
+This language feature was introduced to simplify writing generic code and consistently initialize objects, whether they are aggregates or not.</p>
+</div>
+<div class="paragraph">
+<p>For the sake of simplicity, aggregate types include arrays, unions, and structures without user-declared constructors and with only public non-static data members and public bases.</p>
+</div>
+<div class="paragraph">
+<p>Initializing objects with parentheses has several downsides compared to braces.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Mainly, they allow narrowing conversion of arithmetic types that can result in unexpected program behaviors. See also <a data-rspec-id="S5276" class="rspec-auto-link">S5276</a>.</p>
+</li>
+<li>
+<p>Secondly, they can result in the most vexing parse.
+For example, <code>Aggregate a(std::string());</code> declares function, while <code>Aggregate a{std::string()};</code> declares a variable.</p>
+</li>
+<li>
+<p>Furthermore, using braces is idiomatic and consistent with C.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For all these reasons, braces should be preferred for non-generic code when initializing aggregates.
+And the fix is often trivial: replace the parentheses <code>()</code> with braces <code>{}</code>.</p>
+</div>
+<div class="paragraph">
+<p>Here is a noncompliant example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Coordinate {
+  int x;
+  int y;
+};
+
+long readInteger();
+
+auto readCoordinate() {
+  // Be aware of the narrowing conversions on the next line.
+  return Coordinate(readInteger(), readInteger()); // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>There are multiple ways of handling the narrowing conversion; here is one alternative:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Coordinate {
+  int x;
+  int y;
+};
+
+long readInteger();
+
+auto readCoordinate() {
+  // Explicitly handle the conversion:
+  // Here, we saturate, but throwing an exception may also be appropriate.
+  auto readInt = []() { return saturate_cast&lt;int&gt;(readInteger()); };
+  return Coordinate{readInt(), readInt()}; // Compliant
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_can_the_issue_be_raised_for_cast_to_aggregate">Can the issue be raised for cast to Aggregate?</h3>
+<div class="paragraph">
+<p>When <code>static_cast</code> (<code>static_cast&lt;T&gt;(arg)</code>) or <em>C-style</em> cast (<code>(T)arg</code>) is used to convert the value <code>arg</code> to some type <code>T</code>,
+such cast can be resolved to the constructor call <code>T(arg)</code>.
+With C&#43;&#43;20, such syntax is well-formed when <code>T</code> is an aggregate and initializes its first element from <code>arg</code>.
+This rule raises an issue for such cast expressions.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Point {
+  int x;
+  int y;
+};
+
+auto p1 = Point(1);               // Noncompliant
+auto p2 = (Point)1;               // Noncompliant, same as Point(1)
+auto p3 = static_cast&lt;Point&gt;(1);  // Noncomplaint, same as Point(1)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>These issues can be fixed by replacing the cast expressions with the construction of a temporary object using braces (<code>{}</code>):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Point {
+  int x;
+  int y;
+};
+
+auto p1 = Point{1};  // Compliant
+auto p2 = Point{1};  // Compliant
+auto p3 = Point{1};  // Complaint</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p><em>Value-initialization</em> with <code>()</code> is accepted because it is unrelated to <em>aggregate-initialization</em> and the main drawback listed above does not apply:
+since there are no arguments, there cannot be any narrowing conversion.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">Coordinate function(); // Irrelevant -- this is a function declaration.
+
+auto variable = Coordinate(); // Value-initialization - compliant by exception.
+
+struct Object {
+  Coordinate coord;
+  Object() : coord() { } // Value-initialization - compliant by exception.
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference&#8201;&#8212;&#8201;<a href="https://en.cppreference.com/w/cpp/language/aggregate_initialization#Definitions">Aggregate definition</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference&#8201;&#8212;&#8201;<a href="https://en.cppreference.com/w/cpp/language/value_initialization">Value-initialization</a></p>
+</li>
+<li>
+<p>Wikipedia&#8201;&#8212;&#8201;<a href="https://en.wikipedia.org/wiki/Most_vexing_parse">Most vexing parse</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Open Standards - <a href="https://open-std.org/JTC1/SC22/WG21/docs/papers/2015/n4462.html">N4462</a> presents the problem with initializing objects in generic code using braces, which was solved by the introduction of parenthesized initialization.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S835" class="rspec-auto-link">S835</a> - Braces should be used to indicate and match the structure in the non-zero initialization of arrays and structures</p>
+</li>
+<li>
+<p><a data-rspec-id="S6871" class="rspec-auto-link">S6871</a> - All the elements of an aggregate should be provided with an initial value</p>
+</li>
+<li>
+<p><a data-rspec-id="S5276" class="rspec-auto-link">S5276</a> - Implicit casts should not lower precision</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

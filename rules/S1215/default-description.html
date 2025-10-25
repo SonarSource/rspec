@@ -1,0 +1,241 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.gc.collect">GC.Collect</a> is a method that forces or suggests to the <a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/">garbage collector</a> to run a collection of objects in the managed heap that are no longer being used and free their memory.</p>
+</div>
+<div class="paragraph">
+<p>Calling <code>GC.Collect</code> is rarely necessary and can significantly affect application performance. That&#8217;s because it is a <a href="https://en.wikipedia.org/wiki/Tracing_garbage_collection">tracing garbage collector</a> and needs to examine <em>every object in memory</em> for cleanup and analyze all reachable objects from every application&#8217;s root (static fields, local variables on thread stacks, etc.).</p>
+</div>
+<div class="paragraph">
+<p>To perform tracing and memory releasing correctly, the garbage collection <a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/latency">may</a> need to block all threads currently in execution. That is why, as a general rule, the <a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/performance#troubleshoot-performance-issues">performance implications</a> of calling <code>GC.Collect</code> far outweigh the benefits.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when any overload of <code>Collect</code> is invoked.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">static void Main(string[] args)
+{
+  // ...
+  GC.Collect();                              // Noncompliant
+  GC.Collect(2, GCCollectionMode.Optimized); // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>There may be exceptions to this rule: for example, you&#8217;ve just triggered some event that is unique in the run of your program that caused a lot of long-lived objects to die, and you want to release their memory.</p>
+</div>
+<div class="paragraph">
+<p>This rule also raises on <code>GC.GetTotalMemory</code> when <code>forceFullCollection</code> is true as it directly invokes <code>GC.Collect</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/">Garbage collection</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.gc.collect">GC.Collect</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.gc.gettotalmemory">GC.GetTotalMemory</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/latency">Garbage collection latency modes</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/performance#troubleshoot-performance-issues">Garbage collection troubleshoot performance issues</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_benchmarks">Benchmarks</h3>
+<div class="paragraph">
+<p>Each .NET runtime features distinct implementations, modes, and configurations for its garbage collector.
+The benchmark below illustrates how invoking <code>GC.Collect()</code> can have opposite effects across different runtimes.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Runtime</th>
+<th class="tableblock halign-left valign-top">Collect</th>
+<th class="tableblock halign-left valign-top">Mean</th>
+<th class="tableblock halign-left valign-top">Standard Deviation</th>
+<th class="tableblock halign-left valign-top">Allocated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">.NET 9.0</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">False</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">659.2 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">15.69 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">205.95 MB</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">.NET 9.0</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">True</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">888.8 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">15.34 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">205.95 MB</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"></td>
+<td class="tableblock halign-left valign-top"></td>
+<td class="tableblock halign-left valign-top"></td>
+<td class="tableblock halign-left valign-top"></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">.NET Framework 4.8.1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">False</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">545.7 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">19.49 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">228.8 MB</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">.NET Framework 4.8.1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">True</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">484.8 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">11.79 ms</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">228.8 MB</p></td>
+</tr>
+</tbody>
+</table>
+<div class="sect3">
+<h4 id="_glossary">Glossary</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Collect - if <code>True</code>, <code>GC.Collect()</code> is called in the middle of the allocation heavy <code>Benchmark()</code> method</p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Arithmetic_mean">Mean</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Standard_deviation">Standard Deviation</a></p>
+</li>
+<li>
+<p><a href="https://github.com/dotnet/BenchmarkDotNet/blob/master/docs/articles/configs/diagnosers.md">Allocated</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The results were generated by running the following snippet with <a href="https://github.com/dotnet/BenchmarkDotNet">BenchmarkDotNet</a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">class Tree
+{
+    public List&lt;Tree&gt; Children = new();
+}
+
+private void AppendToTree(Tree tree, int childsPerTree, int depth)
+{
+    if (depth == 0)
+    {
+        return;
+    }
+    for (int i = 0; i &lt; childsPerTree; i++)
+    {
+        var child = new Tree();
+        tree.Children.Add(child);
+        AppendToTree(child, childsPerTree, depth - 1);
+    }
+}
+
+[Benchmark]
+[Arguments(true)]
+[Arguments(false)]
+public void Benchmark(bool collect)
+{
+    var tree = new Tree();
+    AppendToTree(tree, 8, 7);        // Create 8^7 Tree objects (2.097.152 objects) linked via List&lt;Tree&gt; Children
+    GC.Collect();
+    GC.Collect();                    // Move the objects to generation 2
+    AppendToTree(new Tree(), 8, 6);  // Add some more memory preasure (8^6 262.144 objects) which can be collected right after this call
+    tree = null;                     // Remove all references to the tree and its content. This freees up 8^7 Tree objects (2.097.152 objects)
+    if (collect)
+    {
+        GC.Collect();                // Force GC to run and block until it finishes
+    }
+    AppendToTree(new Tree(), 3, 10); // Do some more allocations (3^10 = 59.049)
+    AppendToTree(new Tree(), 4, 7);  // 4^10 = 1.048.576
+    AppendToTree(new Tree(), 5, 7);  // 5^7 = 78.125
+    GC.Collect();                    // Collect all the memory allocated in this method
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Hardware configuration:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code>BenchmarkDotNet v0.14.0, Windows 10 (10.0.19045.5247/22H2/2022Update)
+Intel Core Ultra 7 165H, 1 CPU, 22 logical and 16 physical cores
+  [Host]               : .NET Framework 4.8.1 (4.8.9282.0), X64 RyuJIT VectorSize=256
+  .NET 9.0             : .NET 9.0.0 (9.0.24.52809), X64 RyuJIT AVX2
+  .NET Framework 4.8.1 : .NET Framework 4.8.1 (4.8.9282.0), X64 RyuJIT VectorSize=256</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Refactor the code to remove this use of 'XXX'.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_20_aug_2013_152400_freddy_mallet_wrote">on 20 Aug 2013, 15:24:00 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>Is implemented by http://jira.codehaus.org/browse/SONARJAVA-307</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_21_aug_2013_150412_dinesh_bolkensteyn_wrote">on 21 Aug 2013, 15:04:12 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>Nice description!</p>
+</div>
+</div>
+</div>
+</div>

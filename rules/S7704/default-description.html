@@ -1,0 +1,123 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when PyTorch module classes, i.e. nn.Module subclasses, are instantiated directly within forward methods instead of using functional operations or pre-instantiated modules.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>PyTorch provides two ways to apply operations: module classes and functional operations. Module classes like <code>nn.Softmax</code> are designed to be instantiated once (typically in  <code>__init__</code>) and reused, while functional operations like <code>F.softmax</code> are meant to be called directly on tensors.</p>
+</div>
+<div class="paragraph">
+<p>Instantiating modules inline within forward methods creates several problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Performance overhead</strong>: Creating new module instances on every forward pass is inefficient and wastes computational resources</p>
+</li>
+<li>
+<p><strong>Memory waste</strong>: Each instantiation allocates unnecessary memory that could be avoided</p>
+</li>
+<li>
+<p><strong>Potential bugs</strong>: Simply calling <code>nn.Softmax(x)</code> creates a module instance but doesn&#8217;t actually apply the operation, leading to incorrect results</p>
+</li>
+<li>
+<p><strong>Code clarity</strong>: The intent becomes unclear - it&#8217;s not obvious whether you&#8217;re creating a module or applying an operation</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The forward method should focus on the computational flow, not object creation. Operations that don&#8217;t maintain state should use functional equivalents, while stateful operations should use pre-instantiated modules.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>This anti-pattern can lead to performance degradation due to repeated object instantiation, increased memory usage, and potential runtime errors when the module is not properly applied to the input tensor.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_fix_in_pytorch">How to fix in PyTorch?</h3>
+<div class="paragraph">
+<p>Replace inline module instantiation with the corresponding functional operation from torch.nn.functional. This is the preferred approach for stateless operations.</p>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+
+class MyModel(nn.Module):
+    def forward(self, x):
+        output = nn.Softmax(dim=1)(x)  # Noncompliant
+        return output</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+import torch.nn.functional as F
+
+class MyModel(nn.Module):
+    def forward(self, x):
+        output = F.softmax(x, dim=1)
+        return output</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you need to reuse the same module configuration, instantiate it once in <em>init</em> and use it in forward. This approach is better for modules with learnable parameters or specific configurations.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example_2">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+
+class MyModel(nn.Module):
+    def forward(self, x):
+        dropout = nn.Dropout(p=0.5)(x)  # Noncompliant
+        return dropout</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example_2">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+
+class MyModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dropout = nn.Dropout(p=0.5)
+
+    def forward(self, x):
+        dropout = self.dropout(x)
+        return dropout</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PyTorch nn.functional documentation - <a href="https://pytorch.org/docs/stable/nn.functional.html">Official documentation for PyTorch functional operations</a></p>
+</li>
+<li>
+<p>PyTorch nn.Module documentation - <a href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html">Official documentation for PyTorch Module class</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
