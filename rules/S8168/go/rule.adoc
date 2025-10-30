@@ -1,0 +1,86 @@
+This rule raises an issue when a database transaction is started with `db.Begin()` but lacks proper rollback handling in error scenarios.
+
+== Why is this an issue?
+
+Database transactions follow ACID principles (Atomicity, Consistency, Isolation, Durability) to ensure data integrity. When a transaction is started but not properly handled, several problems can occur:
+
+**Data Integrity Violations**: If an error occurs during transaction execution and the transaction is not rolled back, partial changes may remain in the database. This violates the atomicity principle, where either all operations in a transaction should succeed or none should.
+
+**Resource Leaks**: Unhandled transactions can hold database locks and connections longer than necessary. This can lead to connection pool exhaustion and performance degradation, especially under high load.
+
+**Inconsistent Application State**: When transactions are not properly cleaned up, the application may continue with an assumption that operations succeeded when they actually failed partially. This can lead to data corruption and unpredictable behavior.
+
+The standard pattern in Go is to use `defer tx.Rollback()` immediately after successfully creating a transaction. This ensures that if any error occurs before `tx.Commit()` is called, the transaction will be automatically rolled back. The `Rollback()` method is safe to call even after a successful commit, making this pattern both safe and reliable.
+
+=== What is the potential impact?
+
+Improper transaction handling can lead to data corruption, resource exhaustion, and application instability. In financial or critical systems, this could result in data loss, inconsistent records, or system downtime.
+
+== How to fix it
+
+Add a deferred rollback call immediately after starting the transaction. This ensures the transaction is rolled back if any error occurs before commit.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func transferMoney(db *sql.DB, from, to int, amount float64) error {
+    tx, err := db.Begin()
+    if err != nil {
+        return err
+    }
+    
+    _, err = tx.Exec("UPDATE accounts SET balance = balance - ? WHERE id = ?", amount, from)
+    if err != nil {
+        return err // Noncompliant: transaction not rolled back
+    }
+    
+    _, err = tx.Exec("UPDATE accounts SET balance = balance + ? WHERE id = ?", amount, to)
+    if err != nil {
+        return err // Noncompliant: transaction not rolled back
+    }
+    
+    return tx.Commit()
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func transferMoney(db *sql.DB, from, to int, amount float64) error {
+    tx, err := db.Begin()
+    if err != nil {
+        return err
+    }
+    defer tx.Rollback() // Ensures rollback if commit doesn't happen
+    
+    _, err = tx.Exec("UPDATE accounts SET balance = balance - ? WHERE id = ?", amount, from)
+    if err != nil {
+        return err
+    }
+    
+    _, err = tx.Exec("UPDATE accounts SET balance = balance + ? WHERE id = ?", amount, to)
+    if err != nil {
+        return err
+    }
+    
+    return tx.Commit()
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go database/sql package - https://pkg.go.dev/database/sql[Official Go documentation for database/sql package including transaction handling]
+
+ * Go database/sql tutorial - https://go.dev/doc/tutorial/database-access[Official Go tutorial covering database access patterns and best practices]
+
+ * Effective Go - Database transactions - https://go.dev/doc/effective_go#defer[Go best practices including proper use of defer for resource cleanup]
+
+=== Standards
+
+ * ACID Properties - https://en.wikipedia.org/wiki/ACID[Database transaction properties ensuring data integrity and consistency]
