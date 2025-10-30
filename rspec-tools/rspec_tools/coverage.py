@@ -9,6 +9,13 @@ from git import Git, Repo
 
 from rspec_tools.utils import load_json, pushd
 
+
+#    ^
+#  / ! \
+# /_____\
+# If you want to add a repository in that list, you first need to add the repository to the list of authorized
+# repositories of pipeline/SonarSource/repositories/rspec/secrets/github/customs
+# in https://github.com/SonarSource/re-terraform-aws-vault/blob/master/orders/analysis-cfamily-squad.yaml
 REPOS = [
     "sonar-abap",
     "sonar-apex",
@@ -41,6 +48,13 @@ REPOS = [
     "sonar-vb",
     "sonar-xml",
 ]
+#    ^
+#  / ! \
+# /_____\
+# If you want to add a repository in that list, you first need to add the repository to the list of authorized
+# repositories of pipeline/SonarSource/repositories/rspec/secrets/github/customs
+# in https://github.com/SonarSource/re-terraform-aws-vault/blob/master/orders/analysis-cfamily-squad.yaml
+
 
 CANONICAL_NAMES = {
     "CLOUD_FORMATION": "CLOUDFORMATION",
