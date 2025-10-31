@@ -1,0 +1,208 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Empty interfaces should be avoided as they do not provide any functional requirements for implementing classes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Empty interfaces are either useless or used as a <a href="https://en.wikipedia.org/wiki/Marker_interface_pattern">marker</a>. <a href="https://learn.microsoft.com/en-us/dotnet/standard/attributes/writing-custom-attributes">Custom attributes</a> are a better alternative to marker interfaces. See the <em>How to fix it</em> section for more information.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>This rule doesn&#8217;t raise in any of the following cases:</p>
+</div>
+<div class="sect3">
+<h4 id="_aggregation_of_multiple_interfaces">Aggregation of multiple interfaces</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public interface IAggregate: IComparable, IFormattable { } // Compliant: Aggregates two interfaces</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_generic_specialization">Generic specialization</h4>
+<div class="paragraph">
+<p>An empty interface with a single base interface is compliant as long as the resulting interface binds a generic parameter or constrains it.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">// Compliant: Bound to a concrete type
+public interface IStringEquatable: IEquatable&lt;string&gt; { }
+// Compliant: Specialized by type parameter constraint
+public interface ICreateableEquatable&lt;T&gt;: IEquatable&lt;T&gt; where T: new() { }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_custom_attribute">Custom attribute</h4>
+<div class="paragraph">
+<p>An empty interface is compliant if a custom attribute is applied to the interface.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">[Obsolete]
+public interface ISorted { } // Compliant: An attribute is applied to the interface declaration</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Do any of the following to fix the issue:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Add members to the interface</p>
+</li>
+<li>
+<p>Remove the useless interface</p>
+</li>
+<li>
+<p>Replace the usage as a marker interface with custom attributes</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The empty interface does not add any functionality.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public interface IFoo // Noncompliant
+{
+
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Add members to the interface to be compliant.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public interface IFoo
+{
+    void Bar();
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>A typical use case for marker interfaces is doing type inspection via <a href="https://learn.microsoft.com/en-us/dotnet/framework/reflection-and-codedom/reflection">reflection</a> as shown below.</p>
+</div>
+<div class="paragraph">
+<p>The <code>IIncludeFields</code> marker interface is used to configure the JSON serialization of an object.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">// An example marker interface
+public interface IIncludeFields { }
+
+public class OptInToIncludeFields: IIncludeFields { }
+
+Serialize(new OptInToIncludeFields());
+
+void Serialize&lt;T&gt;(T o)
+{
+    // Use reflection to check if the interface is applied to the type
+    var includeFields = o.GetType()
+        .GetInterfaces().Any(i =&gt; i == typeof(IIncludeFields));
+    var options = new JsonSerializerOptions()
+    {
+        // Take decisions based on the presence of the marker
+        IncludeFields = includeFields,
+    };
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The same example can be rewritten using custom attributes. This approach is preferable because it is more fine-grained, allows parameterization, and is more flexible in type hierarchies.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">// A custom attribute used as a marker
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class IncludeFieldsAttribute: Attribute { }
+
+[IncludeFields]
+public class OptInToIncludeFields { }
+
+Serialize(new OptInToIncludeFields());
+
+void Serialize&lt;T&gt;(T o)
+{
+    // Use reflection to check if the attribute is applied to the type
+    var includeFields = o.GetType()
+        .GetCustomAttributes(typeof(IncludeFieldsAttribute), inherit: true).Any();
+    var options = new JsonSerializerOptions()
+    {
+        // Take decisions based on the presence of the marker
+        IncludeFields = includeFields,
+    };
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/types/interfaces">Interfaces - define behavior for multiple types</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Marker_interface_pattern">Marker interface pattern</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/standard/attributes/writing-custom-attributes">Writing custom attributes</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove this interface or add members to it.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Interface declaration</p>
+</div>
+</div>
+</div>
+</div>

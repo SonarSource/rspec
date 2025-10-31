@@ -1,0 +1,211 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Agents based on Large Language Models can behave in non-deterministic ways, and
+making sure they behave safely and as intended is a significant challenge. Unlike
+traditional software where inputs and outputs can be tightly controlled to ensure safe and predictable behavior.</p>
+</div>
+<div class="paragraph">
+<p>This is especially true when the model is given "uncontrolled" instructions.
+Users can intentionally or unintentionally, provide inputs that lead to
+harmful, biased, or otherwise undesirable outputs. This can result in a range of
+risks, from generating inappropriate content to taking unintended actions that
+could compromise security or lead to financial loss.</p>
+</div>
+<div class="paragraph">
+<p>The first risk is about the content the AI generates:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Leakage of sensitive information the model was trained on, such as PII or proprietary business secrets.</p>
+</li>
+<li>
+<p>Harmful material such as hate speech, biased language, or explicit content.</p>
+</li>
+<li>
+<p>Misinformation due to "hallucinations" where the model confidently states false information.</p>
+</li>
+<li>
+<p>Unprofessional or off-brand responses that damage a company&#8217;s reputation.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The second risk is specific to agents that can take actions, such as tools, API
+calls or system interactions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Irreversible and destructive actions, such as permanent data deletion or unauthorized purchases.</p>
+</li>
+<li>
+<p>Excessive resource consumption leading to unexpected financial costs.</p>
+</li>
+<li>
+<p>Attack vectors for security vulnerabilities that could be exploited by malicious actors</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Malicious LLM behavior can impact your organization.</p>
+</li>
+<li>
+<p>The LLM was trained with private or sensitive data.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Insert guardrails to prevent the LLM from generating harmful or unsafe content.</p>
+</li>
+<li>
+<p>Use existing guardrail frameworks, do not reinvent the wheel unless necessary.</p>
+</li>
+<li>
+<p>Restrict the different LLM capabilities (MCP), and knowledge (RAG).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In the following code example, a primary "triager" agent simply dispatches
+instructions to secondary agents. No guardrail ensures that unintended user
+instructions are caught and handled properly.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from agents import (
+    Agent,
+)
+
+secondary_agent_1 = Agent(...)
+secondary_agent_2 = Agent(...)
+
+triage_agent = Agent(
+    name="Triage Agent",
+    instructions="You determine which agent to use based on the user's question",
+    handoffs=[secondary_agent_1, secondary_agent_2],
+)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This compliant solution adds a guardrail to the triager agent. It ensures that
+user instructions are properly vetted before being passed to secondary agents,
+and that only appropriate instructions are passed along.</p>
+</div>
+<div class="paragraph">
+<p>Depending on your use case, you may want to have the guardrail function
+be implemented as an output guardrail instead of an input guardrail.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from agents import (
+    Agent,
+    InputGuardrail,
+    GuardrailFunctionOutput,
+    Runner,
+)
+from pydantic import BaseModel
+
+secondary_agent_1 = Agent(...)
+secondary_agent_2 = Agent(...)
+
+class ExampleOutput(BaseModel):
+    is_example: bool
+    reasoning: str
+
+guardrail_agent = Agent(
+    name="Guardrail check",
+    instructions="Check if the user is asking about the Example Topic.",
+    output_type=ExampleOutput,
+)
+
+async def example_guardrail(ctx, agent, input_data):
+    result = await Runner.run(guardrail_agent, input_data, context=ctx.context)
+    final_output = result.final_output_as(ExampleOutput)
+    return GuardrailFunctionOutput(
+        output_info=final_output,
+        tripwire_triggered=not final_output.is_example,
+    )
+
+triage_agent = Agent(
+    name="Triage Agent",
+    instructions="You determine which agent to use based on the user's question",
+    handoffs=[secondary_agent_1, secondary_agent_2],
+    input_guardrails=[
+        InputGuardrail(guardrail_function=example_guardrail),
+    ],
+)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP GenAI - <a href="https://genai.owasp.org/llmrisk/llm01-prompt-injection/">Top 10 2025 - Category LLM01:2025 - Prompt Injection</a></p>
+</li>
+<li>
+<p>OWASP GenAI - <a href="https://genai.owasp.org/llmrisk/llm092025-misinformation/">Top 10 2025 - Catagory LLM09:2025 - Misinformation</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure omitting guardrails is safe here.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>On the chatbot or agent that is not protected with guardrails.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>

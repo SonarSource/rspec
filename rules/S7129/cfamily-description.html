@@ -1,0 +1,153 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>String literals, represented by a text surrounded by double quotes like <code>"Hello world"</code> are stored in read-only memory and cannot be mutated.</p>
+</div>
+<div class="paragraph">
+<p>Historically, string literals were introduced in C before the keyword <code>const</code> so it was possible to create a mutable pointer to a string literal:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">char * ptr = "Hello world!"; // Noncompliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To maintain retro-compatibility with the enormous amount of code that had been written without const, pointing to a string literal with a mutable char pointer remained allowed in C, and although it has been officially removed from C&#43;&#43; since C&#43;&#43;11, most compilers still allow it with a warning.</p>
+</div>
+<div class="paragraph">
+<p>Because it is a pointer to read-only memory, trying to modify <code>ptr</code> will lead to undefined behavior. And because it is not declared as <code>const</code>, the type system will not be able to prevent or warn of such modification attempts.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>This rule doesn&#8217;t raise an issue for explicit conversions to <code>char *</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">char * ptr = (char *)"Hello world!"; // Compliant by exception, but you should avoid it.</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This can be necessary in some very specific cases where an external API takes a mutable <code>char *</code> with the clear contract that it will never modify it.</p>
+</div>
+<div class="paragraph">
+<p>That remains a very dangerous pattern that should be avoided as much as possible.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_using_c_string_classes">Using C&#43;&#43; string classes</h3>
+<div class="sect3">
+<h4 id="_immutable_case">Immutable case</h4>
+<div class="paragraph">
+<p>Since C&#43;&#43;17, if the text does not need to be mutated, the optimal way to fix this issue is to use <code>std::string_view</code>. It doesn&#8217;t create an unnecessary copy and it points to the literal in a non-mutable way.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char * s = "Hello world!"; // Noncompliant</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::string_view s = "Hello world!"; // Compliant, not mutable</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_mutable_case">Mutable case</h4>
+<div class="paragraph">
+<p>If <code>std::string_view</code> is not an option because the text needs to be mutated, <code>std::string</code> will create a full copy of the literal, that can be modified without a risk.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char * s = "Hello world!"; // Noncompliant</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::string s = "Hello world!"; // Compliant, mutable</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>That solution creates a local variable, check the "Pitfalls" section if the variable may be used outside of its scope.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_keeping_c_string_usage">Keeping C-string usage</h3>
+<div class="sect3">
+<h4 id="_immutable_case_2">Immutable case</h4>
+<div class="paragraph">
+<p>If the text doesn&#8217;t need to be mutated, the pointer should be declared const</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char * s = "Hello world!"; // Noncompliant</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">const char * s = "Hello world!"; // Compliant, non mutable</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_mutable_case_2">Mutable case</h4>
+<div class="paragraph">
+<p>If the text needs to be mutated, the data needs to be fully copied.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char * s = "Hello world!"; // Noncompliant
+mutate(s);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The copy can be made on the stack by declaring a new array initialized with the content of the literal:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char s[] = "Hello world!"; // Compliant, full copy on the stack
+mutate(s);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>That solution creates a local variable, check the "Pitfalls" section if the variable may be used outside of its scope.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>String literals are static and thus can be accessed without worrying about their lifetime. When replacing a pointer to a string literal with a variable owning a copy, it is important to consider what the lifetime of that copy needs to be.</p>
+</div>
+<div class="paragraph">
+<p>If every access to the copy is local, a local variable is enough. If the copy is passed to other functions that might keep a reference to it, the scope of the variable needs to be adjusted. Depending on what the code does, that can be obtained by:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>declaring the variable at a higher scope.</p>
+</li>
+<li>
+<p>creating the copy on the heap, in which case it needs to be properly deallocated afterward.</p>
+</li>
+<li>
+<p>declaring the variable as static, like the string literal was, in which case the same variable will be mutated every time its parent function is called.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

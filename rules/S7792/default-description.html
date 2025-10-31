@@ -1,0 +1,226 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when SQL queries with GROUP BY clauses select columns that are neither included in the GROUP BY clause nor wrapped in aggregate functions, or when ActiveRecord&#8217;s count() method is used with GROUP BY options.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When using GROUP BY in SQL queries, the SQL standard requires that all columns in the SELECT clause must either be included in the GROUP BY clause or be used within aggregate functions like COUNT, SUM, MAX, MIN, or AVG.</p>
+</div>
+<div class="paragraph">
+<p>Violating this rule creates several problems:</p>
+</div>
+<div class="paragraph">
+<p><strong>Database compatibility issues</strong>: Queries that work in permissive databases like MySQL (with sql_mode not set to ONLY_FULL_GROUP_BY) or SQLite will fail in strict SQL-compliant databases like PostgreSQL. This creates portability problems when deploying applications to different environments.</p>
+</div>
+<div class="paragraph">
+<p><strong>Non-deterministic results</strong>: When you select ungrouped columns, the database must choose which row&#8217;s value to return for each group. Different database engines handle this differently, leading to unpredictable results that can change between query executions.</p>
+</div>
+<div class="paragraph">
+<p><strong>ActiveRecord-specific issues</strong>: Using ActiveRecord&#8217;s count() method with GROUP BY options can generate invalid SQL with nested COUNT functions or return hash results instead of expected integer counts.</p>
+</div>
+<div class="paragraph">
+<p><strong>Performance problems</strong>: Manual array building from database queries creates N+1 query problems, where each iteration triggers an additional database query instead of leveraging the database&#8217;s ability to handle joins and aggregations efficiently.</p>
+</div>
+<div class="paragraph">
+<p>The SQL standard exists to ensure predictable, portable query behavior across different database systems. Following these standards makes your application more robust and maintainable.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Applications may fail when deployed to production environments using strict SQL databases like PostgreSQL, even if they work in development with SQLite or MySQL. Non-deterministic query results can lead to inconsistent application behavior and data integrity issues. Performance can degrade significantly due to N+1 query problems in manual array building approaches.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Include all selected columns in the GROUP BY clause or use aggregate functions for non-grouped columns.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SELECT cars.id, cars.name, cars.created_at, COUNT(users.id) AS user_count
+FROM cars
+LEFT JOIN users ON cars.id = users.car_id
+GROUP BY cars.id  -- Noncompliant: cars.name and cars.created_at not in GROUP BY
+ORDER BY user_count DESC;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SELECT cars.id, cars.name, cars.created_at, COUNT(users.id) AS user_count
+FROM cars
+LEFT JOIN users ON cars.id = users.car_id
+GROUP BY cars.id, cars.name, cars.created_at
+ORDER BY user_count DESC;</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_activerecord">How to fix it in ActiveRecord</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use group().count instead of count() with GROUP BY options to avoid invalid SQL generation.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Problematic: Using count() with GROUP BY options
+options = {
+  select: 'tags.*, COUNT(*) AS post_count',
+  joins: 'INNER JOIN posts_tags',
+  group: 'tags.id',
+  order: 'post_count DESC'
+}
+@count = Tag.count(options)  # Noncompliant: generates invalid nested COUNT</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Use group().count for counting grouped results
+tag_counts = Tag.joins(:posts).group(:id).count
+
+# Or access count from grouped query results directly
+options = {
+  select: 'tags.*, COUNT(*) AS post_count',
+  joins: 'INNER JOIN posts_tags',
+  group: 'tags.id'
+}
+tags = Tag.all(options)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use explicit column selection instead of wildcards with GROUP BY to avoid selecting ungrouped columns.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Wildcard selector with GROUP BY
+@albums = Album.joins(:reviews)
+               .select("*, avg(reviews.rating) as average_rating")  # Noncompliant: * includes ungrouped columns
+               .group("albums.id")
+               .order("average_rating DESC")</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Explicitly select only needed columns
+@albums = Album.joins(:reviews)
+               .select("albums.*, avg(reviews.rating) as average_rating")
+               .group("albums.id")
+               .order("average_rating DESC")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use ActiveRecord associations and eager loading instead of manual array building to avoid N+1 queries.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_4">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Manual array building with N+1 queries
+def agree_list
+  list = OpinionRating.find_all_by_opinion_id(params[:id])
+  @agree_list = []
+  list.each do |r|
+    user = Profile.find(r.profile_id)  # Noncompliant: N+1 query problem
+    @agree_list &lt;&lt; user
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Use ActiveRecord associations and eager loading
+def agree_list
+  opinion = Opinion.find(params[:id])
+  @agree_list = opinion.profiles
+    .joins(:opinion_ratings)
+    .where(opinion_ratings: { agree: true })
+    .includes(:opinion_ratings)
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PostgreSQL GROUP BY Documentation - <a href="https://www.postgresql.org/docs/current/sql-select.html#SQL-GROUPBY">Official PostgreSQL documentation explaining GROUP BY clause requirements and SQL standard compliance</a></p>
+</li>
+<li>
+<p>ActiveRecord Query Interface Guide - <a href="https://guides.rubyonrails.org/active_record_querying.html">Rails guide covering ActiveRecord query methods, associations, and best practices</a></p>
+</li>
+<li>
+<p>ActiveRecord Calculations - <a href="https://api.rubyonrails.org/classes/ActiveRecord/Calculations.html">Documentation for ActiveRecord calculation methods like count, sum, maximum, and minimum</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>ISO/IEC 9075-2:2016 - SQL Standard - <a href="https://www.iso.org/standard/63556.html">International standard defining SQL language structure and GROUP BY requirements</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2208" class="rspec-auto-link">RSPEC-2208</a> - <a href="https://rules.sonarsource.com/ruby/RSPEC-2208">Wildcard imports should not be used</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

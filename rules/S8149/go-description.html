@@ -1,0 +1,100 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when creating new Google Cloud Pub/Sub publisher instances for each publish operation instead of reusing a single publisher across multiple operations.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Google Cloud Pub/Sub publishers are designed to be reused across multiple publish operations to enable efficient message batching and optimal performance.</p>
+</div>
+<div class="paragraph">
+<p>When you create a new publisher instance for each publish call, several problems occur:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Inefficient batching</strong>: Each publisher maintains its own internal batching mechanism. Creating multiple publishers prevents messages from being batched together, leading to more individual network requests.</p>
+</li>
+<li>
+<p><strong>Resource waste</strong>: Each publisher instance maintains its own connection, goroutines, and internal buffers. Creating many publishers consumes unnecessary memory and network connections.</p>
+</li>
+<li>
+<p><strong>Performance degradation</strong>: The overhead of creating and initializing new publisher instances, combined with the lack of proper batching, significantly reduces throughput.</p>
+</li>
+<li>
+<p><strong>Increased latency</strong>: Without proper batching, messages are sent individually rather than in optimized batches, increasing overall latency.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The Pub/Sub client library is specifically designed with the expectation that publishers will be reused. The internal batching algorithms work best when multiple messages flow through the same publisher instance.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Applications may experience significantly reduced message throughput, increased latency, and higher resource consumption. In high-volume scenarios, this can lead to performance bottlenecks, increased cloud costs due to inefficient resource usage, and potential connection limits being reached due to excessive publisher instances.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Create the publisher instance once outside the loop and reuse it for all publish operations. Remember to call Stop() to properly clean up resources when done.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func publishMessages(client *pubsub.Client, topicID string, messages []string) {
+    for _, msg := range messages {
+        p := client.Publisher(topicID)  // Noncompliant: new publisher for each message
+        p.Publish(ctx, &amp;pubsub.Message{Data: []byte(msg)})
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func publishMessages(client *pubsub.Client, topicID string, messages []string) {
+    p := client.Publisher(topicID)  // Create publisher once
+    defer p.Stop()  // Clean up resources
+    for _, msg := range messages {
+        p.Publish(ctx, &amp;pubsub.Message{Data: []byte(msg)})
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Google Cloud Pub/Sub Go Client Documentation - <a href="https://pkg.go.dev/cloud.google.com/go/pubsub">Official documentation for the Google Cloud Pub/Sub Go client library</a></p>
+</li>
+<li>
+<p>Pub/Sub Publisher Best Practices - <a href="https://cloud.google.com/pubsub/docs/publisher">Google Cloud documentation on publisher best practices and performance optimization</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
