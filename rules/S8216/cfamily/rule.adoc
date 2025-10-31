@@ -1,0 +1,141 @@
+Code should not rely on features beyond the configured {cpp} standard
+
+== Why is this an issue?
+
+Relying on features that are not part of the configured {cpp} standard leads to non-portable builds and fragile code. Some toolchains accept such code as extensions or for backward compatibility, while others strictly reject it under the same standard setting. This rule flags:
+
+* Uses of features from future {cpp} standards (compared to the configured standard).
+* Uses of features removed in the configured {cpp} standard.
+* Uses of C-only constructs that some {cpp} implementations accept as extensions.
+
+Keeping code within the configured standard ensures consistency across compilers and prevents accidental lock-in to permissive extensions. Check the list of related rules for focused rules that report specific compiler extension cases; S8216 covers remaining standard violations not addressed by these specialized rules.
+
+This version primarily reports extensions starting from {cpp}20 and later. For example, it does not yet report use of a {cpp}17-only feature when the configured standard is {cpp}14. This limitation is temporary and will be addressed in a future update.
+
+== How to fix it
+
+Replace uses of out-of-scope features with standard-conforming alternatives that exist in the configured {cpp} standard. If the newer feature (or a removed feature) is truly required, upgrade (or align) the project’s configured standard and all toolchains consistently.
+
+=== Defaulted comparison operators
+
+Defaulted comparison operators are introduced in {cpp}20. When the configured standard is earlier than {cpp}20, using defaulted comparison operators is noncompliant. Under {cpp}20 or later, the same code is compliant.
+
+==== Noncompliant code example
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+struct Account {
+  int id;
+  bool operator==(const Account&) const = default; // Noncompliant before C++20
+};
+----
+
+==== Compliant solution
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+struct Account {
+  int id;
+  bool operator==(const Account& other) const { return id == other.id; }
+};
+----
+
+=== Using enum declaration
+
+The "using enum" declaration is a {cpp}20 feature. When the configured standard is earlier than {cpp}20, it is noncompliant to rely on it. Under {cpp}20 or later, the same code is compliant.
+
+==== Noncompliant code example
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+enum class Status { Ok, Error };
+using enum Status; // Noncompliant before C++20
+auto s = Ok;
+----
+
+==== Compliant solution
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+enum class Status { Ok, Error };
+auto s = Status::Ok;
+----
+
+=== Lambda template parameter list
+
+Lambda template parameter lists are available starting in {cpp}20. When the configured standard is earlier than {cpp}20, this usage is noncompliant. Under {cpp}20 or later, the same code is compliant.
+
+==== Noncompliant code example
+[source,cpp,diff-id=3,diff-type=noncompliant]
+----
+auto mapValue = []<typename T>(T t) { return t; }; // Noncompliant before C++20
+----
+
+==== Compliant solution
+[source,cpp,diff-id=3,diff-type=compliant]
+----
+auto mapValue = [](auto t) { return t; };
+----
+
+=== C array designators in {cpp}
+
+Some C-only constructs, such as array designators, may be accepted by {cpp} compilers as extensions, but they are not part of the {cpp} standard and should be avoided in {cpp} code.
+
+==== Noncompliant code example
+[source,cpp,diff-id=4,diff-type=noncompliant]
+----
+int values[3] = { [1] = 5 }; // Noncompliant in C++
+----
+
+==== Compliant solution
+[source,cpp,diff-id=4,diff-type=compliant]
+----
+int values[3] = {};
+values[1] = 5;
+----
+
+=== std::bind1st and std::bind2nd
+
+The ``++std::bind1st++`` and ``++std::bind2nd++`` function templates were deprecated in {cpp}11 and removed in {cpp}17. When the configured standard is {cpp}17 or later, using these functions is noncompliant. Under earlier standards, the same code may be compliant but is still deprecated.
+
+==== Noncompliant code example
+[source,cpp,diff-id=5,diff-type=noncompliant]
+----
+#include <functional>
+
+auto bound = std::bind1st(std::greater<int>(), 5); // Noncompliant in C++17 or later
+auto result = bound(3); // Returns true (5 > 3)
+----
+
+==== Compliant solution
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+#include <functional>
+
+auto bound = std::bind(std::greater<int>(), 5, std::placeholders::_1);
+auto result = bound(3); // Returns true (5 > 3)
+----
+
+Or use a lambda expression:
+
+[source,cpp,diff-id=5,diff-type=compliant]
+----
+auto bound = [](int x) { return std::greater<int>()(5, x); };
+auto result = bound(3); // Returns true (5 > 3)
+----
+
+== Resources
+
+=== Related rules
+
+* S3715 - GNU extensions should not be used
+* S8230 - MSVC-specific extensions should not be used
+* S8231 - Non-standard attributes should not be used
+* S3731 reports usages of ``++auto++`` as a storage class specifier, which was removed in {cpp}11
+* S7129 reports assignments of string literals to mutable char pointers, which is allowed only before {cpp}11
+* S6172 - Designated initializers should be used in their {cpp} compliant form
+* S2754 - Declarations should not be empty
+* S796 - Only escape sequences defined in the ISO C standard should be used
+* S3689 - Declaration specifiers should not be redundant
+* S2324 - Flexible array members should not be declared
+* S4997 reports usages of ``++std::auto_ptr++``, which was removed in {cpp}17
+* S2668 reports usages of the increment operator on a ``++bool++`` variable, which was removed in {cpp}17
+* S3522 reports usages of the ``++register++`` storage class specifier, which was removed in {cpp}17
+* S5020 - Facilities in <random> should be used instead of "srand", "rand" and "random_shuffle"
+* S2260 tracks parsing failures and can help identify compiler-specific extensions that the analyzer fails to recognize
