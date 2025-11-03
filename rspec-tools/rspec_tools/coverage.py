@@ -13,6 +13,7 @@ REPOS = [
     "sonar-abap",
     "sonar-apex",
     "sonar-architecture",
+    "sonar-armor",
     "sonar-cobol",
     "sonar-cpp",
     "sonar-dart",
