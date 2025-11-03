@@ -1,0 +1,82 @@
+This is an issue when code patterns trigger false positive warnings in race detection tools, making it harder to identify genuine race conditions.
+
+== Why is this an issue?
+
+Race detection tools like `go test -race` are essential for finding concurrency bugs in Go programs. However, certain coding patterns can trigger false positive warnings, creating noise that obscures real race conditions.
+
+When race detectors report false positives, developers may:
+
+* Ignore legitimate race condition warnings
+* Spend time investigating non-issues
+* Lose confidence in the race detection tools
+* Miss actual concurrency bugs
+
+The Go race detector works by tracking memory accesses and identifying unsynchronized access to shared memory. Some patterns, while functionally correct, appear to the race detector as potential data races because the synchronization is not explicit or visible to the tool.
+
+Common patterns that cause false positives include:
+
+* Direct assignment to global variables that are accessed concurrently
+* Sharing data through channels without proper synchronization markers
+* Using non-atomic operations on shared counters or flags
+
+By writing code that is explicitly race-detector-friendly, you make your concurrent code more maintainable and ensure that race detection tools can effectively help you find real bugs.
+
+=== What is the potential impact?
+
+False positives in race detection can mask real concurrency bugs, leading to unreliable software in production. Teams may disable race detection entirely, losing a valuable tool for catching dangerous race conditions that could cause data corruption, crashes, or security vulnerabilities.
+
+== How to fix it
+
+Use atomic operations for shared variables that are accessed concurrently. This makes the synchronization explicit to both the race detector and other developers.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+package main
+
+var counter int64
+
+func increment() {
+    counter++ // Noncompliant: direct access triggers race detector
+}
+
+func getCounter() int64 {
+    return counter // Noncompliant: unsynchronized read
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+package main
+
+import "sync/atomic"
+
+var counter int64
+
+func increment() {
+    atomic.AddInt64(&counter, 1)
+}
+
+func getCounter() int64 {
+    return atomic.LoadInt64(&counter)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Race Detector - https://go.dev/doc/articles/race_detector[Official documentation on Go's race detector tool]
+
+ * sync/atomic Package - https://pkg.go.dev/sync/atomic[Documentation for atomic operations in Go]
+
+ * Effective Go - Concurrency - https://go.dev/doc/effective_go#concurrency[Best practices for concurrent programming in Go]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Information about race condition vulnerabilities]
