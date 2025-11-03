@@ -1,0 +1,59 @@
+This rule raises an issue when C memory allocations (such as `C.CString`) are not freed with `C.free`, when `defer` is not used for cleanup, or when C function return values are ignored.
+
+== Why is this an issue?
+
+When using Cgo to interface with C code, Go's garbage collector does not manage memory allocated by C functions. This creates two critical problems:
+
+First, C memory allocations like `C.CString` must be manually freed using `C.free`. Without proper cleanup, these allocations create memory leaks that accumulate over time. In long-running applications, this can lead to steadily increasing memory usage and eventual resource exhaustion.
+
+Second, C functions often return error codes or status values that indicate success or failure. Ignoring these return values means your application cannot detect when C operations fail, leading to unpredictable behavior and potential data corruption.
+
+The `defer` statement is particularly important in Cgo because it ensures cleanup happens even if the function exits early due to errors, panics, or early returns. Without `defer`, memory can be leaked when execution doesn't reach the cleanup code.
+
+=== What is the potential impact?
+
+Memory leaks from unfreed C allocations can cause applications to consume increasing amounts of memory over time, potentially leading to out-of-memory conditions and application crashes. Ignored C function errors can result in silent failures, data corruption, or unpredictable application behavior. In server applications, these issues can lead to service degradation or denial of service.
+
+== How to fix it
+
+Always free C memory allocations using `C.free` and use `defer` to ensure cleanup happens even if the function exits early. Check return values from C functions and handle errors appropriately.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func Print(s string) {
+    cs := C.CString(s)
+    C.fputs(cs, (*C.FILE)(C.stdout))
+    // Noncompliant: cs is never freed
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func Print(s string) {
+    cs := C.CString(s)
+    defer C.free(unsafe.Pointer(cs))
+    C.fputs(cs, (*C.FILE)(C.stdout))
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * The Go Blog - C? Go? Cgo! - https://go.dev/blog/cgo[Official Go blog post explaining Cgo basics and memory management]
+
+ * Cgo Command Documentation - https://go.dev/cmd/cgo/[Official documentation for the cgo command and C pseudo-package]
+
+ * Go unsafe Package - https://go.dev/pkg/unsafe/[Documentation for the unsafe package used in C memory operations]
+
+=== Standards
+
+ * CWE-401: Missing Release of Memory after Effective Lifetime - https://cwe.mitre.org/data/definitions/401.html[Weakness related to memory leaks from unreleased allocated memory]
+
+ * CWE-252: Unchecked Return Value - https://cwe.mitre.org/data/definitions/252.html[Weakness related to ignoring return values that indicate errors]
