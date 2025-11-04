@@ -1,0 +1,88 @@
+This rule raises an issue when shared data structures are accessed from multiple goroutines without proper synchronization mechanisms.
+
+== Why is this an issue?
+
+Go's concurrency model allows multiple goroutines to run simultaneously, but this creates the risk of race conditions when multiple goroutines access shared data without coordination.
+
+When goroutines access the same data structure concurrently, several problems can occur:
+
+* **Data races**: Multiple goroutines reading and writing the same memory location simultaneously can lead to corrupted data
+* **Inconsistent state**: One goroutine might see partially updated data while another is still modifying it
+* **Unpredictable behavior**: The program's output becomes non-deterministic and depends on the timing of goroutine execution
+
+Many data structures in Go's standard library are not designed for concurrent access. For example, `token.File.Lines()` returns a slice that can be modified internally, making concurrent access unsafe. Similarly, maps, slices, and most other built-in types are not thread-safe by default.
+
+The Go memory model specifies that programs with data races have undefined behavior. This means that even seemingly simple operations like reading a variable can produce unexpected results when performed concurrently without synchronization.
+
+=== What is the potential impact?
+
+Race conditions can cause:
+
+* **Data corruption**: Shared data structures may become corrupted, leading to incorrect program behavior
+* **Program crashes**: Concurrent access to maps or slices can cause runtime panics
+* **Security vulnerabilities**: Race conditions in security-critical code can be exploited by attackers
+* **Difficult debugging**: Race conditions are often intermittent and hard to reproduce, making them challenging to diagnose and fix
+
+== How to fix it
+
+Use a mutex to synchronize access to shared data structures. Read-write mutexes allow multiple concurrent readers when no writer is active.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func processFile(file *token.File) {
+    go func() {
+        lines := file.Lines() // Noncompliant
+        // process lines
+    }()
+    go func() {
+        lines := file.Lines() // Noncompliant
+        // process lines
+    }()
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+var mu sync.RWMutex
+
+func processFile(file *token.File) {
+    go func() {
+        mu.RLock()
+        lines := file.Lines()
+        mu.RUnlock()
+        // process lines
+    }()
+    go func() {
+        mu.RLock()
+        lines := file.Lines()
+        mu.RUnlock()
+        // process lines
+    }()
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Memory Model - https://golang.org/ref/mem[Official documentation explaining Go's memory model and synchronization requirements]
+
+ * Effective Go - Concurrency - https://golang.org/doc/effective_go#concurrency[Best practices for concurrent programming in Go]
+
+ * sync package - https://pkg.go.dev/sync[Documentation for Go's synchronization primitives]
+
+ * sync/atomic package - https://pkg.go.dev/sync/atomic[Documentation for atomic operations in Go]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race condition vulnerability category]
+
+=== Related rules
+
+ * RSPEC-2885 - https://rules.sonarsource.com/go/RSPEC-2885/[Loops should not be infinite]
