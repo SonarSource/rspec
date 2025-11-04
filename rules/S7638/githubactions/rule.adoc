@@ -1,44 +1,93 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+GitHub Actions workflows support special workflow commands that allow workflows to interact with the runner.
+These commands can be invoked by printing a specially crafted messages to the standard output.
+For example, `::set-mask` can be used to mask sensitive values in the workflow logs and `::error` to terminate execution with a useful error message.
 
-//=== What is the potential impact?
+Two of such commands, `::set-env` and `::add-path`, allow setting arbitrary environment variables and modifying the system PATH, respectively.
+In 2020, these commands were deprecated and disabled by default due to security concerns.
+However, `ACTIONS_ALLOW_UNSECURE_COMMANDS` environment variable can still be used to re-enable them.
+
+If this environment variable is set, the runner will process `::set-env` and `::add-path` commands printed to the standard output.
+If an attacker can influence the content printed to the standard output, they can use these commands to manipulate the runtime environment.
+
+=== What is the potential impact?
+
+When user-supplied values are used to manipulate environment variables, an attacker can supply carefully chosen values that cause the system to behave unexpectedly.
+In some cases, the attacker can use this capability to execute arbitrary code on the server.
+
+The consequences of a successful attack can be severe and far-reaching:
+
+include::../../../shared_content/githubactions/impact/information_disclosure.adoc[]
+
+include::../../../shared_content/githubactions/impact/system_compromise.adoc[]
+
+include::../../../shared_content/githubactions/impact/supply_chain_attacks.adoc[]
+
+include::../../../shared_content/githubactions/impact/repository_manipulation.adoc[]
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
 === Code examples
+
+// FIXME: add a sentence explaining the issue
 
 ==== Noncompliant code example
 
 [source,yaml,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+name: "Example"
+
+jobs:
+  set_env:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: true  # Noncompliant
+        run: |
+          curl http://example.com?echo=::set-env%20name=VARIABLE::1
+          # If the HTTP response would contain "::set-env name=VARIABLE::1",
+          # the variable VARIABLE would be set for the rest of the steps.
 ----
 
 ==== Compliant solution
 
 [source,yaml,diff-id=1,diff-type=compliant]
 ----
-FIXME
+name: "Example"
+
+jobs:
+  set_env:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl http://example.com?echo=::set-env%20name=VARIABLE::1
+          # The response is printed to the logs, but no commands are processed.
 ----
 
-//=== How does this work?
+== Resources
+=== Documentation
 
-//=== Pitfalls
+* GitHub Docs - https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable[Workflow commands for GitHub Actions: Setting an environment variable]
+* GitHub Docs - https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-system-path[Workflow commands for GitHub Actions: Adding a system path]
 
-//=== Going the extra mile
+=== Articles & blog posts
 
+* GitHub Blog - https://github.blog/changelog/2020-10-01-github-actions-deprecating-set-env-and-add-path-commands/[GitHub Actions: Deprecating set-env and add-path commands]
+* GitHub Advisory Database - https://github.com/actions/toolkit/security/advisories/GHSA-mfwh-5m23-j46w[`add-path` and `set-env` Runner commands are processed via stdout]
+* Google Project Zero - https://project-zero.issues.chromium.org/issues/42451175[Github: Widespread injection vulnerabilities in Actions]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
 //=== Conference presentations
-//=== Standards
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A03_2021-Injection/[Top 10 2021 Category A3 - Injection]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A1_2017-Injection[Top 10 2017 Category A1 - Injection]
+* CWE - https://cwe.mitre.org/data/definitions/20[CWE-20 - Improper Input Validation]
+* CWE - https://cwe.mitre.org/data/definitions/454[CWE-454 - External Initialization of Trusted Variables or Data Stores]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609[Application Security and Development: V-222609] - The application must not be subject to input handling vulnerabilities.
+
 //=== External coding guidelines
 //=== Benchmarks
+=== Related rules
+
+* S6547 Environment variables should not be defined from untrusted input
