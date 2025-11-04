@@ -13,6 +13,7 @@ from rspec_tools.coverage import (
     update_coverage_for_repo_version,
 )
 from rspec_tools.errors import RuleValidationError
+from rspec_tools.export_asvs import export_asvs_report
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (
@@ -174,6 +175,72 @@ def update_coverage(rulesdir: str, repository: Optional[str], version: Optional[
 @click.option("--channel", required=True)
 def notify_failure_on_slack(message: str, channel: str):
     notify_slack(message, channel)
+
+
+@cli.group("export-security-standards")
+def export_security_standards_group():
+    """Export security standards from rules to YAML reports."""
+    pass
+
+
+@export_security_standards_group.command("asvs")
+@click.option(
+    "--name",
+    required=True,
+    help='Name of the security standard to filter from rules (e.g., "ASVS 4.0")',
+)
+@click.option(
+    "--spec",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to the ASVS JSON specification file",
+)
+@click.option(
+    "--rulesdir",
+    default="~/Sources/AT/rspec/rules",
+    help="Path to the rules directory",
+)
+@click.option(
+    "--output",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path to the output YAML file",
+)
+def asvs_cmd(name: str, spec: Path, rulesdir: str, output: Path):
+    """Generate ASVS report from specification file and map rules to requirements."""
+    rules_path = Path(rulesdir).expanduser()
+
+    if not rules_path.exists():
+        _fatal_error(f"Rules directory does not exist: {rules_path}")
+
+    try:
+        click.echo(f"Parsing ASVS specification from {spec}")
+        click.echo(f"Mapping rules for '{name}' from {rules_path}")
+
+        report = export_asvs_report(spec, rules_path, output, name)
+
+        click.echo(f"ASVS report exported to {output}")
+
+        # Print summary
+        version = report["versions"][0]
+        category_count = len(version.get("categories", []))
+
+        # Count total requirements
+        total_requirements = 0
+        requirements_with_rules = 0
+        for category in version.get("categories", []):
+            for subcategory in category.get("subcategories", []):
+                for subsubcategory in subcategory.get("subsubcategories", []):
+                    total_requirements += 1
+                    if "rules" in subsubcategory:
+                        requirements_with_rules += 1
+
+        click.echo(
+            f"Report contains {category_count} categories with {total_requirements} requirements"
+        )
+        click.echo(f"{requirements_with_rules} requirements have mapped rules")
+    except Exception as e:
+        _fatal_error(f"Error generating ASVS report: {e}")
 
 
 __all__ = ["cli"]
