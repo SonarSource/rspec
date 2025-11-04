@@ -1,0 +1,93 @@
+This rule raises an issue when the same set of locks are acquired in different orders across different code paths in your program.
+
+== Why is this an issue?
+
+When multiple goroutines need to acquire the same set of locks, acquiring them in different orders can lead to deadlocks.
+
+A deadlock occurs when two or more goroutines are blocked forever, each waiting for the other to release a lock. This happens when:
+
+* Goroutine A holds Lock 1 and waits for Lock 2
+* Goroutine B holds Lock 2 and waits for Lock 1
+* Both goroutines wait indefinitely
+
+This creates a circular dependency where no goroutine can proceed. The application becomes unresponsive and may need to be forcefully terminated.
+
+Deadlocks are particularly dangerous because:
+
+* They cause complete application freezes
+* They are often intermittent and hard to reproduce
+* They typically occur under load when timing conditions align
+* They can be difficult to debug without proper tooling
+
+Consistent lock ordering eliminates this problem by ensuring all goroutines acquire locks in the same sequence, preventing circular wait conditions.
+
+=== What is the potential impact?
+
+Deadlocks cause complete application hangs, making the system unresponsive. This leads to:
+
+* Service outages and downtime
+* Poor user experience
+* Potential data loss if transactions are interrupted
+* Difficult debugging sessions, especially in production environments
+* Resource waste as blocked goroutines consume memory indefinitely
+
+== How to fix it
+
+Always acquire locks in the same order across all code paths. A common approach is to order locks by their memory address or by a consistent identifier.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+// Thread A
+accountA.mutex.Lock()
+accountB.mutex.Lock() // Noncompliant
+// ... transfer logic
+accountB.mutex.Unlock()
+accountA.mutex.Unlock()
+
+// Thread B  
+accountB.mutex.Lock()
+accountA.mutex.Lock() // Noncompliant: different order
+// ... transfer logic
+accountA.mutex.Unlock()
+accountB.mutex.Unlock()
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+// Both threads use consistent ordering
+func transfer(from, to *Account, amount int) {
+    // Always lock accounts in ID order
+    if from.ID < to.ID {
+        from.mutex.Lock()
+        defer from.mutex.Unlock()
+        to.mutex.Lock()
+        defer to.mutex.Unlock()
+    } else {
+        to.mutex.Lock()
+        defer to.mutex.Unlock()
+        from.mutex.Lock()
+        defer from.mutex.Unlock()
+    }
+    // ... safe transfer logic
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Memory Model - Synchronization - https://golang.org/ref/mem#tmp_2[Official Go documentation on memory model and synchronization primitives]
+
+ * Effective Go - Concurrency - https://golang.org/doc/effective_go#concurrency[Best practices for concurrent programming in Go]
+
+ * Go Race Detector - https://golang.org/doc/articles/race_detector.html[Tool for detecting race conditions and concurrency issues]
+
+=== Standards
+
+ * CWE-833: Deadlock - https://cwe.mitre.org/data/definitions/833.html[Common weakness enumeration for deadlock conditions]
