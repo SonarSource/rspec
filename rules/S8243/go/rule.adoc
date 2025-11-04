@@ -1,0 +1,81 @@
+This rule raises an issue when goroutines perform blocking operations or run indefinitely without proper context-based cancellation or timeout mechanisms.
+
+== Why is this an issue?
+
+Goroutines are lightweight threads in Go that make concurrent programming easy and efficient. However, without proper lifecycle management, they can become a source of serious problems.
+
+When goroutines perform blocking operations like network calls, file I/O, or channel operations without timeout mechanisms, they can hang indefinitely. This leads to several issues:
+
+* **Resource leaks**: Goroutines that never terminate continue to consume memory and system resources
+* **Application unresponsiveness**: Blocked goroutines can prevent proper application shutdown
+* **Scalability problems**: Accumulated leaked goroutines can exhaust system resources
+* **Difficult debugging**: Goroutine leaks are often hard to detect and diagnose in production
+
+Go's `context` package provides a standard way to handle cancellation, timeouts, and request-scoped values across API boundaries. When goroutines use context properly, they can:
+
+* Respond to cancellation signals from parent operations
+* Implement timeouts for potentially long-running operations
+* Clean up resources when operations are no longer needed
+* Provide better observability and control over concurrent operations
+
+Without context handling, goroutines become fire-and-forget operations that can accumulate over time, eventually causing memory leaks and performance degradation.
+
+=== What is the potential impact?
+
+Goroutines without proper lifecycle management can cause memory leaks, resource exhaustion, and application instability. In high-traffic applications, this can lead to gradual performance degradation and eventual system failure. The lack of proper cancellation mechanisms also makes it difficult to implement graceful shutdowns and can result in hanging processes during deployment or restart scenarios.
+
+== How to fix it
+
+Use context.WithTimeout for operations that should have a maximum duration. This ensures that goroutines don't block indefinitely on potentially slow operations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func fetchData() {
+    go func() {
+        resp, err := http.Get("https://api.example.com/data") // Noncompliant
+        if err != nil {
+            return
+        }
+        defer resp.Body.Close()
+        // Process response
+    }()
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func fetchData(ctx context.Context) {
+    go func() {
+        ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+        defer cancel()
+        
+        req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.example.com/data", nil)
+        resp, err := http.DefaultClient.Do(req)
+        if err != nil {
+            return
+        }
+        defer resp.Body.Close()
+        // Process response
+    }()
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Context Package - https://pkg.go.dev/context[Official documentation for Go's context package]
+
+ * Go Concurrency Patterns: Context - https://go.dev/blog/context[Official Go blog post explaining context usage patterns]
+
+ * Go Concurrency Patterns: Timing out, moving on - https://go.dev/blog/concurrency-timeouts[Go blog post about implementing timeouts in concurrent operations]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[Weakness related to uncontrolled resource consumption that can lead to resource exhaustion]
