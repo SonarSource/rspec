@@ -1,0 +1,58 @@
+This rule raises an issue when an SOSL query is used in a test method without calling ``++Test.setFixedSearchResults()++`` beforehand.
+
+== Why is this an issue?
+
+SOSL (Salesforce Object Search Language) queries behave differently in test contexts compared to production environments. By default, any SOSL search executed within a test method returns empty results, regardless of the data that exists in the test database.
+
+This behavior can lead to several problems:
+
+* *Unpredictable test results*: Tests may pass or fail inconsistently because they rely on empty search results rather than controlled test data.
+* *False test outcomes*: A test might pass when it should fail, or fail when it should pass, because the SOSL query doesn't return the expected data.
+* *Incomplete test coverage*: The actual logic that processes SOSL results may not be properly tested if the queries always return empty results.
+
+To ensure reliable and predictable test behavior, Salesforce provides the ``++Test.setFixedSearchResults()++`` method. This method allows you to specify exactly which record IDs should be returned by SOSL queries during test execution, giving you full control over the test scenario.
+
+=== What is the potential impact?
+
+Tests that rely on SOSL queries without proper setup may produce unreliable results, leading to false confidence in code quality. This can result in bugs being deployed to production that could have been caught with properly configured tests.
+
+== How to fix it
+
+Call ``++Test.setFixedSearchResults()++`` before executing the SOSL query in your test method. Pass an array of record IDs that you want the SOSL query to return.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@isTest
+static void testSOSLSearch() {
+    List<List<SObject>> searchResults = [FIND 'test' IN ALL FIELDS RETURNING Account(Id, Name)]; // Noncompliant
+    System.assertEquals(1, searchResults[0].size());
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@isTest
+static void testSOSLSearch() {
+    Account testAccount = new Account(Name = 'Test Account');
+    insert testAccount;
+    Test.setFixedSearchResults(new Id[]{testAccount.Id});
+    List<List<SObject>> searchResults = [FIND 'test' IN ALL FIELDS RETURNING Account(Id, Name)];
+    System.assertEquals(1, searchResults[0].size());
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Test.setFixedSearchResults Method - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_test.htm#apex_System_Test_setFixedSearchResults[Official Salesforce documentation for the Test.setFixedSearchResults method]
+
+ * Testing SOSL Queries - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_testing_SOSL.htm[Salesforce guide on testing SOSL queries in Apex]
+
+ * Apex Testing Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_testing_best_practices.htm[Comprehensive guide to Apex testing best practices]
