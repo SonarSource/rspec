@@ -9,12 +9,16 @@ In 2020, these commands were deprecated and disabled by default due to security 
 However, `ACTIONS_ALLOW_UNSECURE_COMMANDS` environment variable can still be used to re-enable them.
 
 If this environment variable is set, the runner will process `::set-env` and `::add-path` commands printed to the standard output.
-If an attacker can influence the content printed to the standard output, they can use these commands to manipulate the runtime environment.
+If an adversary can influence the content printed to the standard output (e.g., by injecting something into the build logs), they could use these commands to manipulate the runtime environment.
 
 === What is the potential impact?
 
 When user-supplied values are used to manipulate environment variables, an attacker can supply carefully chosen values that cause the system to behave unexpectedly.
-In some cases, the attacker can use this capability to execute arbitrary code on the server.
+This can be used to execute arbitrary commands as well as affect the behavior of other tools and scripts executed after the injection point.
+In most cases, this leads to arbitrary code execution on the system.
+
+It is important to note, that these commands are triggered by printing to standard output.
+Therefore, this issue can be exploited if an attacker can influence the output of any command executed during the workflow.
 
 The consequences of a successful attack can be severe and far-reaching:
 
@@ -28,8 +32,7 @@ include::../../../shared_content/githubactions/impact/repository_manipulation.ad
 
 == How to fix it
 
-To fix this issue, remove setting of the `ACTIONS_ALLOW_UNSECURE_COMMANDS` environment variable.
-If your workflow relies on functionality provided by `::set-env` or `::add-path` commands, you can replace them with the recommended alternatives:
+To fix this issue, remove setting of the `ACTIONS_ALLOW_UNSECURE_COMMANDS` environment variable, and replace the use of `::set-env` and `::add-path` with their safe alternatives:
 
 * To set environment variables, echo to the `$GITHUB_ENV` environment variable. For example, to make a an environment variable named `VARIABLE` to `value` for the subsequent workflows steps, you can do the following:
 
@@ -52,16 +55,13 @@ name: "Example"
 jobs:
   set_env:
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true  # Noncompliant
     steps:
-      - env:
-          ACTIONS_ALLOW_UNSECURE_COMMANDS: true  # Noncompliant
-        run: |
-          curl http://example.com?echo=::set-env%20name=MESSAGE::hello
-          # If the HTTP response echoes contain "::set-env name=MESSAGE::hello",
-          # the MESSAGE is set for the rest of the steps.
+      - run: |
+          echo "::set-env name=MESSAGE::hello"
       - run: |
           echo "Message: $MESSAGE"
-          # Output: "Message: hello"
 ----
 
 ==== Compliant solution
@@ -75,11 +75,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl http://example.com?echo=::set-env%20name=MESSAGE::hello
-          # The response is printed to the logs, but no commands are processed.
+          echo "MESSAGE::hello" >> $GITHUB_ENV
       - run: |
           echo "Message: $MESSAGE"
-          # Output: "Message: "
 ----
 
 == Resources
