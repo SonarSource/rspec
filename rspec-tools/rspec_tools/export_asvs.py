@@ -151,18 +151,21 @@ def build_asvs_report(asvs_spec: dict, asvs_rules: Dict[str, Set[str]]) -> dict:
         "categories": categories,
     }
 
-    # Build the complete report
-    report = {
-        "taxonomy": {
-            "category": "Requirement",
-            "subcategory": "Requirement",
-            "subsubcategory": "Requirement",
-        },
-        "levels": levels,
-        "versions": [version],
+    # Build the complete report with top-level structure wrapped in 'report' key
+    return {
+        "report": {
+            "name": f"{asvs_spec['Name']}",
+            "description": asvs_spec.get("Description", ""),
+            "classification": "SECURITY",
+            "taxonomy": {
+                "category": "Requirement",
+                "subcategory": "Requirement",
+                "subsubcategory": "Requirement",
+            },
+            "levels": levels,
+            "versions": [version],
+        }
     }
-
-    return report
 
 
 def export_asvs_report(

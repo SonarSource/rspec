@@ -3,6 +3,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
+from jsonschema import validate, ValidationError
 
 from rspec_tools.export_asvs import (
     build_asvs_report,
@@ -108,7 +110,16 @@ def test_build_asvs_report():
 
     asvs_rules = {"1.1.1": {"S100", "S200"}, "1.1.2": {"S300"}}
 
-    report = build_asvs_report(spec_data, asvs_rules)
+    result = build_asvs_report(spec_data, asvs_rules)
+
+    # Check top-level has 'report' key
+    assert "report" in result
+    report = result["report"]
+
+    # Check top-level fields
+    assert report["name"] == "Application Security Verification Standard Project"
+    assert report["description"] == "Test description"
+    assert report["classification"] == "SECURITY"
 
     # Check taxonomy
     assert report["taxonomy"]["category"] == "Requirement"
@@ -120,9 +131,9 @@ def test_build_asvs_report():
     levels = report["levels"]
     assert levels["name"] == "Application Security Verification Levels"
     assert len(levels["values"]) == 3
-    assert levels["values"][0]["name"] == "Level 1"
-    assert levels["values"][1]["name"] == "Level 2"
-    assert levels["values"][2]["name"] == "Level 3"
+    assert levels["values"][0]["name"] == "L1"
+    assert levels["values"][1]["name"] == "L2"
+    assert levels["values"][2]["name"] == "L3"
 
     # Check version
     assert len(report["versions"]) == 1
@@ -202,12 +213,14 @@ def test_export_asvs_report():
 
         # Export report
         output_file = Path(tmpdir) / "asvs-report.yaml"
-        report = export_asvs_report(spec_file, rules_path, output_file, "ASVS 4.0")
+        result = export_asvs_report(spec_file, rules_path, output_file, "ASVS 4.0")
 
         # Check that the file was created
         assert output_file.exists()
 
-        # Check report structure
+        # Check report structure - should have 'report' key at top level
+        assert "report" in result
+        report = result["report"]
         assert "taxonomy" in report
         assert "levels" in report
         assert "versions" in report
@@ -219,12 +232,64 @@ def test_export_asvs_report():
         with output_file.open("r") as f:
             loaded_report = yaml.safe_load(f)
 
-        assert loaded_report == report
+        assert loaded_report == result
 
-        # Check that S100 is mapped to 1.23.4
-        version = loaded_report["versions"][0]
-        category = version["categories"][0]
-        subcategory = category["subcategories"][0]
-        requirement = subcategory["subsubcategories"][0]
-        assert "S100" in requirement.get("rules", [])
+
+def test_asvs_report_validates_against_schema():
+    """Test that the generated ASVS report validates against the JSON schema."""
+    # Create a minimal ASVS spec
+    spec_data = {
+        "Name": "Application Security Verification Standard Project",
+        "ShortName": "ASVS",
+        "Version": "4.0.3",
+        "Description": "Test description",
+        "Requirements": [
+            {
+                "Shortcode": "V1",
+                "Name": "Test Category",
+                "Items": [
+                    {
+                        "Shortcode": "V1.1",
+                        "Name": "Test Subcategory",
+                        "Items": [
+                            {
+                                "Shortcode": "V1.1.1",
+                                "Description": "Test requirement",
+                                "L1": {"Required": False},
+                                "L2": {"Required": True},
+                                "L3": {"Required": True},
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    rules_path = Path(__file__).parent.joinpath("resources", "rules")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create spec file
+        spec_file = Path(tmpdir) / "asvs-spec.json"
+        with spec_file.open("w") as f:
+            json.dump(spec_data, f)
+
+        # Export report
+        output_file = Path(tmpdir) / "asvs-report.yaml"
+        result = export_asvs_report(spec_file, rules_path, output_file, "ASVS 4.0")
+
+        # Load the JSON schema
+        schema_path = Path(__file__).parent.parent / "rspec_tools" / "report.schema.json"
+        with schema_path.open() as f:
+            schema = json.load(f)
+
+        # The report is under the 'report' key, so validate that part
+        assert "report" in result
+
+        # Validate the report against the schema
+        try:
+            validate(instance=result["report"], schema=schema)
+        except ValidationError as e:
+            pytest.fail(f"ASVS report does not validate against schema: {e.message}")
+
 

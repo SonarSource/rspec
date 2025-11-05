@@ -14,6 +14,8 @@ from rspec_tools.coverage import (
 )
 from rspec_tools.errors import RuleValidationError
 from rspec_tools.export_asvs import export_asvs_report
+from rspec_tools.export_cwe import export_cwe_report
+from rspec_tools.export_stig import export_stig_report
 from rspec_tools.notify_failure_on_slack import notify_slack
 from rspec_tools.rules import LanguageSpecificRule, RulesRepository
 from rspec_tools.validation.description import (
@@ -221,8 +223,8 @@ def asvs_cmd(name: str, spec: Path, rulesdir: str, output: Path):
 
         click.echo(f"ASVS report exported to {output}")
 
-        # Print summary
-        version = report["versions"][0]
+        # Print summary - report is now wrapped in 'report' key
+        version = report["report"]["versions"][0]
         category_count = len(version.get("categories", []))
 
         # Count total requirements
@@ -241,6 +243,133 @@ def asvs_cmd(name: str, spec: Path, rulesdir: str, output: Path):
         click.echo(f"{requirements_with_rules} requirements have mapped rules")
     except Exception as e:
         _fatal_error(f"Error generating ASVS report: {e}")
+
+
+@export_security_standards_group.command("stig")
+@click.option(
+    "--name",
+    required=True,
+    help='Name of the security standard to filter from rules (e.g., "STIG ASD_V5R3")',
+)
+@click.option(
+    "--spec",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to the STIG XML specification file",
+)
+@click.option(
+    "--rulesdir",
+    default="~/Sources/AT/rspec/rules",
+    help="Path to the rules directory",
+)
+@click.option(
+    "--output",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path to the output YAML file",
+)
+def stig_cmd(name: str, spec: Path, rulesdir: str, output: Path):
+    """Generate STIG report from XML specification file and map rules to groups."""
+    rules_path = Path(rulesdir).expanduser()
+
+    if not rules_path.exists():
+        _fatal_error(f"Rules directory does not exist: {rules_path}")
+
+    try:
+        click.echo(f"Parsing STIG specification from {spec}")
+        click.echo(f"Mapping rules for '{name}' from {rules_path}")
+
+        report = export_stig_report(spec, rules_path, output, name)
+
+        click.echo(f"STIG report exported to {output}")
+
+        # Print summary - report is now wrapped in 'report' key
+        version = report["report"]["versions"][0]
+        category_count = len(version.get("categories", []))
+
+        # Count groups with rules
+        groups_with_rules = sum(
+            1 for category in version.get("categories", []) if "rules" in category
+        )
+
+        click.echo(f"Report contains {category_count} groups")
+        click.echo(f"{groups_with_rules} groups have mapped rules")
+    except Exception as e:
+        _fatal_error(f"Error generating STIG report: {e}")
+
+
+@export_security_standards_group.command("cwe")
+@click.option(
+    "--name",
+    default="CWE",
+    help='Name of the CWE standard (e.g., "CWE")',
+)
+@click.option(
+    "--spec",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to the CWE XML specification file",
+)
+@click.option(
+    "--top25-spec",
+    multiple=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to a CWE Top 25 XML specification file (can be specified multiple times)",
+)
+@click.option(
+    "--rulesdir",
+    default="~/Sources/AT/rspec/rules",
+    help="Path to the rules directory",
+)
+@click.option(
+    "--output",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Path to the output YAML file",
+)
+def cwe_cmd(name: str, spec: Path, top25_spec: tuple, rulesdir: str, output: Path):
+    """Generate CWE report from XML specification file and map rules to weaknesses."""
+    rules_path = Path(rulesdir).expanduser()
+
+    if not rules_path.exists():
+        _fatal_error(f"Rules directory does not exist: {rules_path}")
+
+    try:
+        click.echo(f"Parsing CWE specification from {spec}")
+        
+        # Convert top25_spec tuple to list of Paths
+        top25_list = [Path(p) for p in top25_spec] if top25_spec else []
+        
+        if top25_list:
+            click.echo(f"Including {len(top25_list)} Top 25 specification(s)")
+            for t25 in top25_list:
+                click.echo(f"  - {t25}")
+        
+        click.echo(f"Mapping rules from {rules_path}")
+
+        report = export_cwe_report(spec, rules_path, output, top25_list)
+
+        click.echo(f"CWE report exported to {output}")
+
+        # Print summary - report is now wrapped in 'report' key
+        versions = report["report"]["versions"]
+        main_version = versions[0]
+        
+        weakness_count = len(main_version.get("categories", []))
+        weaknesses_with_rules = sum(
+            1 for category in main_version.get("categories", []) if "rules" in category
+        )
+
+        click.echo(f"Main CWE version contains {weakness_count} weaknesses")
+        click.echo(f"{weaknesses_with_rules} weaknesses have mapped rules")
+        
+        if len(versions) > 1:
+            click.echo(f"Generated {len(versions) - 1} additional Top 25 version(s)")
+            for version in versions[1:]:
+                top25_count = len(version.get("categories", []))
+                click.echo(f"  - {version['name']}: {top25_count} weaknesses")
+    except Exception as e:
+        _fatal_error(f"Error generating CWE report: {e}")
 
 
 __all__ = ["cli"]
