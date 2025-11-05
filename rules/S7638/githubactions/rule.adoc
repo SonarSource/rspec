@@ -1,10 +1,10 @@
 == Why is this an issue?
 
 GitHub Actions workflows support special workflow commands that allow workflows to interact with the runner.
-These commands can be invoked by printing a specially crafted messages to the standard output.
+These commands can be invoked by printing specially crafted messages to the standard output.
 For example, `::set-mask` can be used to mask sensitive values in the workflow logs and `::error` to terminate execution with a useful error message.
 
-Two of such commands, `::set-env` and `::add-path`, allow setting arbitrary environment variables and modifying the system PATH, respectively.
+Two of such commands, `::set-env` and `::add-path`, allow setting arbitrary environment variables and modifying the system PATH for the subsequent workflow steps.
 In 2020, these commands were deprecated and disabled by default due to security concerns.
 However, `ACTIONS_ALLOW_UNSECURE_COMMANDS` environment variable can still be used to re-enable them.
 
@@ -31,12 +31,12 @@ include::../../../shared_content/githubactions/impact/repository_manipulation.ad
 To fix this issue, remove setting of the `ACTIONS_ALLOW_UNSECURE_COMMANDS` environment variable.
 If your workflow relies on functionality provided by `::set-env` or `::add-path` commands, you can replace them with the recommended alternatives:
 
-* To set environment variables, use the `GITHUB_ENV` file. For example, to set an environment variable named `VARIABLE` to `value`, you can use the following command in your workflow step:
+* To set environment variables, echo to the `$GITHUB_ENV` environment variable. For example, to make a an environment variable named `VARIABLE` to `value` for the subsequent workflows steps, you can do the following:
 
   # This is equivalent to `export VARIABLE=value` across stpes
   echo "VARIABLE=value" >> $GITHUB_ENV
 
-* To prepend a new entry to the system PATH, use the `GITHUB_PATH` file. For example, to add `/new/path` to the PATH, you can use the following command:
+* To prepend a new entry to the system PATH, echo to the `$GITHUB_PATH` environment variable. For example, to add `/new/path` to the PATH for the subsequent workflow steps, you can do the following:
 
   # This is equivalent to `export PATH=/new/path:$PATH` across steps
   echo "/new/path" >> $GITHUB_PATH
@@ -56,9 +56,12 @@ jobs:
       - env:
           ACTIONS_ALLOW_UNSECURE_COMMANDS: true  # Noncompliant
         run: |
-          curl http://example.com?echo=::set-env%20name=VARIABLE::1
-          # If the HTTP response would contain "::set-env name=VARIABLE::1",
-          # the variable VARIABLE would be set for the rest of the steps.
+          curl http://example.com?echo=::set-env%20name=MESSAGE::hello
+          # If the HTTP response echoes contain "::set-env name=MESSAGE::hello",
+          # the MESSAGE is set for the rest of the steps.
+      - run: |
+          echo "Message: $MESSAGE"
+          # Output: "Message: hello"
 ----
 
 ==== Compliant solution
@@ -72,8 +75,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl http://example.com?echo=::set-env%20name=VARIABLE::1
+          curl http://example.com?echo=::set-env%20name=MESSAGE::hello
           # The response is printed to the logs, but no commands are processed.
+      - run: |
+          echo "Message: $MESSAGE"
+          # Output: "Message: "
 ----
 
 == Resources
