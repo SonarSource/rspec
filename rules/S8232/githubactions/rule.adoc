@@ -1,31 +1,64 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+Do not rely on unverified github context values to trust events.
 
 == Why is this an issue?
+Using `github.actor` or equivalent variables to check if the actor is a trusted principal on events like `pull_request_target` could be a security issue because this kind of variable does not always refer to the actual creator of `commit/pull request`.
 
-FIXME: remove the unused optional headers (that are commented out)
+It's the user who caused the latest event that triggered the workflow, so if a threat actor could force a trusted actor (such as a bot) into making a change that triggers the workflow, they can bypass the check.
 
-//=== What is the potential impact?
+
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+Workflows should verify the Pull Request's origin and content using trusted metadata before taking automated actions, rather than trusting the triggering actor.
+
+For instance, instead of directly using `github.actor` to authorize an auto-merge operation during a `pull_request_target` event, you have to use specialized Github Actions designed to handle this type of thing.
+
+Such as, for dependabot auto-merge, `dependabot/fetch-metadata`. These actions retrieve metadata about a dependabot PR, including whether it has been altered by a threat actor. You can use it to make a safer decision.
+
+In a `pull_request_target`, you could also rely on non-forgeable variables like:
+    * `github.event.pull_request.user.login`
+    * `github.event.pull_request.user.id`
 
 === Code examples
 
 ==== Noncompliant code example
-
 [source,yaml,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+name: Auto-Merge
+on:
+  pull_request_target:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}  # Noncompliant
+
+    steps:
+      - name: Merge
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash ${{ github.event.pull_request.html_url }}        
+
 ----
 
 ==== Compliant solution
 
 [source,yaml,diff-id=1,diff-type=compliant]
 ----
-FIXME
+name: Auto-Merge
+on:
+  pull_request_target:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+
+    steps:    
+      - name: Merge
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash ${{ github.event.pull_request.html_url }}
+
 ----
 
 //=== How does this work?
@@ -35,10 +68,21 @@ FIXME
 //=== Going the extra mile
 
 
-//== Resources
-//=== Documentation
+== Resources
+=== Documentation
+* Github Docs - https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
+
+
 //=== Articles & blog posts
+
 //=== Conference presentations
-//=== Standards
+
+=== Standards
+* OWASP - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Top 10 2021 Category A1 - Broken Access Control]
+* CWE - https://cwe.mitre.org/data/definitions/441.html[CWE-441 - Confused Deputy]
+
+
 //=== External coding guidelines
+
 //=== Benchmarks
+
