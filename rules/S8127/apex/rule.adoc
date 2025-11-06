@@ -1,0 +1,55 @@
+This rule raises an issue when a SOQL query is executed inside a loop (for, while, or do-while), which can lead to governor limit violations and poor performance.
+
+== Why is this an issue?
+
+Executing SOQL queries inside loops is a critical performance anti-pattern in Apex development that can quickly exhaust Salesforce's governor limits.
+
+Salesforce enforces strict limits on the number of SOQL queries that can be executed in a single transaction: 100 queries in synchronous contexts and 200 in asynchronous contexts. When you place a SOQL query inside a loop, each iteration executes a separate query against the database.
+
+For example, if you have a loop that processes 50 records and each iteration executes one SOQL query, you'll consume 50 of your 100 available queries in a single operation. This approach doesn't scale - processing 150 records would exceed the governor limit and cause a runtime exception.
+
+Beyond governor limits, this pattern creates significant performance issues. Each SOQL query requires a round trip to the database, and multiple individual queries are much slower than a single bulk query that retrieves all needed data at once.
+
+The solution is to use bulk processing patterns: collect all the criteria (like IDs) before the loop, execute a single SOQL query with an ``++IN++`` clause or similar bulk operator, and then process the retrieved records. This approach scales efficiently regardless of data volume and respects Salesforce's platform constraints.
+
+=== What is the potential impact?
+
+This issue can cause runtime exceptions when governor limits are exceeded, leading to transaction failures and poor user experience. It also creates significant performance degradation, especially as data volume increases, making applications slow and unresponsive.
+
+== How to fix it
+
+Move the SOQL query outside the loop and use bulk operators like ``++IN++`` to retrieve all needed records in a single query. Then iterate over the retrieved results.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+for(Id accountId : accountIds) {
+    Account acc = [SELECT Id, Name FROM Account WHERE Id = :accountId]; // Noncompliant
+    processAccount(acc);
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+List<Account> accounts = [SELECT Id, Name FROM Account WHERE Id IN :accountIds];
+for(Account acc : accounts) {
+    processAccount(acc);
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Official Salesforce documentation on governor limits including SOQL query limits]
+
+ * Single vs. Bulk DML Operations - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/langCon_apex_dml_examples.htm[Best practices for writing bulk-safe Apex code]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[The software does not properly control the allocation and maintenance of a limited resource]

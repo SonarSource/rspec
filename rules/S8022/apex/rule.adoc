@@ -1,0 +1,76 @@
+This is an issue when a class implements the ``++Database.Batchable++`` interface but is not declared with the ``++global++`` access modifier.
+
+== Why is this an issue?
+
+In Salesforce, batch classes must be accessible by the platform's batch processing framework to execute properly. The ``++Database.Batchable++`` interface is designed for processing large volumes of data asynchronously.
+
+When you implement ``++Database.Batchable++``, the Salesforce platform needs to instantiate and call your class methods (``++start++``, ``++execute++``, and ``++finish++``)  during batch execution. If your class is declared as ``++public++`` instead of ``++global++``, the platform cannot access it from outside your namespace.
+
+This restriction exists because:
+
+* The batch processing framework runs in the system context
+* It needs cross-namespace access to your batch class
+* Only ``++global++`` classes can be accessed across different namespaces in Salesforce
+
+Without the ``++global++`` modifier, your batch job will fail to execute, even though the code compiles successfully. This can lead to silent failures where scheduled batches simply don't run.
+
+=== What is the potential impact?
+
+The batch job will fail to execute, preventing the processing of large datasets. This can cause:
+
+* Data processing delays or complete failures
+* Scheduled operations that silently don't run
+* Business processes that depend on batch processing to malfunction
+* Difficulty in debugging since the error may not be immediately apparent
+
+== How to fix it
+
+Change the class access modifier from ``++public++`` to ``++global++``. Also ensure that the interface methods (``++start++``, ``++execute++``, and ``++finish++``) are declared as ``++global++`` for consistency and proper access.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class SendReminderEmail implements Database.Batchable<sObject> {
+    public Database.QueryLocator start(Database.BatchableContext bc) { // Noncompliant
+        return Database.getQueryLocator(query);
+    }
+    
+    public void execute(Database.BatchableContext bc, List<sObject> scope) {
+        // Process records
+    }
+    
+    public void finish(Database.BatchableContext bc) {
+        // Cleanup or post-processing
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+global class SendReminderEmail implements Database.Batchable<sObject> {
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator(query);
+    }
+    
+    global void execute(Database.BatchableContext bc, List<sObject> scope) {
+        // Process records
+    }
+    
+    global void finish(Database.BatchableContext bc) {
+        // Cleanup or post-processing
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Batch Apex Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch.htm[Official Salesforce documentation on Batch Apex implementation and requirements]
+
+ * Database.Batchable Interface Reference - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_interface_database_batchable.htm[Complete reference for the Database.Batchable interface and its methods]
