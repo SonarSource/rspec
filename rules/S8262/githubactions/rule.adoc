@@ -1,44 +1,177 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
-
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+By default, `actions/checkout` persists the `GITHUB_TOKEN` to `.git/config` as `http.https://github.com/.extraheader`. When artifacts are uploaded that include the `.git` directory, these persisted credentials can be exposed, even though GitHub's log redaction masks tokens in workflow logs.
 
-//=== What is the potential impact?
+The vulnerability occurs in two scenarios:
+
+* **Checkout version < 4.4**: When `persist-credentials` is `true` or not set (defaults to `true`), credentials are persisted to `.git/config`. If artifacts are uploaded, the `.git` directory may be included, exposing the token.
+
+* **Checkout version >= 4.4**: When `persist-credentials` is `true` or not set (defaults to `true`), and `include-hidden-files: true` is used in artifact uploads without explicitly excluding `.git/`, the persisted credentials in `.git/config` can be included in artifacts.
+
+=== What is the potential impact?
+
+If artifacts containing the `.git` directory are uploaded, an attacker who gains access to the artifacts can:
+
+==== Credential Exposure
+
+Extract the `GITHUB_TOKEN` from `.git/config` despite GitHub's log redaction. The token is stored in plain text in the artifact, allowing unauthorized access to repository resources.
+
+==== Unauthorized Access
+
+With the extracted `GITHUB_TOKEN`, an attacker can perform actions on behalf of the workflow, such as reading sensitive data, modifying code, creating releases, or accessing other repositories the token has permissions for.
+
+==== Supply Chain Compromise
+
+An attacker with the extracted token can modify workflows, inject malicious code, or publish malicious packages, potentially compromising the entire supply chain.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Set `persist-credentials: false` in the `actions/checkout` step to prevent credentials from being persisted to `.git/config`:
+
+----
+
+- name: Checkout code
+  uses: actions/checkout@v4
+  with:
+    persist-credentials: false
+
+----
+
+Alternatively, if you want to use `persist-credentials: true` and `include-hidden-files:true` for Checkout, you can exclude the `.git` directory from artifact uploads:
+
+----
+
+- name: Upload artifact
+  uses: actions/upload-artifact@v4
+  with:
+    name: repo-artifact
+    path: |
+      .
+      !.git/
+    include-hidden-files: true
+
+----
 
 === Code examples
 
 ==== Noncompliant code example
 
 [source,yaml,diff-id=1,diff-type=noncompliant]
+
 ----
-FIXME
+
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3 < 4.4
+        # Noncompliant
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-artifact
+          path: .
+
+----
+
+[source,yaml,diff-id=2,diff-type=noncompliant]
+
+----
+
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4  # >= 4.4
+        # Noncompliant: persist-credentials defaults to true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-artifact
+          path: .
+          include-hidden-files: true  # Noncompliant
+
 ----
 
 ==== Compliant solution
 
 [source,yaml,diff-id=1,diff-type=compliant]
-----
-FIXME
+
 ----
 
-//=== How does this work?
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # Compliant
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-artifact
+          path: .
+
+----
+
+[source,yaml,diff-id=2,diff-type=compliant]
+
+----
+
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4  # >= 4.4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-artifact
+          path: |
+            .
+            !.git/  # Compliant
+          include-hidden-files: true
+
+----
+
+=== How does this work?
+
+By default, `actions/checkout` persists the `GITHUB_TOKEN` to `.git/config` as `http.https://github.com/.extraheader` to enable Git operations. This allows any subsequent step in the workflow to read the token, even though GitHub's log redaction masks it in workflow logs.
+
+When artifacts are uploaded that include the `.git` directory (either explicitly or through patterns like `.` or `**/*`), the persisted credentials are included in the artifact. An attacker who gains access to the artifact can extract the token from `.git/config` and use it to perform unauthorized actions.
+
+Setting `persist-credentials: false` prevents the token from being stored in `.git/config`, eliminating the risk even if artifacts include the `.git` directory. For checkout version >= 4.4, when using `include-hidden-files: true`, explicitly excluding `.git/` from the artifact path provides defense-in-depth protection.
 
 //=== Pitfalls
 
 //=== Going the extra mile
 
+== Resources
 
-//== Resources
-//=== Documentation
+=== Documentation
+
+* GitHub Docs - https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsuses[Workflow syntax for GitHub Actions]
+
+* GitHub Docs - https://docs.github.com/en/actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow[Automatic token authentication]
+
 //=== Articles & blog posts
+
 //=== Conference presentations
-//=== Standards
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[Top 10 2021 Category A5 - Security Misconfiguration]
+
+* OWASP - https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration[Top 10 2017 Category A6 - Security Misconfiguration]
+
+* CWE - https://cwe.mitre.org/data/definitions/312[CWE-312 - Cleartext Storage of Sensitive Information]
+
+* CWE - https://cwe.mitre.org/data/definitions/319[CWE-319 - Cleartext Transmission of Sensitive Information]
+
 //=== External coding guidelines
+
 //=== Benchmarks
