@@ -1,30 +1,30 @@
-This rule raises an issue when code checks for file existence using functions like `os.Stat()` and then creates the file in a separate operation using functions like `os.Create()`.
+This rule raises an issue when code checks if a file exists using `os.Stat()` and then creates the file in a separate operation using `os.Create()` or similar functions.
 
 == Why is this an issue?
 
-Checking if a file exists and then creating it in separate operations creates a Time-of-Check-Time-of-Use (TOCTOU) race condition vulnerability.
+Checking file existence and then creating a file in separate operations creates a Time-of-Check-Time-of-Use (TOCTOU) race condition vulnerability.
 
-Here's what happens:
+Between the existence check and the file creation, another process or thread might:
 
-1. Your code checks if a file exists using `os.Stat()` or similar functions
-2. Based on the result, it decides to create the file using `os.Create()` or similar functions
-3. Between these two operations, another process or thread might create or delete the file
+* Create the file, causing your creation to fail unexpectedly
+* Delete an existing file, causing your check to be outdated
+* Replace the file with a symbolic link pointing to a sensitive location
 
-This timing gap can lead to several problems:
+This race condition window can lead to:
 
-* **Unexpected file overwrites**: If another process creates the file between your check and creation, your code might overwrite it
-* **Security vulnerabilities**: Attackers might exploit this race condition to manipulate file operations
-* **Application errors**: Your program might fail or behave unexpectedly when the file system state changes
+* **Security vulnerabilities**: An attacker could exploit the timing gap to manipulate file operations
+* **Unpredictable behavior**: Your application might fail in production under concurrent access
+* **Data corruption**: Multiple processes trying to create the same file simultaneously
 
-The root cause is that file system operations are not atomic by default. The state you checked might no longer be valid when you perform the actual file operation.
+The fundamental issue is that file system operations are not atomic by default. The state of the file system can change between your check and your action, making your initial check meaningless.
 
 === What is the potential impact?
 
-This vulnerability can lead to data corruption, security breaches, or application failures. In security-sensitive contexts, attackers might exploit the race condition to overwrite important files or cause denial of service.
+Race conditions can lead to security vulnerabilities where attackers exploit the timing gap to manipulate file operations. This can result in unauthorized file access, data corruption, or application crashes in concurrent environments.
 
 == How to fix it
 
-Use `os.OpenFile()` with the `O_CREATE|O_EXCL` flags to atomically create a file only if it doesn't exist. This eliminates the race condition by combining the existence check and file creation into a single atomic operation.
+Use `os.OpenFile()` with the `O_CREATE|O_EXCL` flags to atomically create a file only if it doesn't exist. This eliminates the race condition by combining the existence check and creation into a single atomic operation.
 
 === Code examples
 
@@ -62,14 +62,14 @@ defer file.Close()
 
 === Documentation
 
- * Go os package documentation - https://pkg.go.dev/os[Official documentation for Go's os package, including file operations]
+ * Go os package documentation - https://pkg.go.dev/os#OpenFile[Official documentation for os.OpenFile and file creation flags]
 
- * Go os.OpenFile documentation - https://pkg.go.dev/os#OpenFile[Documentation for os.OpenFile function and its flags]
+ * Go file handling best practices - https://go.dev/doc/effective_go#files[Effective Go guidelines for file operations]
 
 === Standards
 
- * CWE CWE-367 - https://cwe.mitre.org/data/definitions/367.html[Time-of-check Time-of-use (TOCTOU) Race Condition]
+ * CWE 367 - https://cwe.mitre.org/data/definitions/367.html[Time-of-check Time-of-use (TOCTOU) Race Condition]
 
 === Related rules
 
- * S8261 - Related rule for TOCTOU race conditions in Go
+ * S8261 - File existence should not be tested before attempting to open the file
