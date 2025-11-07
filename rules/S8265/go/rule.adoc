@@ -1,16 +1,30 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when code checks for file existence using functions like `os.Stat()` and then creates the file in a separate operation using functions like `os.Create()`.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Checking if a file exists and then creating it in separate operations creates a Time-of-Check-Time-of-Use (TOCTOU) race condition vulnerability.
 
-//=== What is the potential impact?
+Here's what happens:
+
+1. Your code checks if a file exists using `os.Stat()` or similar functions
+2. Based on the result, it decides to create the file using `os.Create()` or similar functions
+3. Between these two operations, another process or thread might create or delete the file
+
+This timing gap can lead to several problems:
+
+* **Unexpected file overwrites**: If another process creates the file between your check and creation, your code might overwrite it
+* **Security vulnerabilities**: Attackers might exploit this race condition to manipulate file operations
+* **Application errors**: Your program might fail or behave unexpectedly when the file system state changes
+
+The root cause is that file system operations are not atomic by default. The state you checked might no longer be valid when you perform the actual file operation.
+
+=== What is the potential impact?
+
+This vulnerability can lead to data corruption, security breaches, or application failures. In security-sensitive contexts, attackers might exploit the race condition to overwrite important files or cause denial of service.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Use `os.OpenFile()` with the `O_CREATE|O_EXCL` flags to atomically create a file only if it doesn't exist. This eliminates the race condition by combining the existence check and file creation into a single atomic operation.
 
 === Code examples
 
@@ -18,27 +32,44 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,go,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+if _, err := os.Stat(filename); os.IsNotExist(err) {
+    file, err := os.Create(filename) // Noncompliant
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    // write to file
+}
 ----
 
 ==== Compliant solution
 
 [source,go,diff-id=1,diff-type=compliant]
 ----
-FIXME
+file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+if err != nil {
+    if os.IsExist(err) {
+        // file already exists, handle accordingly
+        return fmt.Errorf("file already exists: %s", filename)
+    }
+    return err
+}
+defer file.Close()
+// write to file
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Go os package documentation - https://pkg.go.dev/os[Official documentation for Go's os package, including file operations]
 
+ * Go os.OpenFile documentation - https://pkg.go.dev/os#OpenFile[Documentation for os.OpenFile function and its flags]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+=== Standards
+
+ * CWE CWE-367 - https://cwe.mitre.org/data/definitions/367.html[Time-of-check Time-of-use (TOCTOU) Race Condition]
+
+=== Related rules
+
+ * S8261 - Related rule for TOCTOU race conditions in Go
