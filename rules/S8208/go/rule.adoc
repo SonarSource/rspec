@@ -1,0 +1,62 @@
+This rule raises an issue when an HTTP response body is not closed after use.
+
+== Why is this an issue?
+
+In Go, HTTP response bodies must be explicitly closed to prevent resource leaks. The Go documentation clearly states: "The caller must close the response body when finished with it." When response bodies are not closed, several problems can occur:
+
+* **Connection pool exhaustion**: The HTTP client maintains a pool of connections for reuse. If response bodies are not closed, these connections cannot be returned to the pool, eventually exhausting available connections.
+* **Memory leaks**: Unclosed response bodies can hold references to network resources and buffers, preventing garbage collection.
+* **Resource starvation**: Over time, accumulated unclosed connections can consume system resources like file descriptors and memory.
+
+The issue is particularly problematic in high-throughput applications where many HTTP requests are made. Even if the response data is fully read, the body must still be explicitly closed to signal that the connection can be reused.
+
+=== What is the potential impact?
+
+Failing to close HTTP response bodies can lead to:
+
+* **Application crashes** due to connection pool exhaustion
+* **Performance degradation** as new connections must be created instead of reusing existing ones
+* **Resource exhaustion** on the system level, affecting other applications
+* **Intermittent failures** that are difficult to debug in production environments
+
+== How to fix it
+
+Always close the response body using defer immediately after checking for request errors. This ensures the body is closed even if subsequent operations fail.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+resp, err := http.Get("http://example.com/")
+if err != nil {
+    return err
+}
+body, err := io.ReadAll(resp.Body) // Noncompliant
+// Missing resp.Body.Close()
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+resp, err := http.Get("http://example.com/")
+if err != nil {
+    return err
+}
+defer resp.Body.Close()
+body, err := io.ReadAll(resp.Body)
+----
+
+== Resources
+
+=== Documentation
+
+ * Go net/http package documentation - https://pkg.go.dev/net/http[Official Go documentation for the net/http package, which explicitly states the requirement to close response bodies]
+
+ * Effective Go - Defer statements - https://go.dev/doc/effective_go#defer[Official Go documentation explaining the defer statement and its proper usage for resource cleanup]
+
+=== Standards
+
+ * CWE-404: Improper Resource Shutdown or Release - https://cwe.mitre.org/data/definitions/404.html[Describes the security implications of not properly releasing resources]
