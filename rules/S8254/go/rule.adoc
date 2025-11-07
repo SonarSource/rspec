@@ -1,0 +1,61 @@
+This rule raises an issue when a channel is created and used for sending values but is never explicitly closed using the `close()` function.
+
+== Why is this an issue?
+
+In Go's concurrency model, channels serve as communication pathways between goroutines. When a channel is used to send values but never closed, it creates several serious problems.
+
+First, **goroutines waiting to receive from the channel may block indefinitely**. If a receiver is using a `for range` loop or waiting for a channel to be closed as a signal, it will never know when no more values are coming. This leads to goroutines that never terminate, consuming memory and potentially causing the entire program to hang.
+
+Second, **resource leaks occur** because the Go runtime cannot garbage collect channels that still have potential senders or receivers. Unclosed channels keep references alive, preventing proper cleanup of associated resources.
+
+Third, **deadlock situations can arise** in complex concurrent programs. When multiple goroutines are coordinating through channels, unclosed channels can break the expected communication flow, causing the entire system to freeze.
+
+The Go language provides the `close()` function specifically to signal that no more values will be sent on a channel. This allows receivers to detect when the channel is closed and react appropriately, enabling proper program termination and resource cleanup.
+
+=== What is the potential impact?
+
+Unclosed channels can cause goroutine leaks, leading to increased memory usage and potential application hangs. In severe cases, this can result in deadlocks where the entire program becomes unresponsive, requiring a restart and potentially causing data loss or service interruption.
+
+== How to fix it
+
+Add `defer close(ch)` at the beginning of the function that sends values to the channel. The `defer` statement ensures the channel is closed when the function exits, even if an error occurs.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func producer(ch chan int) {
+    for i := 0; i < 10; i++ {
+        ch <- i
+    }
+    // Channel never closed // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func producer(ch chan int) {
+    defer close(ch)
+    for i := 0; i < 10; i++ {
+        ch <- i
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Language Specification - Channel types - https://golang.org/ref/spec#Channel_types[Official Go specification covering channel types and operations]
+
+ * Effective Go - Channels - https://golang.org/doc/effective_go#channels[Best practices for using channels in Go programs]
+
+ * Go Blog - Go Concurrency Patterns - https://blog.golang.org/pipelines[Detailed explanation of Go concurrency patterns including proper channel management]
+
+=== Standards
+
+ * CWE-404: Improper Resource Shutdown or Release - https://cwe.mitre.org/data/definitions/404.html[Failure to properly release or shutdown resources can lead to resource exhaustion]
