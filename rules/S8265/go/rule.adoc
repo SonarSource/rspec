@@ -1,63 +1,75 @@
-This rule raises an issue when PyTorch tensors are copied using deprecated methods like `torch.tensor(existing_tensor)` or `tensor.new_tensor(existing_tensor)`.
+This rule raises an issue when code checks for file existence using functions like `os.Stat()` and then creates the file in a separate operation using functions like `os.Create()`.
 
 == Why is this an issue?
 
-PyTorch provides specific methods for copying existing tensors that are more efficient and express intent clearly. The methods `torch.tensor()` and `tensor.new_tensor()` were originally designed to create new tensors from raw data (like lists or arrays), not to copy existing tensor objects.
+Checking if a file exists and then creating it in separate operations creates a Time-of-Check-Time-of-Use (TOCTOU) race condition vulnerability.
 
-When you use these methods to copy existing tensors, PyTorch issues a `UserWarning` because the operation is not optimized for this use case. The tensor copying process becomes less efficient, and the code's intent becomes unclear to other developers.
+Here's what happens:
 
-The recommended approach is to use `tensor.detach().clone()` or `tensor.clone().detach()`. These methods clearly indicate that you want to:
+1. Your code checks if a file exists using `os.Stat()` or similar functions
+2. Based on the result, it decides to create the file using `os.Create()` or similar functions
+3. Between these two operations, another process or thread might create or delete the file
 
-* Create a copy of the tensor data (`clone()`)
-* Remove the tensor from the computation graph (`detach()`)
+This timing gap can lead to several problems:
 
-This combination is specifically optimized for tensor copying operations and avoids the performance overhead of the deprecated methods.
+* **Unexpected file overwrites**: If another process creates the file between your check and creation, your code might overwrite it
+* **Security vulnerabilities**: Attackers might exploit this race condition to manipulate file operations
+* **Application errors**: Your program might fail or behave unexpectedly when the file system state changes
+
+The root cause is that file system operations are not atomic by default. The state you checked might no longer be valid when you perform the actual file operation.
 
 === What is the potential impact?
 
-Using deprecated tensor copying methods can lead to:
-
-* Performance degradation due to unoptimized copying operations
-* UserWarnings cluttering your application logs
-* Unclear code intent, making maintenance more difficult
-* Potential compatibility issues in future PyTorch versions
+This vulnerability can lead to data corruption, security breaches, or application failures. In security-sensitive contexts, attackers might exploit the race condition to overwrite important files or cause denial of service.
 
 == How to fix it
 
-Replace deprecated tensor copying methods with the recommended `detach().clone()` pattern. If you need gradients, call `++requires_grad_()++` on the result.
+Use `os.OpenFile()` with the `O_CREATE|O_EXCL` flags to atomically create a file only if it doesn't exist. This eliminates the race condition by combining the existence check and file creation into a single atomic operation.
 
 === Code examples
 
 ==== Noncompliant code example
 
-[source,python,diff-id=1,diff-type=noncompliant]
+[source,go,diff-id=1,diff-type=noncompliant]
 ----
-import torch
-
-x = torch.randn(3, 4, requires_grad=True)
-y = torch.tensor(x, requires_grad=True)  # Noncompliant
+if _, err := os.Stat(filename); os.IsNotExist(err) {
+    file, err := os.Create(filename) // Noncompliant
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    // write to file
+}
 ----
 
 ==== Compliant solution
 
-[source,python,diff-id=1,diff-type=compliant]
+[source,go,diff-id=1,diff-type=compliant]
 ----
-import torch
-
-x = torch.randn(3, 4, requires_grad=True)
-y = x.detach().clone().requires_grad_(True)
+file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+if err != nil {
+    if os.IsExist(err) {
+        // file already exists, handle accordingly
+        return fmt.Errorf("file already exists: %s", filename)
+    }
+    return err
+}
+defer file.Close()
+// write to file
 ----
 
 == Resources
 
 === Documentation
 
- * PyTorch Tensor Operations - https://pytorch.org/docs/stable/tensors.html[Official PyTorch documentation on tensor operations and methods]
+ * Go os package documentation - https://pkg.go.dev/os[Official documentation for Go's os package, including file operations]
 
- * PyTorch clone() method - https://pytorch.org/docs/stable/generated/torch.Tensor.clone.html[Documentation for the recommended clone() method]
+ * Go os.OpenFile documentation - https://pkg.go.dev/os#OpenFile[Documentation for os.OpenFile function and its flags]
 
- * PyTorch detach() method - https://pytorch.org/docs/stable/generated/torch.Tensor.detach.html[Documentation for the detach() method to remove tensors from computation graph]
+=== Standards
+
+ * CWE CWE-367 - https://cwe.mitre.org/data/definitions/367.html[Time-of-check Time-of-use (TOCTOU) Race Condition]
 
 === Related rules
 
- * S7675 - Related rule about PyTorch tensor copying best practices
+ * S8261 - Related rule for TOCTOU race conditions in Go
