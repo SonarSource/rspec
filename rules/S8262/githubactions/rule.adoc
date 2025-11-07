@@ -25,21 +25,27 @@ With the extracted `GITHUB_TOKEN`, an attacker can perform actions on behalf of 
 An attacker with the extracted token can modify workflows, inject malicious code, or publish malicious packages, potentially compromising the entire supply chain.
 
 == How to fix it
+If you are using **Checkout version < 4.4**, please upgrade it to minimum v4.4
 
-Set `persist-credentials: false` in the `actions/checkout` step to prevent credentials from being persisted to `.git/config`:
+
+If you want to use `persist-credentials: true` for `actions/checkout@v4`, do not add `include-hidden-files:true` in `actions/upload-artifact` so that hidden files including `.git` directory is not uploaded:
 
 ----
 
 - name: Checkout code
   uses: actions/checkout@v4
   with:
-    persist-credentials: false
+    persist-credentials: true
 
 ----
 
-Alternatively, if you want to use `persist-credentials: true` and `include-hidden-files:true` for Checkout, you can exclude the `.git` directory from artifact uploads:
+Alternatively, if you want to use `persist-credentials: true` and `include-hidden-files:true` for `actions/upload-artifact`, you can exclude the `.git` directory from artifact uploads so that `.git` directory is not uploaded:
 
 ----
+- name: Checkout code
+  uses: actions/checkout@v4
+  with:
+    persist-credentials: true
 
 - name: Upload artifact
   uses: actions/upload-artifact@v4
@@ -65,8 +71,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3 < 4.4
-        # Noncompliant
+        uses: actions/checkout@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3 # Noncompliant
+        with:
+          persist-credentials: true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -85,13 +92,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4  # >= 4.4
-        # Noncompliant: persist-credentials defaults to true
+        with:
+          persist-credentials: true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: repo-artifact
-          path: .
-          include-hidden-files: true  # Noncompliant
+          path: |
+            .  # Noncompliant
+          include-hidden-files: true
 
 ----
 
@@ -106,9 +115,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # Compliant
         with:
-          persist-credentials: false  # Compliant
+          persist-credentials: true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -127,6 +136,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4  # >= 4.4
+        with:
+          persist-credentials: true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -138,9 +149,10 @@ jobs:
 
 ----
 
+
 === How does this work?
 
-By default, `actions/checkout` persists the `GITHUB_TOKEN` to `.git/config` as `http.https://github.com/.extraheader` to enable Git operations. This allows any subsequent step in the workflow to read the token, even though GitHub's log redaction masks it in workflow logs.
+By default, `actions/checkout` persists the `GITHUB_TOKEN` to `.git/config` as `http.https://github.com/.extraheader` to enable Git operations.
 
 When artifacts are uploaded that include the `.git` directory (either explicitly or through patterns like `.` or `**/*`), the persisted credentials are included in the artifact. An attacker who gains access to the artifact can extract the token from `.git/config` and use it to perform unauthorized actions.
 
