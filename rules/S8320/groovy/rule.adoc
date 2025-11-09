@@ -1,16 +1,33 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when GString expressions (strings containing `${}` interpolation or `$variable` syntax) are used as keys in map literals or when calling map methods like `put()`.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+GString objects and String objects have different hash codes, even when they represent identical text content. This fundamental difference in hash code calculation means that maps cannot properly match keys when mixing GStrings and Strings.
 
-//=== What is the potential impact?
+When a GString is used as a map key, subsequent lookups using an equivalent String will fail because the hash-based lookup mechanism cannot find the key. For example, if you store a value using the GString key `"${name}"` where `name` equals `"John"`, later attempting to retrieve the value using the String key `"John"` will return `null` instead of the stored value.
+
+This behavior violates the principle of least surprise and can lead to subtle bugs that are difficult to diagnose, especially in larger applications where the key creation and lookup may happen in different parts of the codebase. The issue becomes particularly problematic when:
+
+* Data is stored using GString keys but retrieved using String keys from user input or external sources
+* Keys are constructed dynamically in some contexts but used as literals in others
+* Code is refactored and string interpolation is added or removed without considering the impact on map operations
+
+The root cause is that GString hash codes are computed differently from String hash codes, making them unsuitable for use in hash-based collections like maps where key equality and hash code consistency are critical for correct operation.
+
+=== What is the potential impact?
+
+Using GString expressions as map keys can cause:
+
+* **Data loss**: Values stored with GString keys become unretrievable when looked up with equivalent String keys
+* **Logic errors**: Conditional logic based on map lookups may take incorrect branches when keys are not found
+* **Silent failures**: The application may continue running but with incorrect behavior, making bugs difficult to detect
+* **Inconsistent behavior**: The same logical key may work in some contexts but fail in others, depending on how the key is constructed
+
+These issues can be particularly severe in production environments where they may cause data corruption, incorrect business logic execution, or system reliability problems.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Use regular variables or String literals as map keys instead of GString expressions. This ensures consistent hash codes and reliable key lookups.
 
 === Code examples
 
@@ -18,27 +35,24 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+def key = "a"
+def m = ["${key}": "letter ${key}"] // Noncompliant
+assert m["a"] == null  // fails to find the value
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+def key = "a"
+def m = [(key): "letter ${key}"]
+assert m["a"] == "letter a"  // works correctly
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Groovy Documentation - GString and String hashCodes - https://groovy-lang.org/syntax.html#_gstring_and_string_hashcodes[Official Groovy documentation explaining the hash code differences between GStrings and Strings]
 
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Groovy Development Kit - Maps - https://groovy-lang.org/groovy-dev-kit.html#Collections-Maps[Documentation on working with maps in Groovy, including key handling best practices]
