@@ -1,16 +1,29 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when a call to `Object.wait()` is not within a `while` loop.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Calls to `Object.wait()` should always be placed inside `while` loops to handle two critical concurrency scenarios properly.
 
-//=== What is the potential impact?
+First, the Java Virtual Machine can produce **spurious wakeups**. This means that a thread waiting on a condition can be awakened even when the condition has not actually been satisfied. If the `wait()` call is inside an `if` statement, the thread will proceed after the spurious wakeup without rechecking the condition, potentially leading to incorrect behavior.
+
+Second, **race conditions** can occur when multiple threads are involved. Between the time a condition is checked and the `wait()` method is called, another thread might change the condition. If the condition was satisfied by another thread before `wait()` is invoked, the current thread could wait indefinitely for a condition that has already been met.
+
+Using a `while` loop ensures that the condition is rechecked immediately after the thread wakes up, providing protection against both spurious wakeups and race conditions.
+
+=== What is the potential impact?
+
+When `wait()` calls are not properly guarded by `while` loops, applications can experience:
+
+* **Deadlocks**: Threads may wait indefinitely for conditions that have already been satisfied
+* **Data corruption**: Threads may proceed with operations when the required conditions are not actually met
+* **Unpredictable behavior**: Spurious wakeups can cause threads to execute code at inappropriate times
+* **Race conditions**: Multiple threads may interfere with each other's execution in unexpected ways
+
+These issues are particularly difficult to debug because they may occur intermittently and depend on timing and thread scheduling.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Replace the `if` statement with a `while` loop to ensure the condition is rechecked after waking up from `wait()`.
 
 === Code examples
 
@@ -18,27 +31,40 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+synchronized(data) {
+    if (!data.isReady()) {
+        data.wait() // Noncompliant
+    }
+    data.process()
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+synchronized(data) {
+    while (!data.isReady()) {
+        data.wait()
+    }
+    data.process()
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Oracle Java Documentation - Object.wait() - https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#wait--[Official documentation for the Object.wait() method]
 
+ * Java Concurrency in Practice - https://jcip.net/[Comprehensive guide to Java concurrency patterns and best practices]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Describes race conditions in concurrent execution]
+
+ * CWE-833: Deadlock - https://cwe.mitre.org/data/definitions/833.html[Describes deadlock conditions in concurrent systems]
+
+=== Related rules
+
+ * RSPEC-2274 - https://rules.sonarsource.com/java/RSPEC-2274/[Java rule for the same wait() loop requirement]
