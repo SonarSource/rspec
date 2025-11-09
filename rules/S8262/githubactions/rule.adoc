@@ -1,12 +1,12 @@
 == Why is this an issue?
 
-By default, `actions/checkout` persists the `GITHUB_TOKEN` to `.git/config` as `http.https://github.com/.extraheader`. When artifacts are uploaded that include the `.git` directory, these persisted credentials can be exposed, even though GitHub's log redaction masks tokens in workflow logs.
+By default, `actions/checkout` persists (`persist-credentials=true`) the `GITHUB_TOKEN` to `.git/config` as `http.https://github.com/.extraheader`. When artifacts are uploaded using `actions/upload-artifact` that include the `.git` directory, these persisted credentials can be exposed, even though GitHub's log redaction masks tokens in workflow logs.
 
-The vulnerability occurs in two scenarios:
+The vulnerability occurs when:
 
-* **Checkout version < 4.4**: When `persist-credentials` is `true` or not set (defaults to `true`), credentials are persisted to `.git/config`. If artifacts are uploaded, the `.git` directory may be included, exposing the token.
+* **Upload-artifact version < 4.4**: When `persist-credentials` is `true` or not set (defaults to `true`) in `actions/checkout` version > 4.4, credentials are persisted to `.git/config`. If `actions/upload-artifact` is used, without explicitly excluding `.git/`, the persisted credentials in `.git/config` can be included in produced artifacts.
 
-* **Checkout version >= 4.4**: When `persist-credentials` is `true` or not set (defaults to `true`), and `include-hidden-files: true` is used in artifact uploads without explicitly excluding `.git/`, the persisted credentials in `.git/config` can be included in artifacts.
+* **Upload-artifact version >= 4.4**: When `persist-credentials` is `true` or not set (defaults to `true`) in `actions/checkout` version >= 4.4, and `include-hidden-files: true` is used in `actions/upload-artifact` without explicitly excluding `.git/`, the persisted credentials in `.git/config` can be included in produced artifacts.
 
 === What is the potential impact?
 
@@ -25,43 +25,11 @@ With the extracted `GITHUB_TOKEN`, an attacker can perform actions on behalf of 
 An attacker with the extracted token can modify workflows, inject malicious code, or publish malicious packages, potentially compromising the entire supply chain.
 
 == How to fix it
-If you are using **Checkout version < 4.4**, please upgrade it to minimum v4.4
 
-
-If you want to use `persist-credentials: true` for `actions/checkout@v4`, do not add `include-hidden-files:true` in `actions/upload-artifact` so that hidden files including `.git` directory is not uploaded:
-
-----
-
-- name: Checkout code
-  uses: actions/checkout@v4
-  with:
-    persist-credentials: true
-
-----
-
-Alternatively, if you want to use `persist-credentials: true` and `include-hidden-files:true` for `actions/upload-artifact`, you can exclude the `.git` directory from artifact uploads so that `.git` directory is not uploaded:
-
-----
-- name: Checkout code
-  uses: actions/checkout@v4
-  with:
-    persist-credentials: true
-
-- name: Upload artifact
-  uses: actions/upload-artifact@v4
-  with:
-    name: repo-artifact
-    path: |
-      .
-      !.git/
-    include-hidden-files: true
-
-----
 
 === Code examples
 
 ==== Noncompliant code example
-
 [source,yaml,diff-id=1,diff-type=noncompliant]
 
 ----
@@ -71,16 +39,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3 # Noncompliant
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3 # Noncompliant
         with:
           name: repo-artifact
-          path: .
-
+          path: . 
 ----
+
 
 [source,yaml,diff-id=2,diff-type=noncompliant]
 
@@ -91,20 +59,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # >= 4.4
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: repo-artifact
-          path: |
-            .  # Noncompliant
-          include-hidden-files: true
+          path: .
+          include-hidden-files: true # Noncompliant
+----
+
+[source,yaml,diff-id=3,diff-type=noncompliant]
 
 ----
 
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 
+        with:
+          persist-credentials: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4 # >= 4.4
+        with:
+          name: repo-artifact
+          path: |
+            .  # Noncompliant
+          include-hidden-files: true
+----
+
 ==== Compliant solution
+If you are using upload-artifact version < 4.4, please upgrade it to minimum v4.4.
 
 [source,yaml,diff-id=1,diff-type=compliant]
 
@@ -115,16 +103,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Compliant
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4 # >= v4.4 # Compliant
         with:
           name: repo-artifact
           path: .
-
 ----
+
+If you want to use `persist-credentials: true` for `actions/checkout@v4`, do not use `include-hidden-files:true` so that `.git` directory is not uploaded:
 
 [source,yaml,diff-id=2,diff-type=compliant]
 
@@ -135,20 +124,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # >= 4.4
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: repo-artifact
+          path: . 
+          # Removed include-hidden-files:true # Compliant
+----
+
+If you want to use `persist-credentials: true` and `include-hidden-files:true` for `actions/upload-artifact`, you can exclude the `.git` directory from `upload-artifact` so that `.git` directory is not uploaded:
+[source,yaml,diff-id=3,diff-type=compliant]
+
+----
+
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4 # >= 4.4
+        with:
+          name: repo-artifact
           path: |
             .
             !.git/  # Compliant
           include-hidden-files: true
-
 ----
 
+=== Recommendation
+
+`persist-credentials:` should be `false` unless presisted credentials are required to perform Git operations in one of the steps.
 
 === How does this work?
 
@@ -156,7 +168,7 @@ By default, `actions/checkout` persists the `GITHUB_TOKEN` to `.git/config` as `
 
 When artifacts are uploaded that include the `.git` directory (either explicitly or through patterns like `.` or `**/*`), the persisted credentials are included in the artifact. An attacker who gains access to the artifact can extract the token from `.git/config` and use it to perform unauthorized actions.
 
-Setting `persist-credentials: false` prevents the token from being stored in `.git/config`, eliminating the risk even if artifacts include the `.git` directory. For checkout version >= 4.4, when using `include-hidden-files: true`, explicitly excluding `.git/` from the artifact path provides defense-in-depth protection.
+For `upload-artifact` version >= 4.4, when using `include-hidden-files: true`, explicitly excluding `.git/` from the artifact path provides defense-in-depth protection.
 
 //=== Pitfalls
 
