@@ -1,0 +1,48 @@
+This rule raises an issue when executing processes in Groovy without implementing comprehensive lifecycle management, specifically when missing timeout handling, output stream consumption, or proper resource cleanup.
+
+== Why is this an issue?
+
+When executing external processes in Groovy, several critical issues can occur without proper lifecycle management:
+
+**Hanging Applications**: Using `waitFor()` without a timeout can cause your application to hang indefinitely if the external process becomes unresponsive or takes longer than expected. This is particularly problematic in production environments where reliability is crucial.
+
+**Process Blocking**: External processes write their output to buffers. If these buffers become full and are not consumed, the process will block and stop executing. This happens because the operating system prevents the process from writing more data until the existing output is read.
+
+**Resource Leaks**: Process objects maintain several streams (input, output, and error streams) that consume system resources. If these streams are not properly closed, they can accumulate over time, leading to resource exhaustion and potential system instability.
+
+These issues compound each other - a blocked process that never completes will never have its resources cleaned up, creating a cascade of problems that can severely impact application performance and stability.
+
+=== What is the potential impact?
+
+Applications may hang indefinitely, consume excessive system resources, or fail unpredictably in production environments. Resource leaks can accumulate over time, leading to memory exhaustion and system instability.
+
+== How to fix it
+
+Implement comprehensive process lifecycle management by using waitForOrKill() with timeouts, consuming process output, and properly closing streams.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+def process = "long-running-command".execute()
+process.waitFor() // Noncompliant: may hang indefinitely and block on full buffers
+// streams not closed, potential resource leak
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+def process = "long-running-command".execute()
+process.consumeProcessOutput() // prevent blocking
+process.waitForOrKill(30000) // timeout after 30 seconds
+process.closeStreams() // clean up resources
+----
+
+== Resources
+
+=== Documentation
+
+ * Groovy Process Documentation - http://docs.groovy-lang.org/latest/html/groovy-jdk/java/lang/Process.html[Official Groovy documentation for Process class methods including waitForOrKill, consumeProcessOutput, and closeStreams]
