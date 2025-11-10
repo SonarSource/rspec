@@ -1,10 +1,10 @@
-This rule raises an issue when code checks if a file exists using `os.Stat()` and then creates the file in a separate operation using `os.Create()` or similar functions.
+This is an issue when code checks if a file exists and then creates it in separate operations, creating a Time-of-Check-Time-of-Use (TOCTOU) race condition.
 
 == Why is this an issue?
 
-Checking file existence and then creating a file in separate operations creates a Time-of-Check-Time-of-Use (TOCTOU) race condition vulnerability.
+When you check if a file exists and then create it in separate operations, you create a Time-of-Check-Time-of-Use (TOCTOU) race condition vulnerability.
 
-Between the existence check and the file creation, another process or thread might:
+Between the time you check if the file exists and the time you create it, another process or thread might:
 
 * Create the file, causing your creation to fail unexpectedly
 * Delete an existing file, causing your check to be outdated
@@ -12,19 +12,25 @@ Between the existence check and the file creation, another process or thread mig
 
 This race condition window can lead to:
 
-* **Security vulnerabilities**: An attacker could exploit the timing gap to manipulate file operations
-* **Unpredictable behavior**: Your application might fail in production under concurrent access
-* **Data corruption**: Multiple processes trying to create the same file simultaneously
+* Application crashes or unexpected behavior
+* Security vulnerabilities where attackers manipulate file operations
+* Data corruption or loss
+* Privilege escalation attacks in some scenarios
 
-The fundamental issue is that file system operations are not atomic by default. The state of the file system can change between your check and your action, making your initial check meaningless.
+The fundamental problem is that file system operations are not atomic by default. The state of the file system can change between your check and your action, making your initial check meaningless.
 
 === What is the potential impact?
 
-Race conditions can lead to security vulnerabilities where attackers exploit the timing gap to manipulate file operations. This can result in unauthorized file access, data corruption, or application crashes in concurrent environments.
+Attackers can exploit this race condition to:
+
+* Cause application failures by manipulating file creation timing
+* Redirect file operations to unintended locations using symbolic links
+* Potentially escalate privileges if the application runs with elevated permissions
+* Corrupt data by interfering with file operations at critical moments
 
 == How to fix it
 
-Use `os.OpenFile()` with the `O_CREATE|O_EXCL` flags to atomically create a file only if it doesn't exist. This eliminates the race condition by combining the existence check and creation into a single atomic operation.
+Use atomic file operations instead of separate check and create operations. The `os.OpenFile()` function with `O_CREATE|O_EXCL` flags atomically creates a file only if it doesn't exist, eliminating the race condition.
 
 === Code examples
 
@@ -38,7 +44,7 @@ if _, err := os.Stat(filename); os.IsNotExist(err) {
         return err
     }
     defer file.Close()
-    // write to file
+    // handle file creation
 }
 ----
 
@@ -49,22 +55,22 @@ if _, err := os.Stat(filename); os.IsNotExist(err) {
 file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 if err != nil {
     if os.IsExist(err) {
-        // file already exists, handle accordingly
+        // file already exists
         return fmt.Errorf("file already exists: %s", filename)
     }
     return err
 }
 defer file.Close()
-// write to file
+// handle file creation
 ----
 
 == Resources
 
 === Documentation
 
- * Go os package documentation - https://pkg.go.dev/os#OpenFile[Official documentation for os.OpenFile and file creation flags]
+ * Go os package documentation - https://pkg.go.dev/os#OpenFile[Official documentation for os.OpenFile and file operation flags]
 
- * Go file handling best practices - https://go.dev/doc/effective_go#files[Effective Go guidelines for file operations]
+ * OWASP Race Conditions - https://owasp.org/www-community/vulnerabilities/Race_Conditions[OWASP guide on race condition vulnerabilities]
 
 === Standards
 
@@ -72,4 +78,4 @@ defer file.Close()
 
 === Related rules
 
- * S8261 - File existence should not be tested before attempting to open the file
+ * S5847 - File existence should not be tested before attempting to open the file (C/C++)
