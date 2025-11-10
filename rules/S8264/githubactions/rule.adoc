@@ -1,22 +1,19 @@
 == Why is this an issue?
 
-Granting sensitive write permissions at the workflow level applies those permissions to all jobs in the workflow by default. This violates the principle of least privilege, as jobs that don't require sensitive permissions will still inherit them unnecessarily.
+Granting read permissions at the workflow level applies those permissions to all jobs in the workflow by default. This violates the principle of least privilege, as jobs that don't require these read permissions will still inherit them unnecessarily.
 
 === What is the potential impact?
 
-When sensitive permissions are granted at the workflow level, all jobs inherit these permissions regardless of whether they need them. This creates several security risks:
+When read permissions are granted at the workflow level, all jobs inherit these permissions regardless of whether they need them. This creates several security risks:
 
-==== Repository manipulation
+==== Unauthorized reconnaissance
 
-If a job that only requires read access is compromised but has inherited `contents: write` permissions from the workflow level, an attacker could modify repository contents, create unauthorized releases, or manipulate the repository history.
+Jobs with unnecessary `pull-requests: read` or `issues: read` permissions could be exploited to gather sensitive information from pull request discussions, issue comments, or code review feedback. This information could reveal security vulnerabilities, internal processes, or other sensitive details that could be used for targeted attacks.
 
-==== Package manipulation
+==== Security event exposure
 
-Jobs with unnecessary `packages: write` permissions could be exploited to publish malicious packages or tamper with existing packages, potentially compromising downstream consumers of your packages.
+Jobs that inherit `security-events: read` permissions could access security vulnerability data, dependency information, or other security-related metadata. While this information may seem less critical than write access, it could still be used by attackers to identify vulnerable components or plan targeted attacks based on known security issues.
 
-==== Unauthorized attestations and security events
-
-Jobs that inherit `attestations: write` or `security-events: write` permissions could create fraudulent security attestations or manipulate security event logs, undermining security monitoring and compliance efforts.
 
 == How to fix it
 
@@ -26,7 +23,7 @@ Move sensitive permissions from the workflow level to individual job levels. Onl
 
 ==== Noncompliant code example
 
-The following workflow grants `contents: write` permission at the workflow level, which applies to all jobs:
+The following workflow grants `contents: read` and `issues: read` permissions at the workflow level, which applies to all jobs:
 
 [source,yaml,diff-id=1,diff-type=noncompliant]
 ----
@@ -36,22 +33,22 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # Noncompliant
-
+  contents: read # Noncompliant
+  issues: read  # Noncompliant
 jobs:
-  commit-change:
+  read-contents:
     runs-on: ubuntu-latest
     steps:
-      - name: Create file via GitHub API
+      - name: Read repository contents
         run: |
-          # Uses contents: write permission
+          # Uses contents: read permission
 
-  checkout-main:
+  read-issues:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # Does not need contents: write permission
-        with:
-          ref: main
+      - name: Read issues
+        run: |
+          # Uses issues: read permission
 ----
 
 ==== Compliant solution
@@ -66,21 +63,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  commit-change:
+  read-contents:
     permissions:
-      contents: write
+      contents: read
     runs-on: ubuntu-latest
     steps:
-      - name: Create file via GitHub API
+      - name: Read repository contents
         run: |
-          # Uses contents: write permission
+          # Uses contents: read permission
 
-  checkout-main:
+  read-issues:
+    permissions:
+      issues: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # Does not need contents: write permission
-        with:
-          ref: main
+      - name: Read issues
+        run: |
+          # Uses issues: read permission
 ----
 
 === How does this work?
@@ -114,4 +113,4 @@ By placing permissions at the job level, you ensure that each job receives only 
 
 === Related rules
 
-* S8264 - Read permissions should be defined at the job level
+* S8233 - Write permissions should be defined at the job level
