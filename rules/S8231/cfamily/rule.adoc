@@ -1,0 +1,68 @@
+Non-standard attributes should not be used
+
+== Why is this an issue?
+
+Attributes provide a standardized syntax for conveying implementation-defined language extensions and hints to the compiler. While the {{cpp}} standard defines several attributes (such as ``++[[deprecated]]++``, ``++[[maybe_unused]]++``, and ``++[[nodiscard]]++``), compilers also support vendor-specific attributes for compiler-specific features and optimizations.
+
+Using non-standard attributes introduces portability risks. When code with compiler-specific attributes is compiled with a different toolchain, unrecognized attributes are silently ignored, which can lead to:
+
+* Loss of intended behavior (e.g., optimization hints, alignment requirements, or safety checks)
+* Runtime failures when the ignored attribute was critical for correctness
+* Maintenance burden when vendor-specific attributes are scattered across the codebase
+
+This rule allows only standard attributes that are specified using the standard ``++[[...]]++`` syntax. It reports:
+* All attributes that are not defined in the {{cpp}} standard itself, whether expressed using standard attribute syntax with vendor namespaces (e.g., ``++[[msvc::no_unique_address]]++``), GNU-style ``++__attribute__++`` syntax (e.g., ``++__attribute__((packed))++``), or MSVC's ``++__declspec++`` syntax (e.g., ``++__declspec(align(16))++``)
+* Standard attributes that are specified using non-standard syntax (e.g., ``++__attribute__((noreturn))++`` instead of ``++[[noreturn]]++``)
+
+The goal is to ensure that such attributes are reviewed to be well-behaved under all used toolchains, or replaced with standard-conforming alternatives when possible.
+
+== How to fix it
+
+Replace non-standard attributes with standard attributes when equivalent functionality exists, or ensure that vendor-specific attributes are only used in code paths that are known to be compiled with the appropriate toolchain. Consider using preprocessor directives or build-system configuration to conditionally apply compiler-specific attributes.
+
+=== Non-standard attribute using standard syntax
+
+==== Noncompliant code example
+[source,cpp,diff-id=1,diff-type=noncompliant]
+----
+struct Empty {};
+
+struct Container {
+  [[msvc::no_unique_address]] Empty e; // Noncompliant: non-standard attribute
+  int value;
+};
+----
+
+==== Compliant solution
+[source,cpp,diff-id=1,diff-type=compliant]
+----
+struct Empty {};
+
+struct Container {
+  [[no_unique_address]] Empty e; // Use standard attribute if C++20 is available
+  int value;
+};
+----
+
+=== Standard attribute using non-standard syntax
+
+==== Noncompliant code example
+[source,cpp,diff-id=2,diff-type=noncompliant]
+----
+__attribute__((noreturn))
+void terminate(); // Noncompliant: standard attribute using GNU-style syntax
+----
+
+==== Compliant solution
+[source,cpp,diff-id=2,diff-type=compliant]
+----
+[[noreturn]]
+void terminate(); // Use standard syntax
+----
+
+== Resources
+
+=== Related rules
+
+* S8216 - Code should not rely on features beyond the configured {{cpp}} standard
+* S8230 - MSVC-specific extensions should not be used

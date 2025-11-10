@@ -1,0 +1,56 @@
+This rule raises an issue when `context.Background()` is called in a scope where a context parameter or variable is already available.
+
+== Why is this an issue?
+
+In Go, contexts are designed to carry cancellation signals, deadlines, and request-scoped values across API boundaries. When you call `context.Background()`, you create a new, empty context that has no parent and will never be cancelled.
+
+If your function already receives a context parameter, that context likely carries important information from upstream callers. For example, it might have a timeout set by an HTTP server, or a cancellation signal from a user who closed their browser.
+
+When you ignore the existing context and create a new background context instead, you break this chain of communication. Your operation will continue running even if the original request was cancelled, potentially wasting resources and making your application less responsive.
+
+This pattern is particularly problematic in web applications, where requests should be cancelled when clients disconnect, and in concurrent programs where operations need to respect cancellation signals.
+
+=== What is the potential impact?
+
+Breaking context propagation can lead to several issues:
+
+* Operations continue running after they should have been cancelled, wasting CPU and memory
+* Timeouts and deadlines are not respected, potentially causing the application to hang
+* Request-scoped values (like trace IDs or user information) are lost
+* The application becomes less responsive and harder to shut down gracefully
+
+== How to fix it
+
+Use the existing context parameter instead of creating a new background context. This ensures proper propagation of cancellation signals, deadlines, and values.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func processData(ctx context.Context, client *Client) error {
+    // Using context.Background() ignores the existing context
+    result, err := client.Query(context.Background(), "SELECT * FROM table") // Noncompliant
+    return err
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func processData(ctx context.Context, client *Client) error {
+    // Reusing the existing ctx parameter
+    result, err := client.Query(ctx, "SELECT * FROM table")
+    return err
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Context Package - https://pkg.go.dev/context[Official documentation for the context package]
+
+ * Go Blog: Context - https://go.dev/blog/context[Comprehensive guide to using contexts in Go]

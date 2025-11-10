@@ -1,0 +1,64 @@
+This rule raises an issue when a database connection obtained through `DB.Conn()` is not closed by calling `conn.Close()`.
+
+== Why is this an issue?
+
+In Go's `database/sql` package, connections obtained through `DB.Conn()` represent individual database connections from the connection pool. These connections are finite resources that must be properly managed.
+
+When you call `DB.Conn()`, you're borrowing a connection from the pool. The Go documentation explicitly states that "Every Conn must be returned to the database pool after use by calling Conn.Close()." This is because the connection pool has a limited number of connections available.
+
+If connections are not closed, they remain allocated and cannot be reused by other parts of your application. Over time, this leads to connection pool exhaustion. Once all connections in the pool are exhausted, subsequent calls to `DB.Conn()` will block until a connection becomes available or the context times out.
+
+This resource leak can cause:
+
+* Application hangs when trying to acquire new connections
+* Degraded performance as the application waits for connections
+* Complete application failure in high-traffic scenarios
+* Database server resource exhaustion if many applications exhibit this behavior
+
+The connection pool is designed to be shared across goroutines and reused efficiently. Proper connection management ensures optimal performance and prevents resource-related failures.
+
+=== What is the potential impact?
+
+Connection pool exhaustion can lead to application hangs, performance degradation, and complete service failures. In production environments, this can result in downtime and poor user experience as the application becomes unable to perform database operations.
+
+== How to fix it
+
+Always call `conn.Close()` to return the connection to the pool. Use `defer` to ensure the connection is closed even if an error occurs.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func queryData(db *sql.DB) error {
+    conn, err := db.Conn(ctx)
+    if err != nil {
+        return err
+    }
+    // Missing conn.Close() // Noncompliant
+    return conn.QueryRowContext(ctx, "SELECT * FROM users").Scan(&user)
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func queryData(db *sql.DB) error {
+    conn, err := db.Conn(ctx)
+    if err != nil {
+        return err
+    }
+    defer conn.Close()
+    return conn.QueryRowContext(ctx, "SELECT * FROM users").Scan(&user)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go database/sql package documentation - https://pkg.go.dev/database/sql[Official Go documentation for the database/sql package, including connection management]
+
+ * Go database/sql Conn type - https://pkg.go.dev/database/sql#Conn[Documentation for the Conn type and its Close method]
