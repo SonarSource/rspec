@@ -1,0 +1,67 @@
+This is an issue when MetaClass properties are modified in test methods without proper cleanup, causing changes to persist across test executions.
+
+== Why is this an issue?
+
+Groovy's ExpandoMetaClass allows dynamic modification of classes at runtime, including built-in JDK classes. These modifications are global and persist beyond the scope of individual test methods unless explicitly cleaned up.
+
+When MetaClass changes are not properly removed, they can cause test pollution where one test's modifications affect subsequent tests. This leads to unpredictable test failures, makes tests dependent on execution order, and violates the principle of test isolation.
+
+Test isolation is fundamental to reliable testing. Each test should run independently and produce the same results regardless of which other tests have run before it. MetaClass modifications that persist across tests break this isolation and can cause:
+
+* Intermittent test failures that are difficult to reproduce
+* Tests that pass or fail depending on execution order
+* False positives or negatives in test results
+* Debugging nightmares when trying to understand why tests behave differently in different contexts
+
+=== What is the potential impact?
+
+Without proper cleanup, MetaClass modifications can cause:
+
+* *Test flakiness*: Tests may pass or fail unpredictably depending on execution order
+* *False test results*: Tests may produce incorrect results due to unexpected MetaClass state
+* *Debugging difficulties*: Intermittent failures become hard to reproduce and diagnose
+* *Reduced confidence in test suite*: Unreliable tests undermine trust in the testing process
+
+== How to fix it
+
+Use a try-finally block to ensure MetaClass changes are cleaned up even if the test fails. This approach keeps the cleanup logic close to the modification.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+@Test
+void testMetaClassChange() {
+    String.metaClass.reverse = { -> 'reversed' } // Noncompliant
+    assert 'test'.reverse() == 'reversed'
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+@Test
+void testMetaClassChange() {
+    String.metaClass.reverse = { -> 'reversed' }
+    try {
+        assert 'test'.reverse() == 'reversed'
+    } finally {
+        GroovySystem.metaClassRegistry.removeMetaClass(String)
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Groovy Testing Guide - Expando Meta-Class - https://groovy-lang.org/testing.html#testing_guide_emc[Official Groovy documentation on using ExpandoMetaClass in tests and the importance of cleanup]
+
+ * GroovySystem.metaClassRegistry API - https://docs.groovy-lang.org/latest/html/gapi/groovy/lang/GroovySystem.html[API documentation for the GroovySystem class and MetaClass registry management]
+
+=== Standards
+
+ * Test Isolation Principle - https://martinfowler.com/bliki/TestIsolation.html[Fundamental testing principle that each test should run independently without affecting others]
