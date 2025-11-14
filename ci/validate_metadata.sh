@@ -2,7 +2,7 @@
 set -ueo pipefail
 shopt -s lastpipe # To pipe command result into mapfile and have the array variable available in the main shell process.
 
-git fetch --quiet "${CIRRUS_DEFAULT_ORIGIN:-origin}" "${CIRRUS_DEFAULT_BRANCH:-master}"
+git fetch --quiet origin "${GITHUB_DEFAULT_BRANCH:-master}"
 base="$(git merge-base FETCH_HEAD HEAD)"
 echo "Comparing against the merge-base: ${base}"
 if ! git diff --name-only --exit-code "${base}" -- rspec-tools/

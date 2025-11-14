@@ -6,7 +6,10 @@ echo "CACHE_PATH: $CACHE_PATH"
 [ ! -d $CACHE_PATH ] && mkdir $CACHE_PATH
 ls -al $CACHE_PATH
 
-[ -f "$CACHE_PATH/link_probes.history" ] && cp "$CACHE_PATH/link_probes.history" ./rspec-tools/
+if [ -f "$CACHE_PATH/link_probes.history" ]; then
+  cp "$CACHE_PATH/link_probes.history" ./rspec-tools/
+  du -hs "$CACHE_PATH/link_probes.history"
+fi
 
 ./ci/generate_html.sh
 
@@ -19,6 +22,7 @@ else
 fi
 cd ..
 
+du -hs ./rspec-tools/link_probes.history
 cp ./rspec-tools/link_probes.history "$CACHE_PATH/"
 
 exit $EXIT_CODE

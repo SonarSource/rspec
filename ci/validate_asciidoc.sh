@@ -24,7 +24,7 @@ fi
 cd ..
 
 # Compute the set of affected rules
-git fetch origin "$CIRRUS_DEFAULT_BRANCH"
+git fetch origin "$GITHUB_DEFAULT_BRANCH"
 branch_base_sha=$(git merge-base FETCH_HEAD HEAD)
 echo "Comparing against the merge-base: $branch_base_sha"
 changeset=$(git diff --name-only "$branch_base_sha"..HEAD)

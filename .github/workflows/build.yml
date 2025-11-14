@@ -1,0 +1,182 @@
+name: Build
+on:
+  push:
+    branches:
+      - master
+      - branch-*
+      - dogfood-*
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tooling_tests:
+    runs-on: github-ubuntu-latest-s
+    name: Tooling Tests
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Install common dependencies
+        uses: ./.github/actions/install-common-dependencies
+      - name: Vault
+        id: secrets
+        uses: SonarSource/vault-action-wrapper@320bd31b03e5dacaac6be51bbbb15adf7caccc32 # v3.1.0
+        with:
+          secrets: |
+            development/kv/data/next url | SONAR_HOST_URL;
+            development/kv/data/next token | SONAR_TOKEN;
+      - name: Run tests
+        working-directory: rspec-tools
+        run: |
+          pipenv install --dev
+          pipenv run pytest --cov=rspec_tools --cov-report=xml
+          pipenv run black --check rspec_tools tests
+          pipenv run usort check rspec_tools tests
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        with:
+          projectBaseDir: rspec-tools
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ fromJSON(steps.secrets.outputs.vault).SONAR_HOST_URL }}
+
+  frontend_tests:
+    runs-on: github-ubuntu-latest-s
+    name: Frontend Tests
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Install common dependencies
+        uses: ./.github/actions/install-common-dependencies
+      - name: Setup Node.js cache
+        uses: SonarSource/gh-action_cache@v1
+        with:
+          path: frontend/node_modules
+          key: node-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            node-${{ runner.os }}-
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+      - name: Vault
+        id: secrets
+        uses: SonarSource/vault-action-wrapper@320bd31b03e5dacaac6be51bbbb15adf7caccc32 # v3.1.0
+        with:
+          secrets: |
+            development/kv/data/next url | SONAR_HOST_URL;
+            development/kv/data/next token | SONAR_TOKEN;
+      - name: Run tests
+        working-directory: frontend
+        run: |
+          npm run build
+          npm test -- --reporter=verbose --coverage
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        with:
+          projectBaseDir: frontend
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ fromJSON(steps.secrets.outputs.vault).SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ fromJSON(steps.secrets.outputs.vault).SONAR_HOST_URL }}
+
+  validate_ci_tests:
+    runs-on: github-ubuntu-latest-s
+    name: Validate CI Tests
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            ci_tests:
+              - 'ci_tests/**'
+            ci:
+              - 'ci/**'
+      - name: Install common dependencies
+        if: steps.changes.outputs.ci_tests == 'true' || steps.changes.outputs.ci == 'true'
+        uses: ./.github/actions/install-common-dependencies
+      - name: Run CI tests
+        if: steps.changes.outputs.ci_tests == 'true' || steps.changes.outputs.ci == 'true'
+        run: ./ci_tests/asciidoc_validation/run_tests.sh
+
+  validate_rules:
+    runs-on: github-ubuntu-latest-s
+    name: Validate Rules
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Install common dependencies
+        uses: ./.github/actions/install-common-dependencies
+      - name: Validate metadata
+        env:
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: ./ci/validate_metadata.sh
+      - name: Validate file extensions
+        run: ./ci/validate_file_extensions.sh
+      - name: Validate AsciiDoc
+        env:
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: ./ci/validate_asciidoc.sh
+
+  validate_links:
+    runs-on: github-ubuntu-latest-s
+    name: Validate Links
+    timeout-minutes: 120
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Install common dependencies
+        uses: ./.github/actions/install-common-dependencies
+      - name: Restore link cache
+        id: cache-link-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: link-probing.cache
+          key: link-probing-cache
+      - name: Validate links
+        run: |
+          ./ci/validate_links.sh link-probing.cache
+      - name: Save link cache
+        if: always() && !cancelled()
+        id: cache-link-save
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: link-probing.cache
+          key: link-probing-cache
+
+  all_required_checks:
+    needs:
+      - tooling_tests
+      - frontend_tests
+      - validate_rules
+      - validate_ci_tests
+    runs-on: github-ubuntu-latest-s
+    name: All Required Checks
+    steps:
+      - name: All required checks passed
+        run: echo 'All required checks have passed'
