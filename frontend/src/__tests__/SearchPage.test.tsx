@@ -6,15 +6,16 @@ import { buildIndexStore, buildSearchIndex } from '../deployment/searchIndex';
 import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
 import { fetchMockObject, normalize } from '../testutils';
+import { vi } from 'vitest';
 
 // The CI system is a bit slow. Increase timeout to avoid random failures.
-jest.setTimeout(20000);
+vi.setConfig({ testTimeout: 20000 });
 
 function genMockUrls() {
     const rulePath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
     const [indexStore, indexAggregates] = buildIndexStore(rulePath);
     const searchIndex: lunr.Index = buildSearchIndex(indexStore);
-    const rootUrl = process.env.PUBLIC_URL;
+    const rootUrl = '/rspec';
     let mockUrls: {[index: string]: any} = {};
     mockUrls[`${rootUrl}/rules/rule-index.json`] = {json: normalize(searchIndex)};
     mockUrls[`${rootUrl}/rules/rule-index-store.json`] = {json: normalize(indexStore)};
@@ -30,12 +31,12 @@ function genMockUrls() {
 let fetchMocker = fetchMockObject(genMockUrls());
 
 beforeEach(() => {
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMocker.mock as jest.Mocked<typeof fetch>);
+    vi.spyOn(global, 'fetch').mockImplementation(fetchMocker.mock as any);
 });
 
 afterEach(() => {
     fetchMocker.reset();
-    global.fetch.mockClear();
+    vi.mocked(global.fetch).mockClear();
 });
 
 async function renderDefaultSearchPageWithHistory() {

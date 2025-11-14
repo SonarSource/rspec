@@ -1,0 +1,71 @@
+This rule raises an issue when `context.Context` is declared as a field in a struct type.
+
+== Why is this an issue?
+
+Storing `context.Context` in struct fields goes against Go best practices and creates several problems.
+
+When you store context in a struct, you obscure its lifetime to callers. This makes it unclear when the context will be used and how long it will remain valid. Callers cannot understand the scope of the context just by looking at the API.
+
+Storing context in structs also prevents per-call customization. Each method call should be able to specify its own deadline, cancellation behavior, and metadata. When context is stored in a struct, all method calls share the same context, removing this flexibility.
+
+This design intermingles different scopes in unpredictable ways. The context's lifetime becomes tied to the struct's lifetime rather than individual operations. This can lead to contexts outliving their intended use or being cancelled unexpectedly.
+
+The Go documentation explicitly states: "Contexts should not be stored inside a struct type, but instead passed to each function that needs it." This guidance ensures contexts remain scoped to specific operations and maintain their intended purpose of carrying request-scoped values, deadlines, and cancellation signals.
+
+=== What is the potential impact?
+
+Storing context in structs reduces the flexibility and clarity of your API. Callers lose the ability to set per-call deadlines, request cancellation for specific operations, or attach operation-specific metadata.
+
+This can lead to poor resource management, as contexts may outlive their intended scope or be shared inappropriately between operations. In production systems, this can result in requests that cannot be properly cancelled, potentially leading to resource leaks or degraded performance.
+
+The API becomes confusing for users who cannot easily understand when and how the stored context will be used, requiring additional documentation and potentially leading to misuse.
+
+== How to fix it
+
+Remove the context field from the struct and pass context as the first parameter to methods that need it. This follows Go conventions and provides better control over context scope.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+type Worker struct {
+	ctx context.Context // Noncompliant
+}
+
+func New(ctx context.Context) *Worker {
+	return &Worker{ctx: ctx}
+}
+
+func (w *Worker) Fetch() (*Work, error) {
+	// Using stored context
+	return fetchWork(w.ctx)
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+type Worker struct {
+	// Remove context field
+}
+
+func New() *Worker {
+	return &Worker{}
+}
+
+func (w *Worker) Fetch(ctx context.Context) (*Work, error) {
+	// Context passed as parameter
+	return fetchWork(ctx)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Blog: Contexts and structs - https://go.dev/blog/context-and-structs[Official Go blog post explaining why contexts should not be stored in structs]
+
+ * Go context package documentation - https://pkg.go.dev/context[Official documentation for the context package with usage guidelines]

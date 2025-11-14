@@ -9,10 +9,17 @@ from git import Git, Repo
 
 from rspec_tools.utils import load_json, pushd
 
+
+#    ^
+#  / ! \
+# /_____\
+# If you want to add a repository in that list, you first need to add the repository to the list of authorized
+# repositories in the vault.
 REPOS = [
     "sonar-abap",
     "sonar-apex",
     "sonar-architecture",
+    "sonar-armor",
     "sonar-cobol",
     "sonar-cpp",
     "sonar-dart",
@@ -40,6 +47,12 @@ REPOS = [
     "sonar-vb",
     "sonar-xml",
 ]
+#    ^
+#  / ! \
+# /_____\
+# If you want to add a repository in that list, you first need to add the repository to the list of authorized
+# repositories in the vault.
+
 
 CANONICAL_NAMES = {
     "CLOUD_FORMATION": "CLOUDFORMATION",

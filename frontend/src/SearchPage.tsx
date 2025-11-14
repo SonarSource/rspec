@@ -70,7 +70,7 @@ export const SearchPage = () => {
   let allRuleTags:string[] = [];
   let allLangs:string[] = [];
   let allQualityProfiles = ['Sonar way', 'Sonar way recommended'];
-  const aggregatesDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-aggregates.json`;
+  const aggregatesDataUrl = `/rspec/rules/rule-index-aggregates.json`;
   const [aggregatesData, aggregatesDataError, aggregatesDataIsLoading] = useFetch<IndexAggregates>(aggregatesDataUrl);
 
   if (aggregatesData && !aggregatesDataIsLoading && !aggregatesDataError) {

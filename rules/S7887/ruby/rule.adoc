@@ -1,0 +1,84 @@
+This is an issue when a ``++before_destroy++`` callback adds validation errors but fails to properly halt the destruction process.
+
+== Why is this an issue?
+
+In Rails applications, ``++before_destroy++`` callbacks are commonly used to validate whether a record can be safely deleted. However, simply adding errors to the model does not automatically prevent destruction.
+
+In Rails versions prior to 5.0, returning ``++false++`` from a callback would halt the callback chain and prevent the destruction. However, this behavior changed in Rails 5.0 for consistency with other callback types.
+
+Starting with Rails 5.0, callbacks must explicitly use ``++throw :abort++`` to halt execution. The ``++return false++`` approach silently fails, allowing records to be destroyed despite validation errors.
+
+When callbacks add errors but fail to halt execution, the destruction proceeds normally. This creates a misleading situation where the model appears to have validation errors, but the record is still deleted from the database. This can lead to data integrity issues, orphaned records, and broken business logic.
+
+=== What is the potential impact?
+
+Records may be destroyed despite validation failures, leading to data integrity issues and broken business logic. Users may receive error messages but still see their data deleted, creating confusion and potential data loss.
+
+== How to fix it in Rails
+
+In Rails <5, use ``++return false++`` to halt the destruction process when validation errors are added.
+In Rails 5+, use ``++throw :abort++`` to properly halt the destruction process when validation errors are added.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby]
+----
+class Administratorship < ActiveRecord::Base
+  before_destroy :validate_destruction
+
+  private
+
+  def validate_destruction
+    unless can_be_destroyed?
+      errors.add(:base, "Cannot destroy this record")
+      # Missing halt mechanism - destruction will proceed despite errors // Noncompliant
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby]
+----
+class Administratorship < ActiveRecord::Base
+  before_destroy :validate_destruction
+
+  private
+
+  def validate_destruction
+    unless can_be_destroyed?
+      errors.add(:base, "Cannot destroy this record")
+      throw :abort # Properly halts destruction in Rails 5+
+    end
+  end
+end
+----
+
+or
+
+[source,ruby]
+----
+class Administratorship < ActiveRecord::Base
+  before_destroy :validate_destruction
+
+  private
+
+  def validate_destruction
+    unless can_be_destroyed?
+      errors.add(:base, "Cannot destroy this record")
+      return false # Properly halts destruction in Rails < 5.0
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Active Record Callbacks Guide - https://guides.rubyonrails.org/active_record_callbacks.html#halting-execution[Official Rails documentation on callback execution and halting mechanisms]
+
+ * Rails 5.0 Release Notes - Callback Changes - https://guides.rubyonrails.org/5_0_release_notes.html#active-record-deprecations[Documentation of the Rails 5.0 callback behavior changes]

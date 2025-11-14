@@ -1,0 +1,52 @@
+This rule raises an issue when `require` is used with relative paths to load local files instead of using `require_relative` or explicit path construction.
+
+== Why is this an issue?
+
+When requiring local files in Ruby, using `require` with relative paths creates fragile code that depends on the current working directory and Ruby's load path configuration.
+
+The `require` method resolves paths by searching through Ruby's load path (`$LOAD_PATH`) and the current working directory. However, since Ruby 1.9, the current directory (".") was removed from the default load path for security reasons. This means that `require 'local_file'` or `require './local_file'` will fail with a `LoadError` when the script is executed from a different directory or when the current directory is not explicitly added to the load path.
+
+This creates several problems:
+
+* *Execution context dependency*: The same script may work when run from one directory but fail when run from another
+* *Deployment fragility*: Code that works in development may break in production due to different execution contexts
+* *Testing complications*: Tests may pass or fail depending on the directory from which the test runner is executed
+* *Maintenance burden*: Developers may resort to modifying the global `$LOAD_PATH` or implementing workarounds, which pollutes the global state
+
+The issue is particularly common in Ruby applications where files need to load other files from the same project, such as utility modules, configuration files, or related classes.
+
+=== What is the potential impact?
+
+Applications may fail to start or function correctly when deployed or executed from different directories, leading to `LoadError` exceptions in production environments. This can cause service outages and make the codebase difficult to maintain and test reliably.
+
+== How to fix it
+
+Use `require_relative` to load files relative to the current file's location. This method resolves paths relative to the file containing the require statement, making the code portable across different execution contexts.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+require 'helper_module'
+require './config/settings'   # Noncompliant
+require '../utils/formatter'  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+require 'helper_module'
+require_relative './config/settings'
+require_relative '../utils/formatter'
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby require_relative documentation - https://ruby-doc.org/core/Kernel.html#method-i-require_relative[Official Ruby documentation for the require_relative method]
+ * Ruby require documentation - https://ruby-doc.org/core/Kernel.html#method-i-require[Official Ruby documentation explaining how require resolves file paths]
+

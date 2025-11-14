@@ -1,0 +1,48 @@
+This rule raises an issue when using system calls like `system "cd directory"` to change the working directory.
+
+== Why is this an issue?
+
+Directory changes made through system calls like `system "cd directory"` do not affect the current Ruby process. Each system call runs in a separate subprocess with its own environment. When the subprocess exits, any directory changes are lost, and the parent Ruby process remains in its original directory.
+
+This leads to unexpected behavior where subsequent system calls or file operations don't run in the intended directory. For example, if you run `system "cd my_app"` followed by `system "rails server"`, the Rails server will start in the original directory, not in the `my_app` directory.
+
+Ruby provides the `Dir.chdir` method specifically for changing the working directory within the current process. This method actually changes the directory for the Ruby process itself, making it the correct approach for directory navigation in Ruby scripts.
+
+=== What is the potential impact?
+
+Using system calls for directory changes can cause scripts to fail silently or behave unexpectedly. Commands may run in the wrong directory, leading to file not found errors, incorrect file operations, or applications starting in unexpected locations. This can result in deployment failures, data corruption, or security issues if files are created or modified in unintended directories.
+
+== How to fix it
+
+Replace system calls with `Dir.chdir` using the block form for scoped directory changes. The block form automatically reverts to the original directory after execution.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+system "rails new my_app"
+system "cd my_app"  # Noncompliant: has no effect
+system "rails server &"  # Still runs in parent directory
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+system "rails new my_app"
+Dir.chdir("my_app") do
+  system "rails server &"
+  system "rake db:migrate"
+end
+# Directory automatically reverted after block
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby Dir.chdir documentation - https://ruby-doc.org/core/Dir.html#method-c-chdir[Official Ruby documentation for the Dir.chdir method]
+
+ * Ruby system method documentation - https://ruby-doc.org/core/Kernel.html#method-i-system[Official Ruby documentation explaining how system calls work in subprocesses]

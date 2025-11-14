@@ -1,0 +1,69 @@
+This rule raises an issue when code checks for file existence and then creates a file in separate operations, creating a race condition vulnerability.
+
+== Why is this an issue?
+
+Checking if a file exists and then creating it in separate operations creates a Time-of-Check-Time-of-Use (TOCTOU) race condition. Between the existence check and the file creation, another process or thread might create or delete the file, leading to unexpected behavior.
+
+This race condition can cause several problems:
+
+* **Security vulnerabilities**: An attacker might create a symbolic link pointing to a sensitive file between the check and creation, causing your program to overwrite important system files.
+* **Data corruption**: If multiple processes try to create the same file simultaneously, they might interfere with each other's operations.
+* **Unpredictable behavior**: Your program might fail unexpectedly when the file system state changes between operations.
+
+The root cause is that file system operations are not atomic by default. The gap between checking and acting gives other processes an opportunity to modify the file system state.
+
+=== What is the potential impact?
+
+Race conditions in file operations can lead to security vulnerabilities where attackers exploit the timing gap to redirect file operations to unintended locations. This can result in unauthorized file access, data corruption, or system compromise. In multi-threaded or multi-process environments, these issues can cause unpredictable application behavior and data integrity problems.
+
+== How to fix it
+
+Use `os.OpenFile` with the `O_CREATE|O_EXCL` flags to atomically create a file only if it doesn't exist. This eliminates the race condition by combining the existence check and file creation into a single atomic operation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+// Check if file exists first, then create - this creates a race condition
+if _, err := os.Stat(filename); os.IsNotExist(err) {
+    file, err := os.Create(filename) // Noncompliant
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    // write to file
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+// Atomically create file only if it doesn't exist
+file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+if err != nil {
+    if os.IsExist(err) {
+        // File already exists, handle accordingly
+        return fmt.Errorf("file already exists: %s", filename)
+    }
+    return err
+}
+defer file.Close()
+// write to file
+----
+
+== Resources
+
+=== Documentation
+
+ * Go os.OpenFile documentation - https://pkg.go.dev/os#OpenFile[Official documentation for os.OpenFile function and file creation flags]
+
+ * Go file operations best practices - https://go.dev/doc/effective_go#files[Effective Go guide on proper file handling]
+
+=== Standards
+
+ * CWE-367: Time-of-check Time-of-use (TOCTOU) Race Condition - https://cwe.mitre.org/data/definitions/367.html[Common weakness enumeration for TOCTOU race conditions]
+
+ * OWASP Top 10:2021-A04-Insecure Design - https://owasp.org/Top10/A04_2021-Insecure_Design/[OWASP guidance on secure design patterns including race condition prevention]

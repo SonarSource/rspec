@@ -53,8 +53,8 @@ export function addFilterForKeysTitlesDescriptions(q: lunr.Query, query: string)
 export function useSearch(query: string, ruleType: string|null, ruleLang: string|null, ruleTags: string[],
                           qualityProfiles: string[],
                           pageSize: number, pageNumber: number) {
-  const indexDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index.json`;
-  const storeDataUrl = `${process.env.PUBLIC_URL}/rules/rule-index-store.json`;
+  const indexDataUrl = `/rspec/rules/rule-index.json`;
+  const storeDataUrl = `/rspec/rules/rule-index-store.json`;
 
   const [indexData, indexDataError, indexDataIsLoading] = useFetch<object>(indexDataUrl);
   const [storeData, storeDataError, storeDataIsLoading] = useFetch<IndexStore>(storeDataUrl);

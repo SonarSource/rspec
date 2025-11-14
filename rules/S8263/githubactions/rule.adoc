@@ -1,0 +1,171 @@
+== Why is this an issue?
+
+GitHub Actions workflows can access various sources of untrusted data through the GitHub context, such as:
+
+* Pull request titles, descriptions, and commit messages
+* Issue titles and comments
+* Branch names and tag names
+* User-provided inputs
+
+If this untrusted data is given as a parameter to an invoked action and directly interpolated into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to script injection vulnerabilities.
+An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.
+
+For instance, if a pull request title contains shell metacharacters like `$(whoami)` or `; rm -rf /`, these will be executed as commands when the workflow runs, potentially compromising the build environment or exposing sensitive information.
+
+The risk is particularly high when untrusted data is passed as inputs to actions that use `run` blocks to execute shell commands.
+Actions written in other languages, like Javascript, are not directly vulnerable if they do not evaluate the input like a shell interpreter does.
+
+=== What is the potential impact?
+
+The consequences of successful parameter injection attacks in GitHub Actions can be severe and far-reaching:
+
+include::../../../shared_content/githubactions/impact/information_disclosure.adoc[]
+
+include::../../../shared_content/githubactions/impact/system_compromise.adoc[]
+
+include::../../../shared_content/githubactions/impact/supply_chain_attacks.adoc[]
+
+include::../../../shared_content/githubactions/impact/repository_manipulation.adoc[]
+
+== How to fix it
+
+To prevent command injection in GitHub Actions workflows, avoid directly interpolating untrusted data into shell commands. Instead, use environment variables to safely pass untrusted data without risk of code execution.
+
+The recommended approach is to assign untrusted data to environment variables using the `env` key, then reference these variables using standard shell variable syntax (`$VARIABLE_NAME` or `${VARIABLE_NAME}`) rather than GitHub's expression syntax (`${{ ... }}`).
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following GitHub Action is vulnerable to command injections as it uses untrusted input directly in a run command:
+
+[source,yaml,diff-id=1,diff-type=noncompliant]
+----
+name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: ${{ github.event.pull_request.title }}"  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,yaml,diff-id=1,diff-type=compliant]
+----
+name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: $PR_TITLE"
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+----
+
+=== How does this work?
+
+The key difference lies in when and how the untrusted data is processed:
+
+* **Direct interpolation**: When using `${{ github.event.pull_request.title }}` directly in a shell command, GitHub Actions first substitutes the expression with the actual PR title, then passes the resulting string to the shell. If the title contains shell metacharacters, they become part of the command syntax and get executed.
+
+* **Environment variable approach**: When the untrusted data is assigned to an environment variable, the shell receives it as a pre-existing variable value. The shell treats environment variable contents as literal data, not as executable code, regardless of what characters they contain.
+
+This separation ensures that malicious shell syntax in the untrusted data cannot be interpreted as commands, effectively neutralizing injection attempts.
+
+=== Pitfalls
+
+include::../../../shared_content/githubactions/pitfalls/fixing_only_main.adoc[]
+
+==== Accessing environment variables through GitHub expressions
+
+While storing untrusted data in environment variables is the correct approach, it is important to reference them properly. Simply putting the data in an environment variable but then accessing it through GitHub's expression syntax (`${{ env.VARIABLE_NAME }}`) will still result in command injection vulnerabilities.
+
+The following example demonstrates this common mistake:
+
+[source,yaml]
+----
+name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: ${{ env.PR_TITLE }}" # Noncompliant
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+----
+
+=== Going the extra mile
+
+include::../../../shared_content/githubactions/extra_mile/hardening.adoc[]
+
+==== Advanced input validation
+
+For enhanced security, implement comprehensive input validation:
+
+* **Allowlists**: Instead of just avoiding dangerous characters, use allowlists to only accept inputs that match expected patterns (e.g., valid branch names, semantic version formats).
+* **Custom validation actions**: Create reusable composite actions that encapsulate input validation logic, making it easier to apply consistent security controls across workflows.
+* **Input sanitization**: When possible, sanitize inputs by removing or escaping potentially dangerous characters before processing them.
+
+== Resources
+
+=== Documentation
+* GitHub Docs - https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections[Understanding the risk of script injections]
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A03_2021-Injection/[Top 10 2021 Category A3 - Injection]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A1_2017-Injection[Top 10 2017 Category A1 - Injection]
+* CWE - https://cwe.mitre.org/data/definitions/20[CWE-20 - Improper Input Validation]
+* CWE - https://cwe.mitre.org/data/definitions/78[CWE-78 - Improper Neutralization of Special Elements used in an OS Command]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222604[Application Security and Development: V-222604] - The application must protect from command injection.
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609[Application Security and Development: V-222609] - The application must not be subject to input handling vulnerabilities.
+
+=== Related rules
+
+* S7630 GitHub Actions should not be vulnerable to script injections
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+=== Message
+
+Change this action call to not use user-controlled data as a parameter
+
+=== Highlighting
+
+* Primary: On GitHub expression using tainted data in the action parameter
+* In the pitfall example, secondary on the assignment of tainted data into an environment variable
+  * Message: "User-controlled data is stored in '<variable_name>'"
+
+endif::env-github,rspecator-view[]
