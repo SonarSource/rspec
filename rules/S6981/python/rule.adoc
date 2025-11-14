@@ -1,0 +1,112 @@
+This rule raises an issue when an unscaled loss is used for the backward pass and when the forward pass happened in a mixed-precision context
+
+== Why is this an issue?
+
+When using mixed precision training, tensors can be cast to lower precision variants to save memory and computing power. 
+The gradients accumulated during the forward pass might also be cast to a lower precision variant. If the resulting gradients have a small enough magnitude, they might underflow.
+
+=== What is the potential impact?
+
+If the gradients underflow, the model might not learn properly and the training might be unstable.
+
+== How to fix it
+
+To fix this issue, you can use the relevant implementation of `GradScaler`, depending on the `autocast` context and device you are using.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch
+
+model = torch.nn.Linear(28*28, 10)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+
+x = torch.randn(1, 1*28*28)
+y = torch.rand(1, 10)
+
+optimizer.zero_grad()
+with torch.autocast(device_type="cuda"):
+    output = model(x)
+    loss = torch.nn.functional.cross_entropy(output, y)
+loss.backward() # Noncompliant: The loss is used without being scaled
+optimizer.step()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch
+
+model = torch.nn.Linear(28*28, 10)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+scaler = torch.cuda.amp.GradScaler()
+
+x = torch.randn(1, 1*28*28)
+y = torch.rand(1, 10)
+
+optimizer.zero_grad()
+with torch.autocast(device_type="cuda"):
+    output = model(x)
+    loss = torch.nn.functional.cross_entropy(output, y)
+scaler.scale(loss).backward()
+scaler.step(optimizer)
+scaler.update()
+----
+
+=== How does this work?
+
+The `GradScaler` class is used to scale the loss before calling the `backward` method. This ensures that the gradients are not underflowing.
+The calls to `backward()` and `step()` are replaced by `scaler.scale(loss).backward()` and `scaler.step(optimizer)` respectively.
+We also need to add a call to `scaler.update()` to correctly update the scaler.
+
+
+== Resources
+=== Documentation
+
+* Pytorch documentation - https://pytorch.org/docs/stable/amp.html#gradient-scaling[Gradient Scaling]
+
+ifdef::env-github,rspecator-view[]
+
+(visible only on this page)
+
+== Implementation specification 
+
+Tough implementation, with lots of false negatives in sight.
+
+There are multiple ways to have an autocast context, with the context manager or with a decorator on the `forward` method of the model.
+
+I think the implementation should not try too hard to find the issue.
+
+Find one function that has the properties : 
+ - Has the autocast context manager, which contains a call to a subclass of `nn.Module`
+ OR 
+ - Contains a call to a subclass of `nn.Module`, with the `@autocast` decorator on the `forward` method.
+
+ - Has a call to the `backward` method of a tensor
+
+ - Has a call to the `step` method, (possibly filter to an object in the optimizer module ?)
+
+=== Message 
+
+Primary : Use a GradScaler to avoid underflows
+
+Secondary:  Autocast context started here, The optimizer step should be proxied by a GradScaler
+
+
+=== Issue location
+
+Primary : on the entire .backward() call
+
+Secondary : The autocast context or decorator
+
+Secondary : The optimizer.step() call
+
+=== Quickfix
+
+No
+
+endif::env-github,rspecator-view[]
