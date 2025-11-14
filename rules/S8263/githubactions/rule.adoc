@@ -7,13 +7,17 @@ GitHub Actions workflows can access various sources of untrusted data through th
 * Branch names and tag names
 * User-provided inputs
 
-When this untrusted data is directly interpolated into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to script injection vulnerabilities. An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.
+If this untrusted data is given as a parameter to an invoked action and directly interpolated into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to script injection vulnerabilities.
+An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.
 
 For instance, if a pull request title contains shell metacharacters like `$(whoami)` or `; rm -rf /`, these will be executed as commands when the workflow runs, potentially compromising the build environment or exposing sensitive information.
 
+The risk is particularly high when untrusted data is passed as inputs to actions that use `run` blocks to execute shell commands.
+Actions written in other languages, like Javascript, are not directly vulnerable if they do not evaluate the input like a shell interpreter does.
+
 === What is the potential impact?
 
-The consequences of successful script injection attacks in GitHub Actions can be severe and far-reaching:
+The consequences of successful parameter injection attacks in GitHub Actions can be severe and far-reaching:
 
 include::../../../shared_content/githubactions/impact/information_disclosure.adoc[]
 
@@ -48,9 +52,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Example Step
-        run: |
-          echo "PR title: ${{ github.event.pull_request.title }}" # Noncompliant
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: ${{ github.event.pull_request.title }}"  # Noncompliant
 ----
 
 ==== Compliant solution
@@ -68,12 +73,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Example Step
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: $PR_TITLE"
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          echo "PR title: $PR_TITLE"
-
 ----
 
 === How does this work?
@@ -109,11 +114,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Example
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: ${{ env.PR_TITLE }}" # Noncompliant
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          echo "PR title: ${{ env.PR_TITLE }}" # Noncompliant
 ----
 
 === Going the extra mile
@@ -144,7 +150,7 @@ For enhanced security, implement comprehensive input validation:
 
 === Related rules
 
-* S8263 GitHub Action invocations should not be vulnerable to parameter injection attacks
+* S7630 GitHub Actions should not be vulnerable to script injections
 
 ifdef::env-github,rspecator-view[]
 
@@ -154,11 +160,11 @@ ifdef::env-github,rspecator-view[]
 
 === Message
 
-Change this workflow to not use user-controlled data directly in a run block
+Change this action call to not use user-controlled data as a parameter
 
 === Highlighting
 
-* Primary: On GitHub expression using tainted data in a run block
+* Primary: On GitHub expression using tainted data in the action parameter
 * In the pitfall example, secondary on the assignment of tainted data into an environment variable
   * Message: "User-controlled data is stored in '<variable_name>'"
 
