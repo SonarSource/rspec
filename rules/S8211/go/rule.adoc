@@ -1,0 +1,64 @@
+This rule raises an issue when functions perform HTTP operations without accepting or using a `context.Context` parameter for proper cancellation and timeout handling.
+
+== Why is this an issue?
+
+HTTP operations without proper context handling can lead to serious reliability issues in Go applications.
+
+When you make HTTP requests using methods like `http.Get()` or `client.Get()` without context, these requests cannot be cancelled or have timeouts applied at the application level. This creates several problems:
+
+* **Hanging requests**: If an external service becomes unresponsive, your requests will wait indefinitely, consuming resources and potentially blocking your application.
+* **Resource leaks**: Goroutines making these requests may never terminate, leading to memory leaks and goroutine accumulation over time.
+* **Poor user experience**: Users cannot cancel operations that are taking too long, leading to unresponsive applications.
+* **Cascading failures**: In microservice architectures, one slow service can cause timeouts and failures to propagate throughout your system.
+
+The `context.Context` package in Go provides a standard way to carry cancellation signals, deadlines, and timeouts across API boundaries. When you use context-aware HTTP methods like `http.NewRequestWithContext()`, your requests can be cancelled when:
+
+* A user cancels their request
+* A timeout is reached
+* The application is shutting down
+* A parent operation is cancelled
+
+This enables proper resource cleanup and prevents your application from wasting resources on operations that are no longer needed.
+
+=== What is the potential impact?
+
+Without proper context usage, HTTP operations can hang indefinitely, leading to resource exhaustion, memory leaks, and application instability. In high-load scenarios, this can cause cascading failures and service outages.
+
+== How to fix it
+
+Add a context.Context parameter to your function and use http.NewRequestWithContext to create context-aware HTTP requests.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func makeAPICall(url string) (*http.Response, error) {
+    client := &http.Client{}
+    resp, err := client.Get(url) // Noncompliant
+    return resp, err
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func makeAPICall(ctx context.Context, url string) (*http.Response, error) {
+    client := &http.Client{}
+    req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+    resp, err := client.Do(req)
+    return resp, err
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go context package - https://pkg.go.dev/context[Official documentation for Go's context package]
+
+ * Go HTTP client documentation - https://pkg.go.dev/net/http#Client[Official documentation for Go's HTTP client]
+
+ * Context and cancellation in Go - https://go.dev/blog/context[Official Go blog post explaining context usage patterns]
