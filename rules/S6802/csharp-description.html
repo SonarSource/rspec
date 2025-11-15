@@ -1,0 +1,270 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Blazor, using <a href="https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#lambda-expressions">lambda expressions</a> as <a href="https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#lambda-expressions">event handlers</a> when the UI elements are rendered in a loop can lead to negative user experiences and performance issues. This is particularly noticeable when rendering a large number of elements.</p>
+</div>
+<div class="paragraph">
+<p>The reason behind this is that Blazor rebuilds all lambda expressions within the loop every time the UI elements are rendered.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ensure to not use a delegate in elements rendered in loops, you can try:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>using a collection of objects containing the delegate as an <a href="https://learn.microsoft.com/en-us/dotnet/api/system.action">Action</a>,</p>
+</li>
+<li>
+<p>or extracting the elements into a dedicated component and using an <a href="https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#eventcallback">EventCallback</a> to call the delegate</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">@for (var i = 1; i &lt; 100; i++)
+{
+    var buttonNumber = i;
+
+    &lt;button @onclick="@(e =&gt; DoAction(e, buttonNumber))"&gt; @* Noncompliant *@
+        Button #@buttonNumber
+    &lt;/button&gt;
+}
+
+@code {
+    private void DoAction(MouseEventArgs e, int button)
+    {
+        // Do something here
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">@foreach (var button in Buttons)
+{
+    &lt;button @key="button.Id" @onclick="button.Action"&gt;  @* Compliant *@
+        Button #@button.Id
+    &lt;/button&gt;
+}
+
+@code {
+    private List&lt;Button&gt; Buttons { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        for (var i = 0; i &lt; 100; i++)
+        {
+            var button = new Button();
+
+            button.Action = (e) =&gt; DoAction(e, button);
+
+            Buttons.Add(button);
+        }
+    }
+
+    private void DoAction(MouseEventArgs e, Button button)
+    {
+        // Do something here
+    }
+
+    private class Button
+    {
+        public string? Id { get; } = Guid.NewGuid().ToString();
+        public Action&lt;MouseEventArgs&gt; Action { get; set; } = e =&gt; { };
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">@* Component.razor *@
+
+@for (var i = 1; i &lt; 100; i++)
+{
+    var buttonNumber = i;
+
+    &lt;button @onclick="@(e =&gt; DoAction(e, buttonNumber))"&gt; @* Noncompliant *@
+        Button #@buttonNumber
+    &lt;/button&gt;
+}
+
+@code {
+    private void DoAction(MouseEventArgs e, int button)
+    {
+        // Do something here
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">@* MyButton.razor *@
+
+&lt;button @onclick="OnClickCallback"&gt;
+    @ChildContent
+&lt;/button&gt;
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [Parameter]
+    public EventCallback&lt;int&gt; OnClick { get; set; }
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    private void OnClickCallback()
+    {
+        OnClick.InvokeAsync(Id);
+    }
+}
+
+@* Component.razor *@
+
+@for (var i = 1; i &lt; 100; i++)
+{
+    var buttonNumber = i;
+    &lt;MyButton Id="buttonNumber" OnClick="DoAction"&gt;
+        Button #@buttonNumber
+    &lt;/MyButton&gt;
+}
+
+@code {
+    private void DoAction(int button)
+    {
+        // Do something here
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/aspnet/core/blazor/performance#avoid-recreating-delegates-for-many-repeated-elements-or-components">ASP.NET Core Blazor performance best practices</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#lambda-expressions">ASP.NET Core Blazor event handling - Lambda expressions</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling#eventcallback">Event handling - EventCallback Struct</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_benchmarks">Benchmarks</h3>
+<div class="paragraph">
+<p>The results were generated with the help of <a href="https://github.com/dotnet/BenchmarkDotNet">BenchmarkDotNet</a> and <a href="https://github.com/egil/Benchmark.Blazor/tree/main">Benchmark.Blazor</a>:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Method</th>
+<th class="tableblock halign-left valign-top">NbButtonRendered</th>
+<th class="tableblock halign-left valign-top">Mean</th>
+<th class="tableblock halign-left valign-top">StdDev</th>
+<th class="tableblock halign-left valign-top">Ratio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UseDelegate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">6.603 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.0483 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.00</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UseAction</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.994 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.0592 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.29</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UseDelegate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">100</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">50.666 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.5449 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.00</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UseAction</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">100</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2.016 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.0346 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.04</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UseDelegate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">512.513 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">9.7561 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.000</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UseAction</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2.005 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.0243 us</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.004</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Hardware configuration:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">BenchmarkDotNet v0.13.9+228a464e8be6c580ad9408e98f18813f6407fb5a, Windows 10 (10.0.19045.3448/22H2/2022Update)
+12th Gen Intel Core i7-12800H, 1 CPU, 20 logical and 14 physical cores
+.NET SDK 8.0.100-rc.1.23463.5
+  [Host]   : .NET 7.0.11 (7.0.1123.42427), X64 RyuJIT AVX2
+  .NET 7.0 : .NET 7.0.11 (7.0.1123.42427), X64 RyuJIT AVX2</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,260 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when custom polling loops are used instead of AWS waiters for checking resource states.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When working with AWS resources that require time to reach a desired state, such as EC2 instances starting up, S3 buckets being created, or DynamoDB tables becoming available, developers often implement custom polling loops to check the resource status repeatedly. However, this approach is inefficient and error-prone. Custom polling requires manual handling of timing intervals, retry logic, error conditions, and timeout scenarios. It also tends to be verbose and duplicates logic that AWS already provides in a more robust form. AWS SDK provides waiters, which are purpose-built abstractions specifically designed to poll AWS resources until they reach a desired state. Waiters handle the complexities of polling automatically, including appropriate delays, exponential backoff, maximum wait times, and proper error handling.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Custom polling implementations can lead to inefficient resource usage due to inappropriate polling intervals, increased complexity and maintenance overhead, potential race conditions and timing issues, and unreliable error handling that may cause application failures or infinite loops.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace custom polling loops with AWS waiters. Identify the AWS resource you need to wait for, then use the appropriate waiter method from the boto3 client. Waiters are available for most AWS services and common state transitions. Use the <code>get_waiter()</code> method on your boto3 client to obtain the waiter, then call <code>wait()</code> with the appropriate parameters.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import boto3
+import time
+
+ec2_client = boto3.client('ec2', region_name='us-east-1')
+
+while True:
+  response = ec2_client.describe_instance_status(  # Noncompliant
+    InstanceIds=[instance_id],
+    IncludeAllInstances=True
+  )
+
+  instance_status = response['Statuses'][0]['InstanceStatus']['Status']
+  if instance_status == 'ok':
+    break
+
+  time.sleep(10)</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import boto3
+
+ec2_client = boto3.client('ec2', region_name='us-east-1')
+
+ec2_client.get_waiter('instance_status_ok').wait(
+    InstanceIds=[instance_id],
+    IncludeAllInstances=True
+)</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>boto3 Documentation - <a href="https://boto3.amazonaws.com/v1/documentation/api/latest/guide/clients.html#waiters">Waiters</a></p>
+</li>
+<li>
+<p>AWS Documentation - <a href="https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html#python-handler-best-practices">AWS Lambda Python Handler Best Practices</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="paragraph">
+<p>This rule should check if there is an while or for loop with a function call to one of the following methods. All parameters either need
+to be static or variables which are not written to in the loop body. Furthermore, there  should be a sleep or delay statement inside the loop body.
+As a baby step there is no check for a sliip of delay statement and only checks in a <code>while True</code> loop.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>EC2 (Elastic Compute Cloud)</strong>: EC2 operations like instance and volume provisioning are classic examples of long-running tasks.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>describe_instances</code>: Used to check the status of an EC2 instance (pending, running, stopping, stopped). Waiters: <code>instance_running</code>, <code>instance_stopped</code>, <code>instance_terminated</code>.</p>
+</li>
+<li>
+<p><code>describe_instance_status</code>: Used to check if an instance is initialized and passing status checks. Waiters: <code>instance_status_ok</code>, <code>system_status_ok</code>.</p>
+</li>
+<li>
+<p><code>describe_volumes</code>: Used to check the state of an EBS volume (e.g., creating, available, in-use, deleting, deleted). Waiters: <code>volume_available</code>, <code>volume_in_use</code>, <code>volume_deleted</code>.</p>
+</li>
+<li>
+<p><code>describe_snapshots</code>: Used to check if an EBS snapshot has been completed. Waiter: <code>snapshot_completed</code>.</p>
+</li>
+<li>
+<p><code>describe_images</code>: Used to check if an AMI is available. Waiter: <code>image_available</code>.</p>
+</li>
+<li>
+<p><code>describe_vpcs</code>: Used to check if a VPC is available. Waiter: <code>vpc_available</code>.</p>
+</li>
+<li>
+<p><code>describe_subnets</code>: Used to check if a subnet is available. Waiter: <code>subnet_available</code>.</p>
+</li>
+<li>
+<p><code>describe_nat_gateways</code>: Used for checking NAT gateway status. Waiter: <code>nat_gateway_available</code>.</p>
+</li>
+<li>
+<p><code>describe_key_pairs</code>: Used to check if a key pair exists. Waiter: <code>key_pair_exists</code>.</p>
+</li>
+<li>
+<p><code>get_password_data</code>: Used to check if password data is available for a Windows instance. Waiter: <code>password_data_available</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>S3 (Simple Storage Service)</strong>: While S3 operations are often fast, object and bucket provisioning is asynchronous.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>head_bucket</code>: Used to check for a bucket&#8217;s existence. Waiters: <code>bucket_exists</code>, <code>bucket_not_exists</code>.</p>
+</li>
+<li>
+<p><code>head_object</code>: Used to check if an object has been successfully uploaded or replicated. Waiters: <code>object_exists</code>, <code>object_not_exists</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>RDS (Relational Database Service)</strong>: Database instance creation, modification, and deletion can take several minutes.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>describe_db_instances</code>: Used to check the status of an RDS instance (creating, available, deleting). Waiters: <code>db_instance_available</code>, <code>db_instance_deleted</code>.</p>
+</li>
+<li>
+<p><code>describe_db_clusters</code>: For checking the status of Aurora clusters. Waiters: <code>db_cluster_available</code>, <code>db_cluster_deleted</code>.</p>
+</li>
+<li>
+<p><code>describe_db_snapshots</code>: For checking snapshot completion. Waiters: <code>db_snapshot_available</code>, <code>db_snapshot_completed</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>DynamoDB</strong>: Table creation and deletion are not instantaneous.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>describe_table</code>: Used to check a table&#8217;s status (CREATING, UPDATING, DELETING, ACTIVE). Waiters: <code>table_exists</code>, <code>table_not_exists</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>ECS (Elastic Container Service)</strong>: Service deployments and task startups are asynchronous.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>describe_services</code>: Used to check if a service&#8217;s deployment is stable. Waiter: <code>services_stable</code>.</p>
+</li>
+<li>
+<p><code>describe_tasks</code>: Used to check if tasks are running or have stopped. Waiters: <code>tasks_running</code>, <code>tasks_stopped</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>ECR (Elastic Container Registry)</strong>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>describe_images</code> (ECR client): Used to check for the presence of a container image. Waiter: <code>image_scan_complete</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>EKS (Elastic Kubernetes Service)</strong>: Cluster and nodegroup provisioning takes a significant amount of time.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>describe_cluster</code>: Used to check the status of an EKS cluster (CREATING, ACTIVE, DELETING). Waiters: <code>cluster_active</code>, <code>cluster_deleted</code>.</p>
+</li>
+<li>
+<p><code>describe_nodegroup</code>: Used to check the status of a managed nodegroup. Waiters: <code>nodegroup_active</code>, <code>nodegroup_deleted</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>CloudFormation</strong>: Stack operations are fundamentally asynchronous and can be very long-running.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>describe_stacks</code>: Used to check the status of a stack operation (CREATE_IN_PROGRESS, CREATE_COMPLETE, DELETE_COMPLETE). Waiters: <code>stack_create_complete</code>, <code>stack_delete_complete</code>, <code>stack_update_complete</code>, <code>stack_exists</code>.</p>
+</li>
+<li>
+<p><code>describe_change_set</code>: Used to check if a change set has been created. Waiter: <code>change_set_create_complete</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Lambda</strong>: Function updates need time to propagate.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>get_function_configuration</code>: Used to check the LastUpdateStatus and State of a Lambda function. Waiters: <code>function_active</code>, <code>function_updated</code>, <code>function_active_v2</code>, <code>function_updated_v2</code>.</p>
+</li>
+<li>
+<p><code>get_function</code>: Used to verify a function exists. Waiter: <code>function_exists</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use AWS waiters instead of custom polling loops</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary location: the AWS client method call within the loop</p>
+</li>
+<li>
+<p>Secondary location: the loop keyword (e.g., <code>while</code>, <code>for</code>)</p>
+</li>
+<li>
+<p>Secondary location: any sleep or delay statements</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

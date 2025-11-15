@@ -1,0 +1,201 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Before trapping all possible exceptions, it is best to try to trap the specific ones and try to recover from those.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET SERVEROUTPUT ON
+
+CREATE TABLE hitCounter
+(
+  page VARCHAR2(42),
+  hits NUMBER,
+  CONSTRAINT pk PRIMARY KEY (page)
+);
+
+CREATE PROCEDURE hitPage(pageIn VARCHAR2) AS
+BEGIN
+  INSERT INTO hitCounter VALUES (pageIn, 1);
+EXCEPTION -- Noncompliant, the only exception handler is WHEN OTHERS
+  WHEN OTHERS THEN
+    IF SQLCODE = -1 THEN
+      UPDATE hitCounter SET hits = hits + 1 WHERE page = pageIn;
+    ELSE
+      DBMS_OUTPUT.PUT_LINE('An unknown error occured!');
+    END IF;
+END;
+/
+
+BEGIN
+  hitPage('index.html');
+  hitPage('index.html');
+END;
+/
+
+SELECT * FROM hitCounter;
+
+DROP PROCEDURE hitPage;
+DROP TABLE hitCounter;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET SERVEROUTPUT ON
+
+CREATE TABLE hitCounter
+(
+  page VARCHAR2(42),
+  hits NUMBER,
+  CONSTRAINT pk PRIMARY KEY (page)
+);
+
+CREATE PROCEDURE hitPage(pageIn VARCHAR2) AS
+BEGIN
+  INSERT INTO hitCounter VALUES (pageIn, 1);
+EXCEPTION
+  WHEN DUP_VAL_ON_INDEX THEN
+    UPDATE hitCounter SET hits = hits + 1 WHERE page = pageIn;
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('An unknown error occured!');
+END;
+/
+
+BEGIN
+  hitPage('index.html');
+  hitPage('index.html');
+END;
+/
+
+SELECT * FROM hitCounter;
+
+DROP PROCEDURE hitPage;
+DROP TABLE hitCounter;</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/396">CWE-396 - Declaration of Catch for Generic Exception</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Add exception handlers for the expected exception types.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2738">is related to: <a data-rspec-id="S2738" class="rspec-auto-link">S2738</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_21_nov_2014_151515_freddy_mallet_wrote">on 21 Nov 2014, 15:15:15 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>My 2 cents [~ann.campbell.2]:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For me this rule duplicates <a data-rspec-id="S1181" class="rspec-auto-link">RSPEC-1181</a> in Java</p>
+</li>
+<li>
+<p>And catching an Exception in Java is not at all an issue. I would even say that this is a good practice at some levels when you want to be sure to catch all possible exceptions. this is only an issue if you catch Error or Throwable exception</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_24_nov_2014_135302_ann_campbell_wrote">on 24 Nov 2014, 13:53:02 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~freddy.mallet] I specifically asked [~nicolas.peru] about that &amp; he disagreed &amp; saw this as separate from <a data-rspec-id="S1181" class="rspec-auto-link">RSPEC-1181</a>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_25_nov_2014_105640_freddy_mallet_wrote">on 25 Nov 2014, 10:56:40 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>I&#8217;m going to say it differently : as a Java developer I do believe that this rule is useless and even misleading. Indeed the best practice is the following one:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Most of the time we should catch only specialized exceptions</p>
+</li>
+<li>
+<p>But as soon we are located at the boundary of a technical stack (SonarQube &lt;&#8594; Plugins, Web &lt;&#8594; EJB, &#8230;&#8203;), generic exceptions (but not Throwable and Error, see <a data-rspec-id="S1181" class="rspec-auto-link">RSPEC-1181</a>) should be caught.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>So if we activate this rule on our own portfolio, we&#8217;ll generate lot of false-positives.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_4_dec_2014_190412_ann_campbell_wrote">on 4 Dec 2014, 19:04:12 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~freddy.mallet] it sounds like you&#8217;d like to see this rule closed. Does the fact that it replaces a PMD rule change your mind?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_5_dec_2014_082150_freddy_mallet_wrote">on 5 Dec 2014, 08:21:50 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>Let me think twice about this rule [~ann.campbell.2] :), thanks</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_2_feb_2015_203114_sébastien_gioria_wrote">on 2 Feb 2015, 20:31:14 Sébastien Gioria wrote:</h3>
+<div class="paragraph">
+<p>Could be tag OWASP Top10 2013 A6</p>
+</div>
+<div class="paragraph">
+<p>it 's CERT Secure Coding ERR53-J</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_3_feb_2015_201901_ann_campbell_wrote">on 3 Feb 2015, 20:19:01 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Thanks [~sebastien.gioria].</p>
+</div>
+<div class="paragraph">
+<p>I&#8217;m going to skip the CERT reference; it&#8217;s about <code>throw</code>-ing rather than <code>catch</code>-ing. Also, I don&#8217;t understand how this ties to OWASP A6.</p>
+</div>
+</div>
+</div>
+</div>

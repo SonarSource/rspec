@@ -1,0 +1,150 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>ValueTask&lt;TResult&gt;</code> provides a value type that wraps a <a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task-1">Task&lt;TResult&gt;</a> and the corresponding <code>TResult</code>. It was introduced in .NET Core 2.0 <a href="https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask">to optimize memory allocation</a> when functions return their results synchronously.</p>
+</div>
+<div class="paragraph">
+<p>Using <code>ValueTask</code> and <code>ValueTask&lt;TResult&gt;</code> in the following ways is discouraged as it could result in a race condition:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Calling <code>await</code> multiple times on a <code>ValueTask</code>/<code>ValueTask&lt;TResult&gt;</code>. The wrapped object may have been reused by another operation. This differs from <code>Task</code>/<code>Task&lt;TResult&gt;</code>, on which you can await multiple times and always get the same result.</p>
+</li>
+<li>
+<p>Calling <code>await</code> concurrently on a <code>ValueTask</code>/<code>ValueTask&lt;TResult&gt;</code>. The underlying object is not thread safe. What&#8217;s more, it has the same effect as awaiting multiple times a <code>ValueTask</code>/<code>ValueTask&lt;TResult&gt;</code>. This again differs from <code>Task</code>/<code>Task&lt;TResult&gt;</code>, which support concurrent <code>await</code>.</p>
+</li>
+<li>
+<p>Using <code>.Result</code> or <code>.GetAwaiter().GetResult()</code> without checking if the operation is completed. <code>IValueTaskSource</code>/<code>IValueTaskSource&lt;TResult&gt;</code> implementations are not required to block until the operation completes. On the other hand, <code>Task</code>/<code>Task&lt;TResult&gt;</code> blocks the call until the task completes.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is recommended to use <code>ValueTask</code>/<code>ValueTask&lt;TResult&gt;</code> either by calling <code>await</code> on the function returning it, optionally calling <code>ConfigureAwait(false)</code> on it, or by calling <code>.AsTask()</code> on it.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when the following operations are performed on a <code>ValueTask</code>/<code>ValueTask&lt;TResult&gt;</code> instance unless it happens in a loop:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Awaiting the instance multiple times.</p>
+</li>
+<li>
+<p>Calling <code>AsTask</code> multiple times.</p>
+</li>
+<li>
+<p>Using <code>.Result</code> or <code>.GetAwaiter().GetResult()</code> multiple times</p>
+</li>
+<li>
+<p>Using <code>.Result</code> or <code>.GetAwaiter().GetResult()</code> when the operation has not yet completed</p>
+</li>
+<li>
+<p>Using of these ways to consume the instance multiple times.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">ValueTask&lt;int&gt; vt = ComputeAsync();
+int result = await vt;
+result = await vt; // Noncompliant, variable is awaited multiple times
+
+int value = ComputeAsync()).GetAwaiter().GetResult(); // Noncompliant, uses GetAwaiter().GetResult() when it's not known to be done</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">ValueTask&lt;int&gt; vt = ComputeAsync();
+int result = await vt;
+
+int value = await ComputeAsync().AsTask();</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.valuetask">ValueTask</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.valuetask-1">ValueTask&lt;TResult&gt;</a></p>
+</li>
+<li>
+<p><a href="https://blogs.msdn.microsoft.com/dotnet/2018/11/07/understanding-the-whys-whats-and-whens-of-valuetask">Understanding the Whys, Whats, and Whens of ValueTask</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567">Application Security and Development: V-222567</a> - The application must not be vulnerable to race conditions.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="paragraph">
+<p>Refactor this <code>ValueTask</code> usage to await it once or call <code>AsTask()</code>.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_13_sep_2019_160118_andrei_epure_wrote">on 13 Sep 2019, 16:01:18 Andrei Epure wrote:</h3>
+<div class="paragraph">
+<p>According to <a href="https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.valuetask-1?view=netstandard-2.1">the docs</a> "The use of the ValueTask type is supported starting with C# 7.0, and is not supported by any version of Visual Basic.", thus I am removing VB from this</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_13_sep_2019_160919_andrei_epure_wrote">on 13 Sep 2019, 16:09:19 Andrei Epure wrote:</h3>
+<div class="paragraph">
+<p>\[~nicolas.harraudeau]  - did you have a chance to look at the wording of this rule? I think it can be simplified&#8230;&#8203;</p>
+</div>
+</div>
+</div>
+</div>

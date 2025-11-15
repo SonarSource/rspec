@@ -1,0 +1,184 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when a Rails controller action has multiple execution paths that can result in <code>render</code> or <code>redirect</code> being called more than once during the same request.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Rails controllers can only render a response or redirect once per request. When multiple render or redirect calls occur in the same action execution path, Rails raises a <code>DoubleRenderError</code> with the message "Render and/or redirect were called multiple times in this action".</p>
+</div>
+<div class="paragraph">
+<p>This error commonly occurs in three scenarios:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Direct multiple calls</strong>: Explicitly calling render or redirect multiple times in the same action</p>
+</li>
+<li>
+<p><strong>Helper method calls</strong>: Calling methods that perform rendering or redirecting without proper control flow to halt the calling action&#8217;s execution</p>
+</li>
+<li>
+<p><strong>Conditional logic paths</strong>: Having multiple conditional branches that each contain render or redirect calls without ensuring only one path executes</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The root cause is usually missing control flow management. When a helper method renders or redirects, the calling action continues executing unless explicitly told to stop. This leads to the action attempting its own render or redirect after the helper method has already done so.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>This error causes the application to crash with a runtime exception, resulting in a 500 Internal Server Error for users. The application becomes unusable for the affected request paths until the code is fixed.</p>
+</div>
+<div class="paragraph">
+<p>From a development perspective, this error can be frustrating to debug because the issue may not be immediately obvious, especially when it involves helper methods or complex conditional logic. It can also indicate poor separation of concerns in controller design.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use early returns when calling methods that render or redirect. Add explicit <code>return</code> statements to prevent further execution after a render or redirect call.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def index
+  @models = Model.all
+  my_action if current_user.name == "Bob"
+
+  # This executes after my_action's render
+  respond_to do |format|
+    format.html # Noncompliant
+  end
+end
+
+def my_action
+  render js: "my_function();"
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def index
+  @models = Model.all
+  if current_user.name == "Bob"
+    return my_action # Early return prevents double rendering
+  end
+
+  respond_to do |format|
+    format.html
+  end
+end
+
+def my_action
+  render js: "my_function();"
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use the "render and return" pattern in helper methods to ensure execution stops immediately after rendering.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def auth_callback
+  if condition
+    process_data
+  end
+  render :default_view # Noncompliant
+end
+
+def process_data
+  render :success # Missing return - execution continues
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def auth_callback
+  if condition
+    return process_data
+  end
+  render :default_view
+end
+
+def process_data
+  render :success and return
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use <code>respond_to</code> blocks to handle different formats in a single render call instead of multiple separate render calls.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def show
+  render json: @product
+  render :show # Noncompliant
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def show
+  respond_to do |format|
+    format.json { render json: @product }
+    format.html { render :show }
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Guides - Action Controller Overview - <a href="https://guides.rubyonrails.org/action_controller_overview.html#rendering-xml-and-json-data">Official Rails documentation on controller rendering and response handling</a></p>
+</li>
+<li>
+<p>Rails API - AbstractController::DoubleRenderError - <a href="https://api.rubyonrails.org/classes/AbstractController/DoubleRenderError.html">API documentation for the DoubleRenderError exception</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,171 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a class implements the interface <code>java.lang.Cloneable</code>,
+but does not override the <code>Object.clone()</code> method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>Cloneable</code> is a <em>marker interface</em> that defines the contract of the <code>Object.clone</code> method,
+which is to create a consistent copy of the instance.
+The <code>clone</code> method is not defined by the interface though, but by class <code>Objects</code>.</p>
+</div>
+<div class="paragraph">
+<p>The general problem with marker interfaces is that their definitions cannot be enforced by the compiler because they have no own API.
+When a class implements <code>Cloneable</code>
+but does not override <code>Object.clone</code>,
+it is highly likely that it violates the contract for <code>Cloneable</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Consider the following example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">class Foo implements Cloneable { // Noncompliant, override `clone` method
+  public int value;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Override the <code>clone</code> method in class <code>Foo</code>.
+By convention, it must call <code>super.clone()</code>.
+At this point, we know that:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>By behavioral contract, <code>Object.clone</code> will not throw a <code>CloneNotSupportedException</code>, because <code>Foo</code> implements <code>Cloneable</code>.</p>
+</li>
+<li>
+<p>The returned object is an instance of class <code>Foo</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We can narrow down the return type of <code>clone</code> to <code>Foo</code> and handle the <code>CloneNotSupportedException</code> inside the function instead of throwing it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">class Foo implements Cloneable { // Compliant
+
+  public int value;
+
+  @Override
+  public Foo clone() {
+    try {
+      return (Foo) super.clone();
+    } catch (CloneNotSupportedException e) {
+      throw new AssertionError();
+    }
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Be aware that <code>super.clone()</code> returns a one-by-one copy of the fields of the original instance.
+This means that in our example, the <code>Foo.value</code> field is not required to be explicitly copied
+in the overridden function.</p>
+</div>
+<div class="paragraph">
+<p>If you require another copy behavior for some or all of the fields,
+for example, deep copy or certain invariants that need to be true for a field,
+these fields must be patched after <code>super.clone()</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">class Entity implements Cloneable {
+
+  public int id; // unique per instance
+  public List&lt;Entity&gt; children; // deep copy wanted
+
+  @Override
+  public Entity clone() {
+    try {
+      Entity copy = (Entity) super.clone();
+      copy.id = System.identityHashCode(this);
+      copy.children = children.stream().map(Entity::clone).toList();
+      return copy;
+    } catch (CloneNotSupportedException e) {
+      throw new AssertionError();
+    }
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Be aware that the <code>Cloneable</code> / <code>Object.clone</code> approach has several drawbacks.
+You might, therefore, also consider resorting to other solutions,
+such as a custom <code>copy</code> method or a copy constructor:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">class Entity implements Cloneable {
+
+  public int id; // unique per instance
+  public List&lt;Entity&gt; children; // deep copy wanted
+
+  Entity(Entity template) {
+    id = System.identityHashCode(this);
+    children = template.children.stream().map(Entity::new).toList();
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.oracle.com/javase/8/docs/api/java/lang/Cloneable.html">Interface Cloneable - Java™ Platform, Standard Edition 8 API Specification</a></p>
+</li>
+<li>
+<p><a href="https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#clone--">Object.clone - Java™ Platform, Standard Edition 8 API Specification</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Add a "clone()" method to this class.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2975">is related to: <a data-rspec-id="S2975" class="rspec-auto-link">S2975</a></h3>
+
+</div>
+</div>
+</div>

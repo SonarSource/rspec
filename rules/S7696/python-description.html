@@ -1,0 +1,123 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a <code>Conv2d</code> layer with bias enabled is directly followed by a <code>BatchNorm2d</code> layer.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a convolution layer is directly followed by batch normalization, the bias parameter in the convolution becomes redundant and wasteful.</p>
+</div>
+<div class="paragraph">
+<p>Batch normalization works by normalizing the input data by subtracting the mean and dividing by the standard deviation. The first step of this process - subtracting the mean - effectively cancels out any bias that was added by the convolution layer.</p>
+</div>
+<div class="paragraph">
+<p>Here&#8217;s what happens:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The convolution layer applies filters and adds bias: <code>output = conv(input) + bias</code></p>
+</li>
+<li>
+<p>Batch normalization then subtracts the mean: <code>normalized = (output - mean) / std</code></p>
+</li>
+<li>
+<p>Since the bias is a constant added to all values, it becomes part of the mean that gets subtracted</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>This makes the bias parameter unnecessary computation and memory overhead. The model will produce identical results whether the bias is present or not, but disabling it improves performance.</p>
+</div>
+<div class="paragraph">
+<p>This optimization applies to all convolution types (Conv1d, Conv2d, Conv3d) when followed by the corresponding batch normalization layer that normalizes on the same dimension.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Enabling bias in convolutions followed by batch normalization leads to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Unnecessary memory usage</strong>: Extra parameters are stored and updated during training</p>
+</li>
+<li>
+<p><strong>Wasted computation</strong>: The bias addition is performed but immediately negated by batch normalization</p>
+</li>
+<li>
+<p><strong>Slower training</strong>: Additional operations that don&#8217;t contribute to the model&#8217;s functionality</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>While the performance impact per layer may be small, it can accumulate significantly in deep networks with many convolution-batch normalization pairs.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_fix">How to fix?</h3>
+<div class="paragraph">
+<p>Set the <code>bias</code> parameter to <code>False</code> when creating the convolution layer that is followed by batch normalization.</p>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3)  # Noncompliant
+        self.bn = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, bias=False)
+        self.bn = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        return x</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PyTorch Conv2d Documentation - <a href="https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html">Official documentation for PyTorch Conv2d layer including bias parameter</a></p>
+</li>
+<li>
+<p>PyTorch BatchNorm2d Documentation - <a href="https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm2d.html">Official documentation for PyTorch BatchNorm2d layer</a></p>
+</li>
+<li>
+<p>PyTorch Performance Tuning Guide - <a href="https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html">Comprehensive guide covering performance optimizations including disabling bias for convolutions followed by batch normalization</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,338 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Configuring loggers is security-sensitive. It has led in the past to the following vulnerabilities:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2018-0285">CVE-2018-0285</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2000-1127">CVE-2000-1127</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2017-15113">CVE-2017-15113</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2015-5742">CVE-2015-5742</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Logs are useful before, during and after a security incident.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Attackers will most of the time start their nefarious work by probing the system for vulnerabilities. Monitoring this activity and stopping it is the first step to prevent an attack from ever happening.</p>
+</li>
+<li>
+<p>In case of a successful attack, logs should contain enough information to understand what damage an attacker may have inflicted.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Logs are also a target for attackers because they might contain sensitive information. Configuring loggers has an impact on the type of information logged and how they are logged.</p>
+</div>
+<div class="paragraph">
+<p>This rule flags for review code that initiates loggers configuration. The goal is to guide security code reviews.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>unauthorized users might have access to the logs, either because they are stored in an insecure location or because the application gives access to them.</p>
+</li>
+<li>
+<p>the logs contain sensitive information on a production server. This can happen when the logger is in debug mode.</p>
+</li>
+<li>
+<p>the log can grow without limit. This can happen when additional information is written into logs every time a user performs an action and the user can perform the action as many times as he/she wants.</p>
+</li>
+<li>
+<p>the logs do not contain enough information to understand the damage an attacker might have inflicted. The loggers mode (info, warn, error) might filter out important information. They might not print contextual information like the precise time of events or the server hostname.</p>
+</li>
+<li>
+<p>the logs are only stored locally instead of being backuped or replicated.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Check that your production deployment doesn&#8217;t have its loggers in "debug" mode as it might write sensitive information in logs.</p>
+</li>
+<li>
+<p>Production logs should be stored in a secure location which is only accessible to system administrators.</p>
+</li>
+<li>
+<p>Configure the loggers to display all warnings, info and error messages. Write relevant information such as the precise time of events and the hostname.</p>
+</li>
+<li>
+<p>Choose log format which is easy to parse and process automatically. It is important to process logs rapidly in case of an attack so that the impact is known and limited.</p>
+</li>
+<li>
+<p>Check that the permissions of the log files are correct. If you index the logs in some other service, make sure that the transfer and the service are secure too.</p>
+</li>
+<li>
+<p>Add limits to the size of the logs and make sure that no user can fill the disk with logs. This can happen even when the user does not control the logged information. An attacker could just repeat a logged action many times.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Remember that configuring loggers properly doesn&#8217;t make them bullet-proof. Here is a list of recommendations explaining on how to use your logs:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Don&#8217;t log any sensitive information. This obviously includes passwords and credit card numbers but also any personal information such as user names, locations, etc&#8230;&#8203; Usually any information which is protected by law is good candidate for removal.</p>
+</li>
+<li>
+<p>Sanitize all user inputs before writing them in the logs. This includes checking its size, content, encoding, syntax, etc&#8230;&#8203; As for any user input, validate using whitelists whenever possible. Enabling users to write what they want in your logs can have many impacts. It could for example use all your storage space or compromise your log indexing service.</p>
+</li>
+<li>
+<p>Log enough information to monitor suspicious activities and evaluate the impact an attacker might have on your systems. Register events such as failed logins, successful logins, server side input validation failures, access denials and any important transaction.</p>
+</li>
+<li>
+<p>Monitor the logs for any suspicious activity.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>.Net Core</strong>: configure programmatically</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>using System;
+using System.Collections;
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore;
+
+namespace MvcApp
+{
+    public class ProgramLogging
+    {
+        public static IWebHostBuilder CreateWebHostBuilder(string[] args) =&gt;
+            WebHost.CreateDefaultBuilder(args)
+                .ConfigureLogging((hostingContext, logging) =&gt; // Sensitive
+                {
+                    // ...
+                })
+                .UseStartup&lt;StartupLogging&gt;();
+    }
+
+    public class StartupLogging
+    {
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddLogging(logging =&gt; // Sensitive
+            {
+                // ...
+            });
+        }
+
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        {
+            IConfiguration config = null;
+            LogLevel level = LogLevel.Critical;
+            Boolean includeScopes = false;
+            Func&lt;string,Microsoft.Extensions.Logging.LogLevel,bool&gt; filter = null;
+            Microsoft.Extensions.Logging.Console.IConsoleLoggerSettings consoleSettings = null;
+            Microsoft.Extensions.Logging.AzureAppServices.AzureAppServicesDiagnosticsSettings azureSettings = null;
+            Microsoft.Extensions.Logging.EventLog.EventLogSettings eventLogSettings = null;
+
+            // An issue will be raised for each call to an ILoggerFactory extension methods adding loggers.
+            loggerFactory.AddAzureWebAppDiagnostics(); // Sensitive
+            loggerFactory.AddAzureWebAppDiagnostics(azureSettings); // Sensitive
+            loggerFactory.AddConsole(); // Sensitive
+            loggerFactory.AddConsole(level); // Sensitive
+            loggerFactory.AddConsole(level, includeScopes); // Sensitive
+            loggerFactory.AddConsole(filter); // Sensitive
+            loggerFactory.AddConsole(filter, includeScopes); // Sensitive
+            loggerFactory.AddConsole(config); // Sensitive
+            loggerFactory.AddConsole(consoleSettings); // Sensitive
+            loggerFactory.AddDebug(); // Sensitive
+            loggerFactory.AddDebug(level); // Sensitive
+            loggerFactory.AddDebug(filter); // Sensitive
+            loggerFactory.AddEventLog(); // Sensitive
+            loggerFactory.AddEventLog(eventLogSettings); // Sensitive
+            loggerFactory.AddEventLog(level); // Sensitive
+            loggerFactory.AddEventSourceLogger(); // Sensitive
+
+            IEnumerable&lt;ILoggerProvider&gt; providers = null;
+            LoggerFilterOptions filterOptions1 = null;
+            IOptionsMonitor&lt;LoggerFilterOptions&gt; filterOptions2 = null;
+
+            LoggerFactory factory = new LoggerFactory(); // Sensitive
+            new LoggerFactory(providers); // Sensitive
+            new LoggerFactory(providers, filterOptions1); // Sensitive
+            new LoggerFactory(providers, filterOptions2); // Sensitive
+        }
+    }
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Log4Net</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>using System;
+using System.IO;
+using System.Xml;
+using log4net.Appender;
+using log4net.Config;
+using log4net.Repository;
+
+namespace Logging
+{
+    class Log4netLogging
+    {
+        void Foo(ILoggerRepository repository, XmlElement element, FileInfo configFile, Uri configUri, Stream configStream,
+        IAppender appender, params IAppender[] appenders) {
+            log4net.Config.XmlConfigurator.Configure(repository); // Sensitive
+            log4net.Config.XmlConfigurator.Configure(repository, element); // Sensitive
+            log4net.Config.XmlConfigurator.Configure(repository, configFile); // Sensitive
+            log4net.Config.XmlConfigurator.Configure(repository, configUri); // Sensitive
+            log4net.Config.XmlConfigurator.Configure(repository, configStream); // Sensitive
+            log4net.Config.XmlConfigurator.ConfigureAndWatch(repository, configFile); // Sensitive
+
+            log4net.Config.DOMConfigurator.Configure(); // Sensitive
+            log4net.Config.DOMConfigurator.Configure(repository); // Sensitive
+            log4net.Config.DOMConfigurator.Configure(element); // Sensitive
+            log4net.Config.DOMConfigurator.Configure(repository, element); // Sensitive
+            log4net.Config.DOMConfigurator.Configure(configFile); // Sensitive
+            log4net.Config.DOMConfigurator.Configure(repository, configFile); // Sensitive
+            log4net.Config.DOMConfigurator.Configure(configStream); // Sensitive
+            log4net.Config.DOMConfigurator.Configure(repository, configStream); // Sensitive
+            log4net.Config.DOMConfigurator.ConfigureAndWatch(configFile); // Sensitive
+            log4net.Config.DOMConfigurator.ConfigureAndWatch(repository, configFile); // Sensitive
+
+            log4net.Config.BasicConfigurator.Configure(); // Sensitive
+            log4net.Config.BasicConfigurator.Configure(appender); // Sensitive
+            log4net.Config.BasicConfigurator.Configure(appenders); // Sensitive
+            log4net.Config.BasicConfigurator.Configure(repository); // Sensitive
+            log4net.Config.BasicConfigurator.Configure(repository, appender); // Sensitive
+            log4net.Config.BasicConfigurator.Configure(repository, appenders); // Sensitive
+        }
+    }
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>NLog</strong>: configure programmatically</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>namespace Logging
+{
+    class NLogLogging
+    {
+        void Foo(NLog.Config.LoggingConfiguration config) {
+            NLog.LogManager.Configuration = config; // Sensitive, this changes the logging configuration.
+        }
+    }
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Serilog</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>namespace Logging
+{
+    class SerilogLogging
+    {
+        void Foo() {
+            new Serilog.LoggerConfiguration(); // Sensitive
+        }
+    }
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/">Top 10 2021 Category A9 - Security Logging and Monitoring Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A10_2017-Insufficient_Logging%2526Monitoring">Top 10 2017 Category A10 - Insufficient Logging &amp; Monitoring</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/117">CWE-117 - Improper Output Neutralization for Logs</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/532">CWE-532 - Information Exposure Through Log Files</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure that this logger&#8217;s configuration is safe.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Call to logger configuration function.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2773">is related to: <a data-rspec-id="S2773" class="rspec-auto-link">S2773</a></h3>
+
+</div>
+</div>
+</div>

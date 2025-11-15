@@ -1,0 +1,141 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>COALESCE</code> and <code>IIF</code> (which evaluate to <code>CASE</code> expressions under the covers), as well as <code>CASE</code> input expressions should not be used with subqueries because the subquery will be evaluated once for each option in the expression, and each evaluation could return different results depending on the isolation level. To ensure consistent results, use the <code>SNAPSHOT ISOLATION</code> isolation level. To ensure consistent results <em>and</em> better performance, move the subquery out of the expression.</p>
+</div>
+<div class="paragraph">
+<p>Note it is also an option to replace <code>COALESCE</code> with <code>ISNULL</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">...
+COALESCE((SELECT a FROM b WHERE c) , 1)  -- Noncompliant
+...</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">...
+CASE
+WHEN (SELECT COUNT(*) FROM A) &gt; 0 THEN (SELECT COUNT(*) FROM A) + 42
+...
+ELSE otherExpression
+END
+...</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET @a = SELECT a FROM b WHERE c
+...
+COALESCE(@a, 1)
+...</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET TRANSACTION ISOLATION LEVEL SNAPSHOT
+BEGIN TRANSACTION
+...
+COALESCE((SELECT a FROM b WHERE c) , 1)
+...</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">...
+
+SET @a = SELECT COUNT(*) FROM A
+
+CASE
+WHEN @a &gt; 0 THEN @a + 42
+...
+ELSE otherExpression
+END
+...</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Either set use the "SNAPSHOT ISOLATION" level or rewrite this statement to eliminate "xxx".</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p><code>select</code></p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_20_jul_2017_160919_pierre_yves_nicolas_wrote">on 20 Jul 2017, 16:09:19 Pierre-Yves Nicolas wrote:</h3>
+<div class="paragraph">
+<p>The title should be changed: subqueries are expressions, and the problem described in this RSPEC only applies to COALESCE, IFF and CASE.</p>
+</div>
+<div class="paragraph">
+<p>Also, if my understanding is correct:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>CASE (select...) WHEN... END -- Noncompliant
+CASE... WHEN (select...)... END -- Compliant</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_20_jul_2017_161845_ann_campbell_wrote">on 20 Jul 2017, 16:18:45 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>See what you think [~pierre-yves.nicolas]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_20_jul_2017_164033_pierre_yves_nicolas_wrote">on 20 Jul 2017, 16:40:33 Pierre-Yves Nicolas wrote:</h3>
+<div class="paragraph">
+<p>Looks good.</p>
+</div>
+<div class="paragraph">
+<p>Nitpicking: it&#8217;s fine to have a subquery inside a <code>WHEN</code> inside a <code>CASE</code>, so we should maybe change "as well as CASE expressions" to "as well as expressions immediately following the CASE keyword".</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_20_jul_2017_170430_ann_campbell_wrote">on 20 Jul 2017, 17:04:30 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~pierre-yves.nicolas] I&#8217;ve updated to "input expression" based on <a href="https://docs.microsoft.com/en-us/sql/t-sql/language-elements/case-transact-sql">this doc</a>.</p>
+</div>
+</div>
+</div>
+</div>

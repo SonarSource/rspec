@@ -1,0 +1,175 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>count</code> or <code>length</code> methods are called on ActiveRecord associations instead of the more efficient <code>size</code> method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>ActiveRecord provides three methods for counting association records: <code>count</code>, <code>length</code>, and <code>size</code>. Each method has different performance characteristics that can significantly impact your application&#8217;s efficiency.</p>
+</div>
+<div class="paragraph">
+<p>The <code>count</code> method always performs a SQL COUNT query against the database, even when a counter cache is available. This means unnecessary database round trips that could be avoided.</p>
+</div>
+<div class="paragraph">
+<p>The <code>length</code> method loads all association records into memory first, then counts them. For large collections, this approach consumes excessive memory and is much slower than a simple COUNT query.</p>
+</div>
+<div class="paragraph">
+<p>The <code>size</code> method is the smartest choice because it automatically selects the most efficient counting strategy:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If a counter cache is available, it uses the cached value without any database query</p>
+</li>
+<li>
+<p>If the association is already loaded in memory, it counts the loaded records</p>
+</li>
+<li>
+<p>Otherwise, it performs a SQL COUNT query</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This intelligent behavior means you get optimal performance without having to manually choose the right strategy for each situation.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using <code>count</code> or <code>length</code> instead of <code>size</code> can lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Unnecessary database queries that slow down your application</p>
+</li>
+<li>
+<p>Excessive memory usage when loading large collections just to count them</p>
+</li>
+<li>
+<p>Poor scalability as your data grows</p>
+</li>
+<li>
+<p>Missed opportunities to leverage counter caches for instant counting</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In high-traffic applications or those with large datasets, these inefficiencies can cause significant performance bottlenecks and increased server costs.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_ruby_on_rails">How to fix it in Ruby on Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace <code>count</code> with <code>size</code> to automatically use the most efficient counting strategy. The <code>size</code> method will use counter caches when available or perform SQL queries when needed.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class User &lt; ActiveRecord::Base
+  has_many :photos
+end
+
+user = User.find(1)
+photo_count = user.photos.count  # Noncompliant: always hits database</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class User &lt; ActiveRecord::Base
+  has_many :photos
+end
+
+user = User.find(1)
+photo_count = user.photos.size  # Uses optimal counting strategy</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Replace <code>length</code> with <code>size</code> to avoid loading all records into memory. The <code>size</code> method will count efficiently without unnecessary memory usage.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">user = User.find(1)
+photo_count = user.photos.length  # Noncompliant: loads all records first</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">user = User.find(1)
+photo_count = user.photos.size  # Counts efficiently without loading records</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When using counter caches, <code>size</code> automatically uses the cached value for instant counting without database queries.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Photo &lt; ActiveRecord::Base
+  belongs_to :user, counter_cache: true
+end
+
+user.photos.count  # Noncompliant: ignores counter cache</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Photo &lt; ActiveRecord::Base
+  belongs_to :user, counter_cache: true
+end
+
+user.photos.size  # Uses counter cache for instant result</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>ActiveRecord Associations Guide - <a href="https://guides.rubyonrails.org/association_basics.html">Official Rails guide covering association methods including counting strategies</a></p>
+</li>
+<li>
+<p>ActiveRecord Counter Cache - <a href="https://guides.rubyonrails.org/association_basics.html#counter-cache">Documentation on setting up and using counter caches in Rails</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,231 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>NoSQL injections occur when an application retrieves untrusted data and inserts
+it into a database query without sanitizing it first.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In the context of a web application that is vulnerable to NoSQL injection:<br>
+After discovering the injection point, attackers insert data into the vulnerable
+field to execute malicious commands in the affected databases.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_identity_spoofing_and_data_leakage">Identity spoofing and data leakage</h4>
+<div class="paragraph">
+<p>In the context of simple query logic breakouts, a malicious database query
+enables privilege escalation or direct data leakage from one or more databases.<br>
+This threat is the most widespread impact.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_data_deletion_and_denial_of_service">Data deletion and denial of service</h4>
+<div class="paragraph">
+<p>The malicious query makes it possible for the attacker to delete data in the
+affected databases.<br>
+This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP) as missing data can disrupt the regular
+operations of an organization.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_chaining_nosql_injections_with_other_vulnerabilities">Chaining NoSQL injections with other vulnerabilities</h4>
+<div class="paragraph">
+<p>Attackers who exploit NoSQL injections rely on other vulnerabilities to maximize
+their profits.<br>
+Most of the time, organizations overlook some defense in depth measures because
+they assume attackers cannot reach certain points in the infrastructure. This
+misbehavior can lead to multiple attacks with great impact:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When secrets are stored unencrypted in databases: Secrets can be exfiltrated and lead to compromise of other components.</p>
+</li>
+<li>
+<p>If server-side OS and/or database permissions are misconfigured, injection can lead to remote code execution (RCE).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_amazon_dynamodb">How to fix it in Amazon DynamoDB</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to NoSQL injection because untrusted data is
+concatenated to the <code>FilterExpression</code> value. This expression determines which items within
+the results should be returned.</p>
+</div>
+<div class="paragraph">
+<p>A malicious HTTP request containing the following query parameter values would
+allow an attacker to manipulate the returned data and bypass authentication:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">username=admin&amp;password=size(password) or size(password)=size(password)</code></pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.route('/login')
+def login():
+    dynamodb = AWS_SESSION.client('dynamodb')
+
+    username = request.args["username"]
+    password = request.args["password"]
+
+    dynamodb.scan(
+        FilterExpression= "username = " + username + " and password = " + password, # Noncompliant
+        TableName="users",
+        ProjectionExpression="username"
+    )</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.route('/login')
+def login():
+    dynamodb = AWS_SESSION.client('dynamodb')
+
+    username = request.args["username"]
+    password = request.args["password"]
+
+    dynamodb.query(
+        KeyConditionExpression= "username = :u",
+        FilterExpression= "password = :p",
+        ExpressionAttributeValues={
+            ":u": { 'S': username },
+            ":p": { 'S': password }
+        },
+        TableName="users",
+        ProjectionExpression="username"
+    )</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>As a rule of thumb, the approach to protect against injection vulnerabilities
+is to ensure that untrusted data cannot break out of the initially intended
+logic.</p>
+</div>
+<div class="paragraph">
+<p>When using DynamoDB with Boto3, the best way to do so is by using expression
+attributes as placeholders (<code>:placeholder</code>). It will end up replacing the attribute with
+the value defined in <code>ExpressionAttributeValues</code> and prevent any alteration of the
+original query logic. The compliant code example uses such an approach.</p>
+</div>
+<div class="paragraph">
+<p>When possible, use the method <code>query</code> over <code>scan</code> as it disallows the <code>OR</code>
+operator on the <code>KeyConditionExpression</code> attribute and therefore reduces the attack
+surface. It also optimizes speed and costs.</p>
+</div>
+<div class="paragraph">
+<p>This logic applies both when using the <code>DynamoDB.Client</code> and the <code>DynamoDB.Table</code> class, though
+the syntax differs for the latter, and the <code>ExpressionAttributeValues</code> would look
+like the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">ExpressionAttributeValues={
+    ":u": username,
+    ":p": password
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Although injection can occur on all the query or scan <code>Expression</code> attributes,
+its most severe impact occurs in the <code>FilterExpression</code>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>SonarSource - <a href="https://blog.sonarsource.com/nosql-injections-in-rocket-chat/">NoSQL Injections in Rocket.Chat 3.12.1</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/943">CWE-943 - Improper Neutralization of Special Elements in Data Query Logic</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct database queries directly from user-controlled data.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>"[varname]" is tainted (assignments and parameters)</p>
+</div>
+<div class="paragraph">
+<p>this argument is tainted (method invocations)</p>
+</div>
+<div class="paragraph">
+<p>the returned value is tainted (returns &amp; method invocations results)</p>
+</div>
+<hr>
+</div>
+</div>
+</div>

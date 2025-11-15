@@ -1,0 +1,132 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using <code>github.actor</code> or equivalent properties to check if the actor is a trusted principal on events like <code>pull_request_target</code> could be a security issue, because they do not always refer to the actual creator of the <code>commit</code> or the <code>pull request</code>.</p>
+</div>
+<div class="paragraph">
+<p>The value represents the entity who triggered the workflow event, which may differ from the actual author of the commit or pull request. If a threat actor could force a trusted actor (such as a bot) into making a change that triggers the workflow, they can bypass the check.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="sect3">
+<h4 id="_unauthorized_access">Unauthorized access</h4>
+<div class="paragraph">
+<p>An attacker could trick the action to run sensitive jobs/commands with special permissions or secrets. For instance, an auto-merge workflow.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_supply_chain_compromise">Supply Chain Compromise</h4>
+<div class="paragraph">
+<p>If the sensitive code performs a merge or releases an artifact, an attacker can inject malicious code or publish malicious packages, potentially compromising the entire supply chain.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Workflows should verify the origin of the pull_request using trusted metadata before taking automated actions, rather than trusting the triggering actor.</p>
+</div>
+<div class="paragraph">
+<p>For instance, instead of directly using <code>github.actor</code> to authorize an auto-merge operation during a <code>pull_request_target</code> event, workflows should rely on non-forgeable variables like:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>github.event.pull_request.user.login</code></p>
+</li>
+<li>
+<p><code>github.event.pull_request.user.id</code></p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Auto-Merge
+on:
+  pull_request_target:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}  # Noncompliant
+
+    steps:
+      - name: Merge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash ${{ github.event.pull_request.html_url }}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Auto-Merge
+on:
+  pull_request_target:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+
+    steps:
+      - name: Merge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash ${{ github.event.pull_request.html_url }}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Docs - <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context">GitHub Context reference</a></p>
+</li>
+<li>
+<p>GitHub Security Lab - <a href="https://securitylab.github.com/resources/github-actions-new-patterns-and-mitigations/">Keeping your GitHub Actions and workflows secure Part 4: New vulnerability patterns and mitigation strategies</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control">Top 10 2017 Category A5 - Broken Access Control</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/441.html">CWE-441 - Confused Deputy</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

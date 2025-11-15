@@ -1,0 +1,168 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when FastAPI dependency functions lack proper type annotations, are not used with the <code>Depends()</code> function, or when shared logic is duplicated across endpoints instead of using dependency injection.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>FastAPI&#8217;s dependency injection system is a core feature that provides several important benefits when used correctly.</p>
+</div>
+<div class="paragraph">
+<p>When dependency functions lack type annotations, FastAPI cannot generate accurate API documentation or provide proper type checking. The framework relies on type hints to understand what data types are expected and returned, which is essential for automatic OpenAPI schema generation.</p>
+</div>
+<div class="paragraph">
+<p>Using dependencies without the <code>Depends()</code> function breaks FastAPI&#8217;s dependency injection mechanism. When you call a dependency function directly (like <code>user=get_current_user()</code>), the function executes immediately during module import, not during request processing. This can lead to runtime errors and prevents FastAPI from managing the dependency lifecycle properly.</p>
+</div>
+<div class="paragraph">
+<p>Duplicating shared logic across multiple endpoints violates the DRY (Don&#8217;t Repeat Yourself) principle and creates maintenance problems. When authentication, validation, or database connection logic is copied between endpoints, any changes must be made in multiple places, increasing the risk of inconsistencies and bugs.</p>
+</div>
+<div class="paragraph">
+<p>Inconsistent application of security dependencies is particularly dangerous. When some endpoints that should be protected are missing security dependencies, they become vulnerable to unauthorized access. This creates security gaps that attackers can exploit.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Missing type annotations lead to incomplete API documentation and potential runtime type errors that could have been caught during development.</p>
+</div>
+<div class="paragraph">
+<p>Incorrect use of dependencies can cause application startup failures or unexpected behavior during request processing.</p>
+</div>
+<div class="paragraph">
+<p>Code duplication makes the application harder to maintain and increases the likelihood of introducing bugs when making changes to shared logic.</p>
+</div>
+<div class="paragraph">
+<p>Inconsistent security dependency application can result in unauthorized access to protected resources, potentially exposing sensitive data or functionality.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_fix_in_fastapi">How to fix in FastAPI?</h3>
+<div class="paragraph">
+<p>Add proper type annotations to dependency functions and use them with Depends() in endpoint parameters.</p>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def get_current_user(token):
+    # Missing type annotations
+    return verify_token(token)
+
+@app.get("/protected/")
+def protected_route(user=get_current_user()):  # Noncompliant
+    return {"user": user}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def get_current_user(token: str = Depends(oauth2_scheme)) -&gt; User:
+    # Proper type annotations for dependency
+    return verify_token(token)
+
+@app.get("/protected/")
+def protected_route(user: User = Depends(get_current_user)):
+    return {"user": user}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Extract duplicated logic into a dependency function and reuse it across endpoints.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example_2">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.get("/items/")
+def read_items(token: str):
+    if not token or token != "valid-token":  # Noncompliant
+        raise HTTPException(status_code=401)
+    return ["item1", "item2"]
+
+@app.get("/users/")
+def read_users(token: str):
+    if not token or token != "valid-token":  # Noncompliant
+        raise HTTPException(status_code=401)
+    return ["user1", "user2"]</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example_2">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def verify_token(token: str) -&gt; str:
+    if not token or token != "valid-token":
+        raise HTTPException(status_code=401)
+    return token
+
+@app.get("/items/")
+def read_items(token: str = Depends(verify_token)):
+    return ["item1", "item2"]
+
+@app.get("/users/")
+def read_users(token: str = Depends(verify_token)):
+    return ["user1", "user2"]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Apply security dependencies consistently to all protected endpoints.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example_3">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.get("/users/profile")
+def get_profile():  # Noncompliant
+    # Missing security dependency
+    return get_user_profile()</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example_3">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.get("/users/profile")
+def get_profile(current_user: User = Depends(get_current_user)):
+    # Security dependency properly applied
+    return get_user_profile(current_user.id)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>FastAPI Dependencies Tutorial - <a href="https://fastapi.tiangolo.com/tutorial/dependencies/">Official FastAPI documentation on dependency injection system</a></p>
+</li>
+<li>
+<p>FastAPI Security Tutorial - <a href="https://fastapi.tiangolo.com/tutorial/security/">Guide on implementing security with FastAPI dependencies</a></p>
+</li>
+<li>
+<p>Python Type Hints - <a href="https://docs.python.org/3/library/typing.html">Python documentation on type annotations</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-862: Missing Authorization - <a href="https://cwe.mitre.org/data/definitions/862.html">Weakness related to missing authorization checks</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

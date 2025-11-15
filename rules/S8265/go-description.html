@@ -1,0 +1,157 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when code checks if a file exists and then creates it in separate operations, creating a Time-of-Check-Time-of-Use (TOCTOU) race condition.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When you check if a file exists and then create it in separate operations, you create a Time-of-Check-Time-of-Use (TOCTOU) race condition vulnerability.</p>
+</div>
+<div class="paragraph">
+<p>Between the time you check if the file exists and the time you create it, another process or thread might:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create the file, causing your creation to fail unexpectedly</p>
+</li>
+<li>
+<p>Delete an existing file, causing your check to be outdated</p>
+</li>
+<li>
+<p>Replace the file with a symbolic link pointing to a sensitive location</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This race condition window can lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Application crashes or unexpected behavior</p>
+</li>
+<li>
+<p>Security vulnerabilities where attackers manipulate file operations</p>
+</li>
+<li>
+<p>Data corruption or loss</p>
+</li>
+<li>
+<p>Privilege escalation attacks in some scenarios</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The fundamental problem is that file system operations are not atomic by default. The state of the file system can change between your check and your action, making your initial check meaningless.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Attackers can exploit this race condition to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Cause application failures by manipulating file creation timing</p>
+</li>
+<li>
+<p>Redirect file operations to unintended locations using symbolic links</p>
+</li>
+<li>
+<p>Potentially escalate privileges if the application runs with elevated permissions</p>
+</li>
+<li>
+<p>Corrupt data by interfering with file operations at critical moments</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use atomic file operations instead of separate check and create operations. The <code>os.OpenFile()</code> function with <code>O_CREATE|O_EXCL</code> flags atomically creates a file only if it doesn&#8217;t exist, eliminating the race condition.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">if _, err := os.Stat(filename); os.IsNotExist(err) {
+    file, err := os.Create(filename) // Noncompliant
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    // handle file creation
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+if err != nil {
+    if os.IsExist(err) {
+        // file already exists
+        return fmt.Errorf("file already exists: %s", filename)
+    }
+    return err
+}
+defer file.Close()
+// handle file creation</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go os package documentation - <a href="https://pkg.go.dev/os#OpenFile">Official documentation for os.OpenFile and file operation flags</a></p>
+</li>
+<li>
+<p>OWASP Race Conditions - <a href="https://owasp.org/www-community/vulnerabilities/Race_Conditions">OWASP guide on race condition vulnerabilities</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE 367 - <a href="https://cwe.mitre.org/data/definitions/367.html">Time-of-check Time-of-use (TOCTOU) Race Condition</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5847" class="rspec-auto-link">S5847</a> - File existence should not be tested before attempting to open the file (C/C++)</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

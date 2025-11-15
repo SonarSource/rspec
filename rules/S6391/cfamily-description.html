@@ -1,0 +1,75 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Coroutines, introduced in C&#43;&#43;20, are functions in which execution can be suspended and resumed.
+When a coroutine resumes, it takes over where it left thanks to the coroutine state.</p>
+</div>
+<div class="paragraph">
+<p>A <em>coroutine state</em> is an object which contains all the information a coroutine needs to resume its execution correctly:
+local variables, copy of the parameters&#8230;&#8203;</p>
+</div>
+<div class="paragraph">
+<p>This means that if a coroutine has a parameter that is a reference to an object, this object must exist as long as the coroutine is not destroyed.
+Otherwise, the reference stored in the <em>coroutine state</em> will become a dangling reference and will lead to undefined behavior when the coroutine resumes.</p>
+</div>
+<div class="paragraph">
+<p>The issue is raised for all coroutine parameters with reference-to-const semantics
+(such as a <code>const</code> reference, a <code>std::string_view</code>, or a <code>std::span</code> with <code>const</code> elements)
+that might be used after the coroutine is suspended.</p>
+</div>
+<div class="paragraph">
+<p>To fix the issue, you can either pass the parameter by value,
+or not use the parameter after the first suspension point (<code>co_await</code>, <code>co_yield</code>, or <code>initial_suspend</code>).</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">generator&lt;char&gt; spell(const std::string&amp; m) { // Noncompliant
+    for (char letter : m) {
+        co_yield letter;
+    }
+}
+
+void print() {
+    for (char letter : spell("hello world")) { // Here the parameter "m" binds to a temporary
+        std::cout &lt;&lt; letter &lt;&lt; '\n';           // and becomes dangling on the next iteration
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">generator&lt;char&gt; spell(const std::string m) { // Compliant: take the argument by copy
+    for (char letter : m) {
+        co_yield letter;
+    }
+}
+
+void print() {
+    for (char letter : spell("hello world")) {
+        std::cout &lt;&lt; letter &lt;&lt; '\n';
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>This rule does not raise an issue for <code>std::reference_wrapper</code> parameters
+taking it as a witness of the care taken to prevent the reference to become dangling.</p>
+</div>
+</div>
+</div>
+</div>
