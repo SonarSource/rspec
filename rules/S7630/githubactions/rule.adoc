@@ -72,33 +72,39 @@ jobs:
     steps:
       - name: Example Step
         run: |
-          echo "PR title: ${{ github.event.pull_request.title }}" # Noncompliant
-----
-
-Even assignments that appear safe are vulnerable because GitHub Actions expands expressions before the shell executes:
-
-[source,yaml,diff-id=2,diff-type=noncompliant]
-----
-name: Example
-
-on:
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  main:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Example Step
-        run: |
           pr_title="${{ github.event.pull_request.title }}" # Noncompliant: expansion happens before shell execution
           echo "PR title: $pr_title"
 ----
 
 If an attacker creates a pull request with a title containing `"; rm -rf / #`, the expression expansion will transform the assignment into `pr_title=""; rm -rf / #"`, which the shell will execute as multiple commands, not just an assignment.
 
+Workflow inputs of type `string` (which is the default type) are also vulnerable when expanded directly in shell commands:
+
+[source,yaml,diff-id=2,diff-type=noncompliant]
+----
+name: Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package name to install'
+        required: true
+        type: string
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install package
+        run: |
+          apt-get install ${{ inputs.package_name }} # Noncompliant: string input expanded directly
+----
+
 ==== Compliant solution
+
+Use environment variables to safely pass untrusted data:
 
 [source,yaml,diff-id=1,diff-type=compliant]
 ----
@@ -121,6 +127,35 @@ jobs:
 
 ----
 
+To securely use workflow inputs, assign them to environment variables just like any other untrusted data.
+Alternatively, change the input type from `string` to `choice` with predefined options. This restricts user input to safe values controlled by the workflow author:
+
+[source,yaml,diff-id=2,diff-type=compliant]
+----
+name: Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package name to install'
+        required: true
+        type: choice
+        options:
+          - nginx
+          - apache2
+          - postgresql
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install package
+        run: |
+          apt-get install ${{ inputs.package_name }}
+----
+
 === How does this work?
 
 The key difference lies in when and how the untrusted data is processed:
@@ -138,8 +173,14 @@ The key difference lies in when and how the untrusted data is processed:
   3. The shell treats the environment variable's contents as literal data, not as executable code
   
 When the shell evaluates `$PR_TITLE`, it performs variable expansion (not expression expansion), which treats the value as a string literal. Even if the value contains shell metacharacters, they remain as literal characters and are not interpreted as commands.
-
 This separation ensures that malicious shell syntax in the untrusted data cannot be interpreted as commands, effectively neutralizing injection attempts.
+
+* **Choice input type (safe when used directly)**: Unlike `string` inputs, `choice` inputs restrict user input to a predefined list of options that are controlled by the workflow author. When a `choice` input is used directly in a GitHub expression within a `run` block, it is safe because:
+  1. The workflow author defines all possible values in the `options` list
+  2. Attackers cannot provide arbitrary values, since they are only allowed to select from the predefined options
+  3. Since the workflow author controls the options, they can ensure none contain shell metacharacters or malicious content
+  4. The expression expansion will only ever produce one of the predefined, safe values
+
 
 === Pitfalls
 
