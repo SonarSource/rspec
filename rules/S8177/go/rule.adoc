@@ -1,0 +1,103 @@
+This rule raises an issue when a custom type intended to be used as an error either lacks an Error() method implementation or implements it in a way that causes infinite loops.
+
+== Why is this an issue?
+
+In Go, the `error` type is a built-in interface that requires a single method:
+
+[source,go]
+----
+type error interface {
+    Error() string
+}
+----
+
+When you create a custom type to represent errors, you must implement this `Error()` method to satisfy the interface. Without it, your type cannot be used as an error, leading to compilation errors or runtime panics.
+
+A common mistake when implementing the `Error()` method is calling formatting functions like `fmt.Sprint()`, `fmt.Sprintf()`, or `fmt.Print()` directly on the receiver. This creates an infinite loop because these formatting functions automatically call the `Error()` method when they encounter a type that implements the error interface.
+
+Here's what happens in the infinite loop:
+
+1. Your `Error()` method calls `fmt.Sprint(e)`
+2. `fmt.Sprint()` sees that `e` implements the error interface
+3. `fmt.Sprint()` calls `e.Error()` to get the string representation
+4. This calls your `Error()` method again, creating an endless cycle
+
+This infinite recursion will cause a stack overflow and crash your program.
+
+=== What is the potential impact?
+
+Missing or incorrectly implemented `Error()` methods can cause:
+
+* *Compilation failures* when trying to use the custom type as an error
+* *Runtime panics* due to stack overflow from infinite recursion
+* *Application crashes* that are difficult to debug
+* *Poor error handling* that makes troubleshooting harder for users and developers
+
+== How to fix it
+
+=== Code examples
+
+Add the missing Error() method that returns a meaningful error message string.
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+type MyError struct {
+    When time.Time
+    What string
+}
+// Missing Error() method - this type cannot be used as an error
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+type MyError struct {
+    When time.Time
+    What string
+}
+
+func (e *MyError) Error() string {
+    return fmt.Sprintf("at %v, %s", e.When, e.What)
+}
+----
+
+Update the Error() method to avoid calling formatting functions on the receiver itself.
+
+==== Noncompliant code example
+
+[source,go,diff-id=2,diff-type=noncompliant]
+----
+type ValueReceiver struct {
+	Info string
+}
+
+func (e ValueReceiver) Error() string {
+	return fmt.Sprint(e) // Noncompliant: fmt.Sprint calls e.Error() again, causing infinite recursion
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=2,diff-type=compliant]
+----
+type ValueReceiver struct {
+	Info string
+}
+
+func (e ValueReceiver) Error() string {
+	return fmt.Sprintf("Error at %v, %s", e.When, e.What)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Tour - Errors - https://go.dev/tour/methods/19[Official Go tutorial explaining the error interface and how to implement custom error types]
+
+ * Go Tour - Exercise: Errors - https://go.dev/tour/methods/20[Hands-on exercise demonstrating proper Error() method implementation and common pitfalls]
+
+ * Go by Example - Errors - https://gobyexample.com/errors[Practical examples of error handling and custom error types in Go]
