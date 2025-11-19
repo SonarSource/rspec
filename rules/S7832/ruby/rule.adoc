@@ -1,0 +1,115 @@
+This rule raises an issue when database write operations (create, update, delete, save) are performed within validation callbacks (`before_validation` or `after_validation`).
+
+== Why is this an issue?
+
+Validation callbacks run during the validation phase of the ActiveRecord lifecycle, before the record is actually persisted to the database. Performing database write operations at this stage can cause several problems:
+
+**Database Locking Issues**: Validation callbacks can be called multiple times during a single save operation. If these callbacks perform database writes, they can create locks that conflict with the main save operation, leading to database deadlocks or "database is locked" errors.
+
+**Transaction Conflicts**: The validation phase occurs within the same database transaction as the main save operation. Additional database writes during validation can interfere with this transaction, potentially causing rollbacks or inconsistent data states.
+
+**Unexpected Behavior**: Validation callbacks are meant to validate data, not modify the database. Mixing validation logic with data persistence breaks the separation of concerns and makes the code harder to understand and maintain.
+
+**Performance Impact**: Database operations in validation callbacks can significantly slow down the validation process, especially if the callbacks are triggered multiple times or involve complex queries.
+
+=== What is the potential impact?
+
+Database write operations in validation callbacks can lead to:
+
+* Database deadlocks and locking errors that prevent records from being saved
+* Data inconsistency due to transaction conflicts
+* Poor application performance due to unnecessary database operations during validation
+* Difficult-to-debug issues where validation appears to succeed but data is not properly persisted
+* Maintenance challenges due to unclear separation between validation and persistence logic
+
+== How to fix it in Ruby on Rails
+
+Move database write operations from validation callbacks to persistence callbacks like `after_create`, `after_save`, or `after_commit`. These callbacks run after the record has been successfully persisted, making database operations safe.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class Podcast < ActiveRecord::Base
+  has_many :tracks
+  
+  before_validation :create_tracks # Noncompliant
+  
+  def create_tracks
+    json = fetch_podcast_data
+    json.sections.each do |section|
+      if section.section_type == "track"
+        Track.create(name: section.track.name, podcast_id: self.id) # Noncompliant
+      end
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class Podcast < ActiveRecord::Base
+  has_many :tracks
+  
+  after_create :create_tracks
+  
+  private
+  
+  def create_tracks
+    json = fetch_podcast_data
+    json.sections.each do |section|
+      if section.section_type == "track"
+        Track.create(name: section.track.name, podcast_id: self.id)
+      end
+    end
+  end
+end
+----
+
+For operations that should only happen after the transaction is committed, use `after_commit` callbacks to ensure data consistency.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class User < ActiveRecord::Base
+  before_validation :update_profile_cache # Noncompliant
+  
+  def update_profile_cache
+    ProfileCache.find_by(user_id: id)&.update(data: profile_data) # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class User < ActiveRecord::Base
+  after_commit :update_profile_cache, on: [:create, :update]
+  
+  private
+  
+  def update_profile_cache
+    ProfileCache.find_by(user_id: id)&.update(data: profile_data)
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Callbacks Guide - https://guides.rubyonrails.org/active_record_callbacks.html[Official Rails guide explaining the different types of callbacks and their proper usage]
+
+ * ActiveRecord Transactions - https://api.rubyonrails.org/classes/ActiveRecord/Transactions/ClassMethods.html[Documentation on ActiveRecord transactions and how callbacks interact with them]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Database operations in validation callbacks can lead to race conditions and synchronization issues]
