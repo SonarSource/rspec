@@ -9,7 +9,28 @@ GitHub Actions workflows can access various sources of untrusted data through th
 
 When this untrusted data is directly interpolated into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to script injection vulnerabilities. An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.
 
-For instance, if a pull request title contains shell metacharacters like `$(whoami)` or `; rm -rf /`, these will be executed as commands when the workflow runs, potentially compromising the build environment or exposing sensitive information.
+=== Understanding expression expansion
+
+It's important to understand that GitHub Actions expressions (`${{ ... }}`) are expanded **before** the shell script is executed. This expansion happens at the workflow processing stage, not within the shell itself. This means:
+
+1. GitHub Actions first evaluates the expression and replaces it with the actual value
+2. The resulting string (which may contain shell metacharacters) is then passed to the shell
+3. The shell receives and executes the already-expanded string as part of the script
+
+Even seemingly safe assignments like `pr_title="${{ github.event.pull_request.title }}"` are vulnerable because the expansion happens first. For example, if an attacker creates a pull request with a title containing `"; rm -rf / #`, the workflow will expand the expression to:
+
+----
+pr_title=""; rm -rf / #"
+----
+
+The shell will then interpret this as:
+
+1. An assignment: `pr_title=""` (assigns empty string)
+2. A command separator: `;`
+3. An arbitrary command: `rm -rf /`
+4. A comment: `#` (hides the remaining quote)
+
+This demonstrates that **any** use of untrusted data in GitHub expressions within a `run` block is dangerous, regardless of whether it appears to be a simple assignment or a direct command.
 
 === What is the potential impact?
 
@@ -50,10 +71,39 @@ jobs:
     steps:
       - name: Example Step
         run: |
-          echo "PR title: ${{ github.event.pull_request.title }}" # Noncompliant
+          pr_title="${{ github.event.pull_request.title }}" # Noncompliant: expansion happens before shell execution
+          echo "PR title: $pr_title"
+----
+
+If an attacker creates a pull request with a title containing `"; rm -rf / #`, the expression expansion will transform the assignment into `pr_title=""; rm -rf / #"`, which the shell will execute as multiple commands, not just an assignment.
+
+Workflow inputs of type `string` (which is the default type) are also vulnerable when expanded directly in shell commands:
+
+[source,yaml,diff-id=2,diff-type=noncompliant]
+----
+name: Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package name to install'
+        required: true
+        type: string
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install package
+        run: |
+          apt-get install ${{ inputs.package_name }} # Noncompliant: string input expanded directly
 ----
 
 ==== Compliant solution
+
+Use environment variables to safely pass untrusted data:
 
 [source,yaml,diff-id=1,diff-type=compliant]
 ----
@@ -76,15 +126,60 @@ jobs:
 
 ----
 
+To securely use workflow inputs, assign them to environment variables just like any other untrusted data.
+Alternatively, change the input type from `string` to `choice` with predefined options. This restricts user input to safe values controlled by the workflow author:
+
+[source,yaml,diff-id=2,diff-type=compliant]
+----
+name: Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package name to install'
+        required: true
+        type: choice
+        options:
+          - nginx
+          - apache2
+          - postgresql
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install package
+        run: |
+          apt-get install ${{ inputs.package_name }}
+----
+
 === How does this work?
 
 The key difference lies in when and how the untrusted data is processed:
 
-* **Direct interpolation**: When using `${{ github.event.pull_request.title }}` directly in a shell command, GitHub Actions first substitutes the expression with the actual PR title, then passes the resulting string to the shell. If the title contains shell metacharacters, they become part of the command syntax and get executed.
+* **Direct interpolation (vulnerable)**: When using `${{ github.event.pull_request.title }}` directly in a shell command, GitHub Actions processes the workflow file and expands the expression **before** the shell script runs. The expansion happens at the workflow processing stage:
+  1. GitHub Actions reads the workflow YAML file
+  2. It evaluates `${{ github.event.pull_request.title }}` and replaces it with the actual PR title value
+  3. The resulting string (which may contain shell metacharacters) is inserted into the script
+  4. The shell then receives and executes the already-expanded script
 
-* **Environment variable approach**: When the untrusted data is assigned to an environment variable, the shell receives it as a pre-existing variable value. The shell treats environment variable contents as literal data, not as executable code, regardless of what characters they contain.
 
+* **Environment variable approach (safe)**: When the untrusted data is assigned to an environment variable using the `env` key, GitHub Actions still expands the expression, but the expansion happens in a different context:
+  1. GitHub Actions expands `${{ github.event.pull_request.title }}` and assigns the value to an environment variable
+  2. The shell script references this variable using standard shell syntax (`$PR_TITLE`)
+  3. The shell treats the environment variable's contents as literal data, not as executable code
+  
+When the shell evaluates `$PR_TITLE`, it performs variable expansion (not expression expansion), which treats the value as a string literal. Even if the value contains shell metacharacters, they remain as literal characters and are not interpreted as commands.
 This separation ensures that malicious shell syntax in the untrusted data cannot be interpreted as commands, effectively neutralizing injection attempts.
+
+* **Choice input type (safe when used directly)**: Unlike `string` inputs, `choice` inputs restrict user input to a predefined list of options that are controlled by the workflow author. When a `choice` input is used directly in a GitHub expression within a `run` block, it is safe because:
+  1. The workflow author defines all possible values in the `options` list
+  2. Attackers cannot provide arbitrary values, since they are only allowed to select from the predefined options
+  3. Since the workflow author controls the options, they can ensure none contain shell metacharacters or malicious content
+  4. The expression expansion will only ever produce one of the predefined, safe values
+
 
 === Pitfalls
 
