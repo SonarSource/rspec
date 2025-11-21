@@ -1,0 +1,272 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Secret leaks often occur when a sensitive piece of authentication data is
+stored with the source code of an application. Considering the source code is
+intended to be deployed across multiple assets, including source code
+repositories or application hosting servers, the secrets might get exposed to an
+unintended audience.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In most cases, trust boundaries are violated when a secret is exposed in a
+source code repository or an uncontrolled deployment environment.
+Unintended people who don&#8217;t need to know the secret might get access to it. They
+might then be able to use it to gain unwanted access to associated services or
+resources.</p>
+</div>
+<div class="paragraph">
+<p>The trust issue can be more or less severe depending on the people&#8217;s role and
+entitlement.</p>
+</div>
+<div class="paragraph">
+<p>In Dockerfiles, hard-coded secrets and secrets passed through as variables or
+created at build-time will cause security risks. The secret information can be
+exposed either via the container environment, the image metadata, or the build
+environment logs.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The consequences vary greatly depending on the situation and the secret-exposed
+audience. Still, two main scenarios should be considered.</p>
+</div>
+<div class="sect3">
+<h4 id="_financial_loss">Financial loss</h4>
+<div class="paragraph">
+<p>Financial losses can occur when a secret is used to access a paid
+third-party-provided service and is disclosed as part of the source code of
+client applications. Having the secret, each user of the application will be
+able to use it without limit to use the third party service to their own need,
+including in a way that was not expected.</p>
+</div>
+<div class="paragraph">
+<p>This additional use of the secret will lead to added costs with the service
+provider.</p>
+</div>
+<div class="paragraph">
+<p>Moreover, when rate or volume limiting is set up on the provider side, this
+additional use can prevent the regular operation of the affected application.
+This might result in a partial denial of service for all the application&#8217;s
+users.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_applications_security_downgrade">Application&#8217;s security downgrade</h4>
+<div class="paragraph">
+<p>A downgrade can happen when the disclosed secret is used to protect
+security-sensitive assets or features of the application. Depending on the
+affected asset or feature, the practical impact can range from a sensitive
+information leak to a complete takeover of the application, its hosting server
+or another linked component.</p>
+</div>
+<div class="paragraph">
+<p>For example, an application that would disclose a secret used to sign user
+authentication tokens would be at risk of user identity impersonation. An
+attacker accessing the leaked secret could sign session tokens for arbitrary
+users and take over their privileges and entitlements.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>In multi-stage builds, the rule only scans instructions that are part of the final image.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Best practices recommend using a secret vault for all secrets that must be
+accessed at container runtime. This will ensure the secret&#8217;s security and
+prevent any further unexpected disclosure. Depending on the development platform
+and the leaked secret type, multiple solutions are currently available.</p>
+</div>
+<div class="paragraph">
+<p>For all secrets that must be accessed at image build time, it is recommended to
+rely on Docker Buildkit&#8217;s secret mount options. This will prevent secrets from
+being disclosed in image&#8217;s metadata and build logs.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, investigations and remediation actions should be conducted to
+ensure the current and future security of the infrastructure.</p>
+</div>
+<div class="paragraph">
+<p><strong>Revoke the secret</strong></p>
+</div>
+<div class="paragraph">
+<p>Revoke any leaked secrets and remove them from the application source code.</p>
+</div>
+<div class="paragraph">
+<p>Before revoking the secret, ensure that no other applications or processes are
+using it. Other usages of the secret will also be impacted when the secret is
+revoked.</p>
+</div>
+<div class="paragraph">
+<p><strong>Analyze recent secret use</strong></p>
+</div>
+<div class="paragraph">
+<p>When available, analyze authentication logs to identify any unintended or
+malicious use of the secret since its disclosure date. Doing this will allow
+determining if an attacker took advantage of the leaked secret and to what
+extent.</p>
+</div>
+<div class="paragraph">
+<p>This operation should be part of a global incident response process.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following code sample generates a new SSH private key that will be stored in
+the generated image. This key should be considered as compromised. Moreover, the
+SSH key encryption passphrase is also hardcoded.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM example
+
+# Noncompliant
+RUN ssh-keygen -N "passphrase" -t rsa -b 2048 -f /etc/ssh/rsa_key
+
+RUN /example.sh --ssh /etc/ssh/rsa_key</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following code sample uses a seemingly hidden password which is actually
+leaked in the image metadata after the build.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM example
+ARG PASSWORD
+
+# Noncompliant
+RUN wget --user=guest --password="$PASSWORD" https://example.com</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM example
+
+RUN --mount=type=secret,id=ssh,target=/etc/ssh/rsa_key \
+    /example.sh --ssh /etc/ssh/rsa_key</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM example
+
+RUN --mount=type=secret,id=wget,target=/home/user/.wgetrc \
+    wget --user=guest https://example.com</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For runtime secrets, best practices recommend relying on a vault service to
+pass secret information to the containers. Docker environment provides Swarm
+services that implement such a feature.</p>
+</div>
+<div class="paragraph">
+<p>If such an option can not be considered, store the runtime secrets in an
+<a href="https://docs.docker.com/compose/env-file/">environment file</a> such as <code>.env</code> and
+then start the container with the
+<a href="https://docs.docker.com/engine/reference/commandline/run/#env"><code>--env-file</code></a> argument:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">docker run --env-file .env myImage</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It is then important to ensure that the environment files are securely stored
+and generated.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>AWS Documentation - <a href="https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html">What is AWS Secrets Manager</a></p>
+</li>
+<li>
+<p>Azure Documentation - <a href="https://learn.microsoft.com/en-us/azure/key-vault/">Azure Key Vault</a></p>
+</li>
+<li>
+<p>Google Cloud - <a href="https://cloud.google.com/secret-manager/docs">Secret Manager documentation</a></p>
+</li>
+<li>
+<p>HashiCorp Developer - <a href="https://developer.hashicorp.com/vault/docs">Vault Documentation</a></p>
+</li>
+<li>
+<p>Docker Documentation - <a href="https://docs.docker.com/engine/swarm/secrets/">Manage sensitive data with Docker secrets</a></p>
+</li>
+<li>
+<p>Docker Documentation - <a href="https://docs.docker.com/engine/reference/builder/#run---mounttypesecret">RUN command secrets mount points</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/522">CWE-522 - Insufficiently Protected Credentials</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/798">CWE-798 - Use of Hard-coded Credentials</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>For secret generation:
+* Change this code not to store a secret in the image.</p>
+</div>
+<div class="paragraph">
+<p>For hardcoded secrets:
+* Revoke and change this secret, as it might be compromised.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>For literals and variable expansions:
+* Highlight the command argument, whether a string literal or a variable expansion. If a variable, highlight as second location the ARG instruction.
+For secret generation:
+* Highlight the entire secret generation command</p>
+</div>
+<hr>
+</div>
+</div>
+</div>

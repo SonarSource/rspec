@@ -1,0 +1,133 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when arrays are manually joined with commas before being passed to parameter placeholders in ActiveRecord IN conditions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When you manually join an array with commas using <code>.join(',')</code> and pass it to an ActiveRecord parameter placeholder, the entire joined string gets treated as a single quoted parameter in the generated SQL.</p>
+</div>
+<div class="paragraph">
+<p>For example, if you have <code>user_ids = [1, 2, 3]</code> and use:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">Post.where("user_id IN (?)", user_ids.join(','))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>ActiveRecord generates this incorrect SQL:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SELECT * FROM posts WHERE (user_id IN ('1,2,3'))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This SQL will not work as expected because the database sees <code>'1,2,3'</code> as a single string value, not as three separate numeric values. The IN clause requires individual values, not a comma-separated string.</p>
+</div>
+<div class="paragraph">
+<p>ActiveRecord has built-in support for handling arrays in parameter placeholders. When you pass an array directly, it automatically expands it into the correct SQL format with proper parameter binding and type conversion.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>This issue can cause queries to return incorrect results, potentially missing data that should be included. In some cases, it might cause SQL syntax errors or unexpected behavior. The incorrect query results could lead to application logic errors, security issues if access controls depend on the query, or data integrity problems.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_ruby_on_rails">How to fix it in Ruby on Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Pass the array directly to the parameter placeholder instead of manually joining it. ActiveRecord will automatically handle the proper SQL generation.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Manual joining breaks IN condition functionality
+Post.where("user_id IN (?)", user_ids.join(',')) # Noncompliant
+
+# This generates: WHERE (user_id IN ('1,2,3'))
+# Instead of: WHERE (user_id IN (1,2,3))</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Pass array directly - ActiveRecord handles the expansion
+Post.where("user_id IN (?)", user_ids)
+
+# Or use hash syntax (Rails 3+)
+Post.where(user_id: user_ids)
+
+# This generates correct SQL: WHERE (user_id IN (1,2,3))</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For legacy Rails 2 style queries, the same principle applies - pass arrays directly to parameter placeholders.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Rails 2 style with manual joining
+find(:all, conditions: ["user_id IN (?)", args.join(',')]) # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Rails 2 style with direct array passing
+find(:all, conditions: ["user_id IN (?)", user_ids])</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Active Record Query Interface - <a href="https://guides.rubyonrails.org/active_record_querying.html#array-conditions">Official Rails guide on using arrays in query conditions</a></p>
+</li>
+<li>
+<p>ActiveRecord::Base.where - <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-where">API documentation for ActiveRecord where method</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-89: Improper Neutralization of Special Elements used in an SQL Command - <a href="https://cwe.mitre.org/data/definitions/89.html">While not directly SQL injection, improper parameter handling can lead to security vulnerabilities</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,214 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when synchronous subprocess calls are used within asynchronous functions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using synchronous subprocess calls like <code>subprocess.Popen</code> or similar functions in asynchronous code blocks the entire event loop. This undermines the primary advantage of asynchronous programming - the ability to perform concurrent operations without blocking execution.</p>
+</div>
+<div class="paragraph">
+<p>When an async function makes a synchronous call to create a subprocess:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The event loop is completely blocked until the subprocess operation completes</p>
+</li>
+<li>
+<p>No other coroutines can run during this time, even if they&#8217;re ready to execute</p>
+</li>
+<li>
+<p>The responsiveness of the application is degraded</p>
+</li>
+<li>
+<p>In server applications, this can cause timeouts or failures for other concurrent requests</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Instead, async libraries provide dedicated APIs for running subprocesses in a non-blocking way:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>asyncio.create_subprocess_exec()</code> and <code>asyncio.create_subprocess_shell()</code> for asyncio</p>
+</li>
+<li>
+<p><code>trio.run_process()</code> for Trio</p>
+</li>
+<li>
+<p><code>anyio.run_process()</code> for AnyIO</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Using these APIs allows other tasks to continue executing while waiting for the subprocess to complete.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_asyncio">How to fix it in Asyncio</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace synchronous subprocess calls with <code>asyncio.create_subprocess_exec()</code> or <code>asyncio.create_subprocess_shell()</code> depending on whether you need to run a specific command with arguments or a shell command string.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import subprocess
+
+async def process_data():
+    subprocess.run(["wget", "https://example.com/file.zip"])  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import asyncio
+
+async def process_data():
+    proc = await asyncio.create_subprocess_exec("wget", "https://example.com/file.zip")
+    result = await proc.wait()</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_trio">How to fix it in Trio</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace synchronous subprocess calls with <code>trio.run_process()</code>, which handles both command arrays and shell commands.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import trio
+import subprocess
+
+async def download_files():
+    result = subprocess.run(["wget", "https://example.com/file.zip"])  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import trio
+
+async def download_files():
+    result = await trio.run_process(["wget", "https://example.com/file.zip"])</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_anyio">How to fix it in AnyIO</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace synchronous subprocess calls with <code>anyio.run_process()</code>, which works similar to Trio&#8217;s API and supports both command arrays and shell commands.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import subprocess
+
+async def process_image():
+    result = subprocess.run(["wget", "https://example.com/file.zip"])  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import anyio
+
+async def process_image():
+    result = await anyio.run_process(["wget", "https://example.com/file.zip"])</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Python asyncio - <a href="https://docs.python.org/3/library/asyncio-subprocess.html">Subprocess</a></p>
+</li>
+<li>
+<p>Trio - <a href="https://trio.readthedocs.io/en/stable/reference-io.html#trio.run_process">run_process() documentation</a></p>
+</li>
+<li>
+<p>AnyIO - <a href="https://anyio.readthedocs.io/en/stable/subprocesses.html">Subprocesses</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Python - <a href="https://realpython.com/python-concurrency/">Concurrency and Parallelism in Python</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use an async subprocess call in this async function instead of a synchronous one.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary locations: the <code>subprocess</code> callee within an async function</p>
+</li>
+<li>
+<p>Secondary locations: the enclosing async function <code>aync</code> keyword (message: "this is an asynchronous function")</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

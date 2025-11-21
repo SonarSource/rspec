@@ -1,0 +1,324 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using command line arguments is security-sensitive. It has led in the past to the following vulnerabilities:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2018-7281">CVE-2018-7281</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2018-12326">CVE-2018-12326</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2011-3198">CVE-2011-3198</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Command line arguments can be dangerous just like any other user input. They should never be used without being first validated and sanitized.</p>
+</div>
+<div class="paragraph">
+<p>Remember also that any user can retrieve the list of processes running on a system, which makes the arguments provided to them visible. Thus passing sensitive information via command line arguments should be considered as insecure.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when on every program entry points (<code>main</code> methods) when command line arguments are used. The goal is to guide security code reviews.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>any of the command line arguments are used without being sanitized first.</p>
+</li>
+<li>
+<p>your application accepts sensitive information via command line arguments.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If you answered yes to any of these questions you are at risk.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://www.owasp.org/index.php/Input_Validation_Cheat_Sheet">Sanitize</a> all command line arguments before using them.</p>
+</div>
+<div class="paragraph">
+<p>Any user or application can list running processes and see the command line arguments they were started with. There are safer ways of providing sensitive information to an application than exposing them in the command line. It is common to write them on the process' standard input, or give the path to a file containing the information.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue as soon as there is a reference to argv, be it for direct use or via a CLI library like JCommander, GetOpt or Apache CLI.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>public class Main {
+  public static void main (String[] argv) {
+    String option = argv[0];  // Sensitive: check how the argument is used
+  }
+}</pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// === JCommander ===
+import com.beust.jcommander.*;
+
+public class Main {
+  public static void main (String[] argv) {
+    Main main = new Main();
+    JCommander.newBuilder()
+      .addObject(main)
+      .build()
+      .parse(argv); // Sensitive
+    main.run();
+  }
+}</pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// === GNU Getopt ===
+import gnu.getopt.Getopt;
+
+public class Main {
+  public static void main (String[] argv) {
+    Getopt g = new Getopt("myprog", argv, "ab"); // Sensitive
+  }
+}</pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// === Apache CLI ===
+import org.apache.commons.cli.*;
+
+public class Main {
+  public static void main (String[] argv) {
+    Options options = new Options();
+    CommandLineParser parser = new DefaultParser();
+    try {
+      CommandLine line = parser.parse(options, argv); // Sensitive
+    }
+  }
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the case of Args4J, an issue is created on the <code>public void run</code> method of any class using <code>org.kohsuke.args4j.Option</code> or <code>org.kohsuke.args4j.Argument</code>.</p>
+</div>
+<div class="paragraph">
+<p>Such a class is called directly by <code>org.kohsuke.args4j.Starter</code> outside of any <code>public static void main</code> method. If the class has no <code>run</code> method, no issue will be raised as there must be a <code>public static void main</code> and its argument is already highlighted.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// === argv4J ===
+import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.Argument;
+
+public class Main {
+  @Option(name="-myopt",usage="An option")
+  public String myopt;
+
+  @Argument(usage = "An argument", metaVar = "&lt;myArg&gt;")
+  String myarg;
+
+  String file;
+
+  @Option(name="-file")
+  public void setFile(String file) {
+    this.file = file;
+  }
+
+  String arg2;
+
+  @Argument(index=1)
+  public void setArg2(String arg2) {
+    this.arg2 = arg2;
+  }
+
+  public void run() { // Sensitive: This function
+     myarg.toString(); // check how this argument is used
+  }
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_exceptions">Exceptions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The support of Argv4J without the use of <code>org.kohsuke.argv4j.Option</code> is out of scope as there is no way to know which Bean will be used as the mainclass.</p>
+</div>
+<div class="paragraph">
+<p>No issue will be raised on <code>public static void main(String[] argv)</code> if <code>argv</code> is not referenced in the method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/88">CWE-88 - Argument Injection or Modification</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/214">CWE-214 - Information Exposure Through Process Environment</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure that command line arguments are used safely here.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>main method</p>
+<div class="ulist">
+<ul>
+<li>
+<p>main: command line parameter</p>
+</li>
+<li>
+<p>secondaries: references to <code>argv</code></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>classes having args4J annotation</p>
+<div class="ulist">
+<ul>
+<li>
+<p>main: run method</p>
+</li>
+<li>
+<p>secondaries: the annotated argument and option fields</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_17_sep_2018_094811_nicolas_harraudeau_wrote">on 17 Sep 2018, 09:48:11 Nicolas Harraudeau wrote:</h3>
+<div class="paragraph">
+<p>The analyzer should create an issue on <code>public static void main(String[] argv)</code>, highlighting  <code>String[] argv</code>. It should do so if and only if the parameter is used inside the method. This reduces the noise when the parameter is not used at all.</p>
+</div>
+<div class="paragraph">
+<p>The only exception is Arg4J as there is no <code>main</code> method.</p>
+</div>
+<div class="paragraph">
+<p>Note: The support of Argv4J without the use of <code>org.kohsuke.argv4j.Option</code> is out of scope as there is no way to know which Bean will be used as the <code>mainclass</code>. See <a href="https://args4j.kohsuke.org/sample.html">Arg4J documentation</a> for more details.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_4_sep_2018_105729_alexandre_gigleux_wrote">on 4 Sep 2018, 10:57:29 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>\[~nicolas.harraudeau] Review</p>
+</div>
+<div class="paragraph">
+<p>On which part of the code are we going to raise issues? Each time there is a command line executed taking some arguments or on each arguments of the command line? This needs to be clarify maybe by providing an example of command line execution using arguments.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_25_sep_2019_165557_prakash_reddy_barri_wrote">on 25 Sep 2019, 16:55:57 Prakash Reddy Barri wrote:</h3>
+<div class="paragraph">
+<p>Hi Team,</p>
+</div>
+<div class="paragraph">
+<p>We have this security hotspot in our python source code and have validators framework configured to validate the command line arguments.</p>
+</div>
+<div class="paragraph">
+<p>Here is the sample snippet.</p>
+</div>
+<div class="paragraph">
+<p><strong>pip install validator-collection</strong></p>
+</div>
+<div class="paragraph">
+<p><strong>from validator_collection import validators, checkers</strong></p>
+</div>
+<div class="paragraph">
+<p><strong>validators.ipv4(sys.argv[1])</strong></p>
+</div>
+<div class="paragraph">
+<p>But sonar still complains about input sanity, Please let us know which framework to use.</p>
+</div>
+<div class="paragraph">
+<p>Thanks,</p>
+</div>
+<div class="paragraph">
+<p>ABC</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_30_sep_2019_175524_nicolas_harraudeau_wrote">on 30 Sep 2019, 17:55:24 Nicolas Harraudeau wrote:</h3>
+<div class="paragraph">
+<p>Hi [~prakash951],</p>
+</div>
+<div class="paragraph">
+<p>Security Hotspots guide developers during their Code Review so that they can easily spot security sensitive code. You can find more information in [the documentation| https://docs.sonarqube.org/latest/user-guide/security-hotspots/].</p>
+</div>
+<div class="paragraph">
+<p>Next time could you please post your question on https://community.sonarsource.com/? It is our community support forum.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_1_oct_2019_084800_prakash_reddy_barri_wrote">on 1 Oct 2019, 08:48:00 Prakash Reddy Barri wrote:</h3>
+<div class="paragraph">
+<p>Hi Nicolas,</p>
+</div>
+<div class="paragraph">
+<p>Thanks for the information.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_may_2020_164345_eric_therond_wrote">on 27 May 2020, 16:43:45 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>Deprecated because it overlaps with SonarSecurity</p>
+</div>
+</div>
+</div>
+</div>

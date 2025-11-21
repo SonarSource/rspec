@@ -1,0 +1,367 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To prevent potential <a href="https://en.wikipedia.org/wiki/Deadlock">deadlocks</a> in an application, it is crucial to release any locks that are acquired within a method along all possible execution paths.</p>
+</div>
+<div class="paragraph">
+<p>Failing to release locks properly can lead to potential deadlocks, where the lock might not be released, causing issues in the application.</p>
+</div>
+<div class="paragraph">
+<p>This rule specifically focuses on tracking the following types from the <code>System.Threading</code> namespace:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.monitor"><code>Monitor</code></a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.mutex"><code>Mutex</code></a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlock"><code>ReaderWriterLock</code></a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.readerwriterlockslim"><code>ReaderWriterLockSlim</code></a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinlock"><code>SpinLock</code> </a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>An issue is reported when a lock is acquired within a method but not released on all paths.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>If the lock is never released within the method, no issue is raised, assuming that the callers will handle the release.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To make sure that a lock is always released correctly, you can follow one of these two methods:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Use a <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock"><code>lock</code></a> statement with your lock object.</p>
+</li>
+<li>
+<p>Use a <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/exception-handling-statements#the-try-finally-statement"><code>try-finally</code></a> statement and put the release of your lock object within the finally block.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">class MyClass
+{
+  private object obj = new object();
+
+  public void DoSomethingWithMonitor()
+  {
+    Monitor.Enter(obj); // Noncompliant: not all paths release the lock
+    if (IsInitialized())
+    {
+      // ...
+      Monitor.Exit(obj);
+    }
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">class MyClass
+{
+  private ReaderWriterLockSlim lockObj = new ReaderWriterLockSlim();
+
+  public void DoSomethingWithReaderWriteLockSlim()
+  {
+    lockObj.EnterReadLock(); // Noncompliant: not all paths release the lock
+    if (IsInitialized())
+    {
+      // ...
+      lockObj.ExitReadLock();
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">class MyClass
+{
+  private object obj = new object();
+
+  public void DoSomethingWithMonitor()
+  {
+    lock(obj) // Compliant: the lock will be released at the end of the lock block
+    {
+      if (IsInitialized())
+      {
+        // ...
+      }
+    }
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">class MyClass
+{
+  private ReaderWriterLockSlim lockObj = new ReaderWriterLockSlim();
+
+  public void DoSomethingWithReaderWriteLockSlim()
+  {
+    lockObj.EnterReadLock(); // Compliant: the lock will be released in the finally block
+    try
+    {
+      if (IsInitialized())
+      {
+        // ...
+      }
+    }
+    finally
+    {
+      lockObj.ExitReadLock();
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.microsoft.com/en-us/dotnet/standard/threading/overview-of-synchronization-primitives#synchronization-of-access-to-a-shared-resource">Synchronization of access to a shared resource</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/459">CWE-459 - Incomplete Cleanup</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock"><code>lock</code> statement</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/exception-handling-statements#the-try-finally-statement">The <code>try-finally</code> statement</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Unlock "&#8230;&#8203;" along all executions paths of this method.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_21_nov_2014_150744_freddy_mallet_wrote">on 21 Nov 2014, 15:07:44 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>My 2 cents [~ann.campbell.2]:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>tag "multi-threading" is missing</p>
+</li>
+<li>
+<p>moreover the main purpose of the rule is the following one: as soon as Enter() and Exit() statements are not called in the same method, fully understanding when those methods are really called at run time might be tricky, that&#8217;s why we advise as a good practice to locate them in the same method. So for me, this rule more relates to a maintainability issue.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_24_nov_2014_140722_ann_campbell_wrote">on 24 Nov 2014, 14:07:22 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~freddy.mallet] when Enter() and Exit are not called in the same method, there&#8217;s no guarantee that they&#8217;re both called.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_25_nov_2014_102333_freddy_mallet_wrote">on 25 Nov 2014, 10:23:33 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] the code might be perfectly designed to be sure that method Enter() and Exit() are called as expected even when they are not located in the same method. But our rule engine is not smart enough to figure out when this is the case or not. That&#8217;s why for me this rule relates to a coding best practice because by definition is they are not located in the same methods and even if the code is perfectly correct, this will require an extra effort for a developer to inject a change.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_1_apr_2015_174733_ann_campbell_wrote">on 1 Apr 2015, 17:47:33 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>To follow up on this conversation, I&#8217;ve added a case (try/catch/finally) to this method &amp; reverted SQALE to Reliability/Synchronization</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_may_2015_113811_dinesh_bolkensteyn_wrote">on 11 May 2015, 11:38:11 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] If we are anyway enforcing that the <code>Monitor.Enter()</code> and <code>Monitor.Exit()</code> calls should be done from the same method, then why not simply ban the direct usage of the <code>Monitor</code> class and force the usage <code>lock (...) {}</code> directives instead?</p>
+</div>
+<div class="paragraph">
+<p><a href="http://stackoverflow.com/questions/4978850/monitor-vs-lock" class="bare">http://stackoverflow.com/questions/4978850/monitor-vs-lock</a></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_21_may_2015_134547_ann_campbell_wrote">on 21 May 2015, 13:45:47 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~dinesh.bolkensteyn] I don&#8217;t really understand how this SO post is an argument for that.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_125100_dinesh_bolkensteyn_wrote">on 22 May 2015, 12:51:00 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>Well [~ann.campbell.2] I fail to see this why you would want to write the compliant solution:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>class MyClass {
+  object lock = new object();
+
+  public void DoTheThing() {
+    try {
+      Monitor.Enter(lock);
+      // ...
+    } catch (ExceptionType e) {
+      //...
+    } finally {
+      Monitor.Exit(lock);
+    }
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>instead of the much simpler:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>class MyClass {
+  object lock = new object();
+
+  public void DoTheThing() {
+    lock (lock)
+    {
+    }
+}</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_130131_tamas_vajk_wrote">on 22 May 2015, 13:01:31 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I agree with [~dinesh.bolkensteyn]  on this one. The <code>lock</code> block is equivalent to the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>bool lockWasTaken = false;
+var temp = obj;
+try
+{
+    Monitor.Enter(temp, ref lockWasTaken);
+    { body }
+}
+finally
+{
+    if (lockWasTaken) Monitor.Exit(temp);
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>So why not use the language construct if there is one for exactly this?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_143653_ann_campbell_wrote">on 22 May 2015, 14:36:53 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Are we talking about a new rule or a change to the recommendation in this one?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_150417_tamas_vajk_wrote">on 22 May 2015, 15:04:17 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I would just change the recommended solution. And update the description saying that the easiest way of achieving the aim is to use the <code>lock</code> statement.</p>
+</div>
+<div class="paragraph">
+<p>BTW the message and the descriptions seems to go after different things, and that is causing the confusion here. [~dinesh.bolkensteyn]?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_184921_ann_campbell_wrote">on 22 May 2015, 18:49:21 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~tamas.vajk] and [~dinesh.bolkensteyn] I&#8217;ve updated the description and compliant example. I&#8217;ve also moved the messages up from the Java subtask. See if they suit you better.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_26_may_2015_100759_tamas_vajk_wrote">on 26 May 2015, 10:07:59 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>Looks good.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_may_2015_081920_dinesh_bolkensteyn_wrote">on 27 May 2015, 08:19:20 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>This RSPEC was initially created to re-implement a Gendarme rule: DoNotUseLockedRegionOutsideMethodRule</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_29_may_2015_142630_dinesh_bolkensteyn_wrote">on 29 May 2015, 14:26:30 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p><a href="http://www.mono-project.com/docs/tools+libraries/tools/gendarme/rules/concurrency/#donotuselockedregionoutsidemethodrule" class="bare">http://www.mono-project.com/docs/tools+libraries/tools/gendarme/rules/concurrency/#donotuselockedregionoutsidemethodrule</a></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_1_jun_2015_081625_dinesh_bolkensteyn_wrote">on 1 Jun 2015, 08:16:25 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] Please review the description</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_1_jun_2015_173008_ann_campbell_wrote">on 1 Jun 2015, 17:30:08 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>looks good [~dinesh.bolkensteyn]. Thanks.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_jun_2015_184125_ann_campbell_wrote">on 11 Jun 2015, 18:41:25 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>CodePro: Call Lock Without Unlock</p>
+</div>
+</div>
+</div>
+</div>

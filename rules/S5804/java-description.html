@@ -1,0 +1,286 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>User enumeration refers to the ability to guess existing usernames in a web application database. This can happen, for example, when using "sign-in/sign-on/forgot password" functionalities of a website.</p>
+</div>
+<div class="paragraph">
+<p>When an user tries to "sign-in" to a website with an incorrect username/login, the web application should not disclose that the username doesn&#8217;t exist with a message similar to "this username is incorrect", instead a generic message should be used like "bad credentials", this way it&#8217;s not possible to guess whether the username or password was incorrect during the authentication.</p>
+</div>
+<div class="paragraph">
+<p>If a user-management feature discloses information about the existence of a username, attackers can use brute force attacks to retrieve a large amount of valid usernames that will impact the privacy of corresponding users and facilitate other attacks (phishing, password guessing etc &#8230;&#8203;).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>The application discloses that a username exists in its database: most of the time it&#8217;s possible to avoid this kind of leak except for the "registration/sign-on" part of a website because in this case the user must choose a valid username (not already taken by another user).</p>
+</li>
+<li>
+<p>There is no rate limiting and CAPTCHA protection in place for requests involving a username.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a user performs a request involving a username, it should not be possible to spot differences between a valid and incorrect username:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Error messages should be generic and not disclose if the username is valid or not.</p>
+</li>
+<li>
+<p>The response time must be similar for a valid username or not.</p>
+</li>
+<li>
+<p>CAPTCHA and other rate limiting solutions should be implemented.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In a Spring-security web application the username leaks when:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The string used as argument of <a href="https://docs.spring.io/spring-security/site/docs/current/api/org/springframework/security/core/userdetails/UserDetailsService.html">loadUserByUsername</a> method is used in an exception message:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>public String authenticate(String username, String password) {
+  // ....
+  MyUserDetailsService s1 = new MyUserDetailsService();
+  MyUserPrincipal u1 = s1.loadUserByUsername(username);
+
+  if(u1 == null) {
+    throw new BadCredentialsException(username+" doesn't exist in our database"); // Sensitive
+  }
+  // ....
+}</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.spring.io/spring-security/site/docs/3.0.x/apidocs/org/springframework/security/core/userdetails/UsernameNotFoundException.html">UsernameNotFoundException</a> is thrown (except when it is in the loadUserByUsername method):</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>public String authenticate(String username, String password) {
+  // ....
+  if(user == null) {
+      throw new UsernameNotFoundException("user not found"); // Sensitive
+  }
+  // ....
+}</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.spring.io/spring-security/site/docs/4.0.x/apidocs/org/springframework/security/authentication/dao/AbstractUserDetailsAuthenticationProvider.html#setHideUserNotFoundExceptions-boolean-">HideUserNotFoundExceptions</a> is set to false:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>DaoAuthenticationProvider daoauth = new DaoAuthenticationProvider();
+daoauth.setUserDetailsService(new MyUserDetailsService());
+daoauth.setPasswordEncoder(new BCryptPasswordEncoder());
+daoauth.setHideUserNotFoundExceptions(false); // Sensitive
+builder.authenticationProvider(daoauth);</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In a Spring-security web application:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the same message should be used regardless of whether it is the wrong user or password:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public String authenticate(String username, String password) throws AuthenticationException {
+  Details user = null;
+  try {
+    user = loadUserByUsername(username);
+  } catch (UsernameNotFoundException | DataAccessException e) {
+    // Hide this exception reason to not disclose that the username doesn't exist
+  }
+  if (user == null || !user.isPasswordCorrect(password)) {
+     // User should not be able to guess if the bad credentials message is related to the username or the password
+    throw new BadCredentialsException("Bad credentials");
+  }
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.spring.io/spring-security/site/docs/4.0.x/apidocs/org/springframework/security/authentication/dao/AbstractUserDetailsAuthenticationProvider.html#setHideUserNotFoundExceptions-boolean-">HideUserNotFoundExceptions</a> should be set to true:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">DaoAuthenticationProvider daoauth = new DaoAuthenticationProvider();
+daoauth.setUserDetailsService(new MyUserDetailsService());
+daoauth.setPasswordEncoder(new BCryptPasswordEncoder());
+daoauth.setHideUserNotFoundExceptions(true); // Compliant
+builder.authenticationProvider(daoauth);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A2_2017-Broken_Authentication">Top 10 2017 Category A2 - Broken Authentication</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/200">CWE-200 - Exposure of Sensitive Information to an Unauthorized Actor</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure allowing user enumeration is safe here.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_24_sep_2020_115000_eric_therond_wrote">on 24 Sep 2020, 11:50:00 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>In the future this rule can be improved:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>to check if the message sent to the user related to UsernameNotFoundException doesn&#8217;t disclose any information about the existence of the user:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>try {
+   userDetails = userDetailsService.loadUserByUsername(username);
+} catch (UsernameNotFoundException e) {
+   response.sendError(HttpServletResponse.SC_UNAUTHORIZED, e.getMessage());
+   return;
+}</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>to check if the message sent to the user related to UsernameNotFoundException is the same than when the password is not good:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>if (user == null) {
+      throw new UsernameNotFoundException("Bad username");
+}
+if (!user.isPasswordCorrect(password)) {
+      throw new BadCredentialsException("Bad credentials");
+}</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Some <a href="https://www.baeldung.com/spring-security-custom-authentication-failure-handler">authentificationfailurehandler</a> like <a href="https://docs.spring.io/spring-security/site/docs/4.2.15.RELEASE/apidocs/org/springframework/security/web/authentication/ExceptionMappingAuthenticationFailureHandler.html">ExceptionMappingAuthenticationFailureHandler</a> seems to <a href="https://www.programcreek.com/java-api-examples/?code=helloworldtang%2Fspring-boot-cookbook%2Fspring-boot-cookbook-master%2Fapp%2Fsrc%2Fmain%2Fjava%2Fcom%2Ftangcheng%2Fapp%2Fapi%2Frest%2Fconfig%2FSecurityConfig.java">forward</a> the user to a page different based on exceptions and so disclose users existence.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_25_sep_2020_084750_eric_therond_wrote">on 25 Sep 2020, 08:47:50 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>I added again the case to raise when <em>UsernameNotFoundException</em> is thrown because it causes an unnecessary  risk, there are several compliant solutions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>using the same error message among all other exceptions</p>
+</li>
+<li>
+<p>using <em>UsernameNotFoundException</em> but hiding it (<em>setHideUserNotFoundExceptions</em> to false, so if spring allows us to hide these exceptions it is likely because they might be dangerous)</p>
+</li>
+<li>
+<p>not using <em>UsernameNotFoundException</em> at all</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><em>UsernameNotFoundException</em> can be used not only in the authenticate part of a spring application, but in other features, like reset password, in this case only one exception will be likely raised and it should not be <em>UsernameNotFoundException</em> (if the user uses it it is likely to disclose user existence):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>public String reset_password(String username) throws AuthenticationException {
+  Details user = null;
+  try {
+    user = loadUserByUsername(username);
+  } catch (UsernameNotFoundException | DataAccessException e) {
+    thrown UsernameNotFoundException("username not found");
+  }
+}</pre>
+</div>
+</div>
+</div>
+</div>
+</div>

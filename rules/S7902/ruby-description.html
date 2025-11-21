@@ -1,0 +1,216 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when Rails migrations create tables or add columns that are likely to be queried frequently but lack proper database indexes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Database indexes are essential data structures that dramatically improve query performance by creating efficient lookup paths to table data. Without proper indexes, the database must perform full table scans to find matching records, which becomes increasingly slow as data volume grows.</p>
+</div>
+<div class="paragraph">
+<p>When columns are frequently used in WHERE clauses, ORDER BY statements, JOIN conditions, or as foreign keys, missing indexes can cause severe performance degradation. A query that takes milliseconds with an index might take seconds or even minutes without one on large datasets.</p>
+</div>
+<div class="paragraph">
+<p>Foreign key columns are particularly important to index because they are commonly used in JOIN operations and relationship queries. Rails applications heavily rely on ActiveRecord associations, which generate queries that filter and join on these columns.</p>
+</div>
+<div class="paragraph">
+<p>Other commonly queried columns like email addresses, status fields, category identifiers, and timestamp fields also benefit significantly from indexing. These columns are often used for user lookups, filtering, and sorting operations that occur frequently in web applications.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Missing database indexes can severely impact application performance and user experience:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Query Performance</strong>: Database queries can become exponentially slower as data grows, potentially taking seconds instead of milliseconds</p>
+</li>
+<li>
+<p><strong>Application Responsiveness</strong>: Slow queries block application threads, making the entire application feel sluggish</p>
+</li>
+<li>
+<p><strong>Database Load</strong>: Full table scans consume more CPU and I/O resources, affecting overall database performance</p>
+</li>
+<li>
+<p><strong>Scalability Issues</strong>: Applications may become unusable as data volume increases, requiring expensive hardware upgrades</p>
+</li>
+<li>
+<p><strong>User Experience</strong>: Page load times increase dramatically, leading to user frustration and potential business impact</p>
+</li>
+<li>
+<p><strong>Resource Consumption</strong>: Higher database server costs due to increased CPU and memory usage for inefficient queries</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add an index for foreign key columns using <code>add_index</code> in your migration. Foreign keys are frequently used in JOIN operations and should always be indexed.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreatePosts &lt; ActiveRecord::Migration[7.0]
+  def change
+    create_table :posts do |t|
+      t.references :user, null: false, foreign_key: true  # Noncompliant
+      t.string :title
+      t.timestamps
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreatePosts &lt; ActiveRecord::Migration[7.0]
+  def change
+    create_table :posts do |t|
+      t.references :user, null: false, foreign_key: true, index: true
+      t.string :title
+      t.timestamps
+    end
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Add indexes for frequently queried columns like email addresses, which are commonly used for user authentication and lookups.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreateUsers &lt; ActiveRecord::Migration[7.0]
+  def change
+    create_table :users do |t|
+      t.string :email  # Noncompliant
+      t.timestamps
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreateUsers &lt; ActiveRecord::Migration[7.0]
+  def change
+    create_table :users do |t|
+      t.string :email
+      t.timestamps
+    end
+    add_index :users, :email
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Add indexes for columns used in filtering and categorization, such as category_id or status fields that are frequently used in WHERE clauses.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreateProducts &lt; ActiveRecord::Migration[7.1]
+  def change
+    create_table :products do |t|
+      t.string :name
+      t.integer :category_id  # Noncompliant
+      t.string :status        # Noncompliant
+      t.timestamps
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreateProducts &lt; ActiveRecord::Migration[7.1]
+  def change
+    create_table :products do |t|
+      t.string :name
+      t.integer :category_id
+      t.string :status
+      t.timestamps
+    end
+    add_index :products, :category_id
+    add_index :products, :status
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Guides - Active Record Migrations - <a href="https://guides.rubyonrails.org/active_record_migrations.html#creating-indexes">Official Rails documentation on creating database indexes in migrations</a></p>
+</li>
+<li>
+<p>Rails API - add_index - <a href="https://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/SchemaStatements.html#method-i-add_index">API documentation for the add_index method used to create database indexes</a></p>
+</li>
+<li>
+<p>PostgreSQL Documentation - Indexes - <a href="https://www.postgresql.org/docs/current/indexes.html">Comprehensive guide to database indexes in PostgreSQL</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP Top 10:2021-A06-Vulnerable and Outdated Components - <a href="https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/">Performance issues can lead to denial of service vulnerabilities</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2068" class="rspec-auto-link">RSPEC-2068</a> - <a href="https://rules.sonarsource.com/ruby/RSPEC-2068">Database queries should not be vulnerable to injection attacks</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

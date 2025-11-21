@@ -1,0 +1,172 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In C, a string is just a buffer of characters, normally using the <code>null</code> character as a sentinel for the end of the string. This means that the developer has to be aware of low-level details such as buffer sizes or having an extra character to store the final <code>null</code> character. Doing that correctly and consistently is notoriously difficult and any error can lead to a security vulnerability, for instance, giving access to sensitive data or allowing arbitrary code execution.</p>
+</div>
+<div class="paragraph">
+<p>The function <code>char *strncpy(char * restrict dest, const char * restrict src, size_t count);</code> copies the first <code>count</code> characters from <code>src</code> to <code>dest</code>, stopping at the first <code>null</code> character, and filling extra space with 0. The <code>wcsncpy</code> does the same for wide characters and should be used with the same guidelines.</p>
+</div>
+<div class="paragraph">
+<p>Both of those functions are designed to work with fixed-length strings and might result in a non-<code>null</code>-terminated string.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>There is a possibility that either the <code>source</code> or the <code>destination</code> pointer is <code>null</code></p>
+</li>
+<li>
+<p>The security of your system can be compromised if the <code>destination</code> is a truncated version of the <code>source</code></p>
+</li>
+<li>
+<p>The <code>source</code> buffer can be both non-<code>null</code>-terminated and smaller than the <code>count</code></p>
+</li>
+<li>
+<p>The <code>destination</code> buffer can be smaller than the <code>count</code></p>
+</li>
+<li>
+<p>You expect <code>dest</code> to be a <code>null</code>-terminated string</p>
+</li>
+<li>
+<p>There is an overlap between the <code>source</code> and the <code>destination</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>C11 provides, in its annex K, the <code>strncpy_s</code> and the <code>wcsncpy_s</code> that were designed as safer alternatives to <code>strcpy</code> and <code>wcscpy</code>. It&#8217;s not recommended to use them in all circumstances, because they introduce a runtime overhead and require to write more code for error handling, but they perform checks that will limit the consequences of calling the function with bad arguments.</p>
+</li>
+<li>
+<p>Even if your compiler does not exactly support annex K, you probably have access to similar functions</p>
+</li>
+<li>
+<p>If you are using <code>strncpy</code> and <code>wsncpy</code> as a safer version of <code>strcpy</code> and <code>wcscpy</code>, you should instead consider <code>strcpy_s</code> and <code>wcscpy_s</code>, because these functions have several shortcomings:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>It&#8217;s not easy to detect truncation</p>
+</li>
+<li>
+<p>Too much work is done to fill the buffer with 0, leading to suboptimal performance</p>
+</li>
+<li>
+<p>Unless manually corrected, the <code>dest</code> string might not be <code>null</code>-terminated</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>If you want to use <code>strcpy</code> and <code>wcscpy</code> functions and detect if the string was truncated, the pattern is the following:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Set the last character of the buffer to <code>null</code></p>
+</li>
+<li>
+<p>Call the function</p>
+</li>
+<li>
+<p>Check if the last character of the buffer is still <code>null</code></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>If you are writing C&#43;&#43; code, using <code>std::string</code> to manipulate strings is much simpler and less error-prone</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>int f(char *src) {
+  char dest[256];
+  strncpy(dest, src, sizeof(dest)); // Sensitive: might silently truncate
+  return doSomethingWith(dest);
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int f(char *src) {
+  char dest[256];
+  dest[sizeof dest - 1] = 0;
+  strncpy(dest, src, sizeof(dest)); // Compliant
+  if (dest[sizeof dest - 1] != 0) {
+    // Handle error
+  }
+  return doSomethingWith(dest);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/120">CWE-120 - Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')</a></p>
+</li>
+<li>
+<p><a href="https://wiki.sei.cmu.edu/confluence/x/HdcxBQ">CERT, STR07-C.</a> - Use the bounds-checking interfaces for string manipulation</p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222612">Application Security and Development: V-222612</a> - The application must not be vulnerable to overflow attacks.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure use of "strncpy" is safe here.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5801">is related to: <a data-rspec-id="S5801" class="rspec-auto-link">S5801</a></h3>
+
+</div>
+</div>
+</div>
