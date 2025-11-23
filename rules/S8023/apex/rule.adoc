@@ -1,0 +1,75 @@
+This rule raises an issue when asynchronous Apex methods (Queueable, Batchable, Future) perform individual DML operations in loops or lack proper query limits that could lead to governor limit violations.
+
+== Why is this an issue?
+
+Asynchronous Apex processes run with increased governor limits compared to synchronous operations, providing more capacity for data processing. However, these increased limits don't eliminate the need for efficient coding practices.
+
+When asynchronous methods perform DML operations inside loops or execute unlimited SOQL queries, they can still hit governor limits, especially when processing large datasets. This leads to runtime exceptions that can cause the entire asynchronous job to fail.
+
+Moreover, inefficient patterns in asynchronous code waste the platform's resources and can impact overall system performance. The increased governor limits in asynchronous contexts are designed to enable bulk processing of larger datasets, not to compensate for inefficient coding practices.
+
+Proper bulk processing patterns ensure that asynchronous jobs can handle the maximum amount of data possible within the available limits, making the most of the platform's capabilities.
+
+=== What is the potential impact?
+
+When asynchronous Apex classes don't handle governor limits appropriately, several issues can occur:
+
+* *Job failures*: The asynchronous job may fail with governor limit exceptions, leaving data processing incomplete
+* *Data inconsistency*: Partial processing due to limit violations can result in inconsistent data states
+* *Resource waste*: Inefficient code consumes more platform resources than necessary
+* *Performance degradation*: Poor patterns can impact overall system performance and user experience
+* *Maintenance overhead*: Failed jobs require manual intervention and monitoring to resolve
+
+== How to fix it
+
+Use bulk DML operations instead of performing DML inside loops. Collect records to process and perform DML operations on collections.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class AsyncProcessor implements Queueable {
+    public void execute(QueueableContext context) {
+        List<Account> accounts = [SELECT Id, Name FROM Account];
+        for(Account acc : accounts) {
+            acc.Name = acc.Name + ' - Updated';
+            update acc; // Noncompliant
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class AsyncProcessor implements Queueable {
+    public void execute(QueueableContext context) {
+        List<Account> accounts = [SELECT Id, Name FROM Account LIMIT 200];
+        for(Account acc : accounts) {
+            acc.Name = acc.Name + ' - Updated';
+        }
+        update accounts; // Bulk operation
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Official Salesforce documentation on Apex governor limits and best practices]
+
+ * Asynchronous Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_async_overview.htm[Comprehensive guide to asynchronous Apex processing methods]
+
+ * Bulk Processing Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_dml_bulk.htm[Best practices for bulk DML operations in Apex]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[Relates to inefficient resource usage that can lead to system performance issues]
+
+=== Related rules
+
+ * RSPEC-5380 - https://rules.sonarsource.com/apex/RSPEC-5380[Related rule about governor limits in Apex code]
