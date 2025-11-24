@@ -1,0 +1,62 @@
+This rule raises an issue when wildcard patterns (such as `*`, `?`, or `[...]`) are used without being prefixed with `./` or another safe path prefix.
+
+== Why is this an issue?
+
+Wildcard expansions in shell scripts can create security vulnerabilities through option injection attacks. When wildcards expand to filenames that begin with a dash (`-`), these filenames are interpreted as command-line options by most programs rather than as file arguments.
+
+For example, if a directory contains a file named `-rf`, the command `rm *.txt` could expand to `rm -rf file1.txt file2.txt`, which would recursively delete directories instead of just removing text files. This happens because the shell expands wildcards before passing arguments to commands, and programs cannot distinguish between intentional options and filenames that happen to start with dashes.
+
+This vulnerability can be exploited by attackers who create malicious filenames in directories where scripts run. The attack is particularly dangerous because:
+
+* It can cause data loss through unintended file operations
+* It can bypass security restrictions by injecting unexpected options
+* It can lead to privilege escalation in some scenarios
+* The behavior is often silent and difficult to detect
+
+The issue affects any wildcard usage where the expanded filenames are passed as arguments to external commands, including common operations like file processing, archiving, and cleanup scripts.
+
+=== What is the potential impact?
+
+Option injection through wildcard expansion can lead to serious security vulnerabilities:
+
+* *Data loss*: Commands may perform destructive operations when malicious filenames inject dangerous options like `-rf` or `--delete`
+* *Security bypass*: Attackers can inject options that disable security features or change command behavior
+* *Privilege escalation*: In scripts running with elevated privileges, option injection can be used to execute unintended operations
+* *System compromise*: Malicious options could potentially lead to code execution or system manipulation
+
+=== How to fix?
+
+
+Prefix wildcard patterns with `./` to ensure expanded filenames cannot be interpreted as command options. This forces all expanded paths to start with `./`, making them clearly identifiable as filenames rather than options.
+
+==== Non-compliant code example
+
+[source,shell,diff-id=1,diff-type=noncompliant]
+----
+# Vulnerable to option injection
+rm *.txt  # Noncompliant
+cp *.log backup/  # Noncompliant
+grep "pattern" *  # Noncompliant
+----
+
+==== Compliant code example
+
+[source,shell,diff-id=1,diff-type=compliant]
+----
+# Safe from option injection
+rm ./*.txt
+cp ./*.log backup/
+grep "pattern" ./*
+----
+
+=== Documentation
+
+ * LinuxCommand.org Bash Coding Standards - https://linuxcommand.org/lc3_adv_standards.php[Comprehensive shell scripting standards including wildcard safety practices]
+ * Filenames and Pathnames in Shell: How to do it Correctly - https://dwheeler.com/essays/filenames-in-shell.html[Detailed guide on handling filenames safely in shell scripts]
+ * Bash Manual - Pathname Expansion - https://www.gnu.org/software/bash/manual/html_node/Pathname-Expansion.html[Official documentation on how bash expands wildcards and pathnames]
+
+=== Standards
+
+ * CWE-88: Improper Neutralization of Argument Delimiters in a Command - https://cwe.mitre.org/data/definitions/88.html[Covers vulnerabilities where special characters in arguments can alter command behavior]
+ * CWE-78: Improper Neutralization of Special Elements used in an OS Command - https://cwe.mitre.org/data/definitions/78.html[Addresses OS command injection vulnerabilities including option injection]
+
