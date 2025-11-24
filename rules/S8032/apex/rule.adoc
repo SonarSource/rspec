@@ -1,0 +1,79 @@
+This rule raises an issue when a Batch Apex class implements Database.Stateful but doesn't actually use instance variables to maintain state across batch execution methods.
+
+== Why is this an issue?
+
+The Database.Stateful interface in Salesforce Batch Apex allows instance variables to retain their values across different batch execution methods (start, execute, finish). However, implementing this interface comes with memory and performance overhead.
+
+When you implement Database.Stateful, Salesforce must serialize and maintain the state of your batch class instance throughout the entire batch job execution. This consumes additional memory and processing resources.
+
+If your batch class doesn't actually need to maintain state between executions - for example, if you're not tracking counters, accumulating data, or maintaining collections across batches - then implementing Database.Stateful provides no benefit while still incurring the overhead costs.
+
+This unnecessary overhead can impact the performance of your batch jobs and consume valuable system resources, especially when processing large datasets or running multiple concurrent batch jobs.
+
+=== What is the potential impact?
+
+Implementing Database.Stateful unnecessarily can lead to:
+
+* Increased memory consumption during batch job execution
+* Reduced batch job performance due to serialization overhead
+* Potential governor limit issues in high-volume scenarios
+* Inefficient resource utilization in your Salesforce org
+
+== How to fix it
+
+Remove the Database.Stateful interface if you're not actually using instance variables to maintain state across batch executions.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class MyBatch implements Database.Batchable<SObject>, Database.Stateful {
+    public Integer counter = 0; // Not actually used for state
+    
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id FROM Account');
+    }
+    
+    public void execute(Database.BatchableContext bc, List<Account> records) {
+        // No state usage between batches
+        for(Account acc : records) {
+            acc.Name = 'Updated';
+        }
+        update records;
+    }
+    
+    public void finish(Database.BatchableContext bc) {}
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class MyBatch implements Database.Batchable<SObject> {
+    // Removed unused counter and Database.Stateful interface
+    
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id FROM Account');
+    }
+    
+    public void execute(Database.BatchableContext bc, List<Account> records) {
+        for(Account acc : records) {
+            acc.Name = 'Updated';
+        }
+        update records;
+    }
+    
+    public void finish(Database.BatchableContext bc) {}
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Batch Apex Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch_interface.htm[Official Salesforce documentation on Batch Apex implementation]
+
+ * Database.Stateful Interface - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch_interface.htm#apex_batch_interface_stateful[Documentation on using Database.Stateful to maintain state in batch jobs]
