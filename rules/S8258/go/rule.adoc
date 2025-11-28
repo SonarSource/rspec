@@ -1,0 +1,85 @@
+This is an issue when code checks a condition before calling `sync.Once.Do()` to avoid the overhead of synchronization.
+
+== Why is this an issue?
+
+Double-checked locking attempts to optimize performance by checking a condition before acquiring synchronization. However, this pattern creates data races in Go.
+
+The problem occurs because the preliminary check is not synchronized. Even if one goroutine observes that a flag is set (like `done = true`), there's no guarantee it will observe other memory writes that happened before that flag was set. This violates Go's memory model.
+
+In the context of `sync.Once`, this pattern is particularly problematic because:
+
+* The preliminary check can observe stale values
+* There's no happens-before relationship between the flag check and other memory operations
+* The code may read uninitialized or partially initialized data
+* `sync.Once` already provides the optimization internally with proper synchronization
+
+Go's memory model requires explicit synchronization to establish happens-before relationships between memory operations in different goroutines.
+
+=== What is the potential impact?
+
+This can lead to data races where goroutines read uninitialized or inconsistent data. In the worst case, this can cause:
+
+* Reading of zero values or garbage data
+* Inconsistent program state
+* Unpredictable behavior that's difficult to debug
+* Potential crashes when accessing uninitialized pointers or data structures
+
+== How to fix it
+
+Remove the preliminary check and call `sync.Once.Do()` directly. The `sync.Once` type already provides the necessary optimization with proper synchronization.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+var a string
+var done bool
+var once sync.Once
+
+func setup() {
+	a = "hello, world"
+	done = true
+}
+
+func doprint() {
+	if !done { // Noncompliant
+		once.Do(setup)
+	}
+	print(a)
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+var a string
+var once sync.Once
+
+func setup() {
+	a = "hello, world"
+}
+
+func doprint() {
+	once.Do(setup)
+	print(a)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Memory Model - https://go.dev/ref/mem[Official Go memory model documentation explaining synchronization and data races]
+
+ * sync.Once documentation - https://pkg.go.dev/sync#Once[Official documentation for the sync.Once type]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race conditions and improper synchronization in concurrent programs]
+
+=== Related rules
+
+ * RSPEC-2168 - https://rules.sonarsource.com/java/RSPEC-2168/[Double-checked locking should not be used (Java)]
