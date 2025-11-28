@@ -1,0 +1,54 @@
+This is an issue when using `@Grab` to include JDBC driver dependencies without configuring `@GrabConfig(systemClassLoader=true)`.
+
+== Why is this an issue?
+
+JDBC drivers use a service provider mechanism that requires them to be loaded by the system class loader to properly register with the `DriverManager`. When JDBC drivers are loaded via `@Grab` without `@GrabConfig(systemClassLoader=true)`, they are loaded by Groovy's class loader instead of the system class loader.
+
+This creates a classloading isolation issue where the JDBC driver cannot properly register itself with the `DriverManager`. The `DriverManager` looks for drivers in the system class loader, but the driver classes are only available in Groovy's class loader hierarchy.
+
+As a result, attempts to establish database connections will fail with errors like "No suitable driver found" even though the driver JAR has been successfully downloaded and is present on the classpath. This can be particularly confusing because the dependency resolution appears to work correctly, but the runtime behavior fails.
+
+=== What is the potential impact?
+
+Applications will fail to establish database connections at runtime, resulting in `SQLException` with messages like "No suitable driver found for jdbc:mysql://..." or similar database-specific errors. This can cause complete application failure when database connectivity is required.
+
+== How to fix it
+
+Add @GrabConfig(systemClassLoader=true) before the @Grab annotation that includes the JDBC driver dependency. This ensures the driver is loaded by the system class loader and can properly register with the DriverManager.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+@Grab(group='mysql', module='mysql-connector-java', version='8.0.33') // Noncompliant
+import java.sql.DriverManager
+
+def url = "jdbc:mysql://localhost:3306/mydb"
+def connection = DriverManager.getConnection(url, "user", "password")
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+@GrabConfig(systemClassLoader=true)
+@Grab(group='mysql', module='mysql-connector-java', version='8.0.33')
+import java.sql.DriverManager
+
+def url = "jdbc:mysql://localhost:3306/mydb"
+def connection = DriverManager.getConnection(url, "user", "password")
+----
+
+== Resources
+
+=== Documentation
+
+ * Groovy Grape Documentation - JDBC Drivers - https://groovy-lang.org/grape.html#Grape-JDBCDrivers[Official Groovy documentation explaining the requirement for systemClassLoader=true with JDBC drivers]
+
+ * Java JDBC DriverManager Documentation - https://docs.oracle.com/javase/8/docs/api/java/sql/DriverManager.html[Oracle documentation explaining how JDBC drivers are loaded and registered]
+
+=== Standards
+
+ * JDBC 4.0 Specification - https://jcp.org/en/jsr/detail?id=221[Java specification defining JDBC driver loading mechanisms and service provider interface]
