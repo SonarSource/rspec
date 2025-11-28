@@ -1,0 +1,102 @@
+This rule raises an issue when a goroutine is started with an infinite loop or channel range operation without a clear termination mechanism like a done channel or context cancellation.
+
+== Why is this an issue?
+
+Goroutines are lightweight threads in Go that allow concurrent execution. However, when goroutines run indefinitely without a way to stop them, they become goroutine leaks.
+
+A goroutine leak occurs when a goroutine continues to run even after it's no longer needed. This happens commonly with patterns like:
+
+* Infinite `for` loops with channel operations
+* `for range` loops over channels like ticker channels
+* Long-running background tasks without termination signals
+
+These leaked goroutines consume memory and system resources. In applications that frequently create such goroutines, the accumulated leaks can lead to memory exhaustion and degraded performance.
+
+The problem is particularly common with tickers, timers, and other periodic operations where developers focus on the main functionality but forget to implement a clean shutdown mechanism.
+
+Proper goroutine management requires implementing termination signals, typically through:
+
+* A dedicated `done` channel that can be closed to signal termination
+* Context cancellation using `context.Context`
+* Other synchronization mechanisms that allow graceful shutdown
+
+=== What is the potential impact?
+
+Goroutine leaks can cause serious resource exhaustion issues:
+
+* *Memory leaks*: Each leaked goroutine consumes memory for its stack and any referenced variables
+* *Performance degradation*: Too many goroutines can overwhelm the Go scheduler
+* *Resource exhaustion*: In long-running applications, accumulated leaks can cause the application to run out of memory
+* *Difficult debugging*: Goroutine leaks are often hard to detect until they cause visible problems
+
+== How to fix it
+
+Add a done channel to signal goroutine termination. Use a select statement to listen for both the main operation and the termination signal.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+type RateLimiter struct {
+    tokens chan struct{}
+    ticker *time.Ticker
+}
+
+func (rl *RateLimiter) Start() {
+    go func() {
+        for range rl.ticker.C { // Noncompliant
+            select {
+            case rl.tokens <- struct{}{}:
+            default:
+            }
+        }
+    }()
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+type RateLimiter struct {
+    tokens chan struct{}
+    ticker *time.Ticker
+    done   chan struct{}
+}
+
+func (rl *RateLimiter) Start() {
+    go func() {
+        for {
+            select {
+            case <-rl.ticker.C:
+                select {
+                case rl.tokens <- struct{}{}:
+                default:
+                }
+            case <-rl.done:
+                return
+            }
+        }
+    }()
+}
+
+func (rl *RateLimiter) Stop() {
+    close(rl.done)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Concurrency Patterns - https://go.dev/blog/pipelines[Official Go blog post about concurrency patterns and proper goroutine management]
+
+ * Effective Go - Goroutines - https://go.dev/doc/effective_go#goroutines[Official documentation on goroutines and concurrent programming in Go]
+
+ * Context Package - https://pkg.go.dev/context[Documentation for the context package, which provides cancellation and timeout functionality]
+
+=== Standards
+
+ * CWE-401: Missing Release of Memory after Effective Lifetime - https://cwe.mitre.org/data/definitions/401.html[Covers memory leaks including those caused by unreleased resources like goroutines]
