@@ -1,0 +1,58 @@
+This is an issue when a method annotated with `@future` declares parameters that are sObjects (standard or custom) or custom Apex objects.
+
+== Why is this an issue?
+
+Future methods execute asynchronously when system resources become available, which means there can be a significant delay between when the method is called and when it actually runs.
+
+If sObjects or custom objects were allowed as parameters, the data they contain could become stale by the time the future method executes. For example, if you pass an Account object to a future method, but that Account record gets updated in the database before the future method runs, the future method would be working with outdated information.
+
+This could lead to data inconsistency issues where the future method overwrites newer changes with older values, potentially causing data loss or corruption.
+
+The Apex compiler prevents this by only allowing primitive data types, collections of primitive data types, and arrays of primitive data types as future method parameters. These types don't reference database records that could change over time.
+
+=== What is the potential impact?
+
+This will result in a compilation error, preventing the code from being deployed or executed. The application cannot function until the parameter types are corrected to use supported primitive types.
+
+== How to fix it
+
+Replace sObject parameters with their corresponding Id values, then query for the current data within the future method.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@future
+public static void processAccount(Account acc) { // Noncompliant
+    // Process account logic
+    acc.Status__c = 'Processed';
+    update acc;
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@future
+public static void processAccount(Id accountId) {
+    Account acc = [SELECT Id, Name, Status__c FROM Account WHERE Id = :accountId];
+    // Process account logic
+    acc.Status__c = 'Processed';
+    update acc;
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Future Methods - Salesforce Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm[Official Salesforce documentation on future methods and their parameter restrictions]
+
+ * Asynchronous Apex - Future Methods - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_future_methods.htm[Detailed guide on implementing future methods with proper parameter handling]
+
+=== Standards
+
+ * Salesforce Apex Language Reference - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/[Official language specification for Apex including future method constraints]
