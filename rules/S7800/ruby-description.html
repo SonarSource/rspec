@@ -1,0 +1,110 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>render</code> is called with layout options (like <code>:layout &#8658;</code>) inside controller callback methods such as <code>before_filter</code> or <code>before_action</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using <code>render</code> with layout options in controller callbacks is a common Rails anti-pattern that causes unexpected behavior.</p>
+</div>
+<div class="paragraph">
+<p>The <code>render</code> method immediately generates and sends an HTTP response, then halts the request processing cycle. When you call <code>render :layout &#8658; 'admin'</code> in a <code>before_filter</code>, the filter renders an empty response using the specified layout and stops execution. The intended controller action never runs, which can lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Missing instance variables that views expect</p>
+</li>
+<li>
+<p>Incomplete data processing</p>
+</li>
+<li>
+<p>Cryptic "nil object" errors when templates try to access undefined variables</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Layout selection should determine which template wrapper to use for rendering, not trigger the rendering itself. Rails provides the <code>layout</code> class method specifically for dynamic layout selection.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>This anti-pattern can cause application errors, incomplete page rendering, and unpredictable behavior. Users may see broken pages with missing data or encounter "nil object" exceptions when templates try to access variables that were never set because the controller action didn&#8217;t execute.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace the callback method that calls <code>render</code> with layout options with the <code>layout</code> class method. The layout method should point to a private method that returns the layout name as a string.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class MyController &lt; ApplicationController
+  before_filter :admin_layout
+
+  private
+
+  def admin_layout
+    if current_user.is_able_to('siteadmin')
+      render :layout =&gt; 'admin' # Noncompliant
+    else
+      render :layout =&gt; 'application' # Noncompliant
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class MyController &lt; ApplicationController
+  layout :determine_layout
+
+  private
+
+  def determine_layout
+    if logged_in? &amp;&amp; current_user&amp;.is_able_to('siteadmin')
+      "admin"
+    else
+      "application"
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Layouts and Rendering Guide - <a href="https://guides.rubyonrails.org/layouts_and_rendering.html#conditional-layouts">Official Rails documentation on conditional layouts and proper layout selection</a></p>
+</li>
+<li>
+<p>Rails ActionController Layout Documentation - <a href="https://api.rubyonrails.org/classes/ActionController/Layout/ClassMethods.html#method-i-layout">API documentation for the layout class method</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

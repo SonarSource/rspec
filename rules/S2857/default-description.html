@@ -1,0 +1,163 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When concatenating strings, it is very easy to forget a whitespace.</p>
+</div>
+<div class="paragraph">
+<p>In some scenarios this might cause runtime errors, one of which is while creating an SQL query via concatenation:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">string select = "SELECT p.FirstName, p.LastName, p.PhoneNumber" +
+        "FROM Person as p" +    // Noncompliant: concatenation results in "p.PhoneNumberFROM"
+        "WHERE p.Id = @Id";     // Noncompliant: concatenation results in "pWHERE"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when the spacing around SQL keywords appears to be missing, making the concatenated string invalid SQL syntax. It would require the user to add the appropriate whitespaces:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">string select = "SELECT p.FirstName, p.LastName, p.PhoneNumber" +
+        " FROM Person as p" +
+        " WHERE p.Id = @Id";</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Add a space [before|after] "xxx".</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_23_apr_2015_055057_dinesh_bolkensteyn_wrote">on 23 Apr 2015, 05:50:57 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>LGTM</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_30_sep_2019_084732_andrei_epure_wrote">on 30 Sep 2019, 08:47:32 Andrei Epure wrote:</h3>
+<div class="paragraph">
+<p>\[~nicolas.harraudeau] - we need to decide the scope of "SQL keywords". For .NET, we could take the <a href="https://docs.microsoft.com/en-us/sql/t-sql/language-elements/reserved-keywords-transact-sql?view=sql-server-2017">SQL Server and Azure SQL Data Warehouse reserved keywords</a> - is it too much?</p>
+</div>
+<div class="paragraph">
+<p>As we&#8217;ve discussed, there is a need to take into consideration SQL keywords to identify a SQL statement string. I guess we need to be case sensitive when doing the keyword matching, right?</p>
+</div>
+<div class="paragraph">
+<p>Also, we can have:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>string select = "SELECT p.fname," + // No space, but ok
+        "p.lname," +  // No space, but ok
+        "p.street1," +  // No space, but ok
+        "p.street2" +
+        " FROM person p" +
+        " WHERE p.id = 1";</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Alternatively, we can just make an exception for <code>,</code> and consider the comma like a space ?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_30_sep_2019_115334_andrei_epure_wrote">on 30 Sep 2019, 11:53:34 Andrei Epure wrote:</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>take into consideration only files referencing the SQL libraries we currently support for Sonar Security (check <code>using</code> statements)</p>
+</li>
+<li>
+<p>consider the hardcoded string concatenations in this file which starts with any of these keywords</p>
+<div class="ulist">
+<ul>
+<li>
+<p>BULK INSERT (Transact-SQL)</p>
+</li>
+<li>
+<p>SELECT (Transact-SQL)</p>
+</li>
+<li>
+<p>DELETE (Transact-SQL)</p>
+</li>
+<li>
+<p>UPDATE (Transact-SQL)</p>
+</li>
+<li>
+<p>INSERT (Transact-SQL)</p>
+</li>
+<li>
+<p>UPDATETEXT (Transact-SQL)</p>
+</li>
+<li>
+<p>MERGE (Transact-SQL)</p>
+</li>
+<li>
+<p>WRITETEXT (Transact-SQL)</p>
+</li>
+<li>
+<p>READTEXT (Transact-SQL)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>we raise issues only if the previous string ends with an alphanumeric character or <code>*</code> or <code>@</code> and the next one starts with an alphanumeric character (if we have non-alphanumeric characters, we&#8217;re not sure of the intended behavior - e.g. parentheses, comparisons etc)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Out of scope: concatenation of hardcoded strings and variables</p>
+</div>
+<div class="paragraph">
+<p>So we will raise on:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>"SELECT x" + // Noncompliant
+"FROM y" + // Noncompliant
+"WHERE z =" + var;</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>But we won&#8217;t raise on</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>"SELECT x" + // compliant
+variable +
+"WHERE z =" + var;</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_31_may_2023_055057_greg_paidis_wrote">on 31 May 2023, 05:50:57 Greg Paidis wrote:</h3>
+<div class="paragraph">
+<p>During a .NET LaYC sprint, I removed CFamily, Java, PHP, Python, Swift and VB.NET, since they had dummy specifications with no implementations and no implementation tickets.</p>
+</div>
+</div>
+</div>
+</div>

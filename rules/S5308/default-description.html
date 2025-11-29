@@ -1,0 +1,222 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Unchecked return value of a function from the <code>setuid</code>-family might cause unexpected behavior and poses a security risk.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Functions from the <code>setuid</code>-family including <code>setuid</code> and <code>setgid</code> are used to change the identity of the caller process.
+They are used to change privileges for the subsequent actions to be executed.
+If a call to these functions returns an error that is not checked and handled appropriately, the subsequent parts of the program will execute with unexpected privileges.
+This, in turn, leads to unexpected program behavior and poses a <em>serious</em> security risk.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Functions for managing a program&#8217;s privileges are fairly complex and one needs to take great care to use them correctly.</p>
+</div>
+<div class="paragraph">
+<p>Failing to correctly handle potential errors indicated by those functions' respective return values can lead to unexpected behavior.
+If the program fails to acquire more privileges to execute a privileged operation, for instance, the OS will disallow the operation and the program is likely terminated by the OS.
+However, if the program silently fails to drop its privileges, it will continue to run the subsequent operations with more privileges than expected, which poses a <em>serious</em> security risk.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_example_program_that_changes_between_privileged_and_unprivileged_mode">Example program that changes between privileged and unprivileged mode</h3>
+<div class="paragraph">
+<p>A brief example on how <code>setuid</code> can be used and how to correctly check its return value is given in what follows.</p>
+</div>
+<div class="paragraph">
+<p>Consider the following example:</p>
+</div>
+<div class="paragraph">
+<p>Assume that the program shown below has been compiled to its binary named <code>my-program</code>.
+One can change its owner to root, for instance.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-txt" data-lang="txt">$ sudo chown root:root my-program</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>After setting the program&#8217;s setuid bit using</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-txt" data-lang="txt">$ sudo chmod u+s my-program</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>the program&#8217;s permissions may look like</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-txt" data-lang="txt">-rwsrwxr-x 1 root root 16416 Aug 21 15:45 my-program</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The 's' indicates that the executable has the setuid bit set.
+Notice that the program&#8217;s owner (here root) may be different from its caller.
+Functions from the <code>setuid</code>-family can be used to manipulate privileges and acquire (or drop) the program owner&#8217;s privileges.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;unistd.h&gt;
+
+static uid_t real_uid;
+static uid_t effective_uid;
+
+void do_setuid(void) {
+  printf("Try to acquire privileges\n");
+  int status;
+  status = seteuid(effective_uid);
+  if (status &lt; 0) { // Compliant: return code is checked and potential errors are handled.
+    fprintf(stderr, "Couldn't set uid.\n");
+    exit(status);
+  }
+  printf("Set uid to %lu\n", (unsigned long int)effective_uid);
+}
+
+void undo_setuid(void) {
+  printf("Try to drop privileges\n");
+  int status;
+  status = seteuid(real_uid);
+  if (status &lt; 0) { // Compliant: return code is checked and potential errors are handled.
+    fprintf(stderr, "Couldn't set uid.\n");
+    exit(status);
+  }
+  printf("Set uid to %lu\n", (unsigned long int)real_uid);
+}
+
+int main(void) {
+  real_uid = getuid();       // Real ID of the program's caller.
+  effective_uid = geteuid(); // Effective ID of the program's owner (here root).
+  // Immediately drop privileges and set effective user ID back to real user ID
+  // such that operations are performed using the real user ID for determining
+  // permissions.
+  undo_setuid();
+  // Switch back to file user ID (the owner's privileges) only if the effective
+  // ID (the privileges) is required to determine permission for privileged
+  // operations.
+  do_setuid();
+  //
+  // PERFORM PRIVILEGED OPERATION (using root privileges in this example).
+  //
+  // Drop privileges as soon as they are no longer needed.
+  undo_setuid();
+
+  // There are a multitude of operations that can be extremely dangerous if
+  // executed as root. Assume that this program would not correctly handle
+  // potential errors. In that case, the following system call poses a security
+  // risk, if dropping privileges fails. The following command recursively removes
+  // all files and directories inside the /tmp directory. If executed with root
+  // permissions, it can potentially delete important files and directories, causing
+  // system instability or data loss.
+  system("rm -rf /tmp/*"); // Caution: poses a security risk if accidentally executed as root.
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Always check the return values of the <code>setuid</code>-family functions and handle any potential error appropriately.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;unistd.h&gt;
+
+static uid_t real_uid;
+static uid_t effective_uid;
+
+void undo_setuid(void) {
+  printf("Try to drop privileges\n");
+  // Potential failures of `seteuid` are neither checked nor handled appropriately.
+  // This function may hence silently fail to drop privileges and continues execution
+  // in a privileged mode. This poses a serious security risk!
+  seteuid(real_uid); // Noncompliant: return value is not checked.
+  printf("Set uid to %lu\n", (unsigned long int)real_uid);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;unistd.h&gt;
+
+static uid_t real_uid;
+static uid_t effective_uid;
+
+void undo_setuid(void) {
+  printf("Try to drop privileges\n");
+  int status;
+  status = seteuid(real_uid);
+  if (status &lt; 0) { // Compliant: return code is checked and potential errors are handled.
+    fprintf(stderr, "Couldn't set uid.\n");
+    exit(status);
+  }
+  printf("Set uid to %lu\n", (unsigned long int)real_uid);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.usenix.org/legacy/events/sec02/full_papers/chen/chen.pdf">Setuid demystified</a> Chen, Hao, David Wagner, and Drew Dean. 11th USENIX Security Symposium (USENIX Security 02). 2002.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/c/POS36-C.+Observe+correct+revocation+order+while+relinquishing+privileges">POS36-C. Ensure that privilege relinquishment is successful</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/c/POS37-C.+Ensure+that+privilege+relinquishment+is+successful">POS37-C. Observe correct revocation order while relinquishing privileges</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/252">CWE-252 Unchecked Return Value</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/272">CWE-272 Least Privilege Violation</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

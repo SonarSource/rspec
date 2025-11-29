@@ -1,0 +1,125 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>C&#43;&#43;23 introduced <code>std::to_underlying</code> to convert an enumeration to its underlying type.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Until C&#43;&#43;23, in order to convert an enumerator to its underlying value, users could use <code>static_cast</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum Enum: int {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast&lt;int&gt;(e); // Noncompliant: brittle
+  ...
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>which is brittle because if the target type used is not the same as the underlying type of the enum, the compiler will see that an explicit cast was called and not issue a warning. That makes changing the underlying type of an existing enum dangerous as it can silently create conversion bugs.</p>
+</div>
+<div class="paragraph">
+<p>Or, since C&#43;&#43;11, users could use the more robust type trait:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum Enum: int {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast&lt;std::underlying_type_t&lt;Enum&gt;&gt;(e); // Noncompliant: cumbersome
+  ...
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>But this approach is cumbersome, and it can also lead to problems that the compiler will not warn about if the type of <code>e</code> is changed without changing the type inside the cast:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum Enum: int {A, B, C};
+enum AnotherEnum: int {D, E, F};
+void foo(AnotherEnum e) {
+  auto i = static_cast&lt;std::underlying_type_t&lt;Enum&gt;&gt;(e); // Noncompliant: wrong type
+  ...
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Using <code>std::to_underlying</code> is both more robust to underlying type changes and clearer:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum Enum: int {A, B, C};
+void foo(Enum e) {
+  auto i = std::to_underlying(e); // Compliant
+  ...
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Even when casting to another type than the underlying type, going through the underlying type first makes the purpose clear:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum Enum: unsigned char {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast&lt;long&gt;(e); // Noncompliant: is the target type different on purpose?
+  auto j = static_cast&lt;long&gt;(std::to_underlying(e)); // Compliant: the type change is clearly on purpose
+  ...
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when an enum is converted to an integral value without going through a call to <code>std::to_underlying</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>The result of casting any integer type to <code>bool</code> does not depend on the specific integer type.
+For the same reason, casting an enumeration to <code>bool</code> does not depend on the underlying type of enumerator, so this rule does not raise.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum class Enum {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast&lt;bool&gt;(e); // Compliant by exception, the intent is obvious
+  ...
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Unscoped enums with no underlying type specified have an implementation-defined implicit underlying type.
+Calling <code>std::to_underlying</code> on them would not make the code more portable so this rule does not raise on them.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">enum Enum {A, B, C};
+void foo(Enum e) {
+  auto i = static_cast&lt;char&gt;(e); // Compliant by exception, the underlying type may or may not be char
+  ...
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/to_underlying"><code>std::to_underlying</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,259 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Service account tokens are Kubernetes secrets to authenticate applications
+running inside pods to the API server. If a pod is compromised, an attacker
+could use this token to gain access to other resources in the cluster.</p>
+</div>
+<div class="paragraph">
+<p>For example, they could create new pods, modify existing ones, or even delete
+critical system pods, depending on the permissions associated with the service
+account.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="sect3">
+<h4 id="_unauthorized_access">Unauthorized Access</h4>
+<div class="paragraph">
+<p>If a pod with a mounted service account gets compromised, an attacker could potentially use the token to interact with the Kubernetes API, possibly leading to unauthorized access to other resources in the cluster.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_privilege_escalation">Privilege Escalation</h4>
+<div class="paragraph">
+<p>Service account tokens are often bound with roles that have extensive permissions. If these tokens are exposed, it could lead to privilege escalation where an attacker gains higher-level permissions than intended.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_data_breach">Data Breach</h4>
+<div class="paragraph">
+<p>Service account tokens can be used to access sensitive data stored in the Kubernetes cluster. If these tokens are compromised, it could lead to a data breach.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_denial_of_service">Denial of Service</h4>
+<div class="paragraph">
+<p>An attacker with access to a service account token could potentially overload the Kubernetes API server by sending a large number of requests, leading to a Denial of Service (DoS) attack.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>In this example, the service account token is mounted in the pod <code>example-pod</code>
+by default, but is unnecessary for the pod and its service(s) to function
+correctly.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">apiVersion: v1
+kind: Pod
+metadata:
+  name: example-pod
+spec: # Noncompliant
+  containers:
+  - name: example-container
+    image: nginx</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this example, the service account token is mounted in the pod <code>example-pod</code>
+and is necessary, for example because it allows a third-party service to
+authenticate with the Kubernetes API. However, no specific permissions are
+granted to the service account:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">apiVersion: v1
+kind: Pod
+metadata:
+  name: example-pod
+spec:
+  serviceAccountName: example-sa # Noncompliant
+  containers:
+  - name: example-container
+    image: nginx</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">apiVersion: v1
+kind: Pod
+metadata:
+  name: example-pod
+spec:
+  containers:
+  - name: example-container
+    image: nginx
+  automountServiceAccountToken: false</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the following example, Role bindings are created, but Cluster Role Bindings
+would be more appropriate if the service account is intended to be used across
+multiple namespaces:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: example-sa
+  namespace: default
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: example-role
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: example-role-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: example-sa
+  namespace: default
+roleRef:
+  kind: Role
+  name: example-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: example-pod
+  namespace: default
+spec:
+  serviceAccountName: example-sa
+  containers:
+  - name: example-container
+    image: nginx</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>The essential part of the solution is to make sure that permissions within the
+cluster are constructed in a way that minimizes the risk of unauthorized access.</p>
+</div>
+<div class="paragraph">
+<p>To do so, it follows a least-privilege approach.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>If the service account token is unnecessary for the pod to function, disable automounting.</p>
+</li>
+<li>
+<p>If the service account token is required, ensure that the service account has
+the least amount of permissions necessary to perform its function.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Additionally, service account token automounting can be disabled directly from
+the service account specification file.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Kubernetes Documentation - <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/">Configure Service Accounts for Pods</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/306">CWE-306 - Missing Authentication for Critical Function</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>If the Service Account specification is available or if <code>serviceAccountName</code> is available in the Base resource:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Bind this Service Account to RBAC or disable <code>automountServiceAccountToken</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Bind this resource&#8217;s automounted service account to RBAC or disable automounting.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>If the Service Account specification is available: Highlight its <code>name</code> field.</p>
+</li>
+<li>
+<p>Else if <code>serviceAccountName</code> is available in the Base resource: Highlight the <code>serviceAccountName</code> field.</p>
+</li>
+<li>
+<p>Else: Highlight the <code>containers</code> property</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

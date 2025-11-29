@@ -1,0 +1,259 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a cancellation excception is caught without re-raising it.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Asynchronous frameworks like <code>asyncio</code>, <code>trio</code>, and <code>anyio</code> use special exceptions to signal that a task or operation should be cancelled.
+These exceptions are not typical errors indicating a logical flaw in the task but are directives for the task to terminate its execution prematurely and perform necessary cleanup.</p>
+</div>
+<div class="paragraph">
+<p>When a task is cancelled, the framework typically injects this cancellation exception into it. The task is expected to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Catch this specific cancellation exception.</p>
+</li>
+<li>
+<p>Perform any urgent and brief cleanup actions (e.g., releasing locks or other resources).</p>
+</li>
+<li>
+<p>Re-raise the cancellation exception.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If a cancellation exception is caught and not re-raised (e.g., it&#8217;s suppressed with a <code>pass</code> statement, only logged, the handler returns normally, or a different exception is raised instead), the cancellation signal is effectively "swallowed".</p>
+</div>
+<div class="paragraph">
+<p>This prevents the framework and any calling code from knowing that the task has acknowledged the cancellation and is stopping. The task might even continue running parts of its code after the <code>except</code> block, which is contrary to the purpose of cancellation.</p>
+</div>
+<div class="paragraph">
+<p>Properly propagating cancellation exceptions is crucial for the cooperative multitasking model these frameworks rely on.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Suppressing cancellation exceptions can lead to significant problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Unresponsive Applications</strong>: Tasks ignoring cancellation may run indefinitely, making the application unresponsive to shutdown signals.</p>
+</li>
+<li>
+<p><strong>Resource Leaks</strong>: Tasks not stopping properly can leave resources (files, connections, locks) unreleased, leading to resource exhaustion.</p>
+</li>
+<li>
+<p><strong>Incorrect State</strong>: Partial execution of cancelled operations can leave the application in an inconsistent state, risking data corruption.</p>
+</li>
+<li>
+<p><strong>Debugging Difficulties</strong>: Troubleshooting why tasks continue running or why shutdown fails becomes challenging.</p>
+</li>
+<li>
+<p><strong>Broken Abstractions</strong>: Reliable cancellation is essential for async patterns and libraries; ignoring it breaks timeouts and task groups.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_asyncio">How to fix it in Asyncio</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If you need to catch cancellation exceptions for cleanup purposes, make sure to re-raise them after your cleanup code.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, you could add a specific handler for cancellation exceptions before your general exception handler.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import asyncio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except asyncio.CancelledError:
+        return  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import asyncio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except asyncio.CancelledError:  # Compliant
+        raise</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_trio">How to fix it in Trio</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If you need to catch cancellation exceptions for cleanup purposes, make sure to re-raise them after your cleanup code.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, you could add a specific handler for cancellation exceptions before your general exception handler.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import trio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except trio.Cancelled:  # Noncompliant
+        return</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import trio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except trio.Cancelled:  # Compliant
+        raise</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_anyio">How to fix it in AnyIO</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If you need to catch cancellation exceptions for cleanup purposes, make sure to re-raise them after your cleanup code.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, you could add a specific handler for cancellation exceptions before your general exception handler.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import anyio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except anyio.get_cancelled_exc_class():  # Noncompliant
+        return</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import anyio
+
+async def compute_result(data): ...
+
+async def process_data(data):
+    try:
+        result = await compute_result(data)
+        return result
+    except anyio.get_cancelled_exc_class():  # Compliant
+        raise</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>Asynchronous cleanup operations in <code>except CancelledError</code> or <code>finally</code> blocks can themselves be interrupted by cancellation. While <code>asyncio.shield()</code> (or library equivalents) can protect critical cleanup code, use it sparingly as it may delay shutdown.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Asyncio documentation - <a href="https://docs.python.org/3/library/asyncio-task.html#task-cancellation">Task Cancellation</a></p>
+</li>
+<li>
+<p>Trio documentation - <a href="https://trio.readthedocs.io/en/latest/reference-core.html#trio.Cancelled">Exceptions and warnings</a></p>
+</li>
+<li>
+<p>AnyIO documentation - <a href="https://anyio.readthedocs.io/en/stable/cancellation.html#timeouts">Timeouts</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Ensure that the <code>asyncio.CancelledError/trio.Cancelled/anyio.Cancelled</code> exception is re-raised after your cleanup code.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary: the <code>except</code> block.
+Secondary: the async keyword of the function definition.</p>
+</div>
+</div>
+</div>
+</div>

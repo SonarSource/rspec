@@ -1,0 +1,184 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when Rails migrations use rescue blocks or inline rescue statements to handle database schema operations like adding columns or creating tables.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using rescue blocks for database schema existence checks in Rails migrations creates several problems that can make your application unreliable and harder to maintain.</p>
+</div>
+<div class="paragraph">
+<p>When you use rescue blocks to catch exceptions from schema operations, you&#8217;re essentially using exception handling as control flow. This approach has significant drawbacks:</p>
+</div>
+<div class="paragraph">
+<p><strong>Database-specific behavior</strong>: Different database systems handle failed schema operations differently. While SQLite might allow continued execution after a rescued exception, PostgreSQL will mark the entire transaction as failed. This means your migration might work in development with SQLite but fail in production with PostgreSQL.</p>
+</div>
+<div class="paragraph">
+<p><strong>Transaction integrity issues</strong>: In PostgreSQL, when a statement fails within a transaction, the entire transaction enters an error state. Even if you rescue the exception, subsequent statements in the same transaction will fail. This can leave your database in an inconsistent state.</p>
+</div>
+<div class="paragraph">
+<p><strong>Poor error handling</strong>: Rescue blocks often suppress important error information. Using <code>rescue nil</code> or generic rescue statements can hide real problems that need attention, making debugging much harder.</p>
+</div>
+<div class="paragraph">
+<p><strong>Code clarity</strong>: Exception handling for normal program flow makes the code harder to understand and maintain. Other developers might not immediately understand why rescue blocks are being used.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using rescue blocks for schema existence checks can lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Failed migrations in production</strong>: Migrations that work in development might fail when deployed to production databases like PostgreSQL</p>
+</li>
+<li>
+<p><strong>Inconsistent database state</strong>: Transaction failures can leave the database schema in an unexpected state</p>
+</li>
+<li>
+<p><strong>Hidden errors</strong>: Important migration errors might be suppressed, making issues harder to diagnose</p>
+</li>
+<li>
+<p><strong>Database portability issues</strong>: Code becomes tied to specific database behaviors, reducing flexibility</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use Rails' built-in <code>column_exists?</code> method to check if a column exists before adding it. This approach is database-agnostic and doesn&#8217;t rely on exception handling.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class AddHoldReasonToStatuses &lt; ActiveRecord::Migration
+  def change
+    # Using rescue to handle existing columns
+    add_column :statuses, :hold_reason, :string rescue puts "column already added" # Noncompliant
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class AddHoldReasonToStatuses &lt; ActiveRecord::Migration
+  def change
+    # Use column_exists? for conditional schema changes
+    unless column_exists?(:statuses, :hold_reason)
+      add_column :statuses, :hold_reason, :string
+    end
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use the <code>if_not_exists</code> option available in Rails 6.1+ for a cleaner approach to conditional column creation.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class AddColumnMigration &lt; ActiveRecord::Migration
+  def change
+    # Generic exception handling for schema operations
+    begin
+      add_column :statuses, :hold_reason, :string
+    rescue ActiveRecord::StatementInvalid # Noncompliant
+      puts "Column might already exist"
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class AddColumnMigration &lt; ActiveRecord::Migration
+  def change
+    # Use if_not_exists option (Rails 6.1+)
+    add_column :statuses, :hold_reason, :string, if_not_exists: true
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use <code>table_exists?</code> to check table existence before creating or modifying tables, avoiding silent failures.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreateTableMigration &lt; ActiveRecord::Migration
+  def change
+    # Rescue without proper error handling
+    create_table :new_table do |t|
+      t.string :name
+    end rescue nil # Noncompliant
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class CreateTableMigration &lt; ActiveRecord::Migration
+  def change
+    # Check table existence before modifications
+    unless table_exists?(:new_table)
+      create_table :new_table do |t|
+        t.string :name
+      end
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Migration Methods - <a href="https://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/SchemaStatements.html">Official Rails documentation for schema statement methods including column_exists? and table_exists?</a></p>
+</li>
+<li>
+<p>Rails Migration Guide - <a href="https://guides.rubyonrails.org/active_record_migrations.html">Comprehensive guide to Rails migrations and best practices</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

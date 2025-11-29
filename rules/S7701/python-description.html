@@ -1,0 +1,165 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a dropout layer is defined in a PyTorch <code>nn.Module</code> class but is never called in the <code>forward</code> method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Dropout is a regularization technique that randomly sets some neurons to zero during training to prevent overfitting. When you define a dropout layer in your neural network&#8217;s <code><em>init</em></code> method but don&#8217;t use it in the <code>forward</code> method, the dropout has no effect.</p>
+</div>
+<div class="paragraph">
+<p>This creates several problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Dead code</strong>: The dropout layer exists but serves no purpose, making the code confusing and misleading.</p>
+</li>
+<li>
+<p><strong>Missing regularization</strong>: Your model won&#8217;t benefit from the intended regularization, potentially leading to overfitting.</p>
+</li>
+<li>
+<p><strong>Maintenance confusion</strong>: Other developers (or future you) might assume dropout is being applied when it&#8217;s not.</p>
+</li>
+<li>
+<p><strong>Performance overhead</strong>: The unused layer still consumes memory and may affect model serialization.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Dropout layers must be explicitly called in the forward pass to take effect. Simply defining them is not enough.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Without proper dropout usage, your neural network may overfit to the training data, leading to poor generalization on new, unseen data. This can result in models that perform well during training but fail in production environments.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_fix_in_pytorch">How to fix in PyTorch?</h3>
+<div class="paragraph">
+<p>Call the dropout layer in the forward method where you want regularization to be applied, typically after activation functions and before the next layer.</p>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+import torch.nn.functional as F
+
+class NeuralNet(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes, p=0.5):
+        super(NeuralNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, num_classes)
+        self.dropout = nn.Dropout(p)  # Noncompliant
+
+    def forward(self, x):
+        out = F.relu(self.fc1(x))
+        out = F.relu(self.fc2(out))
+        out = self.fc3(out)
+        return out</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+import torch.nn.functional as F
+
+class NeuralNet(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes, p=0.5):
+        super(NeuralNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, num_classes)
+        self.dropout = nn.Dropout(p)
+
+    def forward(self, x):
+        out = F.relu(self.fc1(x))
+        out = self.dropout(out)  # Apply dropout after activation
+        out = F.relu(self.fc2(out))
+        out = self.fc3(out)
+        return out</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you don&#8217;t need the dropout layer, remove it entirely to clean up your code.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example_2">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+import torch.nn.functional as F
+
+class SimpleNet(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(SimpleNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, 128)
+        self.fc2 = nn.Linear(128, output_size)
+        self.dropout = nn.Dropout(0.3)  # Noncompliant
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example_2">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+import torch.nn.functional as F
+
+class SimpleNet(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(SimpleNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, 128)
+        self.fc2 = nn.Linear(128, output_size)
+        # Removed unused dropout layer
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PyTorch Dropout Documentation - <a href="https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html">Official PyTorch documentation for the Dropout layer</a></p>
+</li>
+<li>
+<p>PyTorch Neural Network Tutorial - <a href="https://pytorch.org/tutorials/beginner/blitz/neural_networks_tutorial.html">Tutorial on building neural networks in PyTorch, including proper layer usage</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-561: Dead Code - <a href="https://cwe.mitre.org/data/definitions/561.html">Weakness related to code that is never executed or used</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
