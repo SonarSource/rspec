@@ -1,0 +1,76 @@
+== Why is this an issue?
+
+While a Blazor application is prerendering, certain actions, such as calling into JavaScript (JS), aren't possible. Due to this it's hilighy recommended to avoid calling the `JSRuntime` in `OnInitialized`, `OnParametersSet` methods and their async equivalents.
+
+This rule raises when `IJSRuntime.InvokeAsync`, `JSRuntimeExtensions.InvokeAsync` methods and their overloads  are called in:
+
+* https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.onparametersset[ComponentBase.OnParametersSet Method]
+* https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.onparameterssetasync[ComponentBase.OnParametersSetAsync Method]
+* https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.oninitialized[ComponentBase.OnInitialized Method]
+* https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.oninitializedasync[ComponentBase.OnInitializedAsync Method]
+
+== How to fix it
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+@inject IJSRuntime JSRuntime
+
+<p role="status">Current height: @height</p>
+
+@code {
+    private int height;
+
+    protected override async Task OnInitializedAsync()
+    {
+        height = await JSRuntime.InvokeAsync<int>("getHeight"); // Noncompliant
+        await InvokeAsync(StateHasChanged);
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        height = await JSRuntime.InvokeAsync<int>("getHeight"); // Noncompliant
+        await InvokeAsync(StateHasChanged);
+        await base.OnParametersSetAsync();
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+@inject IJSRuntime JSRuntime
+
+<p role="status">Current height: @height</p>
+
+@code {
+    private int height;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            height = await JSRuntime.InvokeAsync<int>("getHeight");
+            await InvokeAsync(StateHasChanged);
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/blazor/components/lifecycle[ASP.NET Core Razor component lifecycle]
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability[ASP.NET Core Blazor JavaScript interoperability (JS interop)]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.jsinterop.ijsruntime.invokeasync#microsoft-jsinterop-ijsruntime-invokeasync-1[IJSRuntime.InvokeAsync Method]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.onparametersset[ComponentBase.OnParametersSet Method]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.onparameterssetasync[ComponentBase.OnParametersSetAsync Method]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.oninitialized[ComponentBase.OnInitialized Method]
+* Microsoft Learn - https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.components.componentbase.oninitializedasync[ComponentBase.OnInitializedAsync Method]
