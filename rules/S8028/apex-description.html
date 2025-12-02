@@ -1,0 +1,140 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a method annotated with <code>@future</code> is called from within a batch class (implementing <code>Database.Batchable</code>) or a queueable class (implementing <code>System.Queueable</code>).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Salesforce&#8217;s execution model prevents future methods from being called within batch or queueable contexts because these contexts already run asynchronously.</p>
+</div>
+<div class="paragraph">
+<p>Future methods are designed to execute asynchronously in a separate thread with their own governor limits. However, batch and queueable classes also run asynchronously and have their own execution context and limits.</p>
+</div>
+<div class="paragraph">
+<p>When you attempt to call a future method from a batch or queueable context, Salesforce throws a <code>System.AsyncException</code> at runtime with the message "Future method cannot be called from a batch or future method." This happens because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The platform prevents nested asynchronous calls to maintain system stability</p>
+</li>
+<li>
+<p>Governor limits would become unpredictable if multiple async contexts could spawn additional async processes</p>
+</li>
+<li>
+<p>Resource management becomes complex when async processes try to create more async processes</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This restriction ensures that the platform can properly manage system resources and maintain predictable execution patterns.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Calling future methods from batch or queueable contexts will cause your code to fail at runtime with a <code>System.AsyncException</code>. This can:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Break critical business processes that depend on batch or queueable jobs</p>
+</li>
+<li>
+<p>Cause data processing failures that may be difficult to debug</p>
+</li>
+<li>
+<p>Lead to incomplete data updates or synchronization issues</p>
+</li>
+<li>
+<p>Result in failed scheduled jobs that require manual intervention</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Remove the future method call and implement the logic synchronously within the batch context. Batch classes already run asynchronously, so additional async processing is usually unnecessary.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">public class MyBatch implements Database.Batchable&lt;SObject&gt; {
+    public void execute(Database.BatchableContext context, List&lt;Account&gt; scope) {
+        MyFutureMethod.processAsync(scope[0].Id); // Noncompliant
+    }
+}
+
+public class MyFutureMethod {
+    @future
+    public static void processAsync(Id accountId) {
+        // Future method logic
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">public class MyBatch implements Database.Batchable&lt;SObject&gt; {
+    public void execute(Database.BatchableContext context, List&lt;Account&gt; scope) {
+        // Process synchronously within batch context
+        processAccount(scope[0]);
+    }
+
+    private void processAccount(Account acc) {
+        // Synchronous processing logic
+        acc.Status__c = 'Processed';
+        update acc;
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Salesforce Apex Developer Guide - Future Methods - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm">Official documentation on future methods and their limitations</a></p>
+</li>
+<li>
+<p>Salesforce Apex Developer Guide - Batch Apex - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch.htm">Comprehensive guide to batch Apex development</a></p>
+</li>
+<li>
+<p>Salesforce Apex Developer Guide - Queueable Apex - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_queueing_jobs.htm">Documentation on queueable Apex and job chaining</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Salesforce Governor Limits - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm">Platform limits that govern asynchronous execution contexts</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

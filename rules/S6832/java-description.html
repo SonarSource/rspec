@@ -1,0 +1,230 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Spring the scope of a bean defines the lifecycle and visibility of that bean in the Spring container.
+There are six scopes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Singleton</strong>: default, one instance per Spring container</p>
+</li>
+<li>
+<p><strong>Prototype</strong>: a new instance per bean request</p>
+</li>
+<li>
+<p><strong>Request</strong>: a new instance per HTTP request</p>
+</li>
+<li>
+<p><strong>Session</strong>: a new instance per HTTP session</p>
+</li>
+<li>
+<p><strong>Application</strong>: a new instance per ServletContext</p>
+</li>
+<li>
+<p><strong>Websocket</strong>: a new instance per Websocket session</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The last four scopes mentioned, request, session, application and websocket, are only available in a web-aware application.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Spring, singleton beans and their dependencies are initialized when the application context is created.</p>
+</div>
+<div class="paragraph">
+<p>If a <code>Singleton</code> bean depends on a bean with a shorter-lived scope (like <code>Request</code> or <code>Session</code> beans), it retains the same instance of that bean, even when new instances are created for each Request or Session.
+This mismatch can cause unexpected behavior and bugs, as the Singleton bean doesn&#8217;t interact correctly with the new instances of the shorter-lived bean.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when non-singleton beans are injected into a singleton bean.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When a <code>Singleton</code> bean has a dependency on a bean with a shorter-lived scope, it can lead to the following issues:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Data inconsistency</strong>: any state change in the shorter-lived bean will not be reflected in the Singleton bean.</p>
+</li>
+<li>
+<p><strong>Incorrect behavior</strong>: using the same instance of the shorter-lived bean, when a new instance is supposed to be created for each new request or session.</p>
+</li>
+<li>
+<p><strong>Memory leaks</strong>: preventing garbage collection of a shorter-lived bean that allocates a significant amount of data over time.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Inject a shorter-lived bean into a <code>Singleton</code> bean using <strong>ApplicationContext</strong>, <strong>Factories</strong> or <strong>Providers</strong>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>When a <code>Singleton</code> bean auto-wires a <code>Request</code> bean, the dependency is resolved at instantiation time and thus the same instance is used for each HTTP request.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Component
+@Scope(value = WebApplicationContext.SCOPE_REQUEST, proxyMode = ScopedProxyMode.TARGET_CLASS)
+public class RequestBean {
+    //...
+}
+
+public class SingletonBean {
+    @Autowired
+    private final RequestBean requestBean; // Noncompliant, the same instance of RequestBean is used for each HTTP request.
+
+    public RequestBean getRequestBean() {
+        return requestBean;
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Instead, use a <code>ObjectFactory&lt;RequestBean&gt;</code>, <code>ObjectProvider&lt;RequestBean&gt;</code>, or <code>Provider&lt;RequestBean&gt;</code> as injection point (as for <a href="https://docs.spring.io/spring-framework/reference/core/beans/standard-annotations.html#beans-inject-named">JSR-330</a>).</p>
+</div>
+<div class="paragraph">
+<p>Such a dependency is resolved at runtime, allowing for actual injection of a new instance of the shorter-lived bean on each HTTP request.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Component
+@Scope(value = WebApplicationContext.SCOPE_REQUEST, proxyMode = ScopedProxyMode.TARGET_CLASS)
+public class RequestBean {
+    //...
+}
+
+public class SingletonBean {
+    private final ObjectFactory&lt;RequestBean&gt; requestBeanFactory;
+
+    @Autowired
+    public SingletonBean(ObjectFactory&lt;RequestBean&gt; requestBeanFactory) {
+        this.requestBeanFactory = requestBeanFactory;
+    }
+
+    public RequestBean getRequestBean() {
+        return requestBeanFactory.getObject();
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>When a <code>Singleton</code> bean auto-wires a <code>Prototype</code> bean, the dependency is resolved at instantiation time and thus the same instance is used for each bean request.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Component
+@Scope("prototype")
+public class PrototypeBean {
+    public Object execute() {
+      //...
+    }
+}
+
+public class SingletonBean {
+    private PrototypeBean prototypeBean;
+
+    @Autowired
+    public SingletonBean(PrototypeBean prototypeBean) { // Noncompliant, the same instance of PrototypeBean is used for each bean request.
+      this.prototypeBean = prototypeBean;
+    }
+
+    public Object process() {
+        return prototypeBean.execute();
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>Using the <code>ApplicationContext</code> to retrieve a new instance of a <code>Prototype</code> bean on each bean request.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Component
+@Scope("prototype")
+public class PrototypeBean {
+    public Object execute() {
+      //...
+    }
+}
+
+public class SingletonBean implements ApplicationContextAware {
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    public SingletonBean(ApplicationContext applicationContext) {
+      this.applicationContext = applicationContext;
+    }
+
+    public Object process() {
+        PrototypeBean prototypeBean = createPrototypeBean();
+        return prototypeBean.execute();
+    }
+
+    protected PrototypeBean createPrototypeBean() {
+        return this.applicationContext.getBean("prototypeBean", PrototypeBean.class);
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Spring Framework - <a href="https://docs.spring.io/spring-framework/reference/core/beans/factory-scopes.html">Factory Scopes</a></p>
+</li>
+<li>
+<p>Spring Framework - <a href="https://docs.spring.io/spring-framework/reference/core/beans/standard-annotations.html#beans-inject-named">Beans Inject Named</a></p>
+</li>
+<li>
+<p>Spring Framework - <a href="https://docs.spring.io/spring-framework/reference/core/beans/dependencies/factory-method-injection.html">Method Injection</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Baeldung - <a href="https://www.baeldung.com/spring-bean-scopes">Spring Bean Scopes</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

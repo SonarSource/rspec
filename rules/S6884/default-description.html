@@ -1,0 +1,120 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule will raise an issue when the <code>utc</code> parameter is not set to <code>True</code> when calling <code>pandas.to_datetime</code> function.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When calling <code>pandas.to_datetime</code> to transform a string into a date, the <code>utc</code> parameter is set to <code>False</code> by default.
+This means inputs will not be coerced to UTC, timezone-naive inputs will remain naive,
+while timezone-aware ones will keep their time offsets.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pandas as pd
+
+pd.to_datetime(['2018-10-26 12:00:00']) # timezone naive example
+# returns DatetimeIndex(['2018-10-26 12:00:00'], dtype='datetime64[ns]', freq=None)
+
+pd.to_datetime(['2018-10-26 12:00 -0500']) # timezone aware example
+# returns DatetimeIndex(['2018-10-26 12:00:00-05:00'], dtype='datetime64[ns, UTC-05:00]', freq=None)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>While this behavior is not problematic if all the dates are timezone naive or have the same time offset,
+it could be problematic with mixed time offsets.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pandas as pd
+
+pd.to_datetime(['2020-10-25 02:00 +0200', '2020-10-25 04:00 +0100']) # mixed time offsets
+# returns Index([2020-10-25 02:00:00+02:00, 2020-10-25 04:00:00+01:00], dtype='object')</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When processing <code>datetime</code>s with mixed offsets, <code>pandas.to_datetime</code> will not succeed in creating a
+<code>DatetimeIndex</code>. Instead it will create an <code>Index</code> of <code>object</code>.
+Working with dates with different timezones can lead to bugs, for example when comparing these dates.</p>
+</div>
+<div class="paragraph">
+<p>When dealing with multiple <code>datetime</code>s with mixed offset, it is a good practice to set the <code>utc</code> parameter to <code>True</code>,
+this way timezone-naive inputs are localized as UTC,
+while timezone-aware inputs are converted to UTC.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pandas as pd
+
+pd.to_datetime(['2018-10-26 12:00 -0530', '2018-10-26 12:00 -0500'], utc=True)
+# returns DatetimeIndex(['2018-10-26 17:30:00+00:00', '2018-10-26 17:00:00+00:00'], dtype='datetime64[ns, UTC]', freq=None)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If however the intent is to create a <code>Series</code> containing <code>datetime</code>s with mixed offsets,
+the recommended way would be to use <code>apply</code> and <code>datetime.datetime.strptime</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue set the <code>utc</code> parameter of <code>pandas.to_datetime</code> to <code>True</code>.
+Or if the intent is to use <code>datetime</code>s with mixed offset, the preferred way is to create a <code>Series</code> and use <code>apply</code> with <code>datetime.datetime.strptime</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pandas as pd
+import datetime as dt
+
+pd.to_datetime(['2018-10-26 12:00:00 -0530', '2018-10-26 12:00 -0500']) # Noncompliant: utc defaults to False
+
+pd.to_datetime(['2020-01-12 12:00 -0530', '2021-11-07 12:00 -0500'], utc=False)  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pandas as pd
+import datetime as dt
+
+pd.to_datetime(['2018-10-26 12:00 -0530', '2018-10-26 12:00 -0500'], utc=True) # Compliant
+
+
+pd.Series(['2020-01-12 12:00 -0530', '2021-11-07 12:00 -0500']).apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S%z')) # Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Pandas documentation - <a href="https://pandas.pydata.org/docs/reference/api/pandas.to_datetime.html#pandas-to-datetime">pandas.to_datetime reference</a></p>
+</li>
+<li>
+<p>Pandas documentation - <a href="https://pandas.pydata.org/docs/reference/api/pandas.to_datetime.html#to-datetime-tz-examples">Timezones and time offsets</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

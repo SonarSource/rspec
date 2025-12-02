@@ -1,0 +1,295 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If the file upload feature is implemented without proper folder restriction, it
+will result in an implicit trust violation within the server, as trusted files
+will be implicitly stored alongside third-party files that should be considered
+untrusted.</p>
+</div>
+<div class="paragraph">
+<p>This can allow an attacker to disrupt the security of an internal server
+process or the running application.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>After discovering this vulnerability, attackers may attempt to upload as many
+different file types as possible, such as javascript files, bash scripts,
+malware, or malicious configuration files targeting potential processes.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate the potential impact of an
+attacker exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_full_application_compromise">Full application compromise</h4>
+<div class="paragraph">
+<p>In the worst-case scenario, the attackers succeed in uploading a file recognized
+by in an internal tool, triggering code execution.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the attacker, code execution can be used with different
+intentions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Download the internal server&#8217;s data, most likely to sell it.</p>
+</li>
+<li>
+<p>Modify data, install malware, for instance, malware that mines cryptocurrencies.</p>
+</li>
+<li>
+<p>Stop services or exhaust resources, for instance, with fork bombs.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_server_resource_exhaustion">Server Resource Exhaustion</h4>
+<div class="paragraph">
+<p>By repeatedly uploading large files, an attacker can consume excessive server
+resources, resulting in a denial of service.</p>
+</div>
+<div class="paragraph">
+<p>If the component affected by this vulnerability is not a bottleneck that acts
+as a single point of failure (SPOF) within the application, the denial of
+service can only affect the attacker who caused it.</p>
+</div>
+<div class="paragraph">
+<p>Even though a denial of service might have little direct impact, it can have
+secondary impact in architectures that use containers and container
+orchestrators. For example, it can cause unexpected container failures or
+overuse of resources.</p>
+</div>
+<div class="paragraph">
+<p>In some cases, it is also possible to force the product to "fail open" when
+resources are exhausted, which means that some security features are disabled
+in an emergency.</p>
+</div>
+<div class="paragraph">
+<p>These threats are particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_formidable">How to fix it in Formidable</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const Formidable = require('formidable');
+
+const form          = new Formidable(); // Noncompliant
+form.uploadDir      = "/tmp/";
+form.keepExtensions = true;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const Formidable = require('formidable');
+
+const form          = new Formidable();
+form.uploadDir      = "/uploads/";
+form.keepExtensions = false;</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_use_pre_approved_folders">Use pre-approved folders</h4>
+<div class="paragraph">
+<p>Create a special folder where untrusted data should be stored. This folder
+should be classified as untrusted and have the following characteristics:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It should have specific read and write permissions that belong to the right people or organizations.</p>
+</li>
+<li>
+<p>It should have a size limit or its size should be monitored.</p>
+</li>
+<li>
+<p>It should contain backup copies if it contains data that belongs to users.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This folder should not be located in <code>/tmp</code>, <code>/var/tmp</code> or in the Windows
+directory <code>%TEMP%</code>.<br>
+These folders are usually "world-writable", can be manipulated, and can be
+accidentally deleted by the system.</p>
+</div>
+<div class="paragraph">
+<p>Also, the original file names and extensions should be changed to controlled
+strings to prevent unwanted code from being executed based on the file names.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_multer">How to fix it in Multer</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following code sample is vulnerable because it implicitly uses <code>/tmp</code> or
+<code>/var/tmp</code> as upload directory.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const crypto = require('node:crypto');
+const multer = require('multer');
+
+let diskStorage = multer.diskStorage({
+  filename: (req, file, cb) =&gt; {
+    const buf = crypto.randomBytes(20);
+    cb(null, buf.toString('hex'))
+  }
+}); // Noncompliant
+
+let diskUpload = multer({
+  storage: diskStorage,
+});</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">const multer = require('multer');
+
+let diskStorage = multer.diskStorage({
+  filename: (req, file, cb) =&gt; {
+    const buf = crypto.randomBytes(20);
+    cb(null, buf.toString('hex'))
+  },
+  destination: (req, file, cb) =&gt; {
+    cb(null, '/uploads/')
+  }
+});
+
+let diskUpload = multer({
+  storage: diskStorage,
+});</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="sect3">
+<h4 id="_use_pre_approved_folders_2">Use pre-approved folders</h4>
+<div class="paragraph">
+<p>Create a special folder where untrusted data should be stored. This folder
+should be classified as untrusted and have the following characteristics:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It should have specific read and write permissions that belong to the right people or organizations.</p>
+</li>
+<li>
+<p>It should have a size limit or its size should be monitored.</p>
+</li>
+<li>
+<p>It should contain backup copies if it contains data that belongs to users.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This folder should not be located in <code>/tmp</code>, <code>/var/tmp</code> or in the Windows
+directory <code>%TEMP%</code>.<br>
+These folders are usually "world-writable", can be manipulated, and can be
+accidentally deleted by the system.</p>
+</div>
+<div class="paragraph">
+<p>Also, the original file names and extensions should be changed to controlled
+strings to prevent unwanted code from being executed based on the file names.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A04_2021-Insecure_Design/">Top 10 2021 Category A4 - Insecure Design</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/434">CWE-434 - Unrestricted Upload of File with Dangerous Type</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/400">CWE-400 - Uncontrolled Resource Consumption</a></p>
+</li>
+<li>
+<p><a href="https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload">OWASP Unrestricted File Upload</a> - Unrestricted File Upload</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Restrict [the extension|folder destination] of uploaded files.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_21_jan_2021_153726_pierre_loup_tristant_wrote">on 21 Jan 2021, 15:37:26 Pierre-Loup Tristant wrote:</h3>
+<div class="paragraph">
+<p>This rule is likely not implementable for C#.  ASP.NET Core is not providing
+any high level interface to help developper manage uploaded files.</p>
+</div>
+<div class="paragraph">
+<p>There is no temporary storage of uploaded file by default. The file stays in
+memory and it&#8217;s up to the developper to chose the end location.</p>
+</div>
+<div class="paragraph">
+<p>Verifying file extention can be done in many different ways.</p>
+</div>
+</div>
+</div>
+</div>

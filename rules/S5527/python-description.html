@@ -1,0 +1,315 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This vulnerability allows attackers to impersonate a trusted host.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Transport Layer Security (TLS) provides secure communication between systems
+over the internet by encrypting the data sent between them. In this process,
+the role of hostname validation, combined with certificate validation, is to
+ensure that a system is indeed the one it claims to be, adding an extra layer
+of trust and security.</p>
+</div>
+<div class="paragraph">
+<p>When hostname validation is disabled, the client skips this critical check.
+This creates an opportunity for attackers to pose as a trusted entity and
+intercept, manipulate, or steal the data being transmitted.</p>
+</div>
+<div class="paragraph">
+<p>To do so, an attacker would obtain a valid certificate
+authenticating <code>example.com</code>, serve it using a different hostname, and
+the application code would still accept it.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Establishing trust in a secure way is a non-trivial task. When you disable
+hostname validation, you are removing a key mechanism designed to build this
+trust in internet communication, opening your system up to a number of
+potential threats.</p>
+</div>
+<div class="sect3">
+<h4 id="_identity_spoofing">Identity spoofing</h4>
+<div class="paragraph">
+<p>If a system does not validate hostnames, it cannot confirm the identity of
+the other party involved in the communication. An attacker can exploit this by
+creating a fake server and masquerading it as a legitimate one. For example,
+they might set up a server that looks like your bank&#8217;s server, tricking your
+system into thinking it is communicating with the bank. This scenario, called
+identity spoofing, allows the attacker to collect any data your system sends
+to them, potentially leading to significant data breaches.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_python_standard_library">How to fix it in Python Standard Library</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code contains examples of disabled hostname validation.</p>
+</div>
+<div class="paragraph">
+<p>Certificate validation is not enabled by default when <code>_create_unverified_context</code> or <code>_create_stdlib_context</code> is used. It is recommended to use <code>create_default_context</code> instead. This method creates secure contexts that will check server hostnames and verify certificates (see <a data-rspec-id="S4830" class="rspec-auto-link">S4830</a> for more information) by default.<br>
+If <code>create_default_context</code> cannot be used, then the <code>check_hostname</code> property must be set to <code>True</code> on the <code>SSLContext</code>. Doing so also automatically enables certificate verification for this context.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import ssl
+
+ctx1 = ssl.create_default_context()
+ctx1.check_hostname = False  # Noncompliant
+
+ctx2 = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import ssl
+
+# By default, hostname verification is enabled
+ctx1 = ssl.create_default_context()
+
+ctx2 = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+ctx2.check_hostname = True</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>To fix the vulnerability of disabled hostname validation, it is strongly
+recommended to first re-enable the default validation and fix the root cause: the validity of the certificate.</p>
+</div>
+<div class="sect3">
+<h4 id="_use_valid_certificates">Use valid certificates</h4>
+<div class="paragraph">
+<p>If a hostname validation failure prevents connecting to the target server, keep
+in mind that <strong>one system&#8217;s code should not work around another system&#8217;s problems</strong>,
+as this creates unnecessary dependencies and can lead to reliability issues.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, the first solution is to change the remote host&#8217;s certificate to
+match its identity. If the remote host is not under your control, consider replicating its
+service to a server whose certificate you can change yourself.</p>
+</div>
+<div class="paragraph">
+<p>In case the contacted host is located on a development machine, and if there
+is no other choice, try following this solution:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a self-signed certificate for that machine.</p>
+</li>
+<li>
+<p>Add this self-signed certificate to the system&#8217;s trust store.</p>
+</li>
+<li>
+<p>If the hostname is not <code>localhost</code>, add the hostname in the <code>/etc/hosts</code> file.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_openssl">How to fix it in OpenSSL</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>Currently, pyOpenSSL does not provide any public method to enable hostname verification.
+Therefore, it is recommended to use another SSL library. The <code>ssl</code> module
+of the Python standard library can be a great replacement for several use cases.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import socket
+from OpenSSL import SSL
+
+ctx = SSL.Context(SSL.TLSv1_2_METHOD)  # Noncompliant
+ctx.set_verify(SSL.VERIFY_PEER)
+
+conn = SSL.Connection(ctx, socket.socket(socket.AF_INET, socket.SOCK_STREAM))
+conn.connect(("www.example.com", 443))
+conn.send("GET / HTTP/1.0\r\nHost: www.example.com\r\n\r\n".encode())
+result = conn.recv(1024)
+
+conn.shutdown()
+conn.close()</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import ssl
+import socket
+
+# By default, hostname verification is enabled
+ctx = ssl.create_default_context()
+
+with socket.create_connection(("www.example.com", 443)) as sock:
+    with ctx.wrap_socket(sock, server_hostname="www.example.com") as conn:
+        conn.send(f"GET / HTTP/1.0\r\nHost: www.example.com\r\n\r\n".encode())
+        conn.recv(1024)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>To fix the vulnerability of disabled hostname validation, it is strongly
+recommended to first re-enable the default validation and fix the root cause: the validity of the certificate.</p>
+</div>
+<div class="sect3">
+<h4 id="_use_valid_certificates_2">Use valid certificates</h4>
+<div class="paragraph">
+<p>If a hostname validation failure prevents connecting to the target server, keep
+in mind that <strong>one system&#8217;s code should not work around another system&#8217;s problems</strong>,
+as this creates unnecessary dependencies and can lead to reliability issues.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, the first solution is to change the remote host&#8217;s certificate to
+match its identity. If the remote host is not under your control, consider replicating its
+service to a server whose certificate you can change yourself.</p>
+</div>
+<div class="paragraph">
+<p>In case the contacted host is located on a development machine, and if there
+is no other choice, try following this solution:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a self-signed certificate for that machine.</p>
+</li>
+<li>
+<p>Add this self-signed certificate to the system&#8217;s trust store.</p>
+</li>
+<li>
+<p>If the hostname is not <code>localhost</code>, add the hostname in the <code>/etc/hosts</code> file.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/">Top 10 2021 Category A2 - Cryptographic Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/">Top 10 2021 Category A5 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/">Top 10 2021 Category A7 - Identification and Authentication Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/297">CWE-297 - Improper Validation of Certificate with Host Mismatch</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222550">Application Security and Development: V-222550</a> - The application must validate certificates by constructing a certification path to an accepted trust anchor.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Enable server hostname verification on this SSL/TLS connection</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>For pyOpenSSL:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <code>SSLContext</code> constructor should have a primary highlight</p>
+</li>
+<li>
+<p>The <code>SSLConnector</code> constructor should have a secondary highlight</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s3510">deprecates: <a data-rspec-id="S3510" class="rspec-auto-link">S3510</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4499">deprecates: <a data-rspec-id="S4499" class="rspec-auto-link">S4499</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s5326">deprecates: <a data-rspec-id="S5326" class="rspec-auto-link">S5326</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s4830">is related to: <a data-rspec-id="S4830" class="rspec-auto-link">S4830</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_5_nov_2020_113949_pierre_loup_tristant_wrote">on 5 Nov 2020, 11:39:49 Pierre-Loup Tristant wrote:</h3>
+<div class="paragraph">
+<p>.NET API offers <a href="https://docs.microsoft.com/en-us/dotnet/api/system.net.security.remotecertificatevalidationcallback">a single callback</a> to override TLS certificates chain and hostname validation. <a data-rspec-id="S4830" class="rspec-auto-link">RSPEC-4830</a> already detects that this callback always accept the server certificate without validation. There is no easy way to detects code that validates the certificate chain and fails to validate the server hostname in this callback.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, this will not be implemented for .NET langauges.</p>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,363 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This vulnerability exposes encrypted data to a number of
+attacks whose goal is to recover the plaintext.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Encryption algorithms are essential for protecting sensitive information and
+ensuring secure communications in a variety of domains. They are used for
+several important reasons:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Confidentiality, privacy, and intellectual property protection</p>
+</li>
+<li>
+<p>Security during transmission or on storage devices</p>
+</li>
+<li>
+<p>Data integrity, general trust, and authentication</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When selecting encryption algorithms, tools, or combinations, you should also
+consider two things:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>No encryption is unbreakable.</p>
+</li>
+<li>
+<p>The strength of an encryption algorithm is usually measured by the effort required to crack it within a reasonable time frame.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>In the mode Cipher Block Chaining (CBC), each block is used as
+cryptographic input for the next block. For this reason, the first block
+requires an initialization vector (IV), also called a "starting variable" (SV).</p>
+</div>
+<div class="paragraph">
+<p>If the same IV is used for multiple encryption sessions or messages, each new encryption of the same
+plaintext input would always produce the same ciphertext output. This may allow
+an attacker to detect patterns in the ciphertext.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>After retrieving encrypted data and performing cryptographic attacks on it on a
+given timeframe, attackers can recover the plaintext that encryption was
+supposed to protect.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the recovered data, the impact may vary.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate the potential impact of an
+attacker exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_additional_attack_surface">Additional attack surface</h4>
+<div class="paragraph">
+<p>By modifying the plaintext of the encrypted message, an attacker may be able to
+trigger additional vulnerabilities in the code. An attacker can further exploit
+a system to obtain more information.<br>
+Encrypted values are often considered trustworthy because it would not be
+possible for a third party to modify them under normal circumstances.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_breach_of_confidentiality_and_privacy">Breach of confidentiality and privacy</h4>
+<div class="paragraph">
+<p>When encrypted data contains personal or sensitive information, its retrieval
+by an attacker can lead to privacy violations, identity theft, financial loss,
+reputational damage, or unauthorized access to confidential systems.</p>
+</div>
+<div class="paragraph">
+<p>In this scenario, a company, its employees, users, and partners could be
+seriously affected.</p>
+</div>
+<div class="paragraph">
+<p>The impact is twofold, as data breaches and exposure of encrypted data can
+undermine trust in the organization, as customers, clients and stakeholders may
+lose confidence in the organization&#8217;s ability to protect their sensitive data.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_legal_and_compliance_issues">Legal and compliance issues</h4>
+<div class="paragraph">
+<p>In many industries and locations, there are legal and compliance requirements
+to protect sensitive data. If encrypted data is compromised and the plaintext
+can be recovered, companies face legal consequences, penalties, or violations
+of privacy laws.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_commoncrypto">How to fix it in CommonCrypto</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import Foundation
+import CommonCrypto
+
+func encrypt(data: Data, key: Data) {
+    let iv = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10])
+    var encryptedData = Data(count: data.count + kCCBlockSizeAES128)
+    var encryptedDataLength: Int = 0
+
+    let status = key.withUnsafeBytes { keyBytes in
+        iv.withUnsafeBytes { ivBytes in
+            data.withUnsafeBytes { dataBytes in
+                CCCrypt(  // Noncompliant
+                    CCOperation(kCCEncrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    keyBytes.baseAddress, kCCKeySizeAES256,
+                    ivBytes.baseAddress,
+                    dataBytes.baseAddress, data.count,
+                    encryptedData.withUnsafeMutableBytes { $0.baseAddress! },
+                    encryptedData.count,
+                    &amp;encryptedDataLength
+                )
+            }
+        }
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>In this example, the code explicitly uses a number generator that is considered
+<strong>strong</strong>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import Foundation
+import Security
+import CommonCrypto
+
+func encrypt(data: Data, key: Data) {
+    var iv = Data(count: kCCBlockSizeAES128)
+    let status_iv = iv.withUnsafeMutableBytes { ivBytes in
+        SecRandomCopyBytes(kSecRandomDefault, kCCBlockSizeAES128, ivBytes.baseAddress!)
+    }
+
+    guard status_iv == errSecSuccess else {
+        return nil
+    }
+
+    var encryptedData = Data(count: data.count + kCCBlockSizeAES128)
+    var encryptedDataLength: Int = 0
+
+    let status = key.withUnsafeBytes { keyBytes in
+        iv.withUnsafeBytes { ivBytes in
+            data.withUnsafeBytes { dataBytes in
+                CCCrypt(
+                    CCOperation(kCCEncrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    keyBytes.baseAddress, kCCKeySizeAES256,
+                    ivBytes.baseAddress,
+                    dataBytes.baseAddress, data.count,
+                    encryptedData.withUnsafeMutableBytes { $0.baseAddress! },
+                    encryptedData.count,
+                    &amp;encryptedDataLength
+                )
+            }
+        }
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_use_unique_ivs">Use unique IVs</h4>
+<div class="paragraph">
+<p>To ensure high security, initialization vectors must meet two important
+criteria:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>IVs must be unique for each encryption operation.</p>
+</li>
+<li>
+<p>For CBC and CFB modes, a secure FIPS-compliant random number generator should be used to generate unpredictable IVs.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The IV does not need be secret, so the IV or information sufficient to determine the
+IV may be transmitted along with the ciphertext.</p>
+</div>
+<div class="paragraph">
+<p>In the previous non-compliant example, the problem is not that the IV is
+hard-coded.<br>
+It is that the same IV is used for multiple encryption attempts.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_cryptoswift">How to fix it in CryptoSwift</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import Foundation
+import CryptoSwift
+
+func encrypt(data: [UInt8], key: [UInt8]) {
+    let aes = try! AES(
+        key: key,
+        blockMode: CBC(iv: [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+            0x0F, 0x10,
+        ]),
+        padding: .pkcs7,
+    )
+    let encrypted = try! aes.encrypt(data)
+
+    // ...
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>In this example, the code explicitly uses a number generator that is considered
+<strong>strong</strong>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import Foundation
+import CryptoSwift
+
+func encrypt(data: [UInt8], key: [UInt8]) {
+    let iv = AES.randomIV(16)
+    let aes = try! AES(
+        key: key,
+        blockMode: CBC(iv: iv),
+        padding: .pkcs7,
+    )
+    let encrypted = try! aes.encrypt(data)
+
+    // ...
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="sect3">
+<h4 id="_use_unique_ivs_2">Use unique IVs</h4>
+<div class="paragraph">
+<p>To ensure high security, initialization vectors must meet two important
+criteria:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>IVs must be unique for each encryption operation.</p>
+</li>
+<li>
+<p>For CBC and CFB modes, a secure FIPS-compliant random number generator should be used to generate unpredictable IVs.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The IV does not need be secret, so the IV or information sufficient to determine the
+IV may be transmitted along with the ciphertext.</p>
+</div>
+<div class="paragraph">
+<p>In the previous non-compliant example, the problem is not that the IV is
+hard-coded.<br>
+It is that the same IV is used for multiple encryption attempts.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/">Top 10 2021 Category A2 - Cryptographic Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://mas.owasp.org/checklists/MASVS-CRYPTO/">Mobile AppSec Verification Standard - Cryptography Requirements</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2016-risks/m5-insufficient-cryptography">Mobile Top 10 2016 Category M5 - Insufficient Cryptography</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2023-risks/m10-insufficient-cryptography">Mobile Top 10 2024 Category M10 - Insufficient Cryptography</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/329">CWE-329 - Not Using an Unpredictable IV with CBC Mode</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/780">CWE-780 - Use of RSA Algorithm without OAEP</a></p>
+</li>
+<li>
+<p><a href="https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf">NIST, SP-800-38A</a> - Recommendation for Block  Cipher Modes of Operation</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use a dynamically-generated, random IV.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>

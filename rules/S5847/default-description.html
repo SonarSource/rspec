@@ -1,0 +1,331 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When an application manipulates files, "Time-Of-Check to Time-Of-Use" can occur
+when a file-checking operation is disconnected from the actual operation it is
+bound to.</p>
+</div>
+<div class="paragraph">
+<p>For example, such a vulnerability occurs when a file existence check is
+performed strictly before a file creation operation.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Race conditions can happen when file operations and their associated pre-checks
+are disconnected. Indeed, while the application assumes that the checked file
+property will not change before performing the operation, there is a chance that
+changes are applied to the file.</p>
+</div>
+<div class="paragraph">
+<p>Especially, a concurrent process, which an attacker can control, could modify a
+file right after a check is performed and before the actual use. This file can
+be deleted, created, altered, or see its permissions changed depending on the
+use case.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The impact of a successfully exploited race condition is dependent on the
+business logic of the vulnerable application. The consequences will vary
+depending on what check is performed and how the file is used.</p>
+</div>
+<div class="paragraph">
+<p>In general, attackers use such attacks to escalate privileges, execute arbitrary
+code, or perform a denial of service.</p>
+</div>
+<div class="sect3">
+<h4 id="_arbitrary_code_execution">Arbitrary code execution</h4>
+<div class="paragraph">
+<p>Executable or script file integrity and authenticity checks can be bypassed when
+exploiting a TOCTOU vulnerability. In such a scenario, attackers would change
+an executable file content between when its integrity is checked and when the
+application executes it.</p>
+</div>
+<div class="paragraph">
+<p>This attack would allow attackers to trick the application into executing
+malicious, arbitrary code. They would then be granted the same privilege levels
+as the application itself, which can be particularly severe when it runs with
+administration privileges.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_privileges_escalation">Privileges escalation</h4>
+<div class="paragraph">
+<p>When the attacker is a local user on the same server as the running application,
+the same attack is possible with extended probability. In such a case, attackers
+can exploit the reading and writing to configuration files, the creation of
+local network resources, or the use of temporary files to achieve the same code
+execution purpose.</p>
+</div>
+<div class="paragraph">
+<p>However, in that case, the attack is only meaningful when the application is
+running with high or otherwise interesting privileges. Attackers exploiting a
+TOCTOU vulnerability that way would achieve horizontal or vertical privilege
+escalation.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_denial_of_service">Denial of service</h4>
+<div class="paragraph">
+<p>When the application expects some file properties to be set at the operation
+time, it will often face unexpected errors when those properties have actually
+changed. This might be the case when writing to a file where newly set
+permissions forbid that operation or when reading from a deleted file.</p>
+</div>
+<div class="paragraph">
+<p>When such errors are faced, the application might unexpectedly stop, which can
+affect its availability. Depending on the application and hosting architectures,
+the interruption can be temporary or permanent, partial or complete.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To prevent TOCTOU race condition issues, best practices recommend relying on
+file operations that can perform the necessary preliminary checks atomically.
+For example, file opening functions usually accept a parameter to check the file
+exists and return an error depending on the result. This check is atomic and is
+not susceptible to race conditions.</p>
+</div>
+<div class="paragraph">
+<p>When this is not possible, it might be possible to open a file directly, and to
+keep a reference to it for later use. If the conditions are set for the
+subsequent operations, the application can continue with its processing and use
+the open file pointer to read or write to the file.  In the opposite case, an
+error might be raised that will need to be properly handled.</p>
+</div>
+<div class="paragraph">
+<p>To finish, for most complex operations, the application can create a dedicated
+working directory and set tight permissions on it. This needs to be performed
+atomically to prevent further race conditions. All subsequent sensitive file
+operations can then be performed in this dedicated directory.</p>
+</div>
+<div class="paragraph">
+<p>Note that this last solution is imperfect and is still susceptible to race
+condition attacks from privileged users and the application itself. It should be
+used when no other countermeasure is acceptable.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following code sample is susceptible to a race condition attack because it
+checks a file exists strictly before it opens it for writing.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">FILE *fopen_if_not_exists(const char *file) {
+  if (access(file, F_OK) == -1 &amp;&amp; errno == ENOENT) {
+    FILE *f = fopen(file, "w"); // Noncompliant
+
+    return f;
+  }
+
+  return nullptr;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">FILE *fopen_if_not_exists(const char *file) {
+  FILE *f = fopen(file, "wx");
+  return f;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>Here, the compliant code example uses an atomic operation to open the file and
+check for its existence beforehand.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Carnegie Mellon University Software Engineering Institure - <a href="https://wiki.sei.cmu.edu/confluence/display/c/FIO45-C.+Avoid+TOCTOU+race+conditions+while+accessing+files">FIO45-C. - Avoid TOCTOU race conditions while accessing files</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control">Top 10 2017 Category A5 - Broken Access Control</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/367">CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567">Application Security and Development: V-222567</a> - The application must not be vulnerable to race conditions.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove this TOCTOU race condition window when accessing files.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_23_sep_2020_203550_ann_campbell_wrote">on 23 Sep 2020, 20:35:50 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~eric.therond], [~hendrik.buchwald] this description would benefit from the addition of what you <em>should</em> do instead&#8230;&#8203;</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_24_sep_2020_105421_hendrik_buchwald_wrote">on 24 Sep 2020, 10:54:21 Hendrik Buchwald wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] in most cases it will probably not be possible to prevent the TOCTOU. [~eric.therond] maybe we could add that the developer should make sure that the file/directory that is affected is not writable by lower privileged users?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_24_sep_2020_141008_eric_therond_wrote">on 24 Sep 2020, 14:10:08 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>To be consistent with compliant solutions proposed in the C-Family sub task I would just add something like that: "<em>To prevent TOCTOUs to occur, remove the race condition window between the check and use operations by performing them atomically or by using file descriptors</em>".</p>
+</div>
+<div class="paragraph">
+<p>\[~hendrik.buchwald] About permissions, I am not completely sure but when developers introduce TOCTOU it is likely to verify permissions of the user with the "check operation":</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>if(!access("foo.txt", F_OK)) { // check operation: does the user have the right to access to this file? (operation done with real UID/GID)
+   FILE *f = fopen("foo.txt, "w"); // use operation:  (operation done with effective UID/GID)
+}</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>let say foo.txt is not accessible by the user running the process because foo.txt is owned by root with 700 permissions and the process is owned by root with suid set, so the process will enter in the true block only if the root user is running the process, but in this case the access() call/check operation is useless and can be removed completely. One other solution <a href="https://docs.roguewave.com/en/klocwork/current/sv.toctou.file_access">often</a> mentioned is to do the use operation with the real UID/GID with setuid().</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_24_sep_2020_142143_hendrik_buchwald_wrote">on 24 Sep 2020, 14:21:43 Hendrik Buchwald wrote:</h3>
+<div class="paragraph">
+<p>\[~eric.therond] good idea with the file descriptors, I did not think about that. I am not sure how to use the atomic file operations though.</p>
+</div>
+<div class="paragraph">
+<p>With permissions I mean something else. For example, if you have a TOCTOU in the directory <code>/tmp</code> it is likely more dangerous than in the directory <code>/root</code> because in order for an attacker to exploit it they would require root privileges anyway. So what I mean with that is that TOCTOU in regards to security is only relevant if an attacker has the permissions to write where the TOCTOU occurs.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_24_sep_2020_142958_eric_therond_wrote">on 24 Sep 2020, 14:29:58 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>Yeap completely, in fact in <a href="https://jira.sonarsource.com/browse/CPP-2542">the ticket</a> originally it was specified to not raise an issue when the directory is owned by root, likely these ones:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>/bin
+/boot
+/dev
+/etc
+/lib
+/misc
+/mnt
+/opt
+/root
+/proc
+/sbin
+/usr/bin
+/usr/etc
+/usr/include
+/usr/lib
+/usr/dict
+/usr/kerberos
+/usr/libexec
+/usr/sbin
+/usr/src
+/usr/X11R6
+/var/cache
+/var/db
+/var/empty
+/var/ftp
+/var/lock
+/var/log
+/var/lib
+/var/run</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>but it was put aside because even if the TOCTOU is not exploitable, a better code is still possible (like said before with file descriptor or "atomic operations" (x mode with open() for instance).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_24_sep_2020_183754_ann_campbell_wrote">on 24 Sep 2020, 18:37:54 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Looks like file descriptors aren&#8217;t a panacea</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="http://insanecoding.blogspot.com/2007/03/file-descriptors-and-why-we-cant-use.html" class="bare">http://insanecoding.blogspot.com/2007/03/file-descriptors-and-why-we-cant-use.html</a>
+____However file descriptors have a general flaw, that being that THE FILE MUST BE OPENABLE. Say for example you have a file with the permissions of 000, you can run stat() or chmod() on it, but you can&#8217;t alter the permissions with fchmod()! Now this might not seem so bad, but say you wanted to make the file writable then write something to it? Or worse, you want one single code base to do some operations in order not to commit the sin of code repetition, but you&#8217;re faced with either using the safer file descriptor based function which doesn&#8217;t always work, or the more dangerous file name based function which will work even if you can&#8217;t open the file.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The problem gets even worse when one considers the new *at() functions Solaris and Linux added. In my case above, say my directory had permissions of 111 (--x&#8212;&#8203;x&#8212;&#8203;x), I can chdir() to it, or access file via the full path. But I can&#8217;t call open() on "/etc/program-a/" as open() for directories only works if the directory has read permissions. If my program allowed one to pass a path to it to tell it where the config files were located, I would need to have two separate code paths, one the fast secure method using openat() and friends, and another calling open() and friends on the full path or chdir() to there and then open() on the file names directly.</p>
+</div>
+<div class="quoteblock">
+<blockquote>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.usenix.org/legacy/event/fast08/tech/full_papers/tsafrir/tsafrir_html/index.html#sect:solution" class="bare">https://www.usenix.org/legacy/event/fast08/tech/full_papers/tsafrir/tsafrir_html/index.html#sect:solution</a>
+____The second suggestion by Tsyrklevich and Yee was “to use fstat after the open instead of invoking access”. As the input of fstat is a file descriptor, the latter is permanently mapped to the underlying inode and hence can never be abused by an attacker; the user is then expected to inspect the ownership information returned by fstat and check if the invoker was indeed allowed to open the file. But this will not work, as file access permissions can not be deduced in such a way; rather, they are the conjunction of all the (inode) permissions associated with each component in the respective path. For example, if a file&#8217;s name is x/y such that x is solely accessible by its owner, then other users are forbidden from reading y even if fstat indicates it is readable by all (which may very well be the case when root invokes the fstat).</p>
+</li>
+</ul>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>Still, we at least have a suggestion&#8230;&#8203;</p>
+</div>
+</div>
+</div>
+</div>

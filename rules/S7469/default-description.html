@@ -1,0 +1,186 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue if PySpark&#8217;s data frames have duplicate column names. Both case-sensitive and case-insensitive duplicates are considered.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In PySpark, a <code>DataFrame</code> with duplicate column names can cause ambiguous and unexpected results with join, transformation, and data retrieval operations, all while making the code more confusing. For example:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Column selection becomes unpredictable: <code>df.select("name")</code> will raise an exception</p>
+</li>
+<li>
+<p>Joins with other DataFrames may produce unexpected results or errors</p>
+</li>
+<li>
+<p>Saving to external data sources may fail</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Case-insensitive duplicates, for example a column named "name" and "Name", are also flagged. This is because having column names that differ only in casing creates confusion when referencing columns and makes code harder to understand and maintain leading to subtle bugs that are difficult to detect and fix.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue, remove or rename the duplicate columns.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.appName("Example").getOrCreate()
+
+data = [(1, "Alice", 28), (2, "Bob", 25)]
+df = spark.createDataFrame(data, ["id", "name", "name"]) # Noncompliant: "name" is duplicated</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.appName("Example").getOrCreate()
+
+data = [(1, "Alice", 28), (2, "Bob", 25)]
+df = spark.createDataFrame(data, ["id", "name", "age"]) # Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PySpark Documentation - <a href="https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.SparkSession.createDataFrame.html">SparkSession.createDataFrame</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_implementation_specification">Implementation Specification</h3>
+<div class="paragraph">
+<p>At a minimum, this rule should raise when <code>SparkSession.createDataFrame(&#8230;&#8203;)</code> is used with an array with duplicate string literals.
+The rule should check both if columns are case-sensitive duplicates (e.g. "name" and "name") and case-insensitive duplicates (e.g. "name" and "Name"), in order to report a different issue message.</p>
+</div>
+<div class="paragraph">
+<p>There are a few cases, where the rule can be expanded.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>SparkSession.createDataFrame(&#8230;&#8203;)</code> is quite complex and there are a lot of ways to create a DataFrame with it</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>SparkSession.createDataFrame(&#8230;&#8203;)</code> with a dictionary (e.g. <code>SparkSession.createDataFrame([{"id": 2, "name": "Alice"}, {"id": 2, "name": "Bob"}])</code>)</p>
+</li>
+<li>
+<p><code>SparkSession.createDataFrame(&#8230;&#8203;)</code> can be given a string definition of the schema (e.g. <code>SparkSession.createDataFrame([('Alice', 1)], "name: string, name: int")</code>)</p>
+</li>
+<li>
+<p><code>SparkSession.createDataFrame(&#8230;&#8203;)</code> can be used with row objects (see below)</p>
+</li>
+<li>
+<p><code>SparkSession.createDataFrame(&#8230;&#8203;)</code> can be used with a schema (see below)</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">Person = Row("name", "name")
+spark.createDataFrame([Person("Alice", 1), Person("Bob", 2)])</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">data = ...
+schema = StructType([
+   StructField("name", StringType(), True),
+   StructField("name", StringType(), True),
+   StructField("age", IntegerType(), True)])
+spark.createDataFrame(data, schema).show()</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Schemas can also be nested</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">nested_schema = StructType([
+      StructField("id", IntegerType(), True),
+      StructField("nested", StructType([
+         StructField("field1", StringType(), True),
+         StructField("field2", StringType(), True)
+      ]), True)
+])</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In addition to that, parts can be passed as variable, instead of literals. This seems to be especially common for schemas.</p>
+</div>
+<div class="paragraph">
+<p>This rule could also apply to pandas <code>DataFrame`s, as well as the `DataFrame`s from Pandas API on Spark. However, this would increase the scope of an already big rule. Depending if the implementation raises on pandas (or pandas on spark) `DataFrame`s or not, the rule description should be updated to reflect this. Below are examples of how to construct a pandas `DataFrame</code> with duplicate column names.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pandas as pd
+# the example below also work with pyspark.pandas
+import pyspark.pandas as ps
+
+pd.DataFrame(data=[1, 2], columns=["name", "name"]) # Noncompliant
+pd.DataFrame.from_dict(data={"row_1": [1, 2], "row_2": [3,4]}, orient="index", columns=["name", "name"]) # Noncompliant
+pd.DataFrame.from_records(data=[(3, 'a'), (2, 'b'), (1, 'c'), (0, 'd')], columns=['col', 'col']) # Noncompliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Documentation for best practices for pandas on spark: <a href="https://spark.apache.org/docs/latest/api/python/user_guide/pandas_on_spark/best_practices.html#do-not-use-duplicated-column-names">Best Practices</a></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>If the a column is case-sensitive duplicate (e.g. exactly the same), the message should be the following:
+<em>Rename or remove the duplicate columns in the data frame.</em></p>
+</div>
+<div class="paragraph">
+<p>If the a column is case-insensitive duplicate (e.g. the casing might differ), the message should be the following:</p>
+</div>
+<div class="paragraph">
+<p><em>Rename or remove the case-insensitive duplicate columns in the data frame.</em></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>The main location is the <code>createDataFrame</code> and the secondary location is the duplicate column names.</p>
+</div>
+</div>
+</div>
+</div>

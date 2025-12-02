@@ -1,0 +1,87 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a regular function throws an exception, stack unwinding occurs.
+This applies to exceptions thrown within the function body or from an inner function call.</p>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;20 introduced coroutines, a stackless method to invoke functions that can be suspended and resumed.
+As coroutines have no stack, exceptions behave differently across a coroutine boundary.</p>
+</div>
+<div class="paragraph">
+<p>The <em>Promise object</em> of any coroutine is required to have an <code>unhandled_exception</code> function.
+If an exception escapes the coroutine function body, the <code>unhandled_exception</code> function is called, and the coroutine reaches the final-suspend point.
+Resuming the coroutine after this point is undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>The <code>unhandled_exception</code> method is used to define such behavior.
+The exception can be obtained with <code>std::current_exception</code> and can be logged, rethrown, or stored:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If rethrown, the exception will be received in any thread that resumes the coroutine.</p>
+</li>
+<li>
+<p>If stored, it can be propagated through the <em>Promise object</em> to the awaiter.</p>
+</li>
+<li>
+<p>If no exceptions were expected from the coroutine, the program can be terminated.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Choosing an approach depends on the coroutine use-case.
+Also, keep in mind the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Rethrowing in <code>unhandled_exception</code> will cause the coroutine to reach the final-suspend point without calling <code>final_suspend</code> first.</p>
+</li>
+<li>
+<p>A <code>noexcept</code> specified coroutine will only terminate the program if an exception is thrown from the <em>Promise type</em>'s construction.
+This happens because the coroutine internal mechanisms wrap the coroutine body in a <code>try-catch</code> block.
+To enforce <code>noexcept</code> on a coroutine, the program should be terminated in the promise_type <code>unhandled_exception</code> function.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Task {
+  struct promise_type {
+    /* ... */
+    void unhandled_exception() {}
+  };
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Task {
+  struct promise_type {
+    void unhandled_exception() {
+      /* ... */
+      except = std::current_exception(); // store exception
+    }
+
+    std::exception_ptr except; // awaiter can check and obtain it via promise()
+  };
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>

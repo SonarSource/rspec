@@ -1,0 +1,198 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>std::optional</code>, <code>boost::optional</code>, or <code>std::expected</code> wrap a basic type, and a conversion from the wrapper type to <code>bool</code> is used to test the presence of a contained value.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>std::optional</code>, <code>boost::optional</code>, and <code>std::expected</code> are types that allow to represent a contained value of a certain type, and additional data that denote the absence of a value (<code>nullopt</code> for <code>optional</code>, and error values for <code>expected</code>). To check if the wrapper contains a value, it is possible to call its member function <code>has_value()</code>. Alternatively, it can also be converted to <code>bool</code>, which is more concise, especially when used in a place that allows <em>contextual conversion to bool</em> (for instance, the condition of an <code>if</code>). It means that the following syntax is valid:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::optional&lt;bool&gt; flag;
+if(flag) { ... }
+// Equivalent to
+if(flag.has_value()) { ... }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When the contained type is also convertible to <code>bool</code>, using this concise syntax can be confusing. What is tested: The wrapper, or the contained value?</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when <code>std::optional</code>, <code>boost::optional</code>, or <code>std::expected</code> wrap a basic type, and the conversion to <code>bool</code> is used to test the presence of the value.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>There are two possibilities, depending on the initial intent of the autor of the code:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If the intent was actually to test the presence of the value, the code is correct, but it is not clear. When reading it, people might think that the contained value is tested, and not the presence of the value.</p>
+</li>
+<li>
+<p>If the intent was to test the contained value, the code is incorrect. This situation can especially happen when evolving code that worked directly with values to work with optional or expected values, and forgetting to update the test. This will lead to code that does not behave in the intended way, but still works in a plausible way, and the lack of clear clue on what is tested makes finding the issue difficult.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>If, in a single expression, the presence of the value is tested and the value is accessed, the risk of confusion is reduced, and no violation is raised.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::optional&lt;bool&gt; flag;
+if(flag &amp;&amp; *flag) { ... } // Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The most direct way to fix this issue is to replace the concise syntax with a more verbose call to <code>has_value()</code>. However, both syntaxes leads to a code that is full of <code>if</code>/<code>else</code> and becomes difficult to read, especially if the program works with many <code>optional</code> or <code>expected</code> values.</p>
+</div>
+<div class="paragraph">
+<p>In many circumstances, it is possible to write code in a more direct way, using member functions such as <code>value_or()</code> or, starting with C&#43;&#43;23, the monadic interface of <code>optional</code> and <code>expected</code> (<code>and_then()</code>, <code>transform()</code> and <code>or_else()</code>), which are especially convenient when chaining operations on those types.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void perform(Node node, optional&lt;bool&gt; recursive, Action action) {
+  action(node);
+  bool recurse;
+  if (recursive) {
+    recurse = *recursive;
+  } else {
+    recurse = getDefaultRecurseMode();
+  }
+  if (recurse) {
+     // perform recursion...
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>The most direct solution is to replace the concise syntax by the more explicit one.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void perform(Node node, optional&lt;bool&gt; recursive, Action action) {
+  action(node);
+  bool recurse;
+  if (recursive.has_value()) {
+    recurse = recursive.value();
+  } else {
+    recurse = getDefaultRecurseMode();
+  }
+  if (recurse) {
+     // perform recursion...
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Since the rule will not trigger if the value is accessed in the same expression where its presence is tested, another possibility if the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void perform(Node node, optional&lt;bool&gt; recursive, Action action) {
+  action(node);
+  bool recurse = recursive ? *recursive : getDefaultRecurseMode();
+  if (recurse) {
+     // perform recursion...
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this simple case, the use of both <code>recursive</code> and <code>*recursive</code> hints that recursive is more than a simple <code>bool</code>. However, it is possible to write the code with a higher level semantic (see <a data-rspec-id="S6023" class="rspec-auto-link">S6023</a>):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void perform(Node node, optional&lt;bool&gt; recursive, Action action) {
+  action(node);
+  bool recurse = recursive.value_or(getDefaultRecurseMode());
+  if (recurse) {
+     // perform recursion...
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The downside of this version is that <code>getDefaultRecurseMode()</code> is called even if <code>recursive</code> contains a value. If <code>getDefaultRecurseMode()</code> is a complex function, it can be a performance issue. In this case, it is possible to use the monadic interface of <code>optional</code>, at the cost of a more complex syntax:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void perform(optional&lt;bool&gt; recursive) {
+  bool recurse = recursive.or_else([]() { return optional {getDefaultRecurseMode()};}).value();
+  if (recurse) {
+     // perform recursion...
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This syntax is more complex, but it is also more flexible, especially when chaining operations on <code>optional</code> or <code>expected</code> values.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6023" class="rspec-auto-link">S6023</a> - "std::optional" member function "value_or" should be used</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/optional"><code>std::optional</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/expected"><code>std::expected</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/optional"><code>std::optional</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Developper Blog - * <a href="https://devblogs.microsoft.com/oldnewthing/20211004-00/?p=105754">Some lesser-known powers of std::optional</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
