@@ -1,0 +1,59 @@
+This rule raises an issue when test functions call `t.Fatal`, `t.FailNow`, `t.Fatalf`, `t.Skip`, `t.Skipf`, or `t.SkipNow` from goroutines other than the main test goroutine.
+
+== Why is this an issue?
+
+In Go testing, functions like `t.Fatal` and `t.FailNow` call `runtime.Goexit()` to immediately terminate the current goroutine and mark the test as failed. However, when these functions are called from a goroutine other than the main test goroutine, they only terminate that specific goroutine, not the entire test.
+
+This creates several problems:
+
+* The test may continue running even after a failure is detected, leading to unpredictable behavior
+* Other goroutines may continue executing, potentially causing resource leaks or interfering with subsequent tests
+* The test may hang indefinitely if the main goroutine is waiting for the failed goroutine to complete
+* Error reporting becomes unclear since the test doesn't immediately fail when the issue is detected
+
+The Go testing package is designed with the assumption that test control functions are called from the main test goroutine. When this assumption is violated, the testing framework cannot properly manage the test lifecycle.
+
+=== What is the potential impact?
+
+Calling `t.Fatal` from separate goroutines can cause tests to hang indefinitely, produce unreliable results, or mask real failures. This leads to flaky tests that are difficult to debug and can block continuous integration pipelines. In severe cases, hanging tests may consume system resources and require manual intervention to terminate.
+
+== How to fix it
+
+Replace `t.Fatal` and similar functions with `t.Error` when called from goroutines. Use `t.Error` to report the failure and then return from the goroutine to stop its execution.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func TestExample(t *testing.T) {
+    go func() {
+        if err := doSomething(); err != nil {
+            t.Fatalf("Error: %v", err) // Noncompliant
+        }
+    }()
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func TestExample(t *testing.T) {
+    go func() {
+        if err := doSomething(); err != nil {
+            t.Errorf("Error: %v", err)
+            return
+        }
+    }()
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Testing Package Documentation - https://pkg.go.dev/testing[Official documentation for Go's testing package, including guidance on proper usage of testing functions]
+
+ * Google Go Style Guide - Don't call t.Fatal from separate goroutines - https://google.github.io/styleguide/go/best-practices.html#dont-call-tfatal-from-separate-goroutines[Google's Go style guide section specifically addressing this anti-pattern]
