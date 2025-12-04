@@ -1,0 +1,75 @@
+This rule raises an issue when DML operations (insert, update, delete, upsert) are performed directly within catch blocks.
+
+== Why is this an issue?
+
+Performing DML operations directly in catch blocks creates a dangerous situation where the original exception can be completely masked.
+
+When your code encounters an exception, the catch block is meant to handle that error gracefully. However, if you perform a DML operation (like inserting an exception log record) within the catch block, that DML operation can itself fail for various reasons:
+
+* Missing required fields
+* Validation rule failures  
+* Governor limit violations
+* Field-level security restrictions
+
+When the DML operation fails, it throws a new ``++DmlException++`` that replaces the original exception. This means you lose all information about what actually went wrong in your business logic. Instead of seeing "Account validation failed: Industry is required", you might only see "Exception logging failed: Missing required field Exception_Type__c".
+
+This makes debugging extremely difficult and can hide critical issues in your application. The original problem remains unfixed while you chase secondary logging failures.
+
+=== What is the potential impact?
+
+The primary risk is loss of critical debugging information. When the original exception is masked, developers cannot identify and fix the root cause of failures.
+
+This can lead to:
+
+* Prolonged system issues that remain unresolved
+* Increased debugging time and development costs  
+* Poor user experience due to unaddressed underlying problems
+* Potential data integrity issues if business logic failures go unnoticed
+
+== How to fix it
+
+Replace direct DML operations in catch blocks with Platform Events. Platform Events are published asynchronously and won't fail the current transaction, ensuring your exception logging doesn't mask the original error.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+try {
+    Account acc = new Account(Name = 'Test');
+    insert acc;
+} catch(Exception e) {
+    Exception__c exc = new Exception__c();
+    exc.Exception_Details__c = e.getMessage();
+    insert exc; // Noncompliant - can fail and mask original exception
+    throw e;
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+try {
+    Account acc = new Account(Name = 'Test');
+    insert acc;
+} catch(Exception e) {
+    Exception_Log__e logEvent = new Exception_Log__e();
+    logEvent.Exception_Details__c = e.getMessage();
+    EventBus.publish(logEvent); // Asynchronous, won't fail transaction
+    throw e;
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Platform Events Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.platform_events.meta/platform_events/[Official Salesforce documentation on Platform Events]
+
+ * Exception Handling Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_definition.htm[Salesforce documentation on exception handling in Apex]
+
+=== Standards
+
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Relates to improper handling of exceptional conditions that can mask underlying issues]
