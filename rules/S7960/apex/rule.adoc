@@ -1,0 +1,55 @@
+This rule raises an issue when a SOQL query is directly assigned to a single sObject variable instead of a ``++List++``.
+
+== Why is this an issue?
+
+When you assign a SOQL query directly to a single sObject variable, Salesforce expects exactly one record to be returned. If the query returns no records, the system throws a ``++QueryException++`` with the message "List has no rows for assignment to SObject".
+
+This exception occurs because SOQL queries always return a List internally, even when you assign the result to a single sObject variable. When the List is empty, Salesforce cannot extract a single record to assign to your variable.
+
+This pattern is particularly risky when:
+
+* Your query includes WHERE clauses that might not match any records
+* You use LIMIT clauses that could result in zero records
+* You query based on user input or dynamic conditions
+
+The exception will cause your code to fail at runtime, potentially breaking user workflows or automated processes.
+
+=== What is the potential impact?
+
+Runtime failures can occur when queries return no results, causing ``++QueryException++`` to be thrown. This can break user workflows, interrupt automated processes, and create poor user experiences. In batch processing or trigger contexts, these exceptions can cause entire transactions to fail.
+
+== How to fix it
+
+Use a List to capture query results and check if the List is empty before accessing elements. This prevents the QueryException and allows you to handle the no-results case gracefully.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+Account a = [SELECT Name FROM Account WHERE Name = 'XYZ' LIMIT 1]; // Noncompliant
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+List<Account> accounts = [SELECT Name FROM Account WHERE Name = 'XYZ' LIMIT 1];
+if (!accounts.isEmpty()) {
+    Account a = accounts[0];
+    // Process the account
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce SOQL and SOSL Reference - https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/[Official Salesforce documentation for SOQL queries and best practices]
+
+ * Apex Exception Handling - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_definition.htm[Salesforce documentation on exception handling in Apex]
+
+=== Standards
+
+ * CWE-248: Uncaught Exception - https://cwe.mitre.org/data/definitions/248.html[Relates to code that can throw exceptions that are not properly handled]

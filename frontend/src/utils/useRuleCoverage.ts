@@ -44,6 +44,7 @@ const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'json': ['JSON'],
   'yaml': ['YAML'],
   'shell': ['SHELL'],
+  'groovy': ['GROOVY'],
 }));
 
 export function useRuleCoverage() {

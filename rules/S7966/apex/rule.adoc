@@ -1,0 +1,87 @@
+This rule raises an issue when Apex REST service methods (annotated with `@HttpGet`, `@HttpPost`, `@HttpPut`, `@HttpDelete`, or `@HttpPatch`) do not implement proper exception handling with try-catch blocks and explicit HTTP response management.
+
+== Why is this an issue?
+
+Apex REST services without proper exception handling create several serious problems for your application and its users.
+
+When exceptions occur in REST methods without try-catch blocks, Salesforce automatically generates error responses that may expose sensitive system information. These default error messages can reveal internal implementation details, database schema information, or system configuration that attackers could exploit.
+
+Unhandled exceptions also result in generic HTTP 500 errors with unhelpful messages, making it difficult for API consumers to understand what went wrong or how to fix their requests. This leads to poor developer experience and increased support burden.
+
+Additionally, without explicit response handling, your API cannot provide consistent, well-structured responses. Modern REST APIs should return appropriate HTTP status codes (200 for success, 400 for client errors, 500 for server errors) and structured JSON responses that help clients handle both success and error scenarios gracefully.
+
+Proper exception handling also enables better logging and monitoring, allowing you to track API usage patterns and identify issues before they impact users.
+
+=== What is the potential impact?
+
+Unhandled exceptions in REST services can lead to information disclosure vulnerabilities where sensitive system details are exposed to external callers. This creates security risks and may violate data protection requirements.
+
+Poor error handling also degrades API reliability and user experience, potentially causing integration failures and increased support costs.
+
+== How to fix it
+
+Wrap your REST method logic in try-catch blocks, set appropriate HTTP status codes, and return structured JSON responses. Use RestContext.response to control the HTTP response explicitly.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@RestResource(urlMapping='/api/account/*')
+global class AccountRestService {
+    @HttpGet
+    global static Account getAccount() {
+        String accountId = RestContext.request.requestURI.substring(
+            RestContext.request.requestURI.lastIndexOf('/') + 1
+        );
+        return [SELECT Id, Name FROM Account WHERE Id = :accountId]; // Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@RestResource(urlMapping='/api/account/*')
+global class AccountRestService {
+    @HttpGet
+    global static void getAccount() {
+        try {
+            String accountId = RestContext.request.requestURI.substring(
+                RestContext.request.requestURI.lastIndexOf('/') + 1
+            );
+            Account acc = [SELECT Id, Name FROM Account WHERE Id = :accountId];
+            RestContext.response.statusCode = 200;
+            RestContext.response.responseBody = Blob.valueOf(JSON.serialize(acc));
+        } catch (Exception e) {
+            RestContext.response.statusCode = 500;
+            RestContext.response.responseBody = Blob.valueOf(JSON.serialize(new ErrorResponse('Internal server error')));
+        }
+    }
+
+    public class ErrorResponse {
+        public String error;
+        public ErrorResponse(String error) { this.error = error; }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex REST Services - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_rest.htm[Official Salesforce documentation on creating REST services with Apex]
+
+ * RestContext Class - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_restcontext.htm[Documentation for the RestContext class used to manage HTTP requests and responses]
+
+ * HTTP Status Codes - https://developer.mozilla.org/en-US/docs/Web/HTTP/Status[Reference guide for HTTP status codes and their appropriate usage]
+
+=== Standards
+
+ * CWE-209: Information Exposure Through Error Messages - https://cwe.mitre.org/data/definitions/209.html[Weakness related to exposing sensitive information through error messages]
+
+=== Related rules
+
+ * RSPEC-6863 - Java rule for proper exception handling in REST services
