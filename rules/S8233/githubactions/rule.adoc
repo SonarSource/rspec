@@ -1,0 +1,117 @@
+== Why is this an issue?
+
+Granting sensitive write permissions at the workflow level applies those permissions to all jobs in the workflow by default. This violates the principle of least privilege, as jobs that don't require sensitive permissions will still inherit them unnecessarily.
+
+=== What is the potential impact?
+
+When sensitive permissions are granted at the workflow level, all jobs inherit these permissions regardless of whether they need them. This creates several security risks:
+
+==== Repository manipulation
+
+If a job that only requires read access is compromised but has inherited `contents: write` permissions from the workflow level, an attacker could modify repository contents, create unauthorized releases, or manipulate the repository history.
+
+==== Package manipulation
+
+Jobs with unnecessary `packages: write` permissions could be exploited to publish malicious packages or tamper with existing packages, potentially compromising downstream consumers of your packages.
+
+==== Unauthorized attestations and security events
+
+Jobs that inherit `attestations: write` or `security-events: write` permissions could create fraudulent security attestations or manipulate security event logs, undermining security monitoring and compliance efforts.
+
+== How to fix it
+
+Move sensitive permissions from the workflow level to individual job levels. Only grant permissions at the job level to jobs that actually require them. This ensures that each job receives only the minimum permissions necessary for its function.
+
+=== Code examples
+
+==== Noncompliant code example
+
+The following workflow grants `contents: write` permission at the workflow level, which applies to all jobs:
+
+[source,yaml,diff-id=1,diff-type=noncompliant]
+----
+name: Example
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write # Noncompliant
+
+jobs:
+  commit-change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create file via GitHub API
+        run: |
+          # Uses contents: write permission
+
+  checkout-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # Does not need contents: write permission
+        with:
+          ref: main
+----
+
+==== Compliant solution
+
+Grant permissions only at the job level to jobs that require them:
+
+[source,yaml,diff-id=1,diff-type=compliant]
+----
+name: Example
+
+on:
+  workflow_dispatch:
+
+jobs:
+  commit-change:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create file via GitHub API
+        run: |
+          # Uses contents: write permission
+
+  checkout-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # Does not need contents: write permission
+        with:
+          ref: main
+----
+
+=== How does this work?
+
+The key difference lies in how GitHub Actions applies permissions at different levels:
+
+* **Workflow-level permissions**: When permissions are declared at the workflow level, they become the default permissions for all jobs in that workflow. Each job automatically inherits these permissions unless explicitly overridden at the job level.
+
+* **Job-level permissions**: When permissions are declared at the job level, they apply only to that specific job. If no permissions are declared at the workflow level, jobs without explicit permissions default to read-only access. If permissions are declared at both levels, the job-level permissions override the workflow-level permissions for that specific job.
+
+By placing permissions at the job level, you ensure that each job receives only the permissions it explicitly declares, preventing unnecessary permission inheritance and reducing the attack surface of your workflows.
+
+//=== Pitfalls
+
+//=== Going the extra mile
+
+
+== Resources
+=== Documentation
+* GitHub Docs - https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions[Permissions]
+
+//=== Articles & blog posts
+//=== Conference presentations
+=== Standards
+* OWASP - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Top 10 2021 Category A1 - Broken Access Control]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control[Top 10 2017 Category A5 - Broken Access Control]
+* CWE - https://cwe.mitre.org/data/definitions/266[CWE-266 - Incorrect Privilege Assignment]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222430[Application Security and Development: V-222430] - The application must execute without excessive account permissions
+//=== External coding guidelines
+//=== Benchmarks
+
+=== Related rules
+
+* S8264 - Read permissions should be defined at the job level

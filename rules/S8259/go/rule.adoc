@@ -1,0 +1,82 @@
+This rule raises an issue when a loop busy-waits for a variable to change without using proper synchronization mechanisms.
+
+== Why is this an issue?
+
+Busy waiting for a variable to change without proper synchronization can cause serious problems in concurrent Go programs.
+
+When a goroutine uses a simple loop like `for !done {}` to wait for another goroutine to change a variable, there are no guarantees about memory visibility. The Go Memory Model specifies that without synchronization events, there's no "happens-before" relationship between goroutines.
+
+This means:
+
+* The waiting goroutine may never observe the write to the variable, causing an infinite loop
+* Even if the variable change is observed, other related variable changes may not be visible
+* The program behavior becomes unpredictable and may vary between different runs or compiler optimizations
+
+The root cause is the absence of synchronization primitives. Simple variable reads and writes are not atomic operations that establish memory ordering between goroutines. Without explicit synchronization, the CPU and compiler are free to reorder operations in ways that break the intended logic.
+
+=== What is the potential impact?
+
+The program may hang indefinitely due to infinite loops, or exhibit unpredictable behavior due to data races. In production environments, this can lead to application freezes, resource exhaustion, and unreliable system behavior.
+
+== How to fix it
+
+Replace busy waiting with channel communication to establish proper synchronization between goroutines.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+var a string
+var done bool
+
+func setup() {
+	a = "hello, world"
+	done = true
+}
+
+func main() {
+	go setup()
+	for !done { // Noncompliant
+	}
+	print(a)
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+var a string
+var ch = make(chan bool)
+
+func setup() {
+	a = "hello, world"
+	ch <- true
+}
+
+func main() {
+	go setup()
+	<-ch
+	print(a)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Memory Model - https://go.dev/ref/mem[Official Go memory model specification explaining synchronization requirements]
+
+ * Effective Go - Concurrency - https://go.dev/doc/effective_go#concurrency[Best practices for concurrent programming in Go]
+
+ * sync package - https://pkg.go.dev/sync[Go's synchronization primitives including WaitGroup, Mutex, and Once]
+
+ * sync/atomic package - https://pkg.go.dev/sync/atomic[Atomic memory operations for low-level synchronization]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race conditions caused by improper synchronization of shared resources]
+
+ * CWE-835: Loop with Unreachable Exit Condition - https://cwe.mitre.org/data/definitions/835.html[Infinite loops that may never terminate due to unreachable exit conditions]

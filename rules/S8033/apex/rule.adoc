@@ -1,0 +1,68 @@
+This rule raises an issue when an `HttpRequest` is sent without explicitly setting a timeout value using the ``++setTimeout()++`` method.
+
+== Why is this an issue?
+
+HTTP callouts in Apex can take a long time to complete, especially when external services are slow or unresponsive. Without an explicit timeout, Salesforce uses a default timeout of 120 seconds, which is often too long for most integration scenarios.
+
+Long-running HTTP requests consume valuable execution time and can easily cause your code to hit Salesforce's governor limits. In a single transaction, you have a maximum of 120 seconds of total execution time. If you make multiple callouts or have other processing logic, a single slow HTTP request can consume most or all of this time budget.
+
+Additionally, users waiting for a response will experience poor performance when requests take too long to complete. This creates a frustrating user experience and can make your application appear unresponsive.
+
+By setting an appropriate timeout value, you ensure that HTTP requests fail fast when external services are unresponsive, allowing your code to handle errors gracefully and maintain good performance characteristics.
+
+=== What is the potential impact?
+
+Without explicit timeouts, HTTP callouts can consume excessive execution time, leading to governor limit violations and transaction failures. Users may experience long wait times or timeouts, degrading the overall user experience. In batch processing scenarios, a single slow request can cause entire batches to fail.
+
+== How to fix it
+
+Add an explicit timeout using the ``++setTimeout()++`` method before sending the HTTP request. Choose a timeout value appropriate for your use case - typically 10-30 seconds for most integrations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class ExternalServiceCallout {
+    public static String callExternalService() {
+        Http http = new Http();
+        HttpRequest request = new HttpRequest();
+        request.setEndpoint('https://api.external.com/data');
+        request.setMethod('GET');
+        HttpResponse response = http.send(request); // Noncompliant
+        return response.getBody();
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class ExternalServiceCallout {
+    public static String callExternalService() {
+        Http http = new Http();
+        HttpRequest request = new HttpRequest();
+        request.setEndpoint('https://api.external.com/data');
+        request.setMethod('GET');
+        request.setTimeout(10000); // 10 seconds - appropriate for most APIs
+        HttpResponse response = http.send(request);
+        return response.getBody();
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * HttpRequest Class - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_classes_restful_http_httprequest.htm[Official Salesforce documentation for the HttpRequest class and setTimeout method]
+
+ * Apex Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Documentation on Salesforce execution limits and best practices]
+
+ * HTTP Callouts Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_callouts_http.htm[Best practices for making HTTP callouts in Apex]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[Relates to resource consumption issues when timeouts are not properly configured]

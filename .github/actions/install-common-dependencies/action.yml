@@ -1,0 +1,30 @@
+name: 'Install common dependencies'
+description: 'Install common dependencies for the project'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Vault
+      id: artifactory-secrets
+      uses: SonarSource/vault-action-wrapper@320bd31b03e5dacaac6be51bbbb15adf7caccc32 # v3.1.0
+      with:
+        secrets: |
+          development/artifactory/token/{REPO_OWNER_NAME_DASH}-private-reader access_token | ARTIFACTORY_ACCESS_TOKEN;
+    - name: Configure npm
+      shell: bash
+      env:
+        ARTIFACTORY_URL: https://repox.jfrog.io
+        ARTIFACTORY_ACCESS_TOKEN: ${{ fromJSON(steps.artifactory-secrets.outputs.vault).ARTIFACTORY_ACCESS_TOKEN }}
+      run: |
+        npm config set registry "$ARTIFACTORY_URL/api/npm/npm"
+        npm config set "${ARTIFACTORY_URL//https:}/api/npm/:_authToken=$ARTIFACTORY_ACCESS_TOKEN"
+    - uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v3.4.0
+      env:
+        MISE_PYTHON_DEFAULT_PACKAGES_FILE: ${{ github.workspace }}/ci/mise-default-python-packages
+      with:
+        version: 2025.11.3
+    - name: Setup asciidoctor
+      shell: bash
+      run: |
+        sudo gem install asciidoctor -v 2.0.26
+        asciidoctor --version
