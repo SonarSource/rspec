@@ -1,0 +1,85 @@
+This rule raises an issue when it detects the double-checked locking pattern: checking a field for null outside a synchronized block, then checking it again inside the synchronized block before initialization.
+
+== Why is this an issue?
+
+Double-checked locking is a flawed concurrency pattern that appears to optimize lazy initialization but actually creates serious thread safety issues.
+
+The pattern works by first checking if an object is null outside of a synchronized block. If it is null, the code enters a synchronized block and checks again before creating the object. This seems efficient because it avoids synchronization after the object is created.
+
+However, this pattern has fundamental problems:
+
+* *Memory visibility issues*: Due to how modern processors and compilers optimize code, other threads might see a partially constructed object. The assignment to the field might happen before the object is fully initialized.
+* *Instruction reordering*: Compilers and processors can reorder instructions for performance, which can break the expected sequence of operations.
+* *Cache coherency problems*: Different CPU cores might have inconsistent views of memory, leading to race conditions.
+
+These issues mean that even though the code appears to work correctly, it can fail unpredictably under certain conditions, especially under heavy load or on different hardware architectures.
+
+=== What is the potential impact?
+
+Using double-checked locking can lead to:
+
+* *Race conditions*: Multiple threads might create multiple instances of what should be a singleton
+* *Partially initialized objects*: Threads might access objects that are not fully constructed, leading to null pointer exceptions or incorrect behavior
+* *Unpredictable failures*: The code might work in testing but fail in production under different load conditions or hardware
+* *Hard-to-debug issues*: Problems may only appear intermittently and be difficult to reproduce
+
+== How to fix it
+
+Use the initialization-on-demand holder idiom, which leverages the JVM's class loading mechanism to ensure thread-safe lazy initialization without synchronization overhead.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+class Singleton {
+    private static Singleton instance
+    
+    static Singleton getInstance() {
+        if (instance == null) { // Noncompliant
+            synchronized(Singleton) {
+                if (instance == null) {
+                    instance = new Singleton()
+                }
+            }
+        }
+        return instance
+    }
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+class Singleton {
+    private static class InstanceHolder {
+        static final Singleton INSTANCE = new Singleton()
+    }
+    
+    static Singleton getInstance() {
+        return InstanceHolder.INSTANCE
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Wikipedia - Double-checked locking - https://en.wikipedia.org/wiki/Double-checked_locking[Comprehensive explanation of the double-checked locking pattern and why it's problematic]
+
+ * Oracle Java Documentation - Memory Model - https://docs.oracle.com/javase/specs/jls/se8/html/jls-17.html[Java Language Specification on memory model and thread safety]
+
+ * Effective Java - Initialization-on-demand holder idiom - https://www.informit.com/articles/article.aspx?p=1216151&seqNum=7[Explanation of the safe initialization-on-demand holder pattern]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race condition vulnerability category]
+
+=== Related rules
+
+ * RSPEC-2168 - https://rules.sonarsource.com/java/RSPEC-2168/[Java version of the same rule]
+
+ * RSPEC-3064 - https://rules.sonarsource.com/java/RSPEC-3064/[Related rule about thread safety in lazy initialization]
