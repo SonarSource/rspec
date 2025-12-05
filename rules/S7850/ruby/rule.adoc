@@ -1,0 +1,114 @@
+This rule raises an issue when code downloads remote files to the server only to immediately serve them to users.
+
+== Why is this an issue?
+
+Downloading remote files to your server before serving them to users creates unnecessary overhead and performance problems.
+
+When you use methods like `open()` or `Net::HTTP.get()` to fetch a remote file and then immediately serve it with `send_data`, your server becomes a middleman in the file transfer. This approach has several drawbacks:
+
+* *Resource consumption*: Your server uses memory and CPU to download and temporarily store files that could be served directly
+* *Increased latency*: Users wait for two network transfers instead of one - first from remote storage to your server, then from your server to the user
+* *Process blocking*: Your application processes are tied up handling file transfers instead of serving other requests
+* *Bandwidth costs*: You pay for both inbound and outbound data transfer
+
+This pattern is particularly problematic with large files or high traffic, as it can quickly exhaust server resources and degrade application performance.
+
+Cloud storage services like AWS S3, Google Cloud Storage, and Azure Blob Storage provide signed URLs specifically to avoid this problem. These URLs allow users to download files directly from the storage service while maintaining access control.
+
+=== What is the potential impact?
+
+This inefficient pattern can lead to server resource exhaustion, increased response times, and higher infrastructure costs. In high-traffic scenarios, it may cause application timeouts or crashes due to memory or process limits being exceeded.
+
+== How to fix it
+
+When using Net::HTTP or similar libraries, avoid downloading remote files just to serve them. Use streaming or redirect approaches instead.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def serve_remote_file
+  uri = URI(params[:file_url])
+  response = Net::HTTP.get_response(uri) # Noncompliant
+  send_data response.body, type: response.content_type
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def serve_remote_file
+  # Generate a signed URL or use a streaming proxy
+  signed_url = generate_signed_url(params[:file_id])
+  redirect_to signed_url
+end
+----
+
+== How to fix it in Rails
+
+Use redirect to signed URLs instead of downloading and serving files. Most cloud storage services provide methods to generate time-limited signed URLs that allow direct access while maintaining security.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def download
+  @attachment = Attachment.find(params[:id])
+  data = open(@attachment.file.url) # Noncompliant
+  send_data data.read, filename: "file.pdf", type: "application/pdf"
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def download
+  @attachment = Attachment.find(params[:id])
+  redirect_to @attachment.file.expiring_url(10.minutes)
+end
+----
+
+Avoid using send_file with remote URLs as it will fail. Instead, generate signed URLs and redirect users directly to the storage service.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+def show
+  @attachment = Attachment.find(params[:id])
+  send_file(@attachment.file.url, disposition: 'attachment') # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+def show
+  @attachment = Attachment.find(params[:id])
+  @download_url = @attachment.file.expiring_url(10.minutes)
+  # Use @download_url in your view template
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * AWS S3 Presigned URLs - https://docs.aws.amazon.com/AmazonS3/latest/userguide/presigned-urls.html[Official AWS documentation on generating presigned URLs for direct file access]
+
+ * Rails send_file Documentation - https://api.rubyonrails.org/classes/ActionController/DataStreaming.html#method-i-send_file[Rails documentation explaining send_file limitations with remote URLs]
+
+ * Carrierwave Direct Upload - https://github.com/carrierwaveuploader/carrierwave#direct-upload[Guide on implementing direct uploads to avoid server-side file handling]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[Relates to inefficient resource usage that can lead to denial of service]
