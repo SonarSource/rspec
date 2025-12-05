@@ -1,0 +1,99 @@
+This is an issue when calling model instance methods or accessing attributes directly on ActiveRecord::Relation objects returned by query methods like `where`, `select`, `joins`, or `includes`.
+
+== Why is this an issue?
+
+ActiveRecord query methods like `where`, `select`, `joins`, and `includes` return `ActiveRecord::Relation` objects, not individual model instances or scalar values. These relation objects represent a database query that hasn't been executed yet.
+
+When you try to call model instance methods (like `name`, `email`, or custom methods) directly on a relation object, Ruby raises a `NoMethodError` because these methods don't exist on the relation class. The relation object is designed to build and execute queries, not to provide access to model data.
+
+This is a common source of confusion because:
+
+* Query methods look like they should return the data you want
+* The variable names often suggest a single instance (like `user = User.where(id: 1)`)
+* Some ActiveRecord methods do return instances directly (like `find` or `create`)
+
+The error typically manifests as: `NoMethodError: undefined method 'attribute_name' for #<ActiveRecord::Relation:0x...>`
+
+=== What is the potential impact?
+
+This issue causes runtime exceptions that crash the application when the problematic code is executed. The `NoMethodError` will halt request processing and potentially expose internal application structure through error messages. In production environments, this leads to poor user experience and may require immediate fixes to restore functionality.
+
+== How to fix it in Ruby on Rails
+
+Use query termination methods like `first`, `last`, or `find_by` to get a single model instance, then access its attributes.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Calling instance method on relation
+user = User.where(id: current_user.id)
+print user.name  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Get the actual instance first
+user = User.where(id: current_user.id).first
+if user
+  print user.name  # Works on model instance
+end
+----
+
+Use `find` or `find_by` instead of `where().limit(1)` when you need a single model instance.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# limit(1) still returns a relation
+person = Person.where(id: 34).limit(1)
+puts person.last_name  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Use find_by to get an actual instance
+person = Person.find_by(id: 34)
+puts person.last_name if person
+----
+
+Use `pluck` to extract scalar values directly from the database instead of returning relations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Returns relation instead of email string
+def self.get_user_email(user_id)
+  User.where(id: user_id).select(:email)  # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Extract the actual email value
+def self.get_user_email(user_id)
+  User.where(id: user_id).pluck(:email).first
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Query Interface Guide - https://guides.rubyonrails.org/active_record_querying.html[Official Rails guide covering ActiveRecord query methods and how to properly terminate queries]
+
+ * ActiveRecord::Relation API Documentation - https://api.rubyonrails.org/classes/ActiveRecord/Relation.html[Complete API reference for ActiveRecord::Relation class and its methods]
