@@ -1,0 +1,74 @@
+This is an issue when a batch class implements `Database.Batchable` but not `Database.Stateful`, and uses instance variables that are modified during the `execute()` method.
+
+== Why is this an issue?
+
+In Salesforce, batch classes that implement only `Database.Batchable` do not maintain state between different calls to the `execute()` method. The platform creates new instances of the batch class for each chunk of records processed, which means any instance variables will be reset to their initial values.
+
+When you modify instance variables in the `execute()` method (such as counters, accumulators, or flags), these changes are lost between batches. This can lead to incorrect calculations, incomplete processing tracking, or unexpected behavior in the `finish()` method.
+
+The `Database.Stateful` interface tells Salesforce to maintain the same instance of the batch class throughout the entire job execution. This ensures that instance variables retain their values across all `execute()` method calls, allowing you to properly track state throughout the batch process.
+
+=== What is the potential impact?
+
+Without implementing `Database.Stateful`, instance variables will not maintain their values between `execute()` method calls. This can result in:
+
+* Incorrect counting or accumulation of processed records
+* Loss of important state information needed for business logic
+* Unexpected behavior in the `finish()` method when accessing instance variables
+* Silent failures where the batch appears to run successfully but produces incorrect results
+
+== How to fix it
+
+Add the `Database.Stateful` interface to your batch class declaration. This tells Salesforce to maintain the same instance throughout the batch execution, preserving instance variable values.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class MyBatchClass implements Database.Batchable<SObject> {
+    private Integer counter = 0; // Noncompliant
+    
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id FROM Account');
+    }
+    
+    public void execute(Database.BatchableContext bc, List<SObject> scope) {
+        counter += scope.size();
+    }
+    
+    public void finish(Database.BatchableContext bc) {
+        System.debug('Total processed: ' + counter);
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class MyBatchClass implements Database.Batchable<SObject>, Database.Stateful {
+    private Integer counter = 0;
+    
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id FROM Account');
+    }
+    
+    public void execute(Database.BatchableContext bc, List<SObject> scope) {
+        counter += scope.size();
+    }
+    
+    public void finish(Database.BatchableContext bc) {
+        System.debug('Total processed: ' + counter);
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Database.Stateful Interface - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_interface_database_stateful.htm[Official Salesforce documentation for the Database.Stateful interface]
+
+ * Batch Apex Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch_interface.htm[Comprehensive guide to implementing batch classes in Salesforce]
