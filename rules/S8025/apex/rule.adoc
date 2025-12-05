@@ -1,0 +1,67 @@
+This rule raises an issue when `Database.setSavepoint()` is used but the corresponding exception handlers do not call `Database.rollback()` with the savepoint.
+
+== Why is this an issue?
+
+Database savepoints in Apex are designed to provide transaction control by allowing you to roll back to a specific point when errors occur. When you create a savepoint using `Database.setSavepoint()`, you're essentially marking a point in your transaction that you can return to if something goes wrong.
+
+However, savepoints only provide value if you actually use them. If your exception handlers don't call `Database.rollback()` with the savepoint, several problems can occur:
+
+* *Partial transaction commits*: Some operations before the exception may succeed while others fail, leaving your data in an inconsistent state
+* *Resource waste*: The savepoint consumes system resources but provides no benefit
+* *Misleading code*: Other developers may assume proper rollback handling exists when it doesn't
+* *Data integrity issues*: Related records may be created or modified without proper cleanup when errors occur
+
+The whole purpose of using savepoints is to maintain transaction integrity by rolling back to a known good state when exceptions happen. Without the rollback call, you lose this protection and may end up with corrupted or inconsistent data.
+
+=== What is the potential impact?
+
+This can lead to data integrity issues where some database operations succeed while others fail, leaving the system in an inconsistent state. Users may experience unexpected behavior, and debugging becomes more difficult when partial transactions create orphaned or incomplete records.
+
+== How to fix it
+
+Add `Database.rollback()` calls in your exception handlers to roll back to the savepoint when errors occur. This ensures transaction integrity by undoing all operations performed after the savepoint was created.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+Savepoint savep = Database.setSavepoint();
+try {
+    // database operations that might fail
+    insert newRecords;
+    update existingRecords;
+} catch(Exception e) {
+    // Exception logged but no rollback - partial commit possible // Noncompliant
+    System.debug('Error: ' + e.getMessage());
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+Savepoint savep = Database.setSavepoint();
+try {
+    // database operations that might fail
+    insert newRecords;
+    update existingRecords;
+} catch(Exception e) {
+    Database.rollback(savep); // Roll back to savepoint
+    System.debug('Error: ' + e.getMessage());
+    throw e; // Re-throw if needed
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Database Methods - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_database.htm[Official Salesforce documentation for Database class methods including setSavepoint() and rollback()]
+
+ * Transaction Control in Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_transaction_control.htm[Salesforce guide on managing transactions and using savepoints effectively]
+
+=== Standards
+
+ * CWE-459: Incomplete Cleanup - https://cwe.mitre.org/data/definitions/459.html[Weakness related to incomplete cleanup of resources or state]
