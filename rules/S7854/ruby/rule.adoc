@@ -1,0 +1,91 @@
+This rule raises an issue when deprecated Rails dynamic finder methods like `find_by_*`, `find_all_by_*`, `find_or_initialize_by_*`, or `find_or_create_by_*` are used.
+
+== Why is this an issue?
+
+Dynamic finder methods were a Rails feature that allowed querying records using method names like `User.find_by_name('John')` or `Post.find_all_by_status_and_category('published', 'tech')`. While convenient, these methods have several problems.
+
+First, they rely on Ruby's `method_missing` mechanism. When you call `User.find_by_name('John')`, Ruby first looks for a method called `find_by_name` on the User class. When it doesn't find one, it calls `method_missing`, which then parses the method name to understand what you want to query. This extra step adds unnecessary processing overhead compared to explicit methods.
+
+Second, dynamic finders become difficult to read and maintain when you have multiple conditions. A method like `User.find_all_by_active_and_role_and_created_at(true, 'admin', 1.week.ago)` is hard to understand at a glance, and the parameter order becomes important and error-prone.
+
+Third, dynamic finders are less flexible for complex queries. You cannot easily add conditions like ranges, OR clauses, or joins using the dynamic syntax.
+
+Finally, many of these methods were officially deprecated in Rails 4.0 and removed in later versions. Using them prevents you from upgrading to newer Rails versions and goes against current ActiveRecord conventions.
+
+=== What is the potential impact?
+
+Using deprecated dynamic finder methods can lead to performance degradation due to `method_missing` overhead, reduced code readability and maintainability, and compatibility issues when upgrading Rails versions. Applications may fail to run on newer Rails versions that have removed these deprecated methods.
+
+== How to fix it in Rails
+
+Replace `find_all_by_*` methods with explicit `.where` clauses. The `.where` method is more performant, readable, and flexible for complex queries.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Deprecated dynamic finder methods
+InfoItem.find_all_by_work_order(self.work_order) # Noncompliant
+User.find_all_by_active_and_role(true, 'admin') # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use modern ActiveRecord syntax
+InfoItem.where(work_order: self.work_order)
+User.where(active: true, role: 'admin')
+----
+
+Replace `find_or_initialize_by_*` and `find_or_create_by_*` methods with hash-based syntax. This ensures compatibility with modern Rails versions.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Deprecated dynamic methods
+Progress.find_or_initialize_by_chore_id_and_period(chore.id, period) # Noncompliant
+Team.find_or_create_by_name_and_status('Justice League', 'active') # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Use hash-based syntax
+Progress.find_or_initialize_by(chore_id: chore.id, period: period)
+Team.find_or_create_by(name: 'Justice League', status: 'active')
+----
+
+For complex queries with multiple conditions, modern syntax scales better and is more readable than dynamic finders.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Complex dynamic finder becomes unwieldy
+User.find_all_by_active_and_role_and_created_at(true, 'admin', 1.week.ago) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Modern syntax scales better with multiple conditions
+User.where(active: true, role: 'admin', created_at: 1.week.ago..Time.now)
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Active Record Query Interface Guide - https://guides.rubyonrails.org/active_record_querying.html[Official Rails guide covering modern querying methods including where, find_by, and find_or_create_by]
+
+ * Rails 4.0 Release Notes - Deprecated Features - https://guides.rubyonrails.org/4_0_release_notes.html#deprecated-features[Official documentation about Rails 4.0 deprecations including dynamic finder methods]
