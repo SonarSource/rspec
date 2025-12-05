@@ -1,0 +1,86 @@
+This rule raises an issue when database queries are executed inside loops, causing multiple round trips to the database instead of using batch operations.
+
+== Why is this an issue?
+
+Executing database queries inside loops creates the N+1 query problem, one of the most common performance issues in web applications.
+
+When you iterate over a collection and execute a database query for each item, you create multiple round trips between your application and the database. For example, if you have 100 items in your collection, you'll execute 101 queries: 1 to fetch the collection and 100 individual queries inside the loop.
+
+Each database round trip has overhead:
+
+* Network latency between application and database
+* Query parsing and execution planning
+* Connection management overhead
+* Lock acquisition and release
+
+This overhead multiplies with each iteration, causing exponential performance degradation as your data grows. A page that loads quickly with 10 records might timeout with 1000 records.
+
+ActiveRecord provides built-in solutions for batch operations. When you pass an array to a `where` clause, it automatically generates an `IN` condition that fetches all matching records in a single query. For complex conditions involving multiple columns, you can use tuple-based WHERE conditions with proper parameterization.
+
+=== What is the potential impact?
+
+Applications will experience severe performance degradation as data volume increases. Database connections may be exhausted under load, leading to timeouts and service unavailability. The exponential nature of this problem means that performance issues often appear suddenly when data reaches a critical threshold.
+
+== How to fix it in ActiveRecord
+
+Replace the loop with a single query using array parameters. ActiveRecord automatically converts arrays in WHERE clauses to IN conditions.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+lawyers = []
+phones.each do |phone|
+  lawyers += Lawyer.joins(:phones).where(phones: { area_code: phone[:area_code], number: phone[:number] }) # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+area_codes = phones.map { |phone| phone[:area_code] }
+numbers = phones.map { |phone| phone[:number] }
+lawyers = Lawyer.joins(:phones).where(phones: { area_code: area_codes, number: numbers })
+----
+
+For complex conditions involving multiple columns, use tuple-based WHERE conditions with proper parameterization to avoid SQL injection.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+results = []
+phone_numbers.each { |phone| results.concat(Phone.where(area_code: phone[0], number: phone[1])) } # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+phone_pairs = phone_numbers.map { |phone| [phone[0], phone[1]] }
+placeholders = Array.new(phone_pairs.size, '(?, ?)').join(', ')
+results = Phone.where("(area_code, number) IN (#{placeholders})", *phone_pairs.flatten)
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Query Interface - https://guides.rubyonrails.org/active_record_querying.html[Official Rails guide covering ActiveRecord querying methods and best practices]
+
+ * Rails Performance Best Practices - https://guides.rubyonrails.org/performance_testing.html[Rails guide on performance optimization techniques including database query optimization]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[Weakness related to inefficient resource usage that can lead to denial of service]
+
+=== Related rules
+
+ * RSPEC-6912 - https://rules.sonarsource.com/java/RSPEC-6912/[Java rule for avoiding JPA queries in loops]
+
+ * RSPEC-5380 - https://rules.sonarsource.com/apex/RSPEC-5380/[Apex rule for avoiding SOQL queries in loops]
