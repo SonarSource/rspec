@@ -1,0 +1,76 @@
+This rule raises an issue when the error return value of a system call function is ignored or not checked.
+
+== Why is this an issue?
+
+System calls interact directly with the operating system and can fail for many reasons: insufficient permissions, missing files, network issues, or resource constraints.
+
+When you ignore error return values from system calls, your program continues executing as if the operation succeeded. This creates several problems:
+
+* *Silent failures*: Your program thinks it completed a task when it actually failed
+* *Unpredictable behavior*: Later code may depend on the system call having succeeded
+* *Security vulnerabilities*: Failed permission changes or file operations can leave systems in unsafe states
+* *Data loss*: Failed write or delete operations may not be noticed until it's too late
+
+Go's error handling philosophy emphasizes explicit error checking. The language designers made errors visible return values specifically so developers would handle them appropriately.
+
+=== What is the potential impact?
+
+Ignoring system call errors can lead to silent failures where your program continues running but critical operations have failed. This can result in:
+
+* Security vulnerabilities when permission changes fail silently
+* Data corruption or loss when file operations fail unnoticed
+* System instability when resource management operations fail
+* Difficult debugging when problems only surface much later in execution
+
+== How to fix it
+
+Always check the error return value from system calls. Handle the error appropriately by logging it, returning it to the caller, or taking corrective action.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF) // Noncompliant
+
+os.Remove("/tmp/tempfile") // Noncompliant
+
+os.Chmod("config.txt", 0600) // Noncompliant
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+if err := unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF); err != nil {
+    log.Printf("Failed to reboot: %v", err)
+    return err
+}
+
+if err := os.Remove("/tmp/tempfile"); err != nil {
+    log.Printf("Failed to remove file: %v", err)
+}
+
+if err := os.Chmod("config.txt", 0600); err != nil {
+    return fmt.Errorf("failed to set file permissions: %w", err)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Error Handling - https://go.dev/blog/error-handling-and-go[Official Go blog post explaining error handling philosophy and best practices]
+
+ * Effective Go - Errors - https://go.dev/doc/effective_go#errors[Official Go documentation on error handling patterns]
+
+=== Standards
+
+ * CWE-252: Unchecked Return Value - https://cwe.mitre.org/data/definitions/252.html[Describes the security implications of ignoring return values]
+
+=== Related rules
+
+ * RSPEC-899 - https://rules.sonarsource.com/java/RSPEC-899/[Return values from functions without side effects should not be ignored (Java)]
+
+ * RSPEC-937 - https://rules.sonarsource.com/c/RSPEC-937/[Return values should not be ignored when function calls don't have any side effects (C/C++)]
