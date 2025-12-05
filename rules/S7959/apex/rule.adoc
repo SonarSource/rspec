@@ -1,0 +1,71 @@
+This rule raises an issue when HTTP callouts are made directly within Apex triggers without using asynchronous processing mechanisms.
+
+== Why is this an issue?
+
+Salesforce platform architecture prevents synchronous HTTP callouts from being executed within trigger contexts due to several critical limitations.
+
+Triggers run within database transactions that must complete quickly to maintain system performance and data consistency. When a trigger attempts to make a synchronous HTTP callout, it blocks the entire transaction until the external system responds. This creates several problems:
+
+* *Governor limit violations*: Salesforce enforces strict time limits on trigger execution. External API calls can easily exceed these limits, causing the entire transaction to fail.
+* *Transaction blocking*: While waiting for the HTTP response, the database transaction remains open, potentially causing deadlocks and preventing other operations from completing.
+* *Unreliable external dependencies*: If the external system is slow or unavailable, it directly impacts the core Salesforce operation, making data saves fail unexpectedly.
+* *Poor user experience*: Users experience delays or errors when performing simple operations like creating or updating records.
+
+The Salesforce platform specifically prohibits synchronous callouts in triggers to prevent these issues and maintain the multi-tenant environment's stability.
+
+=== What is the potential impact?
+
+Applications will fail at runtime with `System.CalloutException: You have uncommitted work pending. Please commit or rollback before calling out` errors. This prevents users from completing essential business operations like creating or updating records, leading to system downtime and frustrated users.
+
+== How to fix it
+
+Move HTTP callouts to an asynchronous @future method. The @future annotation with callout=true allows the method to make HTTP requests outside the original transaction context.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+trigger AccountTrigger on Account (after insert) {
+    Http h = new Http();
+    HttpRequest req = new HttpRequest();
+    req.setEndpoint('https://api.example.com/webhook');
+    req.setMethod('POST');
+    HttpResponse res = h.send(req); // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+trigger AccountTrigger on Account (after insert) {
+    AccountCalloutService.makeAsyncCallout(Trigger.new);
+}
+
+public class AccountCalloutService {
+    @future(callout=true)
+    public static void makeAsyncCallout(List<Account> accounts) {
+        Http h = new Http();
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint('https://api.example.com/webhook');
+        req.setMethod('POST');
+        HttpResponse res = h.send(req);
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Developer Guide - Future Methods - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm[Official documentation on using @future methods for asynchronous processing]
+
+ * Apex Developer Guide - Queueable Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_queueing_jobs.htm[Comprehensive guide to implementing Queueable Apex for asynchronous operations]
+
+ * Apex Developer Guide - HTTP Services - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_restful_http.htm[Documentation on making HTTP callouts in Apex]
+
+=== Standards
+
+ * Salesforce Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_apex.htm[Platform limits that prevent synchronous callouts in triggers]
