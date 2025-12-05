@@ -1,0 +1,70 @@
+This is an issue when the `message` option is placed at the top level of a `validates` method call instead of being nested within a specific validator's options hash.
+
+== Why is this an issue?
+
+In Rails ActiveRecord validations, custom error messages must be specified within the options hash of the specific validator they apply to. When you place a `message` option at the top level of a `validates` call, Rails treats it as an unknown validator and raises an "Unknown validator: 'message'" error.
+
+This happens because Rails expects the `validates` method to receive validator names (like `presence`, `length`, `uniqueness`) as keys, with their respective options as values. The `message` option is not a validator itself, but rather a configuration option that belongs to a specific validator.
+
+When you write `validates :title, presence: true, message: "Custom message"`, Rails interprets this as trying to use both a `presence` validator and a `message` validator, which doesn't exist. The correct approach is to nest the message within the validator's options: `validates :title, presence: { message: "Custom message" }`.
+
+This syntax error prevents your Rails application from starting and can be confusing for developers who are learning Rails validation syntax or transitioning from older validation patterns.
+
+=== What is the potential impact?
+
+This issue causes a runtime error that prevents the Rails application from starting. The application will fail to load with an "Unknown validator" error, making it impossible to run the application until the validation syntax is corrected.
+
+== How to fix it in Rails
+
+Move the `message` option from the top level into the specific validator's options hash. If the validator currently uses a boolean value (like `presence: true`), change it to a hash containing the message.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class Story < ActiveRecord::Base
+  validates :title, presence: true, message: "Story title is required" # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class Story < ActiveRecord::Base
+  validates :title, presence: { message: "Story title is required" }
+end
+----
+
+When using multiple validators, ensure each validator that needs a custom message has the message nested within its own options hash.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class Story < ActiveRecord::Base
+  validates :content, presence: true, length: { minimum: 10 }, message: "Invalid content" # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Story < ActiveRecord::Base
+  validates :content, presence: { message: "Content cannot be blank" },
+                     length: { minimum: 10, message: "Content too short" }
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Active Record Validations Guide - https://guides.rubyonrails.org/active_record_validations.html#message[Official Rails documentation on validation messages and their proper syntax]
+
+ * Rails API Documentation - validates - https://api.rubyonrails.org/classes/ActiveModel/Validations/ClassMethods.html#method-i-validates[API documentation for the validates method and its options]
