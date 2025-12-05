@@ -1,0 +1,100 @@
+This rule raises an issue when a string column is defined in a Rails migration without an explicit `limit` parameter.
+
+== Why is this an issue?
+
+In Rails migrations, string columns without explicit limits default to 255 characters. This implicit behavior can lead to unexpected runtime errors when applications try to store data longer than 255 characters.
+
+When your application runs on databases like PostgreSQL, attempting to insert data that exceeds the column's character limit will result in database constraint violations. These errors typically manifest as `PGError: ERROR: value too long for type character varying(255)` or similar messages depending on your database system.
+
+The problem becomes more severe in production environments where such errors can cause application crashes, data loss, or poor user experience. Users filling out forms with longer content may encounter unexpected errors, and background jobs processing data may fail silently.
+
+Explicit column sizing also encourages better database design. By specifying limits, you make conscious decisions about your data requirements, which helps with:
+
+* Database performance optimization
+* Storage space planning
+* Data validation consistency
+* Clear communication of business requirements to other developers
+
+=== What is the potential impact?
+
+Applications may crash with database constraint violations when users or systems attempt to store data longer than 255 characters. This can lead to data loss, poor user experience, and application instability in production environments.
+
+== How to fix it in Rails
+
+Add an explicit limit parameter to string columns based on your expected data length. Choose a reasonable limit that accommodates your business requirements.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class CreateUsers < ActiveRecord::Migration
+  def change
+    create_table :users do |t|
+      t.string :name     # Noncompliant
+      t.string :email    # Noncompliant
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class CreateUsers < ActiveRecord::Migration
+  def change
+    create_table :users do |t|
+      t.string :name, limit: 100
+      t.string :email, limit: 255
+    end
+  end
+end
+----
+
+Use the text type for columns that may contain long or unlimited content, such as descriptions, comments, or article content.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class CreatePosts < ActiveRecord::Migration
+  def change
+    create_table :posts do |t|
+      t.string :title
+      t.string :content  # Noncompliant
+      t.string :bio      # Noncompliant
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class CreatePosts < ActiveRecord::Migration
+  def change
+    create_table :posts do |t|
+      t.string :title, limit: 200
+      t.text :content
+      t.text :bio
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Migration Guide - Column Types - https://guides.rubyonrails.org/active_record_migrations.html#column-types[Official Rails documentation on migration column types and their options]
+
+ * Active Record Schema Dumper - https://api.rubyonrails.org/classes/ActiveRecord/Schema.html[Documentation on Rails schema definitions and column options]
+
+=== Standards
+
+ * CWE-20: Improper Input Validation - https://cwe.mitre.org/data/definitions/20.html[Relates to proper data validation and constraint handling]
