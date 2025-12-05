@@ -1,0 +1,99 @@
+This is an issue when controllers contain complex, nested, or repetitive validation logic for form parameters instead of delegating this responsibility to dedicated form objects.
+
+== Why is this an issue?
+
+Controllers should focus on coordinating between models and views, not performing detailed parameter validation. When validation logic is embedded directly in controller actions, several problems arise:
+
+**Violation of Single Responsibility Principle**: Controllers become responsible for both request coordination and data validation, making them harder to understand and maintain.
+
+**Code Duplication**: Similar validation patterns get repeated across multiple controller actions, leading to maintenance overhead when validation rules need to change.
+
+**Poor Testability**: Testing validation logic mixed with controller logic requires more complex test setups and makes it harder to isolate specific validation scenarios.
+
+**Reduced Reusability**: Validation logic tied to specific controller actions cannot be easily reused in other parts of the application.
+
+**Increased Complexity**: Nested conditional statements for parameter validation make controller methods longer and harder to follow, especially when handling multiple parameters with different validation requirements.
+
+Form objects that include `ActiveModel::Model` provide a clean solution by encapsulating validation logic in dedicated classes. This approach leverages Rails' built-in validation framework while maintaining clear separation of concerns.
+
+=== What is the potential impact?
+
+Controllers with embedded validation logic become harder to maintain and test. Code duplication increases maintenance costs when validation rules change. The lack of separation between coordination logic and validation logic makes the codebase more complex and error-prone.
+
+== How to fix it
+
+Create a form object that includes ActiveModel::Model and move validation logic from the controller to this dedicated class. The controller should instantiate the form object and delegate validation responsibilities to it.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class QueryController < ApplicationController
+  def results
+    # Complex nested validation in controller
+    if params[:name] && !params[:name].blank?
+      @name = params[:name]
+    else
+      flash[:error] = 'You must give a name' # Noncompliant
+      redirect_to :action => 'index'
+      return
+    end
+
+    if params.has_key?(:filter)
+      if params[:filter].present?
+        if ['popular', 'following'].include?(params[:filter])
+          @filter = params[:filter]
+        else
+          flash[:error] = 'Invalid filter' # Noncompliant
+          redirect_to :action => 'index'
+          return
+        end
+      end
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class QueryForm
+  include ActiveModel::Model
+  
+  attr_accessor :name, :filter
+  
+  validates_presence_of :name, message: "You must give a name"
+  validates_inclusion_of :filter, in: %w[popular following], allow_blank: true
+end
+
+class QueryController < ApplicationController
+  def results
+    @form = QueryForm.new(params[:query])
+    
+    if @form.valid?
+      @name = @form.name
+      @filter = @form.filter
+    else
+      flash[:error] = @form.errors.full_messages.join(', ')
+      redirect_to :action => 'index'
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveModel::Model Documentation - https://api.rubyonrails.org/classes/ActiveModel/Model.html[Official Rails documentation for ActiveModel::Model, which provides form object capabilities]
+
+ * Rails Form Objects Guide - https://guides.rubyonrails.org/form_helpers.html#dealing-with-model-objects[Rails guide covering form objects and model validation patterns]
+
+ * ActiveModel::Validations - https://api.rubyonrails.org/classes/ActiveModel/Validations.html[Documentation for Rails validation framework used in form objects]
+
+=== Standards
+
+ * Single Responsibility Principle - https://en.wikipedia.org/wiki/Single-responsibility_principle[SOLID principle stating that a class should have only one reason to change]
