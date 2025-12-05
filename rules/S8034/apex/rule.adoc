@@ -1,0 +1,61 @@
+This is an issue when `Trigger.old` or `Trigger.oldMap` are accessed without first checking if they are null or verifying the appropriate trigger context.
+
+== Why is this an issue?
+
+In Salesforce Apex triggers, `Trigger.old` and `Trigger.oldMap` contain the previous versions of records before they were modified. However, these variables are only populated during update and delete operations.
+
+During insert operations, both `Trigger.old` and `Trigger.oldMap` are null because there are no previous versions of the records being created. Attempting to access these variables without proper null checks will result in a `NullPointerException` at runtime.
+
+This issue commonly occurs when developers write triggers that handle multiple operations (insert, update, delete) but forget to account for the different contexts. The problem is particularly subtle because the code may work fine during testing with update operations but fail unexpectedly when insert operations are performed.
+
+The Salesforce platform provides context variables like `Trigger.isUpdate` and `Trigger.isDelete` specifically to help developers write context-aware trigger logic. Using these variables along with null checks ensures that trigger code behaves correctly across all supported operations.
+
+=== What is the potential impact?
+
+When this issue occurs, it causes immediate runtime failures with `NullPointerException` errors. This can break critical business processes, prevent users from creating or updating records, and lead to poor user experience. In production environments, such failures can disrupt business operations and require immediate attention to resolve.
+
+== How to fix it
+
+Check the trigger context and verify that old context variables are not null before accessing them. Use `Trigger.isUpdate` or `Trigger.isDelete` to ensure you're in the correct context, and add null checks for additional safety.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+trigger AccountTrigger on Account (before insert, before update) {
+    for (Integer i = 0; i < Trigger.new.size(); i++) {
+        Account newAcc = Trigger.new[i];
+        Account oldAcc = Trigger.old[i]; // Noncompliant: null during insert
+        if (newAcc.Name != oldAcc.Name) {
+            // Logic here
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+trigger AccountTrigger on Account (before insert, before update) {
+    for (Integer i = 0; i < Trigger.new.size(); i++) {
+        Account newAcc = Trigger.new[i];
+        if (Trigger.isUpdate && Trigger.old != null) {
+            Account oldAcc = Trigger.old[i];
+            if (newAcc.Name != oldAcc.Name) {
+                // Logic here
+            }
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Apex Trigger Context Variables - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_context_variables.htm[Official documentation on trigger context variables including Trigger.old and Trigger.oldMap]
+
+ * Apex Triggers Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_best_practices.htm[Best practices for writing robust and efficient Apex triggers]
