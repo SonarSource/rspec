@@ -1,0 +1,77 @@
+== Why is this an issue?
+
+The integrator function of stream gatherers can pass data downstream using the push method.
+The down stream should return a result indicating whether it accepted the latest value.
+
+Ignoring the value returned by `Downstream.push` might lead to inconsistent behavior of the integrator.
+Indeed, if `downstream.push` returns `false`, and no longer accepts elements, the decision to continue processing the incoming stream should be deliberate.
+
+== How to fix it
+Use or return the result of `Downstream.push`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+Gatherer.ofSequential(
+  () -> new AtomicInteger(100),
+  (state, element, downstream) -> {
+      int newState = state.addAndGet(element);
+      downstream.push(newState); // Noncompliant: ignoring return value
+      return true;
+  });
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+Gatherer.ofSequential(
+  () -> new AtomicInteger(100),
+  (state, element, downstream) -> {
+      int newState = state.addAndGet(element);
+      return downstream.push(newState); // Compliant
+  });
+----
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+Gatherer.ofSequential(
+  () -> new AtomicInteger(100),
+  (state, element, downstream) -> {
+      int newState = state.addAndGet(element);
+      if (!downstream.push(newState)) {
+        // Since the downstream is no longer accepting elements, we stop processing incoming streams
+        return false;
+      }
+      return true;
+  });
+----
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+Gatherer.ofSequential(
+  () -> new AtomicInteger(100),
+  (state, element, downstream) -> {
+      int newState = state.addAndGet(element);
+      return handleResult(downstream.push(newState));
+  });
+----
+
+//=== How does this work?
+
+//=== Pitfalls
+
+//=== Going the extra mile
+
+
+== Resources
+//=== Documentation
+=== Articles & blog posts
+* Oracle Java 24 Core Libraries Documentation - https://docs.oracle.com/en/java/javase/24/core/stream-gatherers.html[Stream Gatherers]
+//=== Conference presentations
+//=== Standards
+//=== External coding guidelines
+//=== Benchmarks
