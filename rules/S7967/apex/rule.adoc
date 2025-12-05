@@ -1,0 +1,95 @@
+This rule raises an issue when Apex REST service methods accept parameters but do not validate them before processing.
+
+== Why is this an issue?
+
+Apex REST services act as entry points to your Salesforce org, making them potential targets for malicious input or accidental data corruption. When these services accept parameters without proper validation, several problems can occur.
+
+First, invalid or malicious data can be stored directly in your database. This compromises data integrity and can cause issues throughout your application. For example, storing an invalid email address makes it impossible to send communications to that contact.
+
+Second, unvalidated input creates security vulnerabilities. Attackers might attempt to inject malicious code or exploit business logic flaws. While Salesforce provides some built-in protections, input validation is your first line of defense.
+
+Third, poor input validation leads to confusing error messages and bad user experience. When invalid data causes a database operation to fail, users receive cryptic system errors instead of helpful guidance about what went wrong.
+
+Finally, unvalidated input can cause unexpected application behavior or crashes. Missing required fields, incorrect data types, or values that violate business rules can cause your code to fail in unpredictable ways.
+
+Proper input validation ensures data quality, improves security, provides better user feedback, and makes your application more robust and reliable.
+
+=== What is the potential impact?
+
+Without proper input validation, REST services can store corrupted data, expose security vulnerabilities, provide poor user experience with unclear error messages, and cause unexpected application failures.
+
+== How to fix it
+
+Add validation checks for all input parameters before processing them. Validate required fields, data formats, and business rules. Return appropriate HTTP status codes and error messages when validation fails.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@RestResource(urlMapping='/api/contact')
+global class ContactRestService {
+    @HttpPost
+    global static String createContact(String firstName, String lastName, String email) {
+        Contact newContact = new Contact(
+            FirstName = firstName,
+            LastName = lastName, // Noncompliant
+            Email = email // Noncompliant
+        );
+        insert newContact;
+        return newContact.Id;
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@RestResource(urlMapping='/api/contact')
+global class ContactRestService {
+    @HttpPost
+    global static String createContact(String firstName, String lastName, String email) {
+        // Validate required fields
+        if (String.isBlank(lastName)) {
+            RestContext.response.statusCode = 400;
+            return 'Last name is required';
+        }
+        
+        // Validate email format if provided
+        if (String.isNotBlank(email) && !Pattern.matches('[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}', email)) {
+            RestContext.response.statusCode = 400;
+            return 'Invalid email format';
+        }
+        
+        Contact newContact = new Contact(
+            FirstName = firstName,
+            LastName = lastName,
+            Email = email
+        );
+        insert newContact;
+        return newContact.Id;
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex REST Services - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_rest.htm[Official Salesforce documentation on creating and using Apex REST services]
+
+ * Input Validation Best Practices - https://developer.salesforce.com/docs/atlas.en-us.secure_coding_guide.meta/secure_coding_guide/secure_coding_input_validation.htm[Salesforce secure coding guidelines for input validation]
+
+ * String Class Methods - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_string.htm[Documentation for String validation methods like isBlank() and isNotBlank()]
+
+=== Standards
+
+ * CWE-20: Improper Input Validation - https://cwe.mitre.org/data/definitions/20.html[Common weakness related to insufficient input validation]
+
+ * OWASP Top 10:2021-A03-Injection - https://owasp.org/Top10/A03_2021-Injection/[OWASP guidance on preventing injection attacks through proper input validation]
+
+=== Related rules
+
+ * RSPEC-6967 - https://rules.sonarsource.com/csharp/RSPEC-6967/[Similar rule for C# ASP.NET Core controllers requiring input validation]
