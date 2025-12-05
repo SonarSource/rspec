@@ -1,0 +1,81 @@
+This rule raises an issue when a standard Go interface implementation contains intentional data races, typically involving shared mutable state accessed without synchronization.
+
+== Why is this an issue?
+
+Standard interface implementations should never contain intentional data races, even when done for performance optimization. Such implementations fundamentally break the composition principle that makes interfaces powerful in Go.
+
+When you implement a standard interface like `io.Reader`, `io.Writer`, or `io.ReaderFrom`, client code expects these implementations to be safe for concurrent use or at least behave predictably. Intentionally racy implementations violate this expectation and can cause subtle bugs in code that composes these interfaces.
+
+The problem becomes apparent when client code assumes ownership of buffers or data passed to interface methods. For example, a reader that calculates a hash while reading expects the buffer contents to remain stable during the operation. If the interface implementation races on shared buffers, it can corrupt the hash calculation or cause other unexpected behavior.
+
+These bugs are particularly dangerous because:
+
+* They are extremely difficult to debug and reproduce
+* They may only manifest under specific timing conditions
+* They break the fundamental contract that interfaces establish
+* They can cause data corruption or security vulnerabilities
+
+The Go standard library itself learned this lesson when `ioutil.Discard` had to be fixed because its intentionally racy `ReadFrom` implementation caused real-world bugs in production systems.
+
+=== What is the potential impact?
+
+Intentionally racy interface implementations can lead to data corruption, unpredictable behavior, and extremely difficult-to-debug race conditions. These issues may only manifest under specific timing conditions in production environments, potentially causing security vulnerabilities or data integrity problems.
+
+== How to fix it
+
+Remove the intentional data race by using local variables instead of shared global state. This eliminates the race condition while maintaining the interface contract.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+// Intentionally racy implementation for performance
+type racyDiscard struct {
+    buf []byte // shared global buffer
+}
+
+func (d *racyDiscard) ReadFrom(r io.Reader) (int64, error) {
+    // Reuse global buffer without synchronization
+    n, err := r.Read(d.buf) // Noncompliant: data race on shared buffer
+    return int64(n), err
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+type safeDiscard struct{}
+
+func (d *safeDiscard) ReadFrom(r io.Reader) (int64, error) {
+    // Use local buffer to avoid data races
+    buf := make([]byte, 8192)
+    var total int64
+    for {
+        n, err := r.Read(buf)
+        total += int64(n)
+        if err != nil {
+            if err == io.EOF {
+                return total, nil
+            }
+            return total, err
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Memory Model - https://golang.org/ref/mem[Official documentation on Go's memory model and data race prevention]
+
+ * Go Race Detector - https://golang.org/doc/articles/race_detector.html[Guide to using Go's built-in race detector to find data races]
+
+ * Effective Go - Concurrency - https://golang.org/doc/effective_go.html#concurrency[Best practices for concurrent programming in Go]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race conditions in concurrent execution]
