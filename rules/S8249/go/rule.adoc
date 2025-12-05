@@ -1,0 +1,69 @@
+This is an issue when resources that implement a `Close()` method are created but not closed with a `defer` statement placed immediately after successful acquisition.
+
+== Why is this an issue?
+
+In Go, resources like files, network connections, database connections, and API clients typically implement a `Close()` method to release system resources. When these resources are not properly closed, they can cause resource leaks that may lead to:
+
+* **Memory leaks**: Unclosed resources consume memory that cannot be reclaimed by the garbage collector
+* **File descriptor exhaustion**: Operating systems limit the number of open file descriptors per process
+* **Connection pool exhaustion**: Database and network connection pools have limited capacity
+* **Performance degradation**: Accumulated leaked resources slow down the application over time
+
+The `defer` statement in Go ensures that cleanup code runs when the surrounding function returns, regardless of how it returns (normal return, early return due to error, or panic). This makes `defer` the idiomatic way to guarantee resource cleanup.
+
+Placing the `defer` statement immediately after successful resource acquisition is crucial. If placed later in the function, early returns due to errors or other conditions may bypass the `defer` statement, causing the same resource leak the `defer` was meant to prevent.
+
+Go's `defer` mechanism executes deferred functions in Last-In-First-Out (LIFO) order, making it safe to defer multiple resource cleanups in sequence.
+
+=== What is the potential impact?
+
+Resource leaks can cause applications to consume increasing amounts of system resources over time, eventually leading to:
+
+* Application crashes due to resource exhaustion
+* System-wide performance issues affecting other processes
+* Increased infrastructure costs due to higher resource usage
+* Potential security vulnerabilities if resource limits are exploited
+
+== How to fix it
+
+Add a `defer` statement to close the resource immediately after successful creation and error checking. This ensures the resource is always cleaned up when the function exits.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+client, err := genai.NewClient(ctx, config)
+if err != nil {
+    return fmt.Errorf("failed to create client: %w", err)
+}
+// client is never closed - resource leak
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+client, err := genai.NewClient(ctx, config)
+if err != nil {
+    return fmt.Errorf("failed to create client: %w", err)
+}
+defer client.Close()
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Tour - Defer - https://go.dev/tour/flowcontrol/12[Official Go tutorial explaining defer statements and their execution behavior]
+
+ * Go Blog - Defer, Panic, and Recover - https://go.dev/blog/defer-panic-and-recover[Comprehensive guide to defer statements with practical examples of resource management]
+
+ * Effective Go - Defer - https://go.dev/doc/effective_go#defer[Best practices for using defer statements in Go programs]
+
+=== Standards
+
+ * CWE-404: Improper Resource Shutdown or Release - https://cwe.mitre.org/data/definitions/404.html[Weakness related to improper release of system resources]
+
+ * CWE-772: Missing Release of Resource after Effective Lifetime - https://cwe.mitre.org/data/definitions/772.html[Weakness where resources are not properly released after use]
