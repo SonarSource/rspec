@@ -1,0 +1,89 @@
+This rule raises an issue when ActiveRecord queries use `:joins` without an explicit `:select` clause or `:readonly => false` setting.
+
+== Why is this an issue?
+
+When ActiveRecord performs a join operation without an explicit `:select` clause, it automatically marks the returned records as read-only. This is a safety mechanism to prevent data inconsistencies that could occur when modifying records that span multiple joined tables.
+
+The problem arises when developers expect to modify these records later in their code. Any attempt to update, save, or modify a read-only record will raise an `ActiveRecord::ReadOnlyRecord` exception at runtime.
+
+This behavior can be particularly confusing because:
+
+* The query executes successfully and returns what appears to be normal ActiveRecord objects
+* The error only occurs when attempting to modify the records, which may happen much later in the code
+* The connection between the join query and the read-only behavior is not immediately obvious
+
+This creates a debugging challenge where the root cause (the join query) is separated from the symptom (the modification error).
+
+=== What is the potential impact?
+
+Applications will crash with `ActiveRecord::ReadOnlyRecord` exceptions when attempting to modify records retrieved through joins. This can lead to:
+
+* Runtime failures in production environments
+* Difficult debugging sessions due to the separation between query and modification code
+* Potential data loss if the error occurs during critical operations
+* Poor user experience due to unexpected application crashes
+
+== How to fix it in Ruby on Rails
+
+Add an explicit `:select` clause to specify which columns should be retrieved. This prevents ActiveRecord from marking records as read-only.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Join without select clause creates read-only records
+start_cards = DeckCard.find :all, 
+  :joins => [:card],  # Noncompliant
+  :conditions => ["deck_cards.deck_id = ? and cards.start_card = ?", @game.deck.id, true]
+
+# Later modification will fail
+start_card = start_cards.pop
+start_card.draw_pile = false  # Raises ActiveRecord::ReadOnlyRecord
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Explicit select clause prevents read-only records
+start_cards = DeckCard.find :all, 
+  :select => 'deck_cards.*',  # Specify columns to select
+  :joins => [:card], 
+  :conditions => ["deck_cards.deck_id = ? and cards.start_card = ?", @game.deck.id, true]
+
+# Modification now works as expected
+start_card = start_cards.pop
+start_card.draw_pile = false
+----
+
+Explicitly set `:readonly => false` to allow modifications on joined records. Use this approach when you need to modify the records and understand the implications.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Join without readonly setting creates read-only records
+records = Model.find :all, :joins => [:association]  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Explicitly disable read-only behavior
+records = Model.find :all,
+  :joins => [:association],
+  :readonly => false  # Allow modifications
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Query Interface - Joins - https://guides.rubyonrails.org/active_record_querying.html#joining-tables[Official Rails guide on joining tables and query interface]
+
+ * ActiveRecord ReadOnlyRecord Exception - https://api.rubyonrails.org/classes/ActiveRecord/ReadOnlyRecord.html[Documentation for the ReadOnlyRecord exception]
