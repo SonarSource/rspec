@@ -1,0 +1,105 @@
+This rule raises an issue when Rails controllers load entire collections without pagination, when views render large collections without limits, or when nested associations are loaded upfront without lazy loading strategies.
+
+== Why is this an issue?
+
+Loading large datasets without pagination can cause serious performance problems in Rails applications. When controllers use methods like `Post.all` or `User.all`, they load every record from the database into memory at once. This approach becomes problematic as your data grows.
+
+The main issues include:
+
+* *Memory consumption*: Loading thousands of records consumes significant server memory, potentially causing out-of-memory errors
+* *Slow database queries*: Fetching all records creates expensive database operations that block other requests
+* *Poor user experience*: Pages take longer to load, and users may experience timeouts
+* *Excessive DOM size*: Rendering all records creates large HTML documents that slow down browser rendering and JavaScript execution
+
+For nested associations, the problem compounds. Loading all comments with their replies using `includes(comments: :replies)` can result in massive data transfers and memory usage, especially for popular posts with hundreds of comments.
+
+These performance issues become more severe as your application scales and your dataset grows, making pagination essential for maintaining good performance.
+
+=== What is the potential impact?
+
+Applications may experience memory exhaustion, slow response times, database timeouts, and poor user experience. In extreme cases, servers may crash due to out-of-memory errors when handling large datasets. The browser may also become unresponsive when rendering excessive DOM elements.
+
+== How to fix it in Rails
+
+Use pagination gems like Kaminari to limit records loaded in controllers. This prevents loading all records into memory and provides a better user experience.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class PostsController < ApplicationController
+  def index
+    @posts = Post.all # Noncompliant: loads all records
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class PostsController < ApplicationController
+  def index
+    @posts = Post.page(params[:page]).per(10)
+  end
+end
+----
+
+Apply pagination to view rendering to limit the number of elements rendered in the DOM. This prevents excessive DOM size and improves page performance.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,erb,diff-id=2,diff-type=noncompliant]
+----
+<% @post.comments.each do |comment| %>
+  <%= render comment %> <!-- Noncompliant: renders all comments -->
+<% end %>
+----
+
+==== Compliant solution
+
+[source,erb,diff-id=2,diff-type=compliant]
+----
+<% @post.comments.page(params[:page]).per(10).each do |comment| %>
+  <%= render comment %>
+<% end %>
+----
+
+Use lazy loading with limits for nested associations instead of loading all related data upfront. This reduces memory usage and improves query performance.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Loading all nested associations upfront
+@post = Post.includes(comments: :replies).find(params[:id]) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Lazy loading with limits
+@post = Post.find(params[:id])
+@comments = @post.comments.includes(:user).limit(5)
+----
+
+== Resources
+
+=== Documentation
+
+ * Kaminari Gem Documentation - https://github.com/kaminari/kaminari[Popular pagination gem for Rails applications with flexible configuration options]
+
+ * Rails Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html[Official Rails guide covering query optimization and pagination techniques]
+
+ * will_paginate Gem - https://github.com/mislav/will_paginate[Alternative pagination gem with simple API for Rails applications]
+
+=== Standards
+
+ * OWASP Top 10:2021-A06-Vulnerable and Outdated Components - https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/[Performance issues can lead to denial of service vulnerabilities]
