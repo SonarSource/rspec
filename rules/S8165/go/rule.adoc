@@ -1,0 +1,62 @@
+This rule raises an issue when a `uintptr` value is stored in a variable before being converted back to `unsafe.Pointer`.
+
+== Why is this an issue?
+
+When you convert an `unsafe.Pointer` to `uintptr` and store it in a variable, you break Go's garbage collection safety guarantees.
+
+The `uintptr` type is an integer, not a pointer reference. This means the garbage collector cannot track it as pointing to an object. If you store a `uintptr` in a variable, the garbage collector might:
+
+* Move the object to a different memory location
+* Collect the object entirely
+* Reuse the memory for something else
+
+When you later convert the stored `uintptr` back to `unsafe.Pointer`, you may be pointing to invalid memory, moved objects, or completely different data.
+
+The Go documentation explicitly states that conversions from `Pointer` to `uintptr` and back must happen in the same expression, with only arithmetic operations between them. This ensures the garbage collector knows the object is still being referenced during the conversion.
+
+=== What is the potential impact?
+
+Using stored `uintptr` values can lead to:
+
+* **Memory corruption**: Writing to invalid memory locations
+* **Application crashes**: Accessing freed or moved memory
+* **Data corruption**: Reading or writing wrong data
+* **Unpredictable behavior**: The program may work sometimes but fail randomly
+
+These issues are particularly dangerous because they may not manifest immediately and can be difficult to debug.
+
+== How to fix it
+
+Perform the pointer arithmetic in a single expression without storing the uintptr in a variable.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+// INVALID: uintptr cannot be stored in variable
+// before conversion back to Pointer.
+u := uintptr(p) // Noncompliant
+p = unsafe.Pointer(u + offset)
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+// Valid: conversion happens in same expression
+p = unsafe.Pointer(uintptr(p) + offset)
+----
+
+== Resources
+
+=== Documentation
+
+ * Go unsafe package documentation - https://pkg.go.dev/unsafe#Pointer[Official Go documentation explaining valid patterns for unsafe.Pointer usage]
+
+ * Go Memory Model - https://go.dev/ref/mem[Specification of Go's memory model and garbage collection behavior]
+
+=== Standards
+
+ * CWE-119: Improper Restriction of Operations within the Bounds of a Memory Buffer - https://cwe.mitre.org/data/definitions/119.html[Using invalid pointers can lead to buffer overflows and memory corruption]
