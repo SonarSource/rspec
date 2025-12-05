@@ -1,0 +1,54 @@
+This rule raises an issue when code accesses fields on sObject records that were not included in the original SOQL query.
+
+== Why is this an issue?
+
+In Salesforce, SOQL queries only retrieve the fields explicitly specified in the SELECT clause. When you access a field that wasn't queried, Salesforce throws a `System.SObjectException` with the message "SObject row was retrieved via SOQL without querying the requested field".
+
+This happens because Salesforce uses lazy loading for sObject fields. Unlike some ORMs that automatically fetch all fields, Salesforce only loads what you explicitly request. This design helps optimize performance and reduce memory usage, especially when dealing with objects that have many fields.
+
+The exception occurs at runtime, not compile time, which means this error might not be discovered until the code is executed in production. This can lead to unexpected application crashes and poor user experience.
+
+Additionally, this pattern can indicate inefficient data access. If you need a field, it's better to include it in the original query rather than making additional queries later, which would consume more of your SOQL query limits.
+
+=== What is the potential impact?
+
+When unqueried fields are accessed, the application will crash with a `System.SObjectException`. This can cause:
+
+* Unexpected runtime failures in production
+* Poor user experience due to application crashes
+* Difficult debugging since the error only occurs when specific code paths are executed
+* Potential data inconsistency if the exception occurs during a transaction
+
+== How to fix it
+
+Include all fields that will be accessed in the SOQL SELECT clause. Review your code to identify which fields are used after the query and add them to the SELECT statement.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+Account a = [SELECT Id FROM Account LIMIT 1];
+System.debug('Name: ' + a.Name); // Noncompliant
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+Account a = [SELECT Id, Name FROM Account LIMIT 1];
+System.debug('Name: ' + a.Name);
+----
+
+== Resources
+
+=== Documentation
+
+ * SOQL and SOSL Reference - https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/[Official Salesforce documentation for SOQL queries]
+
+ * sObject Class - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_sobject.htm[Apex reference for sObject methods and behavior]
+
+=== Standards
+
+ * CWE-248: Uncaught Exception - https://cwe.mitre.org/data/definitions/248.html[Weakness related to uncaught exceptions that can cause application crashes]
