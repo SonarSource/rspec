@@ -1,0 +1,76 @@
+This is an issue when Apex triggers perform DML operations that could re-trigger the same trigger, potentially causing infinite loops, governor limit exceptions, or incomplete processing of bulk operations.
+
+== Why is this an issue?
+
+Trigger recursion occurs when a trigger performs operations that cause the same trigger to fire again, creating a loop. Without proper prevention mechanisms, this can lead to several serious problems.
+
+The most immediate risk is hitting Salesforce governor limits. Recursive triggers can quickly exhaust the 100 SOQL query limit or the 150 DML statement limit in synchronous contexts, causing transactions to fail with `System.LimitException` errors.
+
+Many developers attempt to solve this using static boolean variables as flags. While this approach works for simple scenarios, it has a critical flaw: it fails with bulk operations involving 200 or more records. Salesforce processes large data sets in chunks, and when processing exceeds the platform's internal batching thresholds, the static boolean flag prevents subsequent chunks from being processed, leading to incomplete data updates.
+
+For example, if you update 300 records and use a simple boolean flag, only the first batch (typically around 200 records) will be processed, while the remaining 100 records will be skipped entirely. This creates data inconsistency and can cause business logic failures.
+
+The root cause is that static boolean variables maintain their state across all records in a transaction context, but they don't account for Salesforce's internal batching mechanisms that split large operations into smaller chunks.
+
+=== What is the potential impact?
+
+Incomplete data processing in bulk operations can lead to data inconsistency and business logic failures. Governor limit exceptions can cause entire transactions to fail, potentially affecting multiple related records and processes. In production environments, this can result in data integrity issues and system reliability problems.
+
+== How to fix it
+
+Replace simple boolean flags with static Sets that track processed record IDs. This approach works correctly with bulk operations because it tracks individual records rather than using a global flag.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class TriggerHandler {
+    public static Boolean isFirstTime = true;
+}
+
+trigger AccountTrigger on Account (after update) {
+    if(TriggerHandler.isFirstTime) {
+        TriggerHandler.isFirstTime = false;
+        // This fails with bulk operations (200+ records)
+        for(Account acc : Trigger.new) {
+            update acc; // Noncompliant
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class TriggerHandler {
+    public static Set<Id> processedRecords = new Set<Id>();
+}
+
+trigger AccountTrigger on Account (after update) {
+    List<Account> accountsToUpdate = new List<Account>();
+    for(Account acc : Trigger.new) {
+        if(!TriggerHandler.processedRecords.contains(acc.Id)) {
+            TriggerHandler.processedRecords.add(acc.Id);
+            accountsToUpdate.add(new Account(Id = acc.Id, Description = 'Updated'));
+        }
+    }
+    if(!accountsToUpdate.isEmpty()) {
+        update accountsToUpdate;
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Triggers Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_best_practices.htm[Official Salesforce documentation on trigger best practices including recursion handling]
+
+ * Trigger and Order of Execution - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_order_of_execution.htm[Salesforce documentation explaining the order of execution and trigger behavior]
+
+=== Standards
+
+ * CWE-674: Uncontrolled Recursion - https://cwe.mitre.org/data/definitions/674.html[Common weakness related to uncontrolled recursion that can lead to resource exhaustion]
