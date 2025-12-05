@@ -1,0 +1,122 @@
+This rule raises an issue when `redirect_to :back` is used without proper error handling or fallback mechanisms.
+
+== Why is this an issue?
+
+Using `redirect_to :back` without proper fallback handling can cause your Rails application to crash with an `ActionController::RedirectBackError` exception.
+
+This error occurs when the HTTP_REFERER header is not present in the request. The HTTP_REFERER header contains the URL of the page that linked to the current page, but it's not always available:
+
+* Browsers may not send the referrer header for privacy reasons
+* Users might access the page directly through bookmarks or by typing the URL
+* Automated tests often don't set the HTTP_REFERER header
+* Some security tools and browser extensions block referrer headers
+
+When `redirect_to :back` is called without a referrer, Rails throws an exception instead of gracefully handling the situation. This creates a poor user experience and can make your application appear broken.
+
+Rails 5 introduced the `redirect_back` method specifically to address this issue by requiring developers to specify a fallback location.
+
+=== What is the potential impact?
+
+When the HTTP_REFERER header is missing, the application will crash with an `ActionController::RedirectBackError` exception. This results in a 500 Internal Server Error being displayed to users instead of a graceful redirect, creating a poor user experience and potentially exposing error details in production environments.
+
+== How to fix it
+
+Create a helper method that checks for the presence of a referrer before attempting to redirect back.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def cancel_action
+  redirect_to :back # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def cancel_action
+  redirect_to_back_or_default(root_path)
+end
+
+private
+
+def redirect_to_back_or_default(default)
+  if request.referer.present?
+    redirect_to :back
+  else
+    redirect_to default
+  end
+end
+----
+
+== How to fix it in Rails 5+
+
+Use `redirect_back` with a `fallback_location` parameter. This method automatically handles missing referrer headers by redirecting to the specified fallback location.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def update
+  if @user.update(user_params)
+    redirect_to :back # Noncompliant
+  else
+    render :edit
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def update
+  if @user.update(user_params)
+    redirect_back fallback_location: root_path
+  else
+    render :edit
+  end
+end
+----
+
+== How to fix it in Rails < 5
+
+For older Rails versions, wrap `redirect_to :back` in a rescue block to handle the exception and provide a fallback redirect.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+def destroy
+  @post.destroy
+  redirect_to :back # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+def destroy
+  @post.destroy
+  redirect_to :back
+rescue ActionController::RedirectBackError
+  redirect_to posts_path
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails redirect_back documentation - https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_back[Official Rails documentation for the redirect_back method]
+
+ * ActionController::Redirecting - https://api.rubyonrails.org/classes/ActionController/Redirecting.html[Complete documentation for Rails redirecting methods]
