@@ -1,0 +1,50 @@
+== How to fix it in CommonCrypto
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,swift,diff-id=1,diff-type=noncompliant]
+----
+import CommonCrypto
+
+func example(password: String) {
+    var derivedKeyData = Data(repeating: 0, count: 32)
+    let derivedKeyDataCount = derivedKeyData.count
+    derivedKeyData.withUnsafeMutableBytes { derivedKeyBytes in
+        CCKeyDerivationPBKDF(
+            CCPBKDFAlgorithm(kCCPBKDF2), password, password.count, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 8, // Noncompliant
+            CCPBKDFAlgorithm(kCCPRFHmacAlgSHA256), 600000, derivedKeyBytes, derivedKeyDataCount) 
+    }
+}
+----
+
+==== Compliant solution
+
+[source,swift,diff-id=1,diff-type=compliant]
+----
+import CommonCrypto
+
+func example(password: String) {
+    var secureGenerator = SystemRandomNumberGenerator()
+    let randomBytes: [UInt8] = (0..<32).map { _ in secureGenerator.next() }
+        
+    var derivedKeyData = Data(repeating: 0, count: 32)
+    let derivedKeyDataCount = derivedKeyData.count
+    derivedKeyData.withUnsafeMutableBytes { derivedKeyBytes in
+        CCKeyDerivationPBKDF(
+            CCPBKDFAlgorithm(kCCPBKDF2), password, password.count, randomBytes, randomBytes.count,
+            CCPBKDFAlgorithm(kCCPRFHmacAlgSHA256), 600000, derivedKeyBytes, derivedKeyDataCount) 
+    }
+}
+----
+
+=== How does this work?
+
+include::../../common/fix/salt.adoc[]
+
+Here, the compliant code example ensures the salt is random and has a sufficient
+length by calling the `SystemRandomNumberGenerator` function. This one internally uses a
+cryptographically secure pseudo random number generator.
