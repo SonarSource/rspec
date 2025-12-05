@@ -1,0 +1,82 @@
+This rule raises an issue when shared variables are accessed by multiple goroutines without proper synchronization mechanisms like mutexes, channels, or atomic operations.
+
+== Why is this an issue?
+
+Go's concurrency model allows multiple goroutines to run simultaneously, sharing the same memory space. When multiple goroutines access the same variable concurrently, and at least one of them performs a write operation, a race condition occurs.
+
+Race conditions are problematic for several reasons:
+
+**Data corruption**: Without synchronization, concurrent reads and writes can interfere with each other, leading to inconsistent or corrupted data. For example, if two goroutines increment the same counter simultaneously, the final value might be incorrect because both goroutines might read the same initial value before either writes back the incremented result.
+
+**Unpredictable behavior**: Race conditions make programs non-deterministic. The same code might produce different results on different runs, making bugs extremely difficult to reproduce and debug.
+
+**Memory visibility issues**: Modern processors and compilers can reorder operations for optimization. Without proper synchronization, changes made by one goroutine might not be immediately visible to other goroutines, leading to stale data being used.
+
+**Performance degradation**: When multiple goroutines write to the same memory location simultaneously, it can cause cache line contention and false sharing, significantly impacting performance.
+
+The Go memory model specifies that programs with data races have undefined behavior. This means that the compiler and runtime are free to make optimizations that assume no races exist, potentially breaking code that relies on unsynchronized access patterns.
+
+=== What is the potential impact?
+
+Race conditions can cause data corruption, unpredictable program behavior, and performance degradation. In severe cases, they can lead to application crashes, incorrect business logic execution, or security vulnerabilities where sensitive data becomes corrupted or accessible inappropriately.
+
+== How to fix it
+
+Use a mutex to synchronize access to shared variables. Lock the mutex before accessing the variable and unlock it afterward.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+var counter int
+
+func increment() {
+    go func() {
+        counter++ // Noncompliant
+    }()
+    go func() {
+        counter++ // Noncompliant
+    }()
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+var counter int
+var mu sync.Mutex
+
+func increment() {
+    go func() {
+        mu.Lock()
+        counter++
+        mu.Unlock()
+    }()
+    go func() {
+        mu.Lock()
+        counter++
+        mu.Unlock()
+    }()
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Memory Model - https://go.dev/ref/mem[Official documentation explaining Go's memory model and synchronization requirements]
+
+ * Go Race Detector - https://go.dev/doc/articles/race_detector[Guide on using Go's built-in race detector to find race conditions]
+
+ * Effective Go - Concurrency - https://go.dev/doc/effective_go#concurrency[Best practices for concurrent programming in Go]
+
+ * Go Tour - Concurrency - https://go.dev/tour/concurrency/1[Interactive tutorial covering Go's concurrency primitives]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race condition vulnerability classification]
+
+ * CWE-366: Race Condition within a Thread - https://cwe.mitre.org/data/definitions/366.html[Thread-level race condition vulnerability]
