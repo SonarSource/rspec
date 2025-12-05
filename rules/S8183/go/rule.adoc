@@ -1,0 +1,69 @@
+This rule raises an issue when a mutex `Lock()` or `RLock()` call is not immediately followed by a corresponding `defer` statement to unlock the mutex.
+
+== Why is this an issue?
+
+In Go, mutexes are used to protect shared resources from concurrent access. When you acquire a mutex lock, you must ensure it gets released, or your program can deadlock.
+
+The problem with manual unlocking is that functions can exit in multiple ways:
+
+* Normal return statements
+* Early returns due to error conditions  
+* Panic situations
+* Multiple return paths in complex logic
+
+If any of these exit paths bypasses the manual `Unlock()` call, the mutex remains locked forever. This creates a deadlock - other goroutines waiting for the same mutex will block indefinitely.
+
+Go's `defer` statement solves this problem elegantly. When you use `defer mutex.Unlock()` immediately after locking, Go guarantees the unlock will happen when the function exits, regardless of how it exits. This includes normal returns, early returns, and even panics.
+
+The `defer` mechanism uses a stack-based approach, so deferred functions execute in reverse order. This ensures proper cleanup even with nested locks or complex control flow.
+
+=== What is the potential impact?
+
+Deadlocks can cause your application to hang indefinitely, requiring a restart. In production systems, this leads to:
+
+* Service unavailability and downtime
+* Resource exhaustion as blocked goroutines accumulate
+* Difficult-to-debug issues that may only appear under specific timing conditions
+* Potential data corruption if critical sections are left in inconsistent states
+
+== How to fix it
+
+Add a `defer` statement immediately after acquiring the mutex lock. This ensures the mutex is unlocked when the function exits, regardless of how it exits.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+var mu sync.Mutex
+
+func updateCounter() {
+    mu.Lock()
+    counter++
+    // Missing mu.Unlock() - potential deadlock // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+var mu sync.Mutex
+
+func updateCounter() {
+    mu.Lock()
+    defer mu.Unlock()
+    counter++
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Tour - Mutexes - https://go.dev/tour/concurrency/9[Official Go tutorial covering mutex usage and best practices]
+
+ * Go Documentation - sync package - https://pkg.go.dev/sync[Complete documentation for Go's synchronization primitives including Mutex and RWMutex]
+
+ * Effective Go - Concurrency - https://go.dev/doc/effective_go#concurrency[Official Go guide covering concurrency patterns and mutex usage]
