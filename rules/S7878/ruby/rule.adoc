@@ -1,0 +1,160 @@
+This rule raises an issue when Rails MVC layers are improperly mixed: models include view helpers or call controller methods, view helpers perform database queries or contain business logic, or controllers mix presentation logic with data access.
+
+== Why is this an issue?
+
+The Model-View-Controller (MVC) pattern is fundamental to Rails architecture and provides clear separation of concerns. Each layer has a specific responsibility:
+
+* **Models** handle data and business logic
+* **Views** handle presentation and user interface
+* **Controllers** orchestrate between models and views
+
+When these boundaries are violated, several problems arise:
+
+**Tight Coupling**: Including view helpers in models creates unnecessary dependencies between the data layer and presentation layer. This makes the code harder to test, maintain, and refactor.
+
+**Runtime Errors**: View helpers often depend on controller context (like `params`, `request`, or `current_user`). When called from models, these dependencies may be missing, causing `NoMethodError` or `undefined method` exceptions.
+
+**Poor Testability**: Models with view dependencies become harder to unit test because they require view context to be set up. This violates the principle that models should be testable in isolation.
+
+**Namespace Pollution**: Including helper modules in models adds many unrelated methods to the model's interface, making it confusing and harder to understand.
+
+**Performance Issues**: Database queries in view helpers can lead to N+1 query problems and make it difficult to optimize data loading. View rendering becomes slower and less predictable.
+
+**Maintenance Burden**: When presentation logic is scattered across models and helpers, making UI changes requires touching multiple layers, increasing the risk of introducing bugs.
+
+=== What is the potential impact?
+
+Violating MVC separation leads to code that is difficult to maintain, test, and debug. Applications become more fragile as changes in one layer unexpectedly break functionality in another. Performance can degrade due to inefficient data loading patterns, and development velocity slows as developers struggle with tightly coupled code.
+
+== How to fix it in Rails
+
+Move formatting logic from models to presenter objects. Presenters handle the presentation concerns while keeping models focused on data and business logic.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Model including view helpers
+class Job < ActiveRecord::Base
+  include ActionView::Helpers::NumberHelper
+  include ApplicationHelper
+  
+  def details
+    "Only #{number_to_currency(part_amount_received)} received." # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use presenter for formatting
+class JobPresenter
+  include ActionView::Helpers::NumberHelper
+  
+  def initialize(job)
+    @job = job
+  end
+  
+  def details
+    "Only #{number_to_currency(@job.part_amount_received)} received."
+  end
+end
+
+class Job < ActiveRecord::Base
+  def total_received_percentage
+    (part_amount_received.to_f / price) * 100
+  end
+end
+----
+
+Move database queries and business logic from helpers to models. Keep helpers focused on formatting and presentation logic only.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Helper with database queries and business logic
+module BooksHelper
+  def book_count_for_author(author)
+    Book.where(author: author).count # Noncompliant
+  end
+  
+  def featured_products
+    Product.where(featured: true).limit(5).order(:created_at) # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Move queries to model, keep formatting in helper
+class Book < ActiveRecord::Base
+  def self.count_for_author(author)
+    where(author: author).count
+  end
+end
+
+module BooksHelper
+  def format_book_count(author, book_count)
+    pluralize(book_count, 'book') + " by #{author}"
+  end
+end
+----
+
+Pass data from controllers to models instead of having models call controller methods. This maintains proper data flow and eliminates tight coupling.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Model calling controller methods
+class Order < ActiveRecord::Base
+  def transfer
+    active = ApplicationController.helpers.get_active_gateway(self.cart) # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Pass data from controller to model
+class ApplicationController < ActionController::Base
+  def show
+    @order = Order.find(params[:id])
+    active_gateway = get_active_gateway(@order.cart)
+    @order.transfer(active_gateway)
+  end
+end
+
+class Order < ActiveRecord::Base
+  def transfer(active_gateway)
+    # Use passed parameter
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails MVC Architecture Guide - https://guides.rubyonrails.org/getting_started.html#mvc-and-you[Official Rails guide explaining the MVC pattern and proper layer separation]
+
+ * Rails View Helpers Best Practices - https://avohq.io/glossary/helpers[Comprehensive guide on proper use of view helpers and avoiding common pitfalls]
+
+ * Presenter Pattern in Rails - https://nithinbekal.com/posts/rails-presenters/[Guide on using presenter objects to handle view logic without violating MVC separation]
+
+=== Standards
+
+ * SOLID Principles - Single Responsibility Principle - https://en.wikipedia.org/wiki/Single-responsibility_principle[Each class should have only one reason to change, supporting proper separation of concerns]
