@@ -1,0 +1,80 @@
+This rule raises an issue when a method annotated with `@future` is called from within a batch class (implementing `Database.Batchable`) or a queueable class (implementing `System.Queueable`).
+
+== Why is this an issue?
+
+Salesforce's execution model prevents future methods from being called within batch or queueable contexts because these contexts already run asynchronously.
+
+Future methods are designed to execute asynchronously in a separate thread with their own governor limits. However, batch and queueable classes also run asynchronously and have their own execution context and limits.
+
+When you attempt to call a future method from a batch or queueable context, Salesforce throws a `System.AsyncException` at runtime with the message "Future method cannot be called from a batch or future method." This happens because:
+
+* The platform prevents nested asynchronous calls to maintain system stability
+* Governor limits would become unpredictable if multiple async contexts could spawn additional async processes
+* Resource management becomes complex when async processes try to create more async processes
+
+This restriction ensures that the platform can properly manage system resources and maintain predictable execution patterns.
+
+=== What is the potential impact?
+
+Calling future methods from batch or queueable contexts will cause your code to fail at runtime with a `System.AsyncException`. This can:
+
+* Break critical business processes that depend on batch or queueable jobs
+* Cause data processing failures that may be difficult to debug
+* Lead to incomplete data updates or synchronization issues
+* Result in failed scheduled jobs that require manual intervention
+
+== How to fix it
+
+Remove the future method call and implement the logic synchronously within the batch context. Batch classes already run asynchronously, so additional async processing is usually unnecessary.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class MyBatch implements Database.Batchable<SObject> {
+    public void execute(Database.BatchableContext context, List<Account> scope) {
+        MyFutureMethod.processAsync(scope[0].Id); // Noncompliant
+    }
+}
+
+public class MyFutureMethod {
+    @future
+    public static void processAsync(Id accountId) {
+        // Future method logic
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class MyBatch implements Database.Batchable<SObject> {
+    public void execute(Database.BatchableContext context, List<Account> scope) {
+        // Process synchronously within batch context
+        processAccount(scope[0]);
+    }
+    
+    private void processAccount(Account acc) {
+        // Synchronous processing logic
+        acc.Status__c = 'Processed';
+        update acc;
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Apex Developer Guide - Future Methods - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm[Official documentation on future methods and their limitations]
+
+ * Salesforce Apex Developer Guide - Batch Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch.htm[Comprehensive guide to batch Apex development]
+
+ * Salesforce Apex Developer Guide - Queueable Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_queueing_jobs.htm[Documentation on queueable Apex and job chaining]
+
+=== Standards
+
+ * Salesforce Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Platform limits that govern asynchronous execution contexts]
