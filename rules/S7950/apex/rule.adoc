@@ -1,0 +1,76 @@
+This rule raises an issue when a Batch Apex class performs DML operations in the `execute` method without implementing proper error handling mechanisms.
+
+== Why is this an issue?
+
+Batch Apex classes are designed to process large volumes of data by breaking them into smaller chunks. When these classes lack proper error handling, several critical problems can occur.
+
+First, without error handling, a single record failure can cause the entire batch chunk to fail. This means that if one record out of 200 in a batch has a validation error or constraint violation, all 200 records in that chunk will fail to process. This creates an all-or-nothing scenario that defeats the purpose of batch processing.
+
+Second, failed batches provide limited debugging information. When a batch fails without proper error handling, developers receive generic error messages that don't clearly indicate which specific records caused the failure or why. This makes troubleshooting time-consuming and difficult.
+
+Third, batch failures can lead to data inconsistency. If some batches succeed while others fail completely, the system ends up in a partially processed state. This can create business logic errors and data integrity issues that are difficult to detect and resolve.
+
+Proper error handling in batch classes involves two key approaches: using try-catch blocks to gracefully handle exceptions, and utilizing Database DML methods with the `allOrNone=false` parameter. The Database methods return result objects that can be inspected to identify which specific records failed and why, allowing successful records to be processed while failed records are logged for later review.
+
+By implementing comprehensive error handling, batch classes become more resilient, provide better debugging information, and ensure that partial failures don't prevent the processing of valid records.
+
+=== What is the potential impact?
+
+Without proper error handling, batch processing can fail catastrophically, causing data inconsistency and making it difficult to identify and resolve issues. Failed batches may need to be completely rerun, wasting system resources and processing time. Additionally, lack of error logging makes debugging and monitoring batch jobs extremely challenging, potentially leading to undetected data processing failures in production environments.
+
+== How to fix it
+
+Wrap DML operations in try-catch blocks and use Database methods with partial failure handling. This approach allows successful records to be processed while capturing detailed error information for failed records.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class AccountBatch implements Database.Batchable<sObject> {
+    public void execute(Database.BatchableContext bc, List<Account> accounts) {
+        for (Account acc : accounts) {
+            acc.Name = acc.Name.toUpperCase();
+        }
+        update accounts; // Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class AccountBatch implements Database.Batchable<sObject> {
+    public void execute(Database.BatchableContext bc, List<Account> accounts) {
+        try {
+            for (Account acc : accounts) {
+                acc.Name = acc.Name.toUpperCase();
+            }
+            Database.SaveResult[] results = Database.update(accounts, false);
+            for (Database.SaveResult result : results) {
+                if (!result.isSuccess()) {
+                    System.debug('Error updating account: ' + result.getErrors());
+                }
+            }
+        } catch (Exception e) {
+            System.debug('Batch execution error: ' + e.getMessage());
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Batch Apex Developer Guide - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch.htm[Official Salesforce documentation on implementing and best practices for Batch Apex classes]
+
+ * Database Class Methods - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_database.htm[Documentation for Database class methods including partial failure handling with allOrNone parameter]
+
+ * Exception Handling in Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_definition.htm[Guide to implementing proper exception handling in Apex code]
+
+=== Standards
+
+ * CWE-754: Improper Check for Unusual or Exceptional Conditions - https://cwe.mitre.org/data/definitions/754.html[Addresses the security implications of not properly handling exceptional conditions in software]
