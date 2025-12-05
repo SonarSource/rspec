@@ -1,0 +1,132 @@
+This rule raises an issue when ActiveRecord model constructors (`new`, `create`, `build`) receive non-hash arguments such as strings, symbols, or multiple individual parameters.
+
+== Why is this an issue?
+
+ActiveRecord model constructors expect a hash of attributes where keys represent attribute names and values represent the corresponding values. When you pass non-hash arguments, Rails cannot process them correctly because it tries to call hash-specific methods like `stringify_keys!` on the provided arguments.
+
+This leads to runtime errors such as:
+
+* `ArgumentError: When assigning attributes, you must pass a hash as an argument`
+* `undefined method 'stringify_keys!' for "SomeString":String`
+
+These errors occur because Rails internally processes the constructor arguments as attribute hashes. When you pass a string, symbol, or other non-hash data type, Rails fails when it attempts to normalize the keys and values.
+
+The problem often arises when developers mistakenly pass:
+
+* Direct parameter values instead of structured attribute hashes
+* Individual symbols thinking they represent attribute names
+* String values directly from form parameters without proper structuring
+
+This pattern violates Rails conventions and makes the code fragile and error-prone.
+
+=== What is the potential impact?
+
+This issue causes immediate runtime failures when the affected code executes. The application will crash with an `ArgumentError`, potentially breaking user workflows and causing service disruptions. In web applications, this typically results in 500 Internal Server Error responses, degrading user experience and system reliability.
+
+== How to fix it in Rails
+
+Replace non-hash arguments with a proper hash structure where keys are attribute names and values are the corresponding data.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def create_car
+  # Passing a string directly
+  @car = Car.new(params[:car])  # params[:car] is "Honda"
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def create_car
+  # Pass a hash with attribute names as keys
+  @car = Car.new(name: params[:car])
+end
+----
+
+When passing symbols, convert them to proper hash syntax with the symbol as the key.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def create_document
+  # Passing a symbol directly
+  @document = Document.new(:name)  # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def create_document
+  # Use hash syntax with the attribute name
+  @document = Document.new(name: params[:name])
+end
+----
+
+For multiple attributes, use a single hash instead of multiple individual arguments.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+def create_document
+  # Multiple non-hash arguments
+  @document = Document.new(:name, :title)  # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+def create_document
+  # Single hash with multiple attributes
+  @document = Document.new(name: params[:name], title: params[:title])
+end
+----
+
+When no specific attributes are needed, call the constructor without arguments or with an empty hash.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=4,diff-type=noncompliant]
+----
+def create_document
+  # Incorrect: passing empty string
+  @document = Document.new("")  # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=4,diff-type=compliant]
+----
+def create_document
+  # Correct: no arguments or empty hash
+  @document = Document.new
+  # or
+  @document = Document.new({})
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Basics - Creating Active Record Objects - https://guides.rubyonrails.org/active_record_basics.html#creating-active-record-objects[Official Rails guide explaining how to properly create ActiveRecord objects with attribute hashes]
+
+ * ActiveRecord::Base.new Documentation - https://api.rubyonrails.org/classes/ActiveRecord/Base.html#method-c-new[API documentation for ActiveRecord::Base.new method and its expected parameters]
