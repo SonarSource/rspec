@@ -1,0 +1,116 @@
+This rule raises an issue when a controller includes a helper module or directly calls view helper methods.
+
+== Why is this an issue?
+
+In the Model-View-Controller (MVC) architecture, each component has a specific responsibility. Controllers handle request and response logic, models manage data and business logic, and views handle presentation.
+
+View helpers are designed specifically for formatting and presenting data in templates. When controllers include helper modules or call helper methods directly, they violate the separation of concerns principle.
+
+This creates several problems:
+
+* *Tight coupling*: The controller becomes dependent on view-specific formatting logic
+* *Reduced testability*: Controller tests now need to account for view presentation logic
+* *Code organization*: Business logic gets mixed with presentation logic, making the codebase harder to maintain
+* *Reusability*: Formatting logic tied to controllers cannot be easily reused in other contexts
+
+Controllers should focus on coordinating between models and views, not on how data should be formatted for display.
+
+=== What is the potential impact?
+
+This architectural violation can lead to tightly coupled code that is harder to test, maintain, and refactor. It makes the application more fragile to changes and reduces code reusability.
+
+== How to fix it in Ruby on Rails
+
+Remove the helper include from the controller and move the formatting logic to a model method or service object.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class CommentsController < ApplicationController
+  include ApplicationHelper # Noncompliant
+  
+  def index
+    @comments = []
+    Comment.find_each do |comment|
+      @comments << {
+        id: comment.id,
+        content: html_format(comment.content) # Noncompliant
+      }
+    end
+    render json: @comments
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Move formatting logic to a service object
+class CommentSerializer
+  def self.format_for_json(comments)
+    comments.map do |comment|
+      {
+        id: comment.id,
+        content: comment.formatted_content
+      }
+    end
+  end
+end
+
+class CommentsController < ApplicationController
+  def index
+    @comments = Comment.all
+    render json: CommentSerializer.format_for_json(@comments)
+  end
+end
+----
+
+Instead of using the helpers object to access view methods, create a dedicated presenter or move the logic to the model.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class UsersController < ApplicationController
+  def show
+    @user = User.find(params[:id])
+    @formatted_name = helpers.truncate(@user.full_name, length: 20) # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class User < ApplicationRecord
+  def display_name(length: 20)
+    full_name.length > length ? "#{full_name[0...length]}..." : full_name
+  end
+end
+
+class UsersController < ApplicationController
+  def show
+    @user = User.find(params[:id])
+    @formatted_name = @user.display_name
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Action Controller Overview - https://guides.rubyonrails.org/action_controller_overview.html[Official Rails documentation on controller responsibilities and best practices]
+
+ * Rails Guides - Action View Helpers - https://guides.rubyonrails.org/action_view_helpers.html[Documentation on Rails view helpers and their intended use in templates]
+
+=== Standards
+
+ * SOLID Principles - Single Responsibility Principle - https://en.wikipedia.org/wiki/Single-responsibility_principle[Each class should have only one reason to change and one responsibility]
