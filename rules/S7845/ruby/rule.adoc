@@ -1,0 +1,50 @@
+This rule raises an issue when hash objects are stored using Redis string methods like `set` instead of appropriate hash methods.
+
+== Why is this an issue?
+
+Redis has different data types, and each type has its own set of operations. When you use `set` to store a Ruby hash object, Redis converts the hash to its string representation (like `"{\"field\"=>\"value\"}"`) rather than storing it as a proper Redis hash data structure.
+
+This creates several problems:
+
+* **Data retrieval issues**: When you retrieve the data with `get`, you get back a string instead of a hash, requiring manual parsing
+* **Loss of Redis hash functionality**: You cannot use Redis hash operations like `hget`, `hset`, or `hgetall` on string-stored data
+* **Type conflicts**: If you later try to use hash operations on a key that was stored as a string, Redis will return a "wrong kind of value" error
+* **Performance impact**: String serialization and parsing add unnecessary overhead compared to native Redis hash operations
+
+Redis hash data structures are specifically designed for storing field-value pairs efficiently and provide atomic operations for individual fields.
+
+=== What is the potential impact?
+
+Using inappropriate Redis methods can lead to data retrieval failures, runtime errors when mixing operation types, and reduced application performance due to unnecessary serialization overhead.
+
+== How to fix it
+
+Use Redis hash methods like `mapped_hmset` and `hgetall` for storing and retrieving hash data structures.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+hash = {"field" => "value", "field2" => "value2"}
+$redis.set('data', hash)  # Noncompliant
+data = $redis.get('data') # Returns string, not hash
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+hash = {"field" => "value", "field2" => "value2"}
+$redis.mapped_hmset('data', hash)
+data = $redis.hgetall('data')
+----
+
+== Resources
+
+=== Documentation
+
+ * Redis Hash Commands - https://redis.io/commands/?group=hash[Official Redis documentation for hash data type commands]
+
+ * Redis Ruby Client Documentation - https://github.com/redis/redis-rb[Documentation for the Redis Ruby client library]
