@@ -1,0 +1,79 @@
+This is an issue when datetime attributes from ActiveRecord models are accessed directly for display purposes without calling `.in_time_zone` to convert them to the application's timezone.
+
+== Why is this an issue?
+
+ActiveRecord stores datetime values in UTC in the database for consistency. However, when these values are displayed to users without timezone conversion, they appear as UTC times instead of the application's configured timezone or the user's local timezone.
+
+This creates several problems:
+
+* *User confusion*: Users see times that don't match their expectations or local timezone
+* *Incorrect time representation*: Business logic that depends on displayed times may be affected
+* *Poor user experience*: Applications appear to have incorrect or inconsistent time handling
+
+Rails provides the `.in_time_zone` method specifically to handle this conversion. When called on a datetime attribute, it converts the UTC time to the application's configured timezone (set via `config.time_zone`) or a specified timezone.
+
+The issue is particularly common in controllers where datetime attributes are formatted for display, and in view templates where datetime values are directly interpolated.
+
+=== What is the potential impact?
+
+Users will see incorrect times that don't match their timezone expectations, leading to confusion and potential business logic errors. This can affect scheduling, reporting, and any time-sensitive operations in the application.
+
+== How to fix it in Rails
+
+Use `.in_time_zone` to convert datetime attributes to the application's timezone before display or formatting.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class OrdersController < ApplicationController
+  def show
+    @order = Order.find(params[:id])
+    # This displays UTC time instead of local timezone
+    @formatted_time = @order.placed_at.strftime("%B %d, %Y at %I:%M %p") # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class OrdersController < ApplicationController
+  def show
+    @order = Order.find(params[:id])
+    # Convert to application timezone before display
+    @formatted_time = @order.placed_at.in_time_zone.strftime("%B %d, %Y at %I:%M %p")
+  end
+end
+----
+
+In view templates, use `.in_time_zone` when displaying datetime attributes.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,erb,diff-id=2,diff-type=noncompliant]
+----
+<!-- Displays UTC time -->
+<%= @order.placed_at %> <!-- Noncompliant -->
+----
+
+==== Compliant solution
+
+[source,erb,diff-id=2,diff-type=compliant]
+----
+<!-- Displays time in application timezone -->
+<%= @order.placed_at.in_time_zone %>
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Time Zone Handling - https://guides.rubyonrails.org/configuring.html#configuring-time-zones[Official Rails guide on configuring and handling time zones]
+
+ * ActiveSupport TimeZone - https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html[API documentation for Rails TimeZone class and methods]
