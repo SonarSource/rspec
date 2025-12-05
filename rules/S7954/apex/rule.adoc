@@ -1,0 +1,67 @@
+This rule raises an issue when DML operations (insert, update, delete, upsert, undelete, merge) are performed inside loops.
+
+== Why is this an issue?
+
+Salesforce enforces strict governor limits on DML operations to ensure fair resource usage in its multi-tenant environment. The platform allows a maximum of 150 DML operations per transaction in standard orgs (450 with Hyperforce).
+
+When DML operations are performed inside loops, each iteration consumes one DML operation from the transaction limit. This approach is highly inefficient and can quickly lead to governor limit exceptions. For example, a loop processing 200 records with individual DML operations would exceed the 150-operation limit, causing a `System.LimitException: Too many DML statements: 151` runtime exception that cannot be caught or handled.
+
+Beyond governor limits, performing DML operations inside loops also impacts performance. Each DML operation involves database communication, and multiple individual operations create unnecessary overhead compared to a single bulk operation.
+
+Salesforce's architecture is designed to handle bulk operations efficiently. The platform can process multiple records in a single DML statement, which not only stays within governor limits but also provides better performance and scalability.
+
+=== What is the potential impact?
+
+Violating this rule can lead to several serious consequences:
+
+* *Governor Limit Exceptions*: The application will throw uncatchable `System.LimitException` errors when processing moderate to large datasets, causing transaction failures and data inconsistency.
+* *Poor Scalability*: Code that works with small datasets during development may fail in production when processing larger volumes of data.
+* *Performance Degradation*: Individual DML operations create unnecessary database round trips, significantly slowing down execution compared to bulk operations.
+* *User Experience Issues*: Applications may become unreliable and slow, leading to frustrated users and potential business disruption.
+* *Maintenance Overhead*: Non-bulkified code requires more complex workarounds and monitoring to handle governor limits, increasing long-term maintenance costs.
+
+== How to fix it
+
+Collect records in a collection during loop iteration, then perform a single bulk DML operation outside the loop. This approach uses only one DML operation regardless of the number of records processed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+for (Account acc : accounts) {
+    acc.Name = 'Updated Name';
+    update acc; // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+List<Account> accountsToUpdate = new List<Account>();
+for (Account acc : accounts) {
+    acc.Name = 'Updated Name';
+    accountsToUpdate.add(acc);
+}
+update accountsToUpdate; // Bulk DML outside loop
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Apex Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_bestpractices.htm[Official Salesforce documentation on Apex coding best practices including bulkification]
+
+ * Understanding Execution Governors and Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Comprehensive guide to Salesforce governor limits and how to work within them]
+
+ * Bulk Apex Triggers - https://trailhead.salesforce.com/content/learn/modules/apex_triggers/apex_triggers_bulk[Trailhead module explaining how to write bulk-safe Apex triggers]
+
+=== Standards
+
+ * Salesforce Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_apexgov.htm[Official limits enforced by the Salesforce platform for DML operations]
+
+=== Related rules
+
+ * RSPEC-5382 - https://rules.sonarsource.com/apex/RSPEC-5382[Related rule about SOQL queries in loops which has similar performance implications]
