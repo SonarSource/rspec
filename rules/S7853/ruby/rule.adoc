@@ -1,0 +1,97 @@
+This rule raises an issue when `find_each` is chained with `limit()` or `order()` methods in ActiveRecord queries.
+
+== Why is this an issue?
+
+ActiveRecord's `find_each` method is designed for efficient batch processing of large datasets. It automatically handles batching and ordering internally to prevent memory issues when processing thousands of records.
+
+However, `find_each` has specific behavior that developers often misunderstand:
+
+* It always orders records by primary key (usually `id`) in ascending order
+* It processes ALL matching records in batches, regardless of any limit
+* It completely ignores any `order()` or `limit()` clauses in the query chain
+
+When you combine `find_each` with `limit()` or `order()` clauses, the code becomes misleading. A developer reading the code might expect it to respect the limit or custom ordering, but it won't. This can lead to:
+
+* Processing more records than intended (ignoring limits)
+* Processing records in unexpected order (ignoring custom sorting)
+* Confusion during debugging when the code doesn't behave as written
+* Potential performance issues if you expected to process only a subset of records
+
+The problem is that the code looks like it should work one way, but ActiveRecord silently ignores parts of your query chain.
+
+=== What is the potential impact?
+
+This issue primarily affects code clarity and predictability. Developers may experience unexpected behavior when their queries process more records than intended or in a different order than specified. While not a security vulnerability, it can lead to performance issues if large datasets are processed when only a subset was intended.
+
+== How to fix it in Ruby on Rails
+
+Use `find_each` without `limit` or `order` clauses when you want to process all matching records in batches. Configure batch size if needed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# This ignores the limit and order clauses
+Thing.active.order("created_at DESC").limit(50000).find_each { |t| puts t.id } // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use find_each without limit/order for batch processing
+Thing.active.find_each(batch_size: 1000) { |t| puts t.id }
+----
+
+Use `each` instead of `find_each` when you need to respect `limit` or `order` clauses for smaller result sets.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# The order clause is ignored
+User.where(active: true).order("name ASC").find_each { |u| process(u) } // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Use each to respect the order clause
+User.where(active: true).order("name ASC").each { |u| process(u) }
+----
+
+For custom batching with specific ordering and limits, implement manual batching by first getting the IDs, then processing in chunks.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# The limit is ignored - processes all records
+Product.published.limit(1000).find_each { |p| update_cache(p) } // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Manual batching with custom order and limit
+ids = Product.published.order("created_at DESC").limit(1000).pluck(:id)
+ids.in_groups_of(100, false).each do |batch_ids|
+  Product.where(id: batch_ids).each { |p| update_cache(p) }
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html#retrieving-multiple-objects-in-batches[Official Rails documentation on batch processing methods including find_each]
+
+ * ActiveRecord::Batches API Documentation - https://api.rubyonrails.org/classes/ActiveRecord/Batches.html[Complete API documentation for ActiveRecord batch processing methods]
