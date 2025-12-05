@@ -1,0 +1,101 @@
+This is an issue when `update`, `update_attributes`, or `save` methods are called within ActiveRecord save callbacks like `after_save`, `before_save`, `after_create`, or `before_create`.
+
+== Why is this an issue?
+
+Using update methods within save callbacks creates infinite recursion. When you call `update`, `update_attributes`, or `save` inside a callback like `after_save`, these methods trigger the same callback again, which calls the update method again, and so on.
+
+This happens because ActiveRecord's update methods go through the full model lifecycle, including running all callbacks. So when your `after_save` callback calls `update`, it saves the record again, which triggers `after_save` again, creating an endless loop.
+
+The result is a stack overflow error that crashes your application. Even if the recursion doesn't immediately crash the app, it creates unnecessary database queries and severely impacts performance.
+
+ActiveRecord provides callbacks specifically to modify data during the save process. The correct approach is to modify attributes directly within these callbacks, which updates the database without triggering additional callbacks.
+
+=== What is the potential impact?
+
+This issue causes stack overflow errors that crash the application. It can also lead to severe performance degradation due to excessive database queries and infinite callback execution. In production environments, this can result in application downtime and poor user experience.
+
+== How to fix it in Ruby on Rails
+
+Replace update methods with direct attribute assignment in save callbacks. This modifies the attribute without triggering additional callbacks.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class User < ActiveRecord::Base
+  after_save :calculate_rating
+
+  private
+
+  def calculate_rating
+    # These methods trigger callbacks and cause infinite recursion
+    self.update_attributes(rating: rating_score / ratings) # Noncompliant
+    # or
+    self.update(rating: rating_score / ratings) # Noncompliant
+    # or
+    self.save # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class User < ActiveRecord::Base
+  after_save :calculate_rating
+
+  private
+
+  def calculate_rating
+    # Direct attribute assignment - safe in callbacks
+    self.rating = rating_score / ratings if ratings > 0
+  end
+end
+----
+
+For more complex updates, use `update_column` or `update_columns` which skip callbacks and validations, or move the logic to a `before_save` callback.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class Product < ActiveRecord::Base
+  after_save :update_inventory
+
+  private
+
+  def update_inventory
+    self.update(stock_status: calculate_stock_status) # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Product < ActiveRecord::Base
+  after_save :update_inventory
+
+  private
+
+  def update_inventory
+    # Skip callbacks with update_column (use sparingly)
+    self.update_column(:stock_status, calculate_stock_status)
+    # Or better: move to before_save
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Callbacks Guide - https://guides.rubyonrails.org/active_record_callbacks.html[Official Rails guide explaining ActiveRecord callbacks and their lifecycle]
+
+ * ActiveRecord update_column documentation - https://api.rubyonrails.org/classes/ActiveRecord/Persistence.html#method-i-update_column[Documentation for update_column method that skips callbacks]
