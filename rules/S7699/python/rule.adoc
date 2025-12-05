@@ -1,0 +1,70 @@
+This rule raises an issue when dropout layers are instantiated directly in the `forward` method instead of being defined as instance attributes in the model's ``++__init__++`` method.
+
+== Why is this an issue?
+
+When dropout layers are created inline during the forward pass, they are not tracked by PyTorch's module system. This means they will not respond to `model.eval()` and `model.train()` calls, leading to inconsistent behavior between training and evaluation modes.
+
+During training, dropout randomly sets some neurons to zero to prevent overfitting. However, during evaluation or inference, dropout should be disabled to ensure consistent and deterministic predictions. When dropout layers are instantiated inline, they remain active even when the model is set to evaluation mode using `model.eval()`.
+
+This can cause several problems:
+
+* Non-deterministic predictions during evaluation
+* Reduced model performance during inference
+* Inconsistent results when the same input is processed multiple times
+* Debugging difficulties due to unpredictable behavior
+
+PyTorch's module system automatically manages the training/evaluation state of all registered modules. By defining dropout layers as instance attributes in the ``++__init__++`` method, they become part of the model's module hierarchy and will properly respond to mode changes.
+
+=== What is the potential impact?
+
+The application may produce inconsistent and non-deterministic results during evaluation or inference. This can lead to unreliable model predictions, reduced performance, and difficulties in debugging model behavior. In production environments, this could result in unpredictable application behavior and degraded user experience.
+
+=== How to fix?
+
+Move the dropout layer definition from the forward method to the ``++__init__++`` method as an instance attribute. This ensures the dropout layer is properly tracked by the model and responds to training/evaluation mode changes.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch.nn as nn
+
+class MyModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MyModel, self).__init__()
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x):
+        x = self.linear1(x)
+        x = nn.Dropout(p=0.3)(x)  # Noncompliant Dropout layer is instantiated inline
+        x = self.linear2(x)
+        return x
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch.nn as nn
+
+class MyModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MyModel, self).__init__()
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.dropout = nn.Dropout(p=0.3)  # Define as instance attribute
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.dropout(x)  # Use the predefined dropout layer
+        x = self.linear2(x)
+        return x
+----
+
+=== Documentation
+
+ * PyTorch nn.Module Documentation - https://pytorch.org/docs/stable/generated/torch.nn.Module.html[Official PyTorch documentation for nn.Module]
+ * PyTorch Dropout Documentation - https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html[Official documentation for PyTorch's Dropout layer]
+ * PyTorch Training vs Evaluation Mode - https://pytorch.org/tutorials/beginner/introyt/trainingyt.html#the-training-loop[The training loop]
+
