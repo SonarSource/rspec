@@ -1,0 +1,137 @@
+This rule raises an issue when test code directly accesses or stubs private methods using techniques like `send()`, `instance_eval`, or method mocking.
+
+== Why is this an issue?
+
+Private methods are implementation details that should remain hidden from external code, including tests. When you test private methods directly, you create several problems:
+
+*Brittle tests*: Tests that depend on private method names and signatures break whenever you refactor the internal implementation, even when the public behavior remains unchanged.
+
+*Violated encapsulation*: Private methods exist to hide complexity and implementation details. Testing them directly breaks the encapsulation principle and exposes internal workings that should remain private.
+
+*Harder maintenance*: When private methods are tested directly, changing internal implementation becomes much more difficult because you need to update both the code and the tests, even for internal refactoring.
+
+*Poor test design*: Direct testing of private methods often indicates that your tests are focusing on "how" the code works rather than "what" it does. Good tests should verify behavior, not implementation.
+
+The correct approach is to test private methods indirectly through the public methods that use them. This way, your tests verify that the overall behavior is correct without being tied to specific implementation details.
+
+=== What is the potential impact?
+
+Testing private methods directly makes your test suite fragile and harder to maintain. When you refactor code, you'll need to update tests even when the public behavior hasn't changed. This slows down development and makes refactoring risky, ultimately leading to code that becomes harder to evolve over time.
+
+== How to fix it in RSpec
+
+Instead of testing private methods directly, test them through the public methods that use them. Focus on verifying the overall behavior rather than internal implementation details.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class Calculator
+  def add_and_multiply(a, b, multiplier)
+    result = add_numbers(a, b)
+    result * multiplier
+  end
+
+  private
+
+  def add_numbers(a, b)
+    a + b
+  end
+end
+
+RSpec.describe Calculator do
+  it "calls private method" do
+    calculator = Calculator.new
+    expect(calculator).to receive(:add_numbers).and_return(5) # Noncompliant
+    calculator.add_and_multiply(2, 3, 4)
+  end
+
+  it "tests private method behavior" do
+    calculator = Calculator.new
+    result = calculator.send(:add_numbers, 2, 3) # Noncompliant
+    expect(result).to eq(5)
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class Calculator
+  def add_and_multiply(a, b, multiplier)
+    result = add_numbers(a, b)
+    result * multiplier
+  end
+
+  private
+
+  def add_numbers(a, b)
+    a + b
+  end
+end
+
+RSpec.describe Calculator do
+  it "adds and multiplies correctly" do
+    calculator = Calculator.new
+    result = calculator.add_and_multiply(2, 3, 4)
+    expect(result).to eq(20)  # Testing behavior, not implementation
+  end
+end
+----
+
+== How to fix it in Rails
+
+In controller tests, avoid accessing private methods directly. Instead, test the controller actions that use those private methods, verifying the overall behavior and response.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+describe AccountController do
+  let(:controller) { AccountController.new }
+  
+  it "tests private method directly" do
+    result = controller.send(:current_account) # Noncompliant
+    expect(result).to eq(expected_account)
+    
+    account = controller.instance_eval { current_account } # Noncompliant
+    expect(account).to be_present
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+describe AccountController do
+  let(:user) { create(:user) }
+  let(:controller) { AccountController.new }
+  
+  before { allow(controller).to receive(:current_user).and_return(user) }
+  
+  describe "#index" do
+    it "renders successfully" do
+      get :index
+      expect(response).to be_successful
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * RSpec Best Practices - https://rspec.info/documentation/[Official RSpec documentation with testing best practices]
+
+ * Ruby Private Methods - https://ruby-doc.org/core/doc/syntax/methods_rdoc.html#label-Method+Visibility[Ruby documentation on method visibility and private methods]
+
+=== Standards
+
+ * SOLID Principles - Encapsulation - https://en.wikipedia.org/wiki/Encapsulation_(computer_programming)[Object-oriented programming principle that bundles data and methods together while restricting access to internal details]
