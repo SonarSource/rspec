@@ -1,0 +1,100 @@
+This rule raises an issue when date validation relies on regular expressions instead of Ruby's Date class methods, or when date operations lack proper exception handling.
+
+== Why is this an issue?
+
+Date validation is a common requirement in web applications, but implementing it incorrectly can lead to serious data integrity and user experience problems.
+
+Regular expressions are insufficient for date validation because they can only check format, not logical constraints. A regex pattern like `/\d{2}-\d{2}-\d{4}/` will match "31-02-2010" even though February 31st doesn't exist. This creates a false sense of security while allowing invalid data to enter your system.
+
+Ruby's automatic date conversion adds another layer of complexity. When you pass an invalid date like February 31st to Ruby's date constructors, it doesn't reject the date - instead, it silently converts it to a valid but incorrect date (March 3rd in this case). This "helpful" behavior can corrupt your data without any warning.
+
+Unhandled date operations create poor user experiences. When `Date.new` receives invalid parameters, it raises an `ArgumentError`. If this exception isn't caught, users see generic 500 server errors instead of helpful validation messages.
+
+These issues compound in web applications where user input is unpredictable. Users might enter dates in unexpected formats, test edge cases, or make honest mistakes. Without proper validation and error handling, your application becomes fragile and unreliable.
+
+=== What is the potential impact?
+
+Invalid dates can corrupt application data, leading to incorrect calculations, reports, and business logic. Silent date corrections can cause scheduling conflicts, billing errors, and data inconsistencies that are difficult to trace and fix. Unhandled exceptions create poor user experiences with cryptic error messages and can expose sensitive system information in error pages.
+
+== How to fix it
+
+Replace regex-based date validation with Ruby's `Date.valid_date?` method, which properly validates logical date constraints.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Regex cannot validate logical date constraints
+def validate_date(date_string)
+  /(\d{2}-\d{2}-\d{4})/.match(date_string) != nil # Noncompliant
+end
+
+# This incorrectly returns true for invalid dates
+result = validate_date("31-02-2010") # returns true, but Feb 31st is invalid
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Using Date.valid_date? for proper validation
+def validate_date(date_string)
+  d, m, y = date_string.split('-')
+  Date.valid_date?(y.to_i, m.to_i, d.to_i)
+end
+
+# This correctly returns false for invalid dates
+result = validate_date("31-02-2010") # returns false
+----
+
+== How to fix it in Rails
+
+Implement custom setters in ActiveRecord models to validate dates before assignment and prevent silent corrections.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class Event < ActiveRecord::Base
+  # Direct assignment allows automatic conversion
+  # February 31st becomes March 3rd silently
+  validates :event_date, presence: true # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Event < ActiveRecord::Base
+  def event_date=(value)
+    if value.is_a?(String)
+      begin
+        parsed_date = Date.parse(value)
+        self.write_attribute(:event_date, parsed_date)
+      rescue ArgumentError
+        self.write_attribute(:event_date, nil)
+        errors.add(:event_date, "is not a valid date")
+      end
+    else
+      self.write_attribute(:event_date, value)
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby Date Class Documentation - https://ruby-doc.org/stdlib-3.0.0/libdoc/date/rdoc/Date.html[Official documentation for Ruby's Date class, including validation methods]
+
+ * Rails Active Record Validations Guide - https://guides.rubyonrails.org/active_record_validations.html[Comprehensive guide to implementing validations in Rails applications]
+
+=== Standards
+
+ * CWE-20: Improper Input Validation - https://cwe.mitre.org/data/definitions/20.html[Covers the security implications of insufficient input validation]
