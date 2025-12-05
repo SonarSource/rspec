@@ -1,0 +1,77 @@
+This rule raises an issue when a method has multiple array or list parameters that are intended to be processed together using the same index.
+
+== Why is this an issue?
+
+Using multiple parallel arrays as method parameters creates a fragile design that's prone to errors and difficult to maintain.
+
+When arrays are meant to be processed together using the same index (like `addresses[i]`, `subjects[i]`, `messages[i]`), they become tightly coupled. This coupling creates several problems:
+
+* *Index synchronization*: All arrays must always have exactly the same number of elements. If one array gets modified independently, the data becomes inconsistent.
+* *Runtime errors*: Index mismatches can cause `IndexOutOfBoundsException` or access wrong data silently.
+* *Poor readability*: The relationship between array elements isn't obvious from the method signature.
+* *Maintenance burden*: Adding new related data requires modifying multiple arrays and all the code that processes them.
+
+This pattern violates the principle of data cohesion - related data should be grouped together in a single structure rather than scattered across multiple collections.
+
+=== What is the potential impact?
+
+Index mismatches between parallel arrays can cause runtime exceptions or silent data corruption. The tight coupling makes the code fragile and error-prone during maintenance, potentially leading to incorrect data processing in business-critical operations.
+
+== How to fix it
+
+Create a wrapper class to group related data fields together, then use a single collection of these objects instead of multiple parallel arrays.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public void sendMail(String[] addresses, String[] subjects, String[] messages) {
+    for(Integer i = 0; i < addresses.size(); i++) {
+        // Process addresses[i], subjects[i], messages[i] // Noncompliant
+        Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
+        email.setToAddresses(new List<String> { addresses[i] });
+        email.setSubject(subjects[i]);
+        email.setPlainTextBody(messages[i]);
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class EmailData {
+    public String address;
+    public String subject;
+    public String message;
+    
+    public EmailData(String address, String subject, String message) {
+        this.address = address;
+        this.subject = subject;
+        this.message = message;
+    }
+}
+
+public void sendMail(List<EmailData> emails) {
+    for(EmailData email : emails) {
+        Messaging.SingleEmailMessage message = new Messaging.SingleEmailMessage();
+        message.setToAddresses(new List<String> { email.address });
+        message.setSubject(email.subject);
+        message.setPlainTextBody(email.message);
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Developer Guide - Classes - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes.htm[Official Salesforce documentation on creating and using Apex classes]
+
+ * Apex Developer Guide - Collections - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/langCon_apex_collections.htm[Guide to working with Lists, Sets, and Maps in Apex]
+
+=== Standards
+
+ * CWE-1126: Declaration of Variable with Unnecessarily Wide Scope - https://cwe.mitre.org/data/definitions/1126.html[Related to poor data organization and scope management]
