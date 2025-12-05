@@ -1,0 +1,88 @@
+This rule will raise an issue when the `utc` parameter is not set to `True` when calling `pandas.to_datetime` function.
+
+== Why is this an issue?
+
+When calling `pandas.to_datetime` to transform a string into a date, the `utc` parameter is set to `False` by default.
+This means inputs will not be coerced to UTC, timezone-naive inputs will remain naive, 
+while timezone-aware ones will keep their time offsets. 
+
+[source,python]
+----
+import pandas as pd
+
+pd.to_datetime(['2018-10-26 12:00:00']) # timezone naive example
+# returns DatetimeIndex(['2018-10-26 12:00:00'], dtype='datetime64[ns]', freq=None)
+
+pd.to_datetime(['2018-10-26 12:00 -0500']) # timezone aware example
+# returns DatetimeIndex(['2018-10-26 12:00:00-05:00'], dtype='datetime64[ns, UTC-05:00]', freq=None)
+----
+
+While this behavior is not problematic if all the dates are timezone naive or have the same time offset, 
+it could be problematic with mixed time offsets.
+
+[source,python]
+----
+import pandas as pd
+
+pd.to_datetime(['2020-10-25 02:00 +0200', '2020-10-25 04:00 +0100']) # mixed time offsets
+# returns Index([2020-10-25 02:00:00+02:00, 2020-10-25 04:00:00+01:00], dtype='object')
+----
+
+When processing ``datetime``s with mixed offsets, `pandas.to_datetime` will not succeed in creating a 
+`DatetimeIndex`. Instead it will create an `Index` of `object`.
+Working with dates with different timezones can lead to bugs, for example when comparing these dates.
+
+When dealing with multiple ``datetime``s with mixed offset, it is a good practice to set the `utc` parameter to `True`, 
+this way timezone-naive inputs are localized as UTC, 
+while timezone-aware inputs are converted to UTC. 
+
+[source,python]
+----
+import pandas as pd
+
+pd.to_datetime(['2018-10-26 12:00 -0530', '2018-10-26 12:00 -0500'], utc=True)
+# returns DatetimeIndex(['2018-10-26 17:30:00+00:00', '2018-10-26 17:00:00+00:00'], dtype='datetime64[ns, UTC]', freq=None)
+----
+
+If however the intent is to create a `Series` containing ``datetime``s with mixed offsets, 
+the recommended way would be to use `apply` and `datetime.datetime.strptime`.
+
+== How to fix it
+
+To fix this issue set the `utc` parameter of `pandas.to_datetime` to `True`. 
+Or if the intent is to use ``datetime``s with mixed offset, the preferred way is to create a `Series` and use `apply` with `datetime.datetime.strptime`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import pandas as pd
+import datetime as dt
+
+pd.to_datetime(['2018-10-26 12:00:00 -0530', '2018-10-26 12:00 -0500']) # Noncompliant: utc defaults to False 
+
+pd.to_datetime(['2020-01-12 12:00 -0530', '2021-11-07 12:00 -0500'], utc=False)  # Noncompliant
+
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import pandas as pd
+import datetime as dt
+
+pd.to_datetime(['2018-10-26 12:00 -0530', '2018-10-26 12:00 -0500'], utc=True) # Compliant
+
+
+pd.Series(['2020-01-12 12:00 -0530', '2021-11-07 12:00 -0500']).apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S%z')) # Compliant
+
+----
+
+== Resources
+=== Documentation
+
+* Pandas documentation - https://pandas.pydata.org/docs/reference/api/pandas.to_datetime.html#pandas-to-datetime[pandas.to_datetime reference]
+* Pandas documentation - https://pandas.pydata.org/docs/reference/api/pandas.to_datetime.html#to-datetime-tz-examples[Timezones and time offsets]
