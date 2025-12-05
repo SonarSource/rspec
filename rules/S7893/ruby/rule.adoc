@@ -1,0 +1,99 @@
+This rule raises an issue when a Rails controller contains multiple render statements for the same format within a single `respond_to` block.
+
+== Why is this an issue?
+
+In Rails controllers, when you use multiple render calls for the same format within a `respond_to` block, only the first render statement will execute. All subsequent render calls become unreachable dead code.
+
+This happens because Rails processes format blocks sequentially and stops after the first matching format is handled. When you have duplicate format declarations like multiple `format.json` blocks, the second and subsequent blocks are simply ignored.
+
+This creates several problems:
+
+* *Dead code*: The unreachable render statements serve no purpose and clutter the codebase
+* *Developer confusion*: Other developers might expect all render calls to execute, leading to misunderstandings about the controller's behavior
+* *Maintenance issues*: Dead code can mislead developers during debugging or feature development
+* *Incomplete responses*: The intended data from subsequent render calls will never reach the client
+
+The root cause is a misunderstanding of how Rails' `respond_to` method works. Each format should appear only once per `respond_to` block.
+
+=== What is the potential impact?
+
+This issue leads to incomplete API responses where only partial data is returned to clients. It creates dead code that confuses developers and makes the codebase harder to maintain. While not a security risk, it can cause application logic errors and unexpected behavior in client applications that depend on the missing data.
+
+== How to fix it in Rails
+
+Combine multiple data sources into a single response hash. This ensures all intended data is included in the response and eliminates dead code.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def calculate_quote
+  @moulding = Moulding.find(params[:id])
+  @material_costs = MaterialCost.all
+
+  respond_to do |format|
+    format.json { render json: @moulding }
+    format.json { render json: @material_costs } # Noncompliant: unreachable code
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def calculate_quote
+  @moulding = Moulding.find(params[:id])
+  @material_costs = MaterialCost.all
+
+  respond_to do |format|
+    format.json { render json: { 
+      moulding: @moulding, 
+      material_costs: @material_costs 
+    }}
+  end
+end
+----
+
+Use conditional logic within a single format block to determine what to render based on parameters or application state.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def show_data
+  respond_to do |format|
+    format.json { render json: @users }
+    format.json { render json: @posts } # Noncompliant: unreachable code
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def show_data
+  respond_to do |format|
+    format.json do
+      if params[:type] == 'users'
+        render json: @users
+      else
+        render json: @posts
+      end
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails respond_to method - https://api.rubyonrails.org/classes/ActionController/MimeResponds.html#method-i-respond_to[Official Rails documentation for the respond_to method]
+
+ * Rails render method - https://api.rubyonrails.org/classes/ActionController/Renderer.html#method-i-render[Official Rails documentation for the render method]
