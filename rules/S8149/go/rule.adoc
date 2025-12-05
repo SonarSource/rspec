@@ -1,0 +1,57 @@
+This is an issue when creating new Google Cloud Pub/Sub publisher instances for each publish operation instead of reusing a single publisher across multiple operations.
+
+== Why is this an issue?
+
+Google Cloud Pub/Sub publishers are designed to be reused across multiple publish operations to enable efficient message batching and optimal performance.
+
+When you create a new publisher instance for each publish call, several problems occur:
+
+* **Inefficient batching**: Each publisher maintains its own internal batching mechanism. Creating multiple publishers prevents messages from being batched together, leading to more individual network requests.
+* **Resource waste**: Each publisher instance maintains its own connection, goroutines, and internal buffers. Creating many publishers consumes unnecessary memory and network connections.
+* **Performance degradation**: The overhead of creating and initializing new publisher instances, combined with the lack of proper batching, significantly reduces throughput.
+* **Increased latency**: Without proper batching, messages are sent individually rather than in optimized batches, increasing overall latency.
+
+The Pub/Sub client library is specifically designed with the expectation that publishers will be reused. The internal batching algorithms work best when multiple messages flow through the same publisher instance.
+
+=== What is the potential impact?
+
+Applications may experience significantly reduced message throughput, increased latency, and higher resource consumption. In high-volume scenarios, this can lead to performance bottlenecks, increased cloud costs due to inefficient resource usage, and potential connection limits being reached due to excessive publisher instances.
+
+== How to fix it
+
+Create the publisher instance once outside the loop and reuse it for all publish operations. Remember to call Stop() to properly clean up resources when done.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func publishMessages(client *pubsub.Client, topicID string, messages []string) {
+    for _, msg := range messages {
+        p := client.Publisher(topicID)  // Noncompliant: new publisher for each message
+        p.Publish(ctx, &pubsub.Message{Data: []byte(msg)})
+    }
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func publishMessages(client *pubsub.Client, topicID string, messages []string) {
+    p := client.Publisher(topicID)  // Create publisher once
+    defer p.Stop()  // Clean up resources
+    for _, msg := range messages {
+        p.Publish(ctx, &pubsub.Message{Data: []byte(msg)})
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Google Cloud Pub/Sub Go Client Documentation - https://pkg.go.dev/cloud.google.com/go/pubsub[Official documentation for the Google Cloud Pub/Sub Go client library]
+
+ * Pub/Sub Publisher Best Practices - https://cloud.google.com/pubsub/docs/publisher[Google Cloud documentation on publisher best practices and performance optimization]
