@@ -1,0 +1,69 @@
+This is an issue when a Batch Apex class makes HTTP callouts without implementing the Database.AllowsCallouts interface, or when it doesn't properly manage callout counts to stay within governor limits.
+
+== Why is this an issue?
+
+Batch Apex classes that make HTTP callouts have two critical requirements that must be met to function correctly.
+
+First, the class must implement the `Database.AllowsCallouts` interface in addition to `Database.Batchable`. Without this interface, any attempt to make an HTTP callout will fail at runtime with a clear error message. This is a Salesforce platform requirement that cannot be bypassed.
+
+Second, even with the correct interface, the batch job must respect Salesforce's governor limits for callouts. Each transaction in the execute method is limited to 100 HTTP callouts and has time restrictions on total callout duration. If these limits are exceeded, the batch job will fail with governor limit exceptions.
+
+These failures can be particularly problematic because they may not surface during development with small test datasets, but will cause production issues when processing larger volumes of data. The batch job may process successfully for the first few hundred records, then fail when it hits the callout limits, leaving the data processing incomplete.
+
+=== What is the potential impact?
+
+Without the `Database.AllowsCallouts` interface, all HTTP callouts will fail immediately at runtime, causing the entire batch job to fail.
+
+Without proper governor limit management, the batch job may fail partway through processing when callout limits are exceeded, leaving data processing incomplete and potentially causing data inconsistency issues.
+
+== How to fix it
+
+Add the Database.AllowsCallouts interface to the class declaration and implement proper callout count tracking to stay within governor limits.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+global class BatchWithCallouts implements Database.Batchable<sObject> {
+    global void execute(Database.BatchableContext BC, List<Account> scope) {
+        for (Account acc : scope) { // Missing Database.AllowsCallouts interface
+            Http http = new Http();
+            HttpRequest request = new HttpRequest();
+            request.setEndpoint('https://api.example.com/account/' + acc.Id);
+            HttpResponse response = http.send(request); // Noncompliant
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+global class BatchWithCallouts implements Database.Batchable<sObject>, Database.AllowsCallouts {
+    global void execute(Database.BatchableContext BC, List<Account> scope) {
+        Integer calloutCount = 0;
+        for (Account acc : scope) {
+            if (calloutCount >= 100) break; // Respect governor limit
+            
+            Http http = new Http();
+            HttpRequest request = new HttpRequest();
+            request.setEndpoint('https://api.example.com/account/' + acc.Id);
+            HttpResponse response = http.send(request);
+            calloutCount++;
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Batch Apex and Callouts - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch_interface.htm[Official Salesforce documentation on using callouts in Batch Apex]
+
+ * Apex Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Complete reference for Salesforce Apex governor limits including callout restrictions]
+
+ * Database.AllowsCallouts Interface - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_interface_database_allowscallouts.htm[Documentation for the Database.AllowsCallouts interface required for callouts in batch jobs]
