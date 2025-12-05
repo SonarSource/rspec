@@ -1,0 +1,85 @@
+This rule raises an issue when arrays are manually joined with commas before being passed to parameter placeholders in ActiveRecord IN conditions.
+
+== Why is this an issue?
+
+When you manually join an array with commas using `.join(',')` and pass it to an ActiveRecord parameter placeholder, the entire joined string gets treated as a single quoted parameter in the generated SQL.
+
+For example, if you have `user_ids = [1, 2, 3]` and use:
+```ruby
+Post.where("user_id IN (?)", user_ids.join(','))
+```
+
+ActiveRecord generates this incorrect SQL:
+```sql
+SELECT * FROM posts WHERE (user_id IN ('1,2,3'))
+```
+
+This SQL will not work as expected because the database sees `'1,2,3'` as a single string value, not as three separate numeric values. The IN clause requires individual values, not a comma-separated string.
+
+ActiveRecord has built-in support for handling arrays in parameter placeholders. When you pass an array directly, it automatically expands it into the correct SQL format with proper parameter binding and type conversion.
+
+=== What is the potential impact?
+
+This issue can cause queries to return incorrect results, potentially missing data that should be included. In some cases, it might cause SQL syntax errors or unexpected behavior. The incorrect query results could lead to application logic errors, security issues if access controls depend on the query, or data integrity problems.
+
+== How to fix it in Ruby on Rails
+
+Pass the array directly to the parameter placeholder instead of manually joining it. ActiveRecord will automatically handle the proper SQL generation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Manual joining breaks IN condition functionality
+Post.where("user_id IN (?)", user_ids.join(',')) # Noncompliant
+
+# This generates: WHERE (user_id IN ('1,2,3'))
+# Instead of: WHERE (user_id IN (1,2,3))
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Pass array directly - ActiveRecord handles the expansion
+Post.where("user_id IN (?)", user_ids)
+
+# Or use hash syntax (Rails 3+)
+Post.where(user_id: user_ids)
+
+# This generates correct SQL: WHERE (user_id IN (1,2,3))
+----
+
+For legacy Rails 2 style queries, the same principle applies - pass arrays directly to parameter placeholders.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Rails 2 style with manual joining
+find(:all, conditions: ["user_id IN (?)", args.join(',')]) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Rails 2 style with direct array passing
+find(:all, conditions: ["user_id IN (?)", user_ids])
+----
+
+== Resources
+
+=== Documentation
+
+ * Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html#array-conditions[Official Rails guide on using arrays in query conditions]
+
+ * ActiveRecord::Base.where - https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html#method-i-where[API documentation for ActiveRecord where method]
+
+=== Standards
+
+ * CWE-89: Improper Neutralization of Special Elements used in an SQL Command - https://cwe.mitre.org/data/definitions/89.html[While not directly SQL injection, improper parameter handling can lead to security vulnerabilities]
