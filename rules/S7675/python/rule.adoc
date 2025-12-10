@@ -1,0 +1,97 @@
+This rule raises an issue when copying existing PyTorch tensors using deprecated methods like `torch.tensor()` or `tensor.new_tensor()` instead of the recommended `tensor.clone().detach()` or `tensor.detach().clone()`.
+
+== Why is this an issue?
+
+PyTorch provides several ways to copy tensors, but not all methods are equally efficient or clear in their intent.
+
+When you use `torch.tensor(existing_tensor)` or `tensor.new_tensor(existing_tensor)` to copy an existing tensor, PyTorch issues a UserWarning because these methods are not optimized for copying existing tensors. They were designed for creating new tensors from raw data, not for duplicating existing tensor objects.
+
+The recommended methods `tensor.clone().detach()` and `tensor.detach().clone()` are specifically designed for tensor copying. They clearly express your intent to create a copy of an existing tensor and remove it from the computation graph. This makes your code more readable and helps other developers understand what you're trying to accomplish.
+
+There's also a subtle performance difference between the two recommended approaches. Using `tensor.detach().clone()` is slightly more efficient than `tensor.clone().detach()` because it detaches the tensor from the computation graph first, avoiding the need to copy gradient information that will be discarded anyway.
+
+Using only `tensor.clone()` without `detach()` keeps the tensor connected to the computation graph, which may cause unexpected gradient propagation and memory usage if that's not your intention.
+
+=== What is the potential impact?
+
+Using deprecated tensor copying methods can lead to:
+
+* Performance degradation due to suboptimal copying mechanisms
+* UserWarnings cluttering your application logs
+* Less readable code that doesn't clearly express the intent to copy and detach tensors
+* Potential memory leaks if tensors remain connected to computation graphs unintentionally
+
+=== How to fix in PyTorch?
+
+Replace `torch.tensor()` calls with `tensor.detach().clone()` when copying existing tensors. This approach is more efficient and avoids UserWarnings.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = torch.tensor(x)  # Noncompliant: triggers UserWarning
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = x.detach().clone()  # Creates a copy without computation graph
+----
+
+Replace `tensor.new_tensor()` calls with `tensor.detach().clone()` for better performance and clearer intent.
+
+==== Non-compliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = x.new_tensor(x)  # Noncompliant: triggers UserWarning
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = x.detach().clone()  # More efficient and explicit
+----
+
+When you need gradients on the copied tensor, use ``++detach().clone().requires_grad_(True)++`` to explicitly enable gradient computation.
+
+==== Non-compliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = torch.tensor(x, requires_grad=True)  # Noncompliant: deprecated approach
+----
+
+==== Compliant code example
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import torch
+
+x = torch.randn(3, 4, requires_grad=True)
+y = x.detach().clone().requires_grad_(True)  # Explicit and recommended
+----
+
+=== Documentation
+
+ * PyTorch tensor.clone() documentation - https://pytorch.org/docs/stable/generated/torch.Tensor.clone.html[Official documentation for the clone() method]
+ * PyTorch tensor.detach() documentation - https://pytorch.org/docs/stable/generated/torch.Tensor.detach.html[Official documentation for the detach() method]
+ * PyTorch torch.tensor() documentation - https://pytorch.org/docs/stable/generated/torch.tensor.html[Official documentation explaining when to use torch.tensor() vs clone().detach()]
+

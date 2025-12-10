@@ -1,0 +1,77 @@
+include::../summary.adoc[]
+
+== Why is this an issue?
+
+include::../rationale.adoc[]
+
+When an application deserializes untrusted data without proper restrictions, an attacker can craft malicious serialized objects. Depending on the affected objects and properties, the consequences can vary.
+
+When the codebase contains objects that perform actions at deserialization time, they can be leveraged by attackers to perform the given actions in order to modify the application business logic, leak sensitive information or compromise data integrity.
+
+== How to fix it
+
+=== How to fix it in Foundation
+
+`NSSecureCoding` is a Swift protocol that allows for secure object deserialization. It prevents arbitrary object instantiation by restricting the types of objects that can be created to a predefined set of allowed classes. This protocol inherits from the older, less secure `NSCoding` protocol, which was not designed for this purpose.
+Implementing `NSSecureCoding` will always guarantee safe deserialization, however. 
+
+==== Noncompliant code example
+
+The `NSCoder.decodeObject(forKey:)` method doesn't enforce the allow-list restrictions of the `NSSecureCoding` protocol, even when the object being deserialized conforms to it.
+
+[source,swift,diff-id=301,diff-type=noncompliant]
+----
+import Foundation
+
+class Example: NSObject, NSSecureCoding {
+    var child: Example
+    
+    static var supportsSecureCoding: Bool {
+        return true
+    }
+
+    required init?(coder: NSCoder) {
+        guard let child = coder.decodeObject(forKey: "child") as? Example else { // Noncompliant
+            return nil
+        }
+        
+        self.child = child
+        super.init()
+    }
+}
+----
+
+==== Compliant solution
+
+[source,swift,diff-id=301,diff-type=compliant]
+
+----
+import Foundation
+
+class Example: NSObject, NSSecureCoding {
+    var child: Example
+    
+    static var supportsSecureCoding: Bool {
+        return true
+    }
+
+    required init?(coder: NSCoder) {
+        guard let child = coder.decodeObject(of:[Example.self], forKey: "child") as? Example else {
+            return nil
+        }
+        
+        self.child = child    
+        super.init()
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+* Apple Developer Documentation - https://developer.apple.com/documentation/foundation/nssecurecoding[NSSecureCoding]
+
+include::../common/resources/standards.adoc[]
+
+* OWASP - https://owasp.org/www-project-mobile-top-10/2023-risks/m4-insufficient-input-output-validation[Mobile Top 10 2024 Category M4 - Insufficient Input/Output Validation]

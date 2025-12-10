@@ -2,19 +2,20 @@ import { useRuleCoverage } from '../useRuleCoverage';
 import { renderHook } from '@testing-library/react-hooks';
 import lunr from 'lunr';
 import { fetchMock } from '../../testutils';
+import { vi } from 'vitest';
 
 describe('search hook', () => {
   beforeEach(() => {
     let mockUrls = {};
-    mockUrls[`${process.env.PUBLIC_URL}/covered_rules.json`] = {json:
+    mockUrls[`/rspec/covered_rules.json`] = {json:
       {'ABAP': {'S100': 'ver1', 'S200': 'ver2'},
        'C': {'S100': 'c1', 'S234': {'since': 'c2', 'until': 'c3'}}}
     };
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
+    vi.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls));
   });
 
   afterEach(() => {
-    global.fetch.mockClear();
+    vi.resetAllMocks();
   });
 
   test('reports appropriate argument errors', async () => {
@@ -61,8 +62,8 @@ describe('search hook', () => {
 
   test('reports for nonexisting language', async () => {
     const original = console.error;
-    console.error = jest.fn();
-    fetch.mockImplementation(fetchMock({})); // eclipse the covered_rules.json
+    console.error = vi.fn();
+    vi.mocked(global.fetch).mockImplementation(fetchMock({})); // eclipse the covered_rules.json
 
     const { result, waitForNextUpdate } = renderHook(() => useRuleCoverage());
     await waitForNextUpdate();

@@ -1,0 +1,83 @@
+:rule_platform: iOS and macOS
+
+include::../summary.adoc[]
+
+include::../ask-yourself.adoc[]
+
+:platform-explanation: pass:quotes[For `WKWebView`, this is done by assigning an object that conforms to the `WKNavigationDelegate` protocol to the `navigationDelegate` property. The `webView(_:decidePolicyFor:decisionHandler:)` callback in this delegate is called for every navigation attempt (e.g., when a user clicks a link or JavaScript tries to change the location). This callback allows the application to inspect the target URL and decide whether to allow the navigation by calling the `decisionHandler` with `.allow` or block it by calling it with `.cancel`.]
+
+include::../recommended-practices.adoc[]
+
+== Sensitive Code Example
+
+By default, `WKWebView` allows arbitrary navigation. Setting no `WKNavigationDelegate` will allow the user to navigate to any URL.
+
+[source,swift,diff-id=1,diff-type=noncompliant]
+----
+import WebKit
+import UIKit
+
+class ViewController: UIViewController, WKUIDelegate {
+    var webView: WKWebView!
+
+    override func loadView() {
+        let webConfiguration = WKWebViewConfiguration()
+        webView = WKWebView(frame: .zero, configuration: webConfiguration)
+        webView.uiDelegate = self
+        view = webView
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        let myURL = URL(string:"https://example.com/")
+        let myRequest = URLRequest(url: myURL!)
+        webView.load(myRequest) // Sensitive - all navigation is permitted by default
+    }
+}
+----
+
+== Compliant Solution
+
+To restrict navigation, set a `WKNavigationDelegate` and implement the `webView(_:decidePolicyFor:decisionHandler:)` method to validate the URL before allowing navigation.
+
+[source,swift,diff-id=1,diff-type=compliant]
+----
+import WebKit
+import UIKit
+
+class ViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
+    var webView: WKWebView!
+
+    override func loadView() {
+        let webConfiguration = WKWebViewConfiguration()
+        webView = WKWebView(frame: .zero, configuration: webConfiguration)
+        webView.uiDelegate = self
+        view = webView
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        webView.navigationDelegate = self
+
+        let myURL = URL(string:"https://example.com/")
+        let myRequest = URLRequest(url: myURL!)
+        webView.load(myRequest)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if let url = navigationAction.request.url, url.host == "example.com" {
+            decisionHandler(.allow)
+            return
+        }
+        
+        // This could also be used to open the link in an external browser
+        decisionHandler(.cancel)
+    }
+}
+----
+
+include::../see.adoc[]
+
+* Apple Developer Documentation - https://developer.apple.com/documentation/webkit/wknavigationdelegate[`WKNavigationDelegate`]

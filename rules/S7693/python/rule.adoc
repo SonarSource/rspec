@@ -1,0 +1,93 @@
+include::../description.adoc[]
+
+include::../ask-yourself.adoc[]
+
+include::../recommended.adoc[]
+
+== Sensitive Code Example
+
+In the following code example, a primary "triager" agent simply dispatches
+instructions to secondary agents. No guardrail ensures that unintended user
+instructions are caught and handled properly.
+
+[source,python,diff-id=11,diff-type=noncompliant]
+----
+from agents import (
+    Agent,
+)
+
+secondary_agent_1 = Agent(...)
+secondary_agent_2 = Agent(...)
+
+triage_agent = Agent(
+    name="Triage Agent",
+    instructions="You determine which agent to use based on the user's question",
+    handoffs=[secondary_agent_1, secondary_agent_2],
+)
+----
+
+== Compliant Solution
+
+This compliant solution adds a guardrail to the triager agent. It ensures that
+user instructions are properly vetted before being passed to secondary agents,
+and that only appropriate instructions are passed along.
+
+Depending on your use case, you may want to have the guardrail function
+be implemented as an output guardrail instead of an input guardrail.
+
+[source,python,diff-id=11,diff-type=compliant]
+----
+from agents import (
+    Agent,
+    InputGuardrail,
+    GuardrailFunctionOutput,
+    Runner,
+)
+from pydantic import BaseModel
+
+secondary_agent_1 = Agent(...)
+secondary_agent_2 = Agent(...)
+
+class ExampleOutput(BaseModel):
+    is_example: bool
+    reasoning: str
+
+guardrail_agent = Agent(
+    name="Guardrail check",
+    instructions="Check if the user is asking about the Example Topic.",
+    output_type=ExampleOutput,
+)
+
+async def example_guardrail(ctx, agent, input_data):
+    result = await Runner.run(guardrail_agent, input_data, context=ctx.context)
+    final_output = result.final_output_as(ExampleOutput)
+    return GuardrailFunctionOutput(
+        output_info=final_output,
+        tripwire_triggered=not final_output.is_example,
+    )
+
+triage_agent = Agent(
+    name="Triage Agent",
+    instructions="You determine which agent to use based on the user's question",
+    handoffs=[secondary_agent_1, secondary_agent_2],
+    input_guardrails=[
+        InputGuardrail(guardrail_function=example_guardrail),
+    ],
+)
+----
+
+include::../see.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+include::../highlighting.adoc[]
+
+'''
+
+endif::env-github,rspecator-view[]

@@ -1,0 +1,77 @@
+This is an issue when an ActiveRecord model overrides the `to_json` method for custom JSON serialization.
+
+== Why is this an issue?
+
+Rails uses a two-step process for JSON serialization. First, `as_json` converts the object to a hash representation. Then, `to_json` converts that hash to a JSON string.
+
+When you override `to_json` in an ActiveRecord model, you break Rails' JSON rendering pipeline. The `render json:` method in controllers expects to call `as_json` on your model, but if you've overridden `to_json`, this can lead to several problems:
+
+* *ArgumentError exceptions*: The `to_json` method signature may not match what Rails expects, causing "wrong number of arguments" errors.
+* *Broken controller rendering*: Using `render json: @model` may not work as expected because Rails calls `as_json` internally, not your custom `to_json` method.
+* *Inconsistent behavior*: Your custom serialization will only work when `to_json` is called directly, not through Rails' standard JSON rendering.
+
+The `as_json` method is specifically designed to be overridden. It receives an options hash that you can merge with your custom options, making it flexible and compatible with Rails' rendering system.
+
+=== What is the potential impact?
+
+Overriding `to_json` instead of `as_json` can cause runtime errors in your Rails application, particularly ArgumentError exceptions when using `render json:` in controllers. This can lead to broken API endpoints and inconsistent JSON serialization behavior across your application.
+
+== How to fix it in Rails
+
+Replace the `to_json` method override with an `as_json` method override. Make sure to accept an options parameter and merge it with your custom options.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class User < ActiveRecord::Base
+  def to_json # Noncompliant
+    super(only: :username, methods: [:foo, :bar])
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class User < ActiveRecord::Base
+  def as_json(options = {})
+    super({only: [:username], methods: [:foo, :bar]}.merge(options))
+  end
+end
+----
+
+Even when accepting an options parameter, overriding `to_json` is still problematic. Use `as_json` instead to ensure compatibility with Rails' JSON rendering.
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class User < ActiveRecord::Base
+  def to_json(options = {}) # Noncompliant
+    super(only: :username, methods: [:foo, :bar])
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class User < ActiveRecord::Base
+  def as_json(options = {})
+    super({only: [:username], methods: [:foo, :bar]}.merge(options))
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails API Documentation - as_json - https://api.rubyonrails.org/classes/ActiveModel/Serializers/JSON.html#method-i-as_json[Official Rails documentation for the as_json method]
+
+ * Rails Guides - Active Model Serialization - https://guides.rubyonrails.org/active_model_basics.html#serialization[Rails guide explaining JSON serialization in Active Model]

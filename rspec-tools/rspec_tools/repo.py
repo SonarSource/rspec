@@ -100,23 +100,27 @@ class RspecRepo:
         click.echo(f"Pull request assigned to {login}")
         return pull_request
 
-    def reserve_rule_number(self) -> int:
-        """Reserve an id on the id counter branch of the repository."""
+    def reserve_rule_number(self, count=1) -> list[int]:
+        """Reserve `count` id on the id counter branch of the repository."""
         with self.checkout_branch(self.ID_COUNTER_BRANCH):
             counter_file_path = Path(
                 self.repository.working_dir, self.ID_COUNTER_FILENAME
             )
             counter = int(counter_file_path.read_text())
-            counter_file_path.write_text(str(counter + 1))
+            counter_file_path.write_text(str(counter + count))
 
             self.repository.index.add([str(counter_file_path)])
-            self.repository.index.commit("Increment RSPEC ID counter")
+            self.repository.index.commit(f"Increment RSPEC ID counter by {count}")
 
         origin = self.repository.remote(name="origin")
         origin.push()
 
-        click.echo(f"Reserved Rule ID S{counter}")
-        return counter
+        if count == 1:
+            click.echo(f"Reserved Rule ID S{counter}")
+        else:
+            click.echo(f"Reserved Rule IDs S{counter} to S{counter + count - 1}")
+
+        return list(range(counter, counter + count))
 
 
 def _build_github_repository_url(token: str, user: Optional[str]):

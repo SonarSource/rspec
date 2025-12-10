@@ -1,0 +1,100 @@
+This is an issue when a Rails API controller uses the `respond_to` method without including the `ActionController::MimeResponds` module.
+
+== Why is this an issue?
+
+Rails API controllers inherit from `ActionController::API`, which is a lightweight version of `ActionController::Base`. Unlike the full controller, `ActionController::API` does not include MIME response functionality by default.
+
+The `respond_to` method is part of the `ActionController::MimeResponds` module, which provides content negotiation capabilities. When you use `respond_to` in an API controller without including this module, Rails cannot find the method and raises a `NoMethodError` at runtime.
+
+This error typically occurs when developers migrate from full Rails controllers to API-only controllers, or when they follow examples that assume the full controller functionality is available. The error message can be confusing because Ruby suggests `respond_to?` (the Object method for checking if an object responds to a method) instead of the missing `respond_to` method.
+
+=== What is the potential impact?
+
+This issue causes a runtime `NoMethodError` that will crash the application when the affected controller action is called. This leads to:
+
+* Application downtime and poor user experience
+* Failed API requests that clients cannot handle gracefully
+* Potential data loss if the error occurs during critical operations
+* Debugging time spent tracking down what appears to be a missing method
+
+== How to fix it in Rails
+
+Include the `ActionController::MimeResponds` module in your API controller to enable the `respond_to` method.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class ApplicationController < ActionController::API
+  # Missing: include ActionController::MimeResponds
+end
+
+class Api::UsersController < ApplicationController
+  def show
+    respond_to do |format| # Noncompliant
+      format.json { render json: @user }
+      format.xml { render xml: @user }
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class ApplicationController < ActionController::API
+  include ActionController::MimeResponds
+end
+
+class Api::UsersController < ApplicationController
+  def show
+    respond_to do |format|
+      format.json { render json: @user }
+      format.xml { render xml: @user }
+    end
+  end
+end
+----
+
+Alternatively, include the module directly in the specific controller that needs it.
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class Api::ProductsController < ActionController::API
+  def index
+    respond_to do |format| # Noncompliant
+      format.json { render json: @products }
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Api::ProductsController < ActionController::API
+  include ActionController::MimeResponds
+  
+  def index
+    respond_to do |format|
+      format.json { render json: @products }
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails API Documentation - ActionController::API - https://api.rubyonrails.org/classes/ActionController/API.html[Official Rails documentation for ActionController::API]
+
+ * Rails API Documentation - ActionController::MimeResponds - https://api.rubyonrails.org/classes/ActionController/MimeResponds.html[Official Rails documentation for the MimeResponds module]
+
+ * Rails Guides - Using Rails for API-only Applications - https://guides.rubyonrails.org/api_app.html[Rails guide explaining API-only applications and their limitations]

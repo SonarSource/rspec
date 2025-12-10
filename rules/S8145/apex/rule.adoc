@@ -1,0 +1,101 @@
+This rule raises an issue when DML operations (insert, update, delete, upsert, merge) are used directly within Apex test methods.
+
+== Why is this an issue?
+
+Test methods should focus on testing business logic rather than setting up test data. When DML operations are scattered throughout test methods, several problems arise:
+
+**Code Duplication**: Multiple test methods often need similar test data, leading to repeated DML operations across different tests. This creates maintenance overhead when the data structure changes.
+
+**Reduced Readability**: Test methods become cluttered with data setup code, making it harder to understand what the test is actually verifying. The core test logic gets buried in setup details.
+
+**Inconsistent Test Data**: Without centralized data creation, different tests may create slightly different versions of the same type of test data, leading to inconsistent test results and making debugging more difficult.
+
+**Maintenance Burden**: When object schemas change, you need to update DML operations in multiple places instead of a single helper method. This increases the risk of missing updates and introduces potential for errors.
+
+By moving DML operations into dedicated helper methods, you create reusable, consistent test data factories that make your tests more maintainable and focused.
+
+=== What is the potential impact?
+
+This practice reduces code maintainability and increases technical debt. Tests become harder to update when data models change, and developers spend more time maintaining duplicate data setup code instead of focusing on test logic.
+
+== How to fix it
+
+Move DML operations from test methods into dedicated helper methods. Create reusable data factory methods that can be called from multiple tests.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+@isTest
+public class AccountTest {
+    @isTest
+    static void testAccountCreation() {
+        Account acc = new Account();
+        acc.Name = 'Test Account';
+        insert acc; // Noncompliant
+        
+        // Test logic here
+        System.assertEquals('Test Account', acc.Name);
+    }
+    
+    @isTest
+    static void testAccountUpdate() {
+        Account acc = new Account();
+        acc.Name = 'Test Account';
+        insert acc; // Noncompliant - duplicate setup
+        
+        acc.Name = 'Updated Account';
+        update acc; // Noncompliant
+        
+        // Test logic here
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+@isTest
+public class AccountTest {
+    @isTest
+    static void testAccountCreation() {
+        Account acc = createTestAccount('Test Account');
+        
+        // Test logic here
+        System.assertEquals('Test Account', acc.Name);
+    }
+    
+    @isTest
+    static void testAccountUpdate() {
+        Account acc = createTestAccount('Test Account');
+        
+        acc.Name = 'Updated Account';
+        updateTestAccount(acc);
+        
+        // Test logic here
+    }
+    
+    // Helper methods for reusable test data creation
+    private static Account createTestAccount(String name) {
+        Account acc = new Account();
+        acc.Name = name;
+        insert acc;
+        return acc;
+    }
+    
+    private static void updateTestAccount(Account acc) {
+        update acc;
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Testing Best Practices - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_testing_best_practices.htm[Official Salesforce documentation on Apex testing best practices]
+
+ * Test Data Factory Pattern - https://developer.salesforce.com/blogs/2019/08/apex-test-data-factory-pattern[Guide on implementing the Test Data Factory pattern in Apex]

@@ -52,6 +52,7 @@ LANG_TO_LABEL = {
     "yaml": "yaml",
     "xml": "xml",
     "shell": "shell",
+    "groovy": "groovy",
 }
 
 LANG_TO_SOURCE = {
@@ -88,6 +89,7 @@ LANG_TO_SOURCE = {
     "vb": "vb",
     "ansible": "yaml",
     "shell": "bash",
+    "groovy": "groovy",
     # these languages are not supported by highlight.js as the moment:
     "apex": "apex",
     "azureresourcemanager": "bicep",

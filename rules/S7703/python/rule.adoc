@@ -1,0 +1,55 @@
+This rule raises an issue when `torch.save()` is called with a method reference instead of a method call, such as `model.state_dict` instead of `model.state_dict()`.
+
+== Why is this an issue?
+
+When you save a PyTorch model's state, you need to save the actual state dictionary, not a reference to the method that returns it.
+
+In Python, `model.state_dict` without parentheses refers to the method object itself, while `model.state_dict()` with parentheses calls the method and returns the state dictionary.
+
+If you save the method reference, PyTorch will serialize a function object instead of the model's parameters and buffers. When you later try to load this saved file, PyTorch expects a dictionary but receives a function object, causing an `AttributeError: 'function' object has no attribute 'copy'`.
+
+This error typically occurs during model loading when PyTorch tries to call `.copy()` on what it expects to be a state dictionary but is actually a function object.
+
+=== What is the potential impact?
+
+This issue causes runtime errors when loading saved models, leading to:
+
+* Application crashes during model loading
+* Failed deployments in production environments  
+* Interrupted training workflows
+* Loss of training progress if the error is discovered late
+
+=== Code examples 
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch
+import torch.nn as nn
+
+model = nn.Linear(10, 1)
+
+# Saves method reference instead of state dictionary
+torch.save(model.state_dict, 'model.pth')  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch
+import torch.nn as nn
+
+model = nn.Linear(10, 1)
+
+# Calls method to get and save the state dictionary
+torch.save(model.state_dict(), 'model.pth')
+----
+
+=== Documentation
+
+ * PyTorch Tutorials - https://pytorch.org/tutorials/beginner/saving_loading_models.html[Saving and Loading Models]  
+ * PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.save.html[pytorch.save function]
+ * PyTorch Documentation - https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.state_dict[torch.nn.Module.state_dict]
+

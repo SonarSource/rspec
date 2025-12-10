@@ -5,7 +5,8 @@ import { render } from '@testing-library/react';
 import { RulePage } from '../RulePage';
 import { Router } from 'react-router-dom';
 import { createMemoryHistory } from 'history';
-import { fetchMock } from '../testutils'
+import { fetchMock } from '../testutils';
+import { vi } from 'vitest';
 
 const rulesPath = path.join(__dirname, '..', 'deployment', '__tests__', 'resources', 'metadata');
 
@@ -20,7 +21,7 @@ beforeEach(() => {
     const metadataS1007 = readRuleFile('S1007', 'default-metadata.json');
     const specS3457 = readRuleFile('S3457', 'csharp-description.html');
     const metadataS3457 = readRuleFile('S3457', 'csharp-metadata.json');
-    const rootUrl = process.env.PUBLIC_URL;
+    const rootUrl = '/rspec';
     let mockUrls: {[index: string]:any} = {};
     mockUrls[`${rootUrl}/rules/S1000/cfamily-description.html`] = {text: specS1000};
     mockUrls[`${rootUrl}/rules/S1000/cfamily-metadata.json`] = {json: JSON.parse(metadataS1000)};
@@ -35,11 +36,11 @@ beforeEach(() => {
         'CSH' : {'S3457': 'c#1'},
         'C': {'S100': 'c1', 'S234': {'since': 'c2', 'until': 'c3'}}}
     };
-    jest.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls) as jest.Mocked<typeof fetch>);
+    vi.spyOn(global, 'fetch').mockImplementation(fetchMock(mockUrls) as any);
 });
 
 afterEach(() => {
-    global.fetch.mockClear();
+    vi.mocked(global.fetch).mockClear();
 });
 
 test('renders cfamily version of S1000', async () => {
