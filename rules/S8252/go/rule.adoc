@@ -1,0 +1,58 @@
+This rule raises an issue when a function returns a nil pointer that gets implicitly converted to an interface type, creating a non-nil interface containing a nil value.
+
+== Why is this an issue?
+
+In Go, interfaces have two components: a type and a value. When you assign a nil pointer to an interface, the interface becomes non-nil because it contains type information, even though the underlying value is nil.
+
+This creates a common gotcha where `err != nil` returns `true` even when you intended to return "no error". The interface is not nil because it contains a nil pointer of a specific type, rather than being a true nil interface.
+
+This behavior can lead to:
+
+* Logic errors where error checking fails unexpectedly
+* Difficult-to-debug issues where errors appear to exist when they shouldn't
+* Inconsistent behavior compared to returning a true nil interface
+
+The problem occurs most commonly with error handling, but can affect any interface type. When a function should return "no error" or "no value", it should return a true nil interface rather than a nil pointer wrapped in an interface.
+
+=== What is the potential impact?
+
+This issue can cause logic errors in error handling code, leading to incorrect program behavior. Applications may incorrectly treat successful operations as failures, potentially causing unnecessary error handling, logging, or user-facing error messages. In critical systems, this could lead to improper error recovery or system instability.
+
+== How to fix it
+
+Return nil directly instead of returning a nil pointer that gets wrapped in an interface. When you want to indicate "no error" or "no value", return the zero value of the interface type (nil) rather than a nil pointer of a concrete type.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func processData() error {
+    var err *MyError
+    if someCondition {
+        err = &MyError{message: "something went wrong"}
+    }
+    return err // Noncompliant: returns nil pointer wrapped in interface
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func processData() error {
+    if someCondition {
+        return &MyError{message: "something went wrong"}
+    }
+    return nil // Returns true nil interface
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go FAQ - Why is my nil error value not equal to nil? - https://golang.org/doc/faq#nil_error[Official Go documentation explaining the nil interface gotcha]
+
+ * The Go Programming Language Specification - Interface types - https://golang.org/ref/spec#Interface_types[Official specification for Go interface types and their behavior]
