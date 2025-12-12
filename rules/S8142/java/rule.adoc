@@ -1,0 +1,85 @@
+This is an issue when using `ThreadLocal` for thread-local data storage in Java 25+, where `ScopedValue` provides a more modern and safer alternative.
+
+== Why is this an issue?
+
+Java 25 introduces `ScopedValue` as a modern replacement for `ThreadLocal`.
+
+`ThreadLocal` has several issues:
+* Values persist until explicitly removed, causing memory leaks
+* Any code can modify values, breaking encapsulation
+* Expensive when creating child threads
+* Requires manual cleanup in `finally` blocks
+
+`ScopedValue` provides:
+* Automatic cleanup when scope ends
+* Immutable values that cannot be modified by callees
+* Efficient inheritance for structured concurrency
+
+=== What is the potential impact?
+
+Using `ThreadLocal` instead of `ScopedValue` can lead to memory leaks, data corruption, and increased maintenance complexity due to manual cleanup requirements.
+
+== How to fix it
+
+Replace ThreadLocal with ScopedValue and use `ScopedValue.where().run()` for bounded scope execution.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+// Using ThreadLocal with manual cleanup
+public class UserContext {
+    private static final ThreadLocal<String> USER_ID = new ThreadLocal<>(); // Noncompliant
+    
+    public static void setUserId(String userId) {
+        USER_ID.set(userId);
+    }
+    
+    public static String getUserId() {
+        return USER_ID.get();
+    }
+    
+    public void processRequest(String userId) {
+        USER_ID.set(userId);
+        try {
+            doWork();
+        } finally {
+            USER_ID.remove(); // Manual cleanup required
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+// Using ScopedValue with automatic cleanup
+import java.lang.ScopedValue;
+
+public class UserContext {
+    public static final ScopedValue<String> USER_ID = ScopedValue.newInstance();
+    
+    public static String getUserId() {
+        return USER_ID.get();
+    }
+    
+    public void processRequest(String userId) {
+        ScopedValue.where(USER_ID, userId).run(() -> {
+            doWork(); // Automatic cleanup when scope ends
+        });
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * ScopedValue (Java 25) - https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/ScopedValue.html[Official Java 25 documentation for ScopedValue API]
+
+ * ThreadLocal (Java 25) - https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/ThreadLocal.html[Official Java 25 documentation for ThreadLocal API]
+
+ * Java 25 Features - https://javaalmanac.io/jdk/25[Overview of new features in Java 25 including ScopedValue]
