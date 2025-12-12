@@ -1,0 +1,85 @@
+
+== Why is this an issue?
+
+By default, browsers enforce the Same-Origin Policy (SOP) and restrict how
+one service can interact with another. From the perspective of the browser,
+a service is defined by its "origin", a tuple `(scheme, domain, port)`. +
+Effectively, it blocks attempts to retrieve the data of a `Server A` from
+a `Server B` if its origin is not the exact same tuple.
+
+Cross-Origin Resource Sharing (CORS) is a mechanism that `Server A` can use to
+relax the SOP and allow `Server B` of a different origin, to access data of
+`Server A`. +
+This trust is set setup via the `Access-Control-Allow-Origin` header, and can be
+configured alongside other headers, such as:
+
+* Access-Control-Allow-Methods
+* Access-Control-Allow-Headers
+* Access-Control-Allow-Credentials
+* Access-Control-Max-Age
+
+=== What is the potential impact?
+
+CORS injection occurs when an application unsafely retrieves data from an
+incoming request and reflects it into the Cross-Origin Resource Sharing (CORS)
+headers of the response without sanitization.
+
+Enabling third-party manipulation of the `Access-Control-Allow-Origin` header
+exposes the application to a varity of different attacks, namely XSS or TLS
+hijacking. +
+The situation is worsened if the `Access-Control-Allow-Credentials` is set to
+`true` or injectable.
+
+== How to fix it
+
+Generally, do not use third-party data to set up CORS boundaries. Instead,
+create a strict allow-list of origins.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,javascript,diff-id=1,diff-type=noncompliant]
+----
+const express = require('express');
+const app = express();
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin); // Noncompliant
+  }
+  
+  next();
+});
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+const express = require('express');
+const app = express();
+
+const ACAO = "https://example.com https://another.example.com";
+
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', ACAO);
+  
+  next();
+});
+----
+
+== Resources
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[Top 10 2021 Category A5 - Security Misconfiguration]
+* OWASP - https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/[Top 10 2021 Category A7 - Identification and Authentication Failures]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration[Top 10 2017 Category A6 - Security Misconfiguration]
+* Mozilla - https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS[Cross-Origin Resource Sharing]
+* Mozilla - https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy[Same-Origin Policy]
+* CWE - https://cwe.mitre.org/data/definitions/346[CWE-346 - Origin Validation Error]
+* CWE - https://cwe.mitre.org/data/definitions/942[CWE-942 - Overly Permissive Cross-domain Whitelist]
+
