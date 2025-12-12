@@ -1,0 +1,151 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when using comparison operators like <code>!=</code>, <code>&lt;</code>, <code>&gt;</code> directly in ActiveRecord&#8217;s <code>where</code> method hash syntax, or when using symbol comparisons that don&#8217;t evaluate database columns properly.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>ActiveRecord&#8217;s hash conditions in the <code>where</code> method only support equality (<code>&#8658;</code>), range checking, and subset operations. When you try to use comparison operators like <code>!=</code>, <code>&lt;&gt;</code>, <code>&gt;</code>, or <code>&lt;</code> directly in hash syntax, Ruby throws a syntax error because these operators cannot be used as hash keys.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, symbol comparisons like <code>:column != value</code> don&#8217;t work as expected. Instead of comparing the database column, Ruby evaluates the symbol itself, which often results in the comparison always being true and returning all records.</p>
+</div>
+<div class="paragraph">
+<p>These syntax limitations can be confusing because the code looks like it should work, but ActiveRecord requires specific syntax patterns to generate proper SQL queries.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using incorrect syntax causes immediate syntax errors that prevent the application from running. Symbol comparisons that appear to work but don&#8217;t actually filter records can lead to performance issues, incorrect business logic, and potential security vulnerabilities if sensitive data is inadvertently exposed.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use chained <code>where</code> methods with <code>where.not()</code> for inequality conditions instead of hash syntax with operators.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Syntax error - inequality operators not supported in hash conditions
+User.where(user_id: current_user.id, author_id != current_user.id) // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Using chained where methods
+User.where(user_id: current_user.id).where.not(author_id: current_user.id)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use string conditions with parameter placeholders for comparison operations to ensure proper SQL generation and prevent SQL injection.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Syntax error - comparison operator used directly in hash syntax
+Announcement.where(publish: true, :expires &lt; Date.today) // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Using string interpolation with placeholders
+Announcement.where("publish = ? AND expires &lt; ?", true, Date.today)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Replace symbol comparisons with proper Rails query methods like <code>where.not()</code> to ensure the database column is actually queried.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Symbol comparison - evaluates to true, returns all records
+Post.where(:sourceurl != '') // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Using Rails where.not method
+Post.where.not(sourceurl: '')</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use Arel for complex type-safe queries when you need more control over the SQL generation.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_4">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Syntax error with greater than operator
+User.where(age &gt; 18, status: 'active') // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Using Arel for type-safe queries
+users = User.arel_table
+User.where(users[:age].gt(18).and(users[:status].eq('active')))</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Active Record Query Interface - <a href="https://guides.rubyonrails.org/active_record_querying.html">Official Rails guide covering proper ActiveRecord query syntax and methods</a></p>
+</li>
+<li>
+<p>ActiveRecord::QueryMethods - <a href="https://api.rubyonrails.org/classes/ActiveRecord/QueryMethods.html">API documentation for ActiveRecord query methods including where, where.not, and conditions</a></p>
+</li>
+<li>
+<p>Arel Documentation - <a href="https://github.com/rails/arel">Documentation for Arel, the SQL AST manager for Ruby used by ActiveRecord</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

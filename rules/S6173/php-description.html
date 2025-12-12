@@ -1,0 +1,270 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Reflection injections occur in a web application when it retrieves data from a
+user or a third-party service and fully or partially uses it to inspect, load
+or invoke a component by name.</p>
+</div>
+<div class="paragraph">
+<p>If an application uses a reflection method in a way that is vulnerable to
+injections, it is exposed to attacks that aim to achieve remote code execution
+on the server&#8217;s website.</p>
+</div>
+<div class="paragraph">
+<p>A user with malicious intent exploits this by carefully crafting a string
+involving symbols such as class methods, that will help them change the
+initial reflection logic to an impactful malicious one.</p>
+</div>
+<div class="paragraph">
+<p>After creating the malicious request and triggering it, the attacker can attack
+the servers affected by this vulnerability without relying on any
+pre-requisites.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>If user-supplied values are used to choose which code is executed, an attacker
+may be able to supply carefully-chosen values that cause unexpected code to run.
+The attacker can use this ability to run arbitrary code on the server.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_application_specific_attacks">Application-specific attacks</h4>
+<div class="paragraph">
+<p>In this scenario, the attackers succeed in injecting a seemingly-legitimate
+object, but whose properties might be used maliciously.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the application, attackers might be able to modify important data
+structures or content to escalate privileges or perform unwanted actions.
+For example, with an e-commerce application, this could be changing the number
+of products or prices.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_full_application_compromise">Full application compromise</h4>
+<div class="paragraph">
+<p>In the worst-case scenario, the attackers succeed in injecting an object
+triggering code execution.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the attacker, code execution can be used with different
+intentions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Download the internal server&#8217;s data, most likely to sell it.</p>
+</li>
+<li>
+<p>Modify data, install malware, for instance, malware that mines cryptocurrencies.</p>
+</li>
+<li>
+<p>Stop services or exhaust resources, for instance, with fork bombs.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This threat is particularly insidious if the attacked organization does not
+maintain a Disaster Recovery Plan (DRP).</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_root_privilege_escalation_and_pivot">Root privilege escalation and pivot</h4>
+<div class="paragraph">
+<p>In this scenario, the attacker can do everything described in the previous
+section. The difference is that the attacker additionally manages to elevate
+their privileges as an administrator and attack other servers.</p>
+</div>
+<div class="paragraph">
+<p>Here, the impact depends on how much the target company focuses on its Defense
+In Depth. For example, the entire infrastructure can be compromised through a
+combination of unsafe deserialization and misconfiguration:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Docker or Kubernetes clusters</p>
+</li>
+<li>
+<p>cloud services</p>
+</li>
+<li>
+<p>network firewalls and routing</p>
+</li>
+<li>
+<p>OS access control</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_core_php">How to fix it in Core PHP</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>In the following example, the code simulates a feature in an image editing
+application that allows users to install plugins to add new filters or effects.
+It assumes the user will give a known name, such as "SepiaEffect".</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">function apply($effectName)
+{
+    try {
+        $result = call_user_func($effectName, "applyFilter");
+    } catch (\Throwable $e) {
+        return "Filter Failure";
+    }
+
+    if ( $result == TRUE) {
+        return "Filter Success";
+    }
+    else {
+        return "Filter Failure";
+    }
+}
+
+apply($_GET["filter"]);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">$EFFECT_ALLOW_LIST = [
+    "SepiaEffect",
+    "BlackAndWhiteEffect",
+    "WaterColorEffect",
+    "OilPaintingEffect"
+];
+
+function apply($effectName)
+{
+    global $EFFECT_ALLOW_LIST;
+    if (!in_array($effectName, $EFFECT_ALLOW_LIST)) {
+        return "Filter Failure";
+    }
+
+    try {
+        $result = call_user_func($effectName, "applyFilter");
+    } catch (\Throwable $e) {
+        return "Filter Failure";
+    }
+
+    if ( $result == TRUE) {
+        return "Filter Success";
+    }
+    else {
+        return "Filter Failure";
+    }
+}
+
+apply($_GET["filter"]);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_pre_approved_commands">Pre-Approved commands</h4>
+<div class="paragraph">
+<p>The cleanest way to avoid this defect is to validate the input before using it
+in a reflection method.</p>
+</div>
+<div class="paragraph">
+<p>Create a list of authorized and secure classes that you want the application to
+be able to execute.<br>
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must do validation on the server side. Not on
+client-side front-ends.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/470">CWE-470 - Use of Externally-Controlled Input to Select Classes or Code ('Unsafe Reflection')</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct class|method names directly from user-controlled data.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>"[varname]" is tainted (assignments and parameters)</p>
+</div>
+<div class="paragraph">
+<p>this argument is tainted (method invocations)</p>
+</div>
+<div class="paragraph">
+<p>the returned value is tainted (returns &amp; method invocations results)</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s2658">deprecates: <a data-rspec-id="S2658" class="rspec-auto-link">S2658</a></h3>
+
+</div>
+</div>
+</div>

@@ -1,0 +1,138 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Java, numeric promotions happen when two operands of an arithmetic expression have different sizes.
+More specifically, narrower operands get promoted to the type of wider operands.
+For instance, an operation between a <code>byte</code> and an <code>int</code>, will trigger a promotion of the <code>byte</code> operand, converting it into an <code>int</code>.</p>
+</div>
+<div class="paragraph">
+<p>When this happens, the sequence of 8 bits that represents the <code>byte</code> will need to be extended to match the 32-bit long sequence that represents the <code>int</code> operand.
+Since Java uses two&#8217;s complement notation for signed number types, the promotion will fill the missing leading bits with zeros or ones, depending on the sign of the value.
+For instance, the byte <code>0b1000_0000</code> (equal to <code>-128</code> in decimal notation), when promoted to <code>int</code>, will become <code>0b1111_1111_1111_1111_1111_1111_1000_0000</code>.</p>
+</div>
+<div class="paragraph">
+<p>When performing shifting or bitwise operations without considering that bytes are signed, the bits added during the promotion may have unexpected effects on the final result of the operations.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue any time a <code>byte</code> value is used as an operand combined with shifts without being masked.</p>
+</div>
+<div class="paragraph">
+<p>To prevent such accidental value conversions, you can mask promoted bytes to only consider the least significant 8 bits.
+Masking can be achieved with the bitwise AND operator <code>&amp;</code> and the appropriate mask of <code>0xff</code> (255 in decimal and <code>0b1111_1111</code> in binary) or, since Java 8, with the more convenient <code>Byte.toUnsignedInt(byte b)</code> or <code>Byte.toUnsignedLong(byte b)</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">  public static void main(String[] args) {
+    byte[] bytes12 = BigInteger.valueOf(12).toByteArray(); // This byte array will be simply [12]
+    System.out.println(intFromBuffer(bytes12)); // In this case, the bytes promotion will not cause any issues, and "12" will be printed.
+
+    // Here the bytes will be [2, -128] since 640 in binary is represented as 0b0000_0010_1000_0000
+    // which is equivalent to the concatenation of 2 bytes: 0b0000_0010 = 2, and 0b1000_0000 = -128
+    byte[] bytes640 = BigInteger.valueOf(640).toByteArray();
+
+    // In this case, the shifting operation combined with the bitwise OR, will produce the wrong binary string and "-128" will be printed.
+    System.out.println(intFromBuffer(bytes640));
+  }
+
+  static int intFromBuffer(byte[] bytes) {
+    int originalInt = 0;
+    for (int i = 0; i &lt; bytes.length; i++) {
+      // Here the right operand of the bitwise OR, which is a byte, will be promoted to an `int`
+      // and if its value was negative, the added ones in front of the binary string will alter the value of the `originalInt`
+      originalInt = (originalInt &lt;&lt; 8) | bytes[i]; // Noncompliant
+    }
+    return originalInt;
+  }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">  public static void main(String[] args) {
+    byte[] bytes12 = BigInteger.valueOf(12).toByteArray(); // This byte array will be simply [12]
+    System.out.println(intFromBuffer(bytes12)); // In this case, the bytes promotion will not cause any issues, and "12" will be printed.
+
+    // Here the bytes will be [2, -128] since 640 in binary is represented as 0b0000_0010_1000_0000
+    // which is equivalent to the concatenation of 2 bytes: 0b0000_0010 = 2, and 0b1000_0000 = -128
+    byte[] bytes640 = BigInteger.valueOf(640).toByteArray();
+
+    // This will correctly print "640" now.
+    System.out.println(intFromBuffer(bytes640));
+  }
+
+  static int intFromBuffer(byte[] bytes) {
+    int originalInt = 0;
+    for (int i = 0; i &lt; bytes.length; i++) {
+      originalInt = (originalInt &lt;&lt; 8) | Byte.toUnsignedInt(bytes[i]); // Compliant, only the relevant 8 least significant bits will affect the bitwise OR
+    }
+    return originalInt;
+  }</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://wiki.sei.cmu.edu/confluence/x/kDZGBQ">CERT, NUM52-J.</a> - Be aware of numeric promotion behavior</p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Signed_number_representations#Two.27s_complement">Wikipedia</a> - Two&#8217;s complement</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Prevent "int" promotion by adding "&amp; 0xff" to this expression.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_22_feb_2016_201017_ann_campbell_wrote">on 22 Feb 2016, 20:10:17 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Thanks for the rewrite [~michael.gumowski]. Looks good</p>
+</div>
+</div>
+</div>
+</div>

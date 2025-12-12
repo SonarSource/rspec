@@ -1,0 +1,64 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In the most common scenario, the awaiter object used during the evaluation of the <code>co_await</code> expression is constructed locally in the coroutine.
+This design makes the access and modification of the awaiter members during coroutine suspension thread-safe, except within the <code>await_suspend</code> function.</p>
+</div>
+<div class="paragraph">
+<p>At the point of the <code>await_suspend</code> function invocation, the current coroutine (represented by the <code>coroutine_handle</code> parameter) is in a suspended state.
+Once resumed, the coroutine will complete the execution of the <code>co_await</code> expression and destroy the awaiter object.
+Therefore, once the coroutine handle is exposed for resumption from <code>await_suspend</code> (e.g. by registering its resumption as a callback),
+the awaiter object pointed by <code>this</code> pointer may be destroyed and, therefore, may be dangling.
+At this point, any access to the members of the awaiter may lead to undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>This rule reports access to the awaiter members from the body of the <code>await_suspend</code> member function,
+that is performed once the handle to the current coroutine is exposed.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>struct WaitForAwaiter {
+  Event&amp; event;
+  bool wait_was_required = false;
+  /* .... */
+  bool await_suspend(std::coroutine_handle&lt;&gt; current) {
+    wait_was_required = !event.register_callback(current); // Noncompliant
+    // the code assings the value to the wait_was_required member,
+    // after register_callback returns (and current may have been resumed)
+    return wait_was_required;
+  }
+};</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>struct WaitForAwaiter {
+  Event&amp; event;
+  bool wait_was_required = false;
+  /* .... */
+  bool await_suspend(std::coroutine_handle&lt;&gt; current) {
+    auto callback = [this, current] () {
+      wait_was_required = true;
+      current.resume();
+    };
+    return !event.register_callback(callback);
+    // When waiting is required, wait_was_required member remains false,
+    // until callback is invoked. However, the difference is unobservable by the coroutine code,
+    // as the value is always changed before it is resumed.
+  }
+};</pre>
+</div>
+</div>
+</div>
+</div>

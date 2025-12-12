@@ -1,0 +1,102 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when test functions call <code>t.Fatal</code>, <code>t.FailNow</code>, <code>t.Fatalf</code>, <code>t.Skip</code>, <code>t.Skipf</code>, or <code>t.SkipNow</code> from goroutines other than the main test goroutine.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Go testing, functions like <code>t.Fatal</code> and <code>t.FailNow</code> call <code>runtime.Goexit()</code> to immediately terminate the current goroutine and mark the test as failed. However, when these functions are called from a goroutine other than the main test goroutine, they only terminate that specific goroutine, not the entire test.</p>
+</div>
+<div class="paragraph">
+<p>This creates several problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The test may continue running even after a failure is detected, leading to unpredictable behavior</p>
+</li>
+<li>
+<p>Other goroutines may continue executing, potentially causing resource leaks or interfering with subsequent tests</p>
+</li>
+<li>
+<p>The test may hang indefinitely if the main goroutine is waiting for the failed goroutine to complete</p>
+</li>
+<li>
+<p>Error reporting becomes unclear since the test doesn&#8217;t immediately fail when the issue is detected</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The Go testing package is designed with the assumption that test control functions are called from the main test goroutine. When this assumption is violated, the testing framework cannot properly manage the test lifecycle.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Calling <code>t.Fatal</code> from separate goroutines can cause tests to hang indefinitely, produce unreliable results, or mask real failures. This leads to flaky tests that are difficult to debug and can block continuous integration pipelines. In severe cases, hanging tests may consume system resources and require manual intervention to terminate.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace <code>t.Fatal</code> and similar functions with <code>t.Error</code> when called from goroutines. Use <code>t.Error</code> to report the failure and then return from the goroutine to stop its execution.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func TestExample(t *testing.T) {
+    go func() {
+        if err := doSomething(); err != nil {
+            t.Fatalf("Error: %v", err) // Noncompliant
+        }
+    }()
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func TestExample(t *testing.T) {
+    go func() {
+        if err := doSomething(); err != nil {
+            t.Errorf("Error: %v", err)
+            return
+        }
+    }()
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go Testing Package Documentation - <a href="https://pkg.go.dev/testing">Official documentation for Go&#8217;s testing package, including guidance on proper usage of testing functions</a></p>
+</li>
+<li>
+<p>Google Go Style Guide - Don&#8217;t call t.Fatal from separate goroutines - <a href="https://google.github.io/styleguide/go/best-practices.html#dont-call-tfatal-from-separate-goroutines">Google&#8217;s Go style guide section specifically addressing this anti-pattern</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

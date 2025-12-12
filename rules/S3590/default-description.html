@@ -1,0 +1,373 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Explicitly releasing non-heap memory leads to undefined behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>free</code> function and <code>delete</code> operator are used exclusively to release dynamically allocated memory.
+Attempting to release any other type of memory is <em>undefined behavior</em>.</p>
+</div>
+<div class="paragraph">
+<p>The following non-heap memory types may not be released:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Stack allocated memory - local variables or memory allocated with the <code>alloca</code>, <code>_alloca</code>, <code>_malloca</code> and <code>__builtin_alloca</code> functions.</p>
+</li>
+<li>
+<p>Executable program code - function pointers.</p>
+</li>
+<li>
+<p>Program data - global and static variables.</p>
+</li>
+<li>
+<p>Read-only program data - constants and strings.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact</h3>
+<div class="paragraph">
+<p>Trying to release non-heap memory using <code>free</code> or <code>delete</code> results in undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.</p>
+</div>
+<div class="paragraph">
+<p>The application will usually just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Remove any calls to <code>free</code> or <code>delete</code> that aim at releasing non-heap memory.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>Stack allocated memory:</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void fun(int size) {
+  int number = 0;
+  char* name = (char*)alloca(size);
+  // ...
+  delete &amp;number; // Noncompliant: memory is stack-allocated.
+  free(name); // Noncompliant: memory is stack-allocated.
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void fun(int size) {
+  int number = 0;
+  char* name = (char*)alloca(size);
+  // ...
+  // Compliant: stack memory is automatically released at the end of the function.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Executable program code:</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int getValue() {
+  return 10;
+}
+
+int main() {
+  // ...
+  free((void*) &amp;getValue); // Noncompliant: memory is part of executable code.
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int getValue() {
+  return 10;
+}
+
+int main() {
+  // ...
+  // Compliant: program code will be released at the end of the program's execution.
+  return 0;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Program data:</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct S {
+  static inline int data = 64;
+};
+
+int main() {
+  static int x = 8;
+  // ...
+  free(&amp;x); // Noncompliant: memory part of the program's data.
+  free(&amp;S::data); // Noncompliant: memory part of the program's data.
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct S {
+  static inline int data = 64;
+};
+
+int main() {
+  static int x = 8;
+  // ...
+  // Compliant: globals and static variables are released at the end of the program's execution.
+  return 0;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Read-only program data:</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int const limit = 128;
+
+int main() {
+  char* name = "string";
+  // ...
+  free((void*)&amp;limit); // Noncompliant: memory part of program's read-only data.
+  free(name); // Noncompliant: memory part of read-only program data.
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int const limit = 128;
+
+int main() {
+  char const* name = "string";
+  // ...
+  // Compliant: read-only program data is freed at the end of the program's execution.
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>The accidental release of non-heap memory usually occurs in practice if the same pointer variable is used to once reference heap and once non-heap memory.
+This may lead to confusion and should be avoided.</p>
+</div>
+<div class="paragraph">
+<p>These best practices help to avoid accidentally releasing non-heap memory:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If accessing different memory types, use different pointer variables.</p>
+</li>
+<li>
+<p>When passing non-heap memory addresses to functions, ensure that the functions do not attempt to release the memory.</p>
+</li>
+<li>
+<p>If manually managing dynamic memory, release it in the same scope where it was acquired.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The following example shows a situation in which the same pointer variable is used to hold a stack or heap address.
+This leads to a situation in which heap memory is accidentally released.</p>
+</div>
+<div class="paragraph">
+<p>Noncompliant code example</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void fun(int length) {
+  static char smallString[32];
+  char* usedString;
+
+  if (length &lt; 31) {
+    usedString = smallString; // Pointer to stack memory assigned here
+  } else {
+    usedString = (char*)malloc(length + 1);
+  }
+  // ...
+  free(usedString); // Noncompliant: if length &lt; 31, the freed memory will be located on the stack.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Compliant solution</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void fun(int length) {
+  static char smallString[32];
+  char* stackOrHeapString;
+  char* heapString = nullptr;
+
+  if (length &lt; 31) {
+    stackOrHeapString = smallString;
+  } else {
+    heapString = (char*)malloc(length + 1);
+    stackOrHeapString = heapString;
+  }
+  // ...
+  free(heapString); // Compliant: only the heap string will be freed if allocated.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following example shows a situation in which dynamically allocated memory is acquired and released in different functions.
+On top of this chain, a stack allocated buffer is introduced, leading to a call to <code>free</code> of stack memory.</p>
+</div>
+<div class="paragraph">
+<p>Noncompliant code example</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void use(char* string) {
+  // ...
+  free(string); // Noncompliant: pointer's origin is unknown. If non-heap, the program will crash.
+}
+
+void fun(int length) {
+  static char smallString[32];
+  char* usedString;
+
+  if (length &lt; 31) {
+    usedString = smallString; // Pointer to stack memory assigned here
+  } else {
+    usedString = (char*)malloc(length + 1);
+  }
+  use(usedString); // If length &lt; 31, the unsafe memory will free memory located on the stack.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Compliant solution</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void use(char* string) {
+  // ...
+  // Compliant: memory no longer freed in the called function
+}
+
+void fun(int length) {
+  static char smallString[32];
+  if (length &lt; 31) {
+    use(smallString);
+  } else {
+    heapString = (char*)malloc(length + 1);
+    use(heapString);
+    free(heapString); // Compliant: memory released in the scope it was acquired in.
+  }
+}</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove this "free" call; the memory will be released automatically.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>primary: <code>free(xxx)</code></p>
+</li>
+<li>
+<p>secondary: allocation</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_31_mar_2016_140256_ann_campbell_wrote">on 31 Mar 2016, 14:02:56 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~massimo.paladin] what happens if you <code>free</code> this memory anyway? Crash? Memory corruption? Leak? The description should include at least a hint &amp; I need to know to set the SQALE characteristic.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_31_mar_2016_143156_massimo_paladin_wrote">on 31 Mar 2016, 14:31:56 Massimo PALADIN wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] it is an undefined behavior, i.e. on my setup I am getting a crash.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_31_mar_2016_162309_ann_campbell_wrote">on 31 Mar 2016, 16:23:09 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Thanks [~massimo.paladin]. I&#8217;ve made some small updates.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_mar_2019_165129_ann_campbell_wrote">on 27 Mar 2019, 16:51:29 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>FYI, [~massimo.paladin] the "raises an issue when" clause usually comes at the end of the descriptive text.</p>
+</div>
+</div>
+</div>
+</div>

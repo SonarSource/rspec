@@ -1,0 +1,190 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Getters and setters that do nothing more than reading or writing a field should be removed.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Unlike other languages, where properties and fields are two distinct constructs and generate different instructions when compiled, Dart <a href="https://dart.dev/language/classes#instance-variables">class instance variables</a> (the equivalent of a "field" in Dart) and <a href="https://dart.dev/language/methods#getters-and-setters">getters/setters</a> are part of a single construct.</p>
+</div>
+<div class="paragraph">
+<p>A Dart instance variable/field is equivalent to a pair of getters and setters, from the perspective of a user of the class. Not only syntactically, but also at binary level.</p>
+</div>
+<div class="paragraph">
+<p>More specifically, if an instance variable is replaced with a pair of getters and setters having the same name of the instance variable, existing code referencing the instance variable will continue to work without any change. It will correctly invoke the newly introduced getters and setters, even if it is defined in an external library and it has not been recompiled after the change.</p>
+</div>
+<div class="paragraph">
+<p>For example, given the following class <code>C</code> and its usage in <code>aMethodUsingTheClassC</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">// Class with a plain field and no getter/setter for it
+class C {
+  int x;
+}
+
+// Possibly in another library or package
+void aMethodUsingTheClassC() {
+  var c = C();
+  c.x = 42; // This will set the value of the field
+  print(c.x); // This will get the value of the field
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If the field <code>x</code> is replaced with a getter and a setter, the code in <code>aMethodUsingTheClassC</code> will continue to work without any change or recompilation, and the setter will be invoked when <code>c.x = 42</code> is executed, checking the newly introduced precondition.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">// Class with a getter and a setter, introducing a precondition check
+class C {
+  int _x = 42;
+  int get x =&gt; _x;
+  set x(int value) {
+    if (value &lt; 0) {
+      throw ArgumentError('value must be non-negative');
+    }
+    _x = value;
+  }
+}
+
+// Possibly in another library or package
+void aMethodUsingTheClassC() {
+  var c = C();
+  c.x = 42; // This will invoke the x setter
+  print(c.x); // This will invoke the x getter
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Therefore, there is no need to define getters and setters that do nothing more than reading or writing a field, just to be "future-proof" in case there may be more to do than accessing the backing field. They can be safely removed in all circumstances, and added later when need arises.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Defining unnecessary getters and setters makes the code more verbose, since instead of defining a single member, it requires the definition of three members: a getter, a setter, and the field backing the property. This increases the cognitive load on the reader.</p>
+</div>
+<div class="paragraph">
+<p>Moreover, it may lead to confusion about the actual behavior of the property. For example, a developer may see a getter or a setter and assume that it may be doing some computation, while it is just returning or setting the value of the underlying field.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>The rule doesn&#8217;t apply to read-only or write-only properties, since they constraint write access or read access to the field, respectively, therefore they are not equivalent to a field.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">class C {
+  int _field = 42;
+  int get field =&gt; _field; // Non applicable
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The rule doesn&#8217;t apply when the type of the field is different from the type of the getter or setter, for example with <code>dynamic</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">class C {
+  dynamic _fieldDynamicType = 42;
+  int get fieldDynamicType =&gt; _fieldDynamicType; // Non applicable
+  set fieldDynamicType(int value) =&gt; _fieldDynamicType = value;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The rule doesn&#8217;t apply when either the getter or the setter is decorated with an annotation, since the annotation may have side effects, as in altering the behavior of other functionalities (e.g., serialization, persistence, etc.).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">class C {
+  int _annotatedGetter = 42;
+  @AnAnnotation() int get annotatedGetter =&gt; _annotatedGetter;
+  set annotatedGetter(int value) =&gt; _annotatedGetter = value;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Remove the unnecessary getter, setter, and the backing field, and replace the three class members with a single field named as the getter and setter.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">class C {
+  int _x;
+  int get x =&gt; _x;
+  set x(int value) =&gt; _x = value;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">class C {
+  int x;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Dart Docs - <a href="https://dart.dev/tools/linter-rules/unnecessary_getters_setters">Dart Linter rule - unnecessary_getters_setters</a></p>
+</li>
+<li>
+<p>Dart Docs - <a href="https://dart.dev/language/classes#instance-variables">Language - Instance variables</a></p>
+</li>
+<li>
+<p>Dart Docs - <a href="https://dart.dev/language/methods#getters-and-setters">Language - Getters and setters</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Unnecessary use of getter and setter to wrap a field.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>The name of the getter that is unnecessarily wrapping a backing field.</p>
+</div>
+</div>
+</div>
+</div>

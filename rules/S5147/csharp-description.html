@@ -1,0 +1,296 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>NoSQL injections occur when an application retrieves untrusted data and inserts
+it into a database query without sanitizing it first.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In the context of a web application that is vulnerable to NoSQL injection:<br>
+After discovering the injection point, attackers insert data into the vulnerable
+field to execute malicious commands in the affected databases.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_identity_spoofing_and_data_leakage">Identity spoofing and data leakage</h4>
+<div class="paragraph">
+<p>In the context of simple query logic breakouts, a malicious database query
+enables privilege escalation or direct data leakage from one or more databases.<br>
+This threat is the most widespread impact.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_data_deletion_and_denial_of_service">Data deletion and denial of service</h4>
+<div class="paragraph">
+<p>The malicious query makes it possible for the attacker to delete data in the
+affected databases.<br>
+This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP) as missing data can disrupt the regular
+operations of an organization.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_chaining_nosql_injections_with_other_vulnerabilities">Chaining NoSQL injections with other vulnerabilities</h4>
+<div class="paragraph">
+<p>Attackers who exploit NoSQL injections rely on other vulnerabilities to maximize
+their profits.<br>
+Most of the time, organizations overlook some defense in depth measures because
+they assume attackers cannot reach certain points in the infrastructure. This
+misbehavior can lead to multiple attacks with great impact:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When secrets are stored unencrypted in databases: Secrets can be exfiltrated and lead to compromise of other components.</p>
+</li>
+<li>
+<p>If server-side OS and/or database permissions are misconfigured, injection can lead to remote code execution (RCE).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_mongodb">How to fix it in MongoDB</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to NoSQL injections because untrusted data is
+used to find data in a database.
+Such cases can be encountered when client-side code crafts the query, such as
+<code>[{ '$match': { 'Username': 'John Doe' } }]</code>.</p>
+</div>
+<div class="paragraph">
+<p>Note that <code>Find</code> and <code>FindAsync</code> are not the only constructs whose input should be
+verified. Multiple
+<a href="https://mongodb.github.io/mongo-csharp-driver/2.4/reference/driver/definitions/">definitions</a>
+can be built from a string and allow attackers to leak or tamper with data.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">using MongoDB.Driver;
+using MongoDB.Bson;
+
+[ApiController]
+[Route("Example")]
+public class ExampleController: ControllerBase
+{
+    private string connectionString;
+
+    [Route("Example")]
+    public async Task&lt;string&gt; Example()
+    {
+        var client     = new MongoClient(connectionString);
+        var database   = client.GetDatabase("example");
+        var collection = database.GetCollection&lt;Message&gt;("messages");
+
+        var filterDefinition = Request.Query["filterDefinition"];
+
+        await collection.FindAsync(filter)
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">using MongoDB.Driver;
+using MongoDB.Bson;
+
+[ApiController]
+[Route("Example")]
+public class ExampleController: ControllerBase
+{
+    private string connectionString;
+
+    [Route("Example")]
+    public async Task&lt;string&gt; Example()
+    {
+        var client     = new MongoClient(connectionString);
+        var database   = client.GetDatabase("example");
+        var collection = database.GetCollection&lt;Message&gt;("messages");
+
+        var filterDefinition = Builders&lt;BsonDocument&gt;.Filter.Eq("Username", "Example");
+
+        await collection.FindAsync(filter)
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_use_safe_builder_patterns">Use safe builder patterns</h4>
+<div class="paragraph">
+<p>Generally, database queries also accept builder patterns to build queries. This
+is a safe way to build queries as it ensures that the query is built correctly
+and is safe from injection attacks because it does not require you to ensure
+that the query is built correctly.</p>
+</div>
+<div class="paragraph">
+<p>For example, using a <code>.where()</code> function instead of a string and <code>$where</code> will
+help avoid an injection attack.</p>
+</div>
+<div class="paragraph">
+<p>If using a builder pattern is not possible, follow the instructions below:</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_pre_approved_list">Pre-approved list</h4>
+<div class="paragraph">
+<p>As a rule of thumb, the best approach to protect against injections is to
+systematically ensure that untrusted data cannot break out of the initially
+intended logic.</p>
+</div>
+<div class="paragraph">
+<p>For NoSQL injections, the cleanest way to do so is to validate the input before
+using it in a query.</p>
+</div>
+<div class="paragraph">
+<p>Create a list of authorized and secure strings that you want the application to
+be able to use in a query.<br>
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p>The list can be either a regex string, an array, or validators on specific
+ranges of characters. If you use regexes, choose simple regexes to avoid ReDOS
+attacks.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must do validation on the server side. Not on
+client-side front-ends.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_operators_are_to_be_classified_as_dangerous">Operators are to be classified as dangerous</h4>
+<div class="paragraph">
+<p>As a rule of thumb if no operators are needed, you should generally reject user
+input containing them. If some operators are necessary, you should restrict
+their use.</p>
+</div>
+<div class="paragraph">
+<p>Some operators execute JavaScript, and their use should be restricted for both
+untrusted input and internal code.<br>
+These operators include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>$where</code></p>
+</li>
+<li>
+<p><code>$function</code></p>
+</li>
+<li>
+<p><code>$accumulator</code></p>
+</li>
+<li>
+<p><code>mapReduce</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Depending on your use case, you should first try using regular
+API calls before using any of these operators.<br>
+For example, using a <code>$where</code> operator is unnecessarily complex when only a
+simple search is required. It also leads to performance problems.</p>
+</div>
+<div class="paragraph">
+<p><strong>Note</strong>: <a href="https://www.mongodb.com/docs/manual/reference/operator/query/where/#javascript-enablement">Server-side scripting can be disabled</a>.</p>
+</div>
+<div class="paragraph">
+<p>Regular operators can also lead to data leaks.<br>
+For example, attackers can use "comparison query operators" in their attack
+data to trick the backend database into giving hints about sensitive
+information or entirely giving it out.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>SonarSource - <a href="https://blog.sonarsource.com/nosql-injections-in-rocket-chat/">NoSQL Injections in Rocket.Chat 3.12.1</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/943">CWE-943 - Improper Neutralization of Special Elements in Data Query Logic</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct database queries directly from user-controlled data.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>"[varname]" is tainted (assignments and parameters)</p>
+</div>
+<div class="paragraph">
+<p>this argument is tainted (method invocations)</p>
+</div>
+<div class="paragraph">
+<p>the returned value is tainted (returns &amp; method invocations results)</p>
+</div>
+<hr>
+</div>
+</div>
+</div>

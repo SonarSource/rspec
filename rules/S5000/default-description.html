@@ -1,0 +1,205 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The function <code>memcmp</code> only returns meaningful results for objects of trivially copyable types without padding. This includes scalar types, arrays, and trivially copyable classes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>memcmp</code> compares the raw memory representation of two objects (what the standard calls their <em>object representation</em>). When objects are not trivially copyable or contain padding, they could have different raw memory representations even though they store identical values. So the result of <code>memcmp</code> is not meaningful.</p>
+</div>
+<div class="paragraph">
+<p>Padding refers to the insertion of additional bits into a structure or class to ensure proper alignment of its members in memory.</p>
+</div>
+<div class="paragraph">
+<p>Trivially copyable types include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>scalar types</p>
+</li>
+<li>
+<p>trivially copyable classes</p>
+</li>
+<li>
+<p>arrays of these types</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A class is trivially copyable when:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>all its non-static data members and base classes are trivially copyable types,</p>
+</li>
+<li>
+<p>it has no virtual functions or base classes,</p>
+</li>
+<li>
+<p>its destructor is trival,</p>
+</li>
+<li>
+<p>and one or more of the following special member functions is trivial, and the rest are deleted: copy constructor, move constructor, copy assignment operator, and move assignment operator.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><em>Note: a default implementation is always considered trivial, both when it is explicit (with <code>= default</code>) or implicit (if the special member function is omitted).</em></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The comparison operator <code>operator==</code> should be defined and used instead of <code>memcmp</code> when the types are not trivially copyable or contain padding.
+This allows comparing member by member to check object equality.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">struct Shape { // Trivially copyable, but will contain padding after the bool on most architectures
+  bool visible;
+  int x;
+  int y;
+};
+
+bool isSame(Shape *s1, Shape *s2)
+{
+    return memcmp(s1, s2, sizeof(Shape)) == 0; // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">struct Shape { // Trivially copyable, but will contain padding after the bool on most architectures
+  bool visible;
+  int x;
+  int y;
+};
+
+bool isSame(Shape *s1, Shape *s2)
+{
+  return s1-&gt;visible == s2-&gt;visible &amp;&amp; s1-&gt;x == s2-&gt;x &amp;&amp; s1-&gt;y == s2-&gt;y;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Resource { // Not trivially copyable
+public:
+  Ptr* ptr;
+  ~Resource();
+};
+
+bool isSame(Resource *r1, Resource *r2)
+{
+    return memcmp(r1, r2, sizeof(Resource)) == 0; // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Resource { // Not trivially copyable
+public:
+  Ptr* ptr;
+  ~Resource();
+};
+
+bool operator==(Resource const &amp;r1, Resource const &amp;r2) {
+  return r1.ptr == r2.ptr;
+}
+
+bool isSame(Resource *r1, Resource *r2)
+{
+    return (*r1) == (*r2);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/classes#Trivially_copyable_class">Definition of a trivially copyable class</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S4999" class="rspec-auto-link">S4999</a> - "memcpy", "memmove", and "memset" should only be called with pointers to trivially copyable types</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use "operator==" to check object equality, "XXX" is not a trivially copyable type without padding.</p>
+</div>
+<div class="paragraph">
+<p>Compare member by member to check object equality, "XXX" contains padding.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_6_nov_2018_204332_ann_campbell_wrote">on 6 Nov 2018, 20:43:32 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Double-check me [~loic.joly]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_7_nov_2018_085739_loïc_joly_wrote">on 7 Nov 2018, 08:57:39 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>Looks good to me.</p>
+</div>
+</div>
+</div>
+</div>

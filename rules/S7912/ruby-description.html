@@ -1,0 +1,158 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when background jobs or asynchronous operations lack proper retry mechanisms, exponential backoff, or structured error handling, making them vulnerable to transient failures.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Background jobs and asynchronous operations are particularly susceptible to transient failures such as network timeouts, temporary service unavailability, or rate limiting. Without proper retry mechanisms, these failures can result in lost data, incomplete operations, or require manual intervention to resolve.</p>
+</div>
+<div class="paragraph">
+<p>When jobs fail without retry logic, they typically end up in a failed state and need manual reprocessing. This creates operational overhead and can lead to data inconsistencies if some operations succeed while others fail.</p>
+</div>
+<div class="paragraph">
+<p>Simple retry mechanisms without exponential backoff can overwhelm already struggling services by immediately retrying failed operations. This can worsen the situation by contributing to cascading failures or triggering rate limiting mechanisms.</p>
+</div>
+<div class="paragraph">
+<p>Exponential backoff is crucial because it gradually increases the delay between retry attempts, giving temporary issues time to resolve while reducing load on external services. This approach is more respectful of downstream services and increases the likelihood of eventual success.</p>
+</div>
+<div class="paragraph">
+<p>Proper error logging is essential for monitoring and debugging. Without structured error handling, it becomes difficult to identify patterns in failures, track job success rates, or diagnose underlying issues that may require code changes or infrastructure improvements.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Applications may experience data loss, incomplete operations, or require frequent manual intervention when background jobs fail. Without exponential backoff, failed retries can overwhelm external services, potentially causing cascading failures or triggering rate limiting that affects other parts of the system. Poor error handling makes it difficult to monitor job health and diagnose issues, leading to longer resolution times and reduced system reliability.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For custom retry logic, implement exponential backoff with proper error handling and logging. Track retry attempts and implement a maximum retry limit to prevent infinite loops.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def sync_data
+  3.times do
+    begin
+      perform_sync
+      return
+    rescue =&gt; error
+      Rails.logger.error "Sync failed: #{error}"
+      sleep(1)
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def sync_data
+  max_retries = 3
+  retries = 0
+
+  while retries &lt; max_retries
+    begin
+      perform_sync
+      return
+    rescue =&gt; error
+      Rails.logger.error "Sync failed (attempt #{retries + 1}/#{max_retries}): #{error.message}"
+      retries += 1
+      sleep(2 ** retries) if retries &lt; max_retries # exponential backoff
+    end
+  end
+
+  Rails.logger.error "Sync failed after #{max_retries} attempts"
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use Rails' built-in retry_on mechanism with exponential backoff for ApplicationJob classes. Add proper error logging while still allowing the retry mechanism to function.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class DigestWorker &lt; ApplicationJob
+  def perform(user_id)
+    send_digest(user_id)
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class DigestWorker &lt; ApplicationJob
+  retry_on StandardError, wait: :exponentially_longer, attempts: 5
+
+  def perform(user_id)
+    send_digest(user_id)
+  rescue =&gt; error
+    Rails.logger.error "Digest failed for user #{user_id}: #{error.message}"
+    raise
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Active Job Retry Mechanisms - <a href="https://guides.rubyonrails.org/active_job_basics.html#retrying-or-discarding-failed-jobs">Official Rails documentation on implementing retry logic in Active Job</a></p>
+</li>
+<li>
+<p>Exponential Backoff Pattern - <a href="https://cloud.google.com/iot/docs/how-tos/exponential-backoff">Google Cloud documentation explaining exponential backoff strategies</a></p>
+</li>
+<li>
+<p>Sidekiq Retry Logic - <a href="https://github.com/mperham/sidekiq/wiki/Error-Handling">Sidekiq documentation on error handling and retry mechanisms</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-754: Improper Check for Unusual or Exceptional Conditions - <a href="https://cwe.mitre.org/data/definitions/754.html">Addresses the importance of proper error handling in software systems</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

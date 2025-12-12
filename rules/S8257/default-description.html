@@ -1,0 +1,128 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>*sql.Rows</code> objects returned from database query operations are not explicitly closed.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When executing database queries that return multiple rows, Go&#8217;s <code>database/sql</code> package returns a <code>*sql.Rows</code> object that holds database resources including network connections and server-side cursors.</p>
+</div>
+<div class="paragraph">
+<p>While the Go standard library does provide automatic cleanup in certain scenarios (such as when <code>rows.Next()</code> returns false and there are no additional result sets), relying solely on this automatic behavior can lead to resource leaks in several situations:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If an error occurs during row processing and the iteration loop exits early</p>
+</li>
+<li>
+<p>If the code returns from the function before fully consuming all rows</p>
+</li>
+<li>
+<p>If an exception or panic occurs during row processing</p>
+</li>
+<li>
+<p>When working with multiple result sets where automatic cleanup may not occur</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>These unclosed resources can accumulate over time, leading to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Database connection pool exhaustion</p>
+</li>
+<li>
+<p>Memory leaks on both client and server sides</p>
+</li>
+<li>
+<p>Degraded application performance</p>
+</li>
+<li>
+<p>Potential database server resource starvation</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Explicit resource management through <code>rows.Close()</code> ensures that database resources are freed immediately and reliably, regardless of how the function exits or whether all rows are consumed.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Failing to close database rows can lead to resource leaks that accumulate over time. This can result in database connection pool exhaustion, memory leaks, and degraded application performance. In high-traffic applications, this can eventually cause the application to become unresponsive or crash due to resource starvation.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add an explicit call to <code>rows.Close()</code> immediately after checking for query errors. The most common and recommended pattern is to use <code>defer rows.Close()</code> which ensures the rows are closed when the function exits, regardless of how it exits.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func getAllUsers(db *sql.DB) error {
+    rows, err := db.Query("SELECT * FROM users")
+    if err != nil {
+        return err
+    }
+    // Missing rows.Close() // Noncompliant
+    for rows.Next() {
+        // process rows
+    }
+    return rows.Err()
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func getAllUsers(db *sql.DB) error {
+    rows, err := db.Query("SELECT * FROM users")
+    if err != nil {
+        return err
+    }
+    defer rows.Close()
+    for rows.Next() {
+        // process rows
+    }
+    return rows.Err()
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go database/sql package documentation - <a href="https://pkg.go.dev/database/sql">Official Go documentation for the database/sql package, including details about the Rows type and Close method</a></p>
+</li>
+<li>
+<p>Go database/sql tutorial - <a href="https://go.dev/doc/tutorial/database-access">Official Go tutorial on accessing databases, demonstrating proper resource management patterns</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
