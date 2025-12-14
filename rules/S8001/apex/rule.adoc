@@ -1,0 +1,57 @@
+This rule raises an issue when a SOQL LIKE clause uses a pattern that starts with a wildcard character (%).
+
+== Why is this an issue?
+
+Leading wildcards in SOQL LIKE clauses prevent the Salesforce database from using indexes effectively, forcing full table scans instead of efficient index lookups.
+
+When you use a pattern like `'%smith'` or `'%company'`, the database cannot use any existing indexes on that field because it doesn't know what the starting characters will be. This means the database must examine every single record in the table to find matches, which is called a full table scan.
+
+Full table scans become increasingly problematic as your data grows:
+
+* With thousands of records, queries may take several seconds
+* With hundreds of thousands of records, queries can timeout
+* The performance impact affects not just your query, but the entire org's database performance
+
+In contrast, when you use trailing wildcards like `'smith%'`, the database can use indexes to quickly locate all records that start with "smith" and then filter from there. This is exponentially faster than scanning every record.
+
+The Salesforce query optimizer is designed to use the most efficient execution plan, but leading wildcards make it impossible to leverage indexes, regardless of how well your data model is designed.
+
+=== What is the potential impact?
+
+Poor query performance that worsens as data volume grows. In large orgs, queries with leading wildcards can cause timeouts, slow down the entire system, and create a poor user experience. This can affect reports, list views, and any custom functionality that relies on these queries.
+
+== How to fix it
+
+Replace leading wildcards with trailing wildcards when you know the beginning of the search term. This allows the database to use indexes for much better performance.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+List<Contact> contacts = [SELECT Id, LastName FROM Contact WHERE LastName LIKE '%smith%']; // Noncompliant
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+List<Contact> contacts = [SELECT Id, LastName FROM Contact WHERE LastName LIKE 'smith%'];
+----
+
+== Resources
+
+=== Documentation
+
+ * SOQL and SOSL Guidelines - https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_sosl_intro.htm[Official Salesforce documentation on SOQL and SOSL best practices]
+
+ * Query Optimizer - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/langCon_apex_SOQL_query_plan_optimizer.htm[Documentation on how Salesforce's query optimizer works and performance considerations]
+
+=== Standards
+
+ * CWE-1049: Excessive Data Query Operations in a Large Data Table - https://cwe.mitre.org/data/definitions/1049.html[Describes the weakness of performing excessive data queries that can lead to performance degradation]
+
+=== Related rules
+
+ * RSPEC-1739 - https://rules.sonarsource.com/abap/RSPEC-1739/[Similar rule for ABAP addressing leading wildcards in database queries]
