@@ -1,0 +1,98 @@
+This is an issue when using `allow_blank: false` with `presence: true`, or implementing custom validations that check for blank values when `presence: true` already handles this automatically.
+
+== Why is this an issue?
+
+Rails' `presence: true` validation automatically rejects blank values, including `nil`, empty strings, and strings containing only whitespace characters. It uses Ruby's `blank?` method internally, which considers values like `""`, `"   "`, `"\n\t"`, and `nil` as blank.
+
+When developers add `allow_blank: false` alongside `presence: true`, they create redundant code because presence validation already disallows blank values by default. Similarly, implementing custom regex patterns or validation methods to check for whitespace-only strings duplicates functionality that Rails already provides.
+
+This redundancy makes code harder to read and maintain. Other developers might wonder why both validations exist, leading to confusion about the intended behavior. The extra code also increases the surface area for potential bugs without providing any additional functionality.
+
+Rails' validation system is designed to be declarative and clear. Using the built-in validations as intended makes code more predictable and easier for other Rails developers to understand.
+
+=== What is the potential impact?
+
+This issue primarily affects code maintainability and readability. Redundant validations can confuse developers and make the codebase harder to understand. While it doesn't introduce security vulnerabilities or runtime errors, it can slow down development and increase the likelihood of mistakes when modifying validation logic.
+
+== How to fix it in Rails
+
+Remove redundant `allow_blank: false` when using `presence: true`. The presence validation already handles blank values automatically.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class User < ApplicationRecord
+  validates :name, presence: true, allow_blank: false # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class User < ApplicationRecord
+  validates :name, presence: true
+end
+----
+
+Replace custom regex validations that check for whitespace with simple presence validation. Rails' presence validation already rejects whitespace-only strings.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class Post < ApplicationRecord
+  validates :body, format: { with: /\A[[:graph:]]\Z/i } # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Post < ApplicationRecord
+  validates :body, presence: true
+end
+----
+
+Remove custom validation methods that duplicate Rails' blank checking behavior. Use presence validation instead of manually checking for whitespace-only strings.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+class Article < ApplicationRecord
+  validates :content, presence: true
+  validate :not_only_whitespace # Noncompliant
+  
+  private
+  
+  def not_only_whitespace
+    errors.add(:content, "cannot be only whitespace") if content&.strip&.empty?
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+class Article < ApplicationRecord
+  validates :content, presence: true
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Validation Helpers - presence - https://guides.rubyonrails.org/active_record_validations.html#presence[Official Rails documentation explaining how presence validation works]
+
+ * Ruby Object#blank? method - https://api.rubyonrails.org/classes/Object.html#method-i-blank-3F[Documentation for the blank? method that presence validation uses internally]
