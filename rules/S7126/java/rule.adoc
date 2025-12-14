@@ -1,0 +1,157 @@
+== Why is this an issue?
+
+Using nullable typed expressions in a non-nullable input position (e.g., as the right-hand side of an assignment, a function call argument, or a return statement argument) can lead to a NullPointerException (NPE) at runtime. This occurs because the receiving code typically assumes the value is non-null and omits null checks.
+
+Formally, non-nullable and nullable versions of a type are distinct, with different domains.
+The domain of a non-nullable type is _D_, while the domain of a nullable type is _D &#8746; null_, a superset of _D_.
+Thus, a non-null value can be used wherever a nullable type is expected, but not vice versa.
+The only reason it's allowed by the compiler is that null-safety is not a built-in Java language feature, and it's therefore handled via nullability annotations by external tools bypassing the regular typing system.
+
+== How to fix it
+
+Depending on the use-case, there are different strategies to fix this problem.
+
+=== Code examples
+
+**1. Change the input position type from non-nullable to nullable, or the expression type from nullable to non-nullable:** This resolves the issue at the reported location but may propagate it elsewhere. Note: you should avoid declaring everything nullable; only do so where it aligns with your data and state models. Otherwise, consider the other approaches.
+
+==== Noncompliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+@NonNull String title = createTitle();
+
+@Nullable static String createTitle() {
+    // ...
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@Nullable String title = createTitle();
+
+@Nullable static String createTitle() {
+    // ...
+}
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+@NonNull String title = createTitle();
+
+@Nullable static String createTitle() {
+    // ...
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+@NonNull String title = createTitle();
+
+@NonNull static String createTitle() {
+    // ...
+}
+----
+
+==== Noncompliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+@NullMarked
+class Collector {
+  void collectData(List<Entity> entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List<Entity> entities) {
+  collector.collectData(entities);
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+class Collector {
+  void collectData(@Nullable List<Entity> entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List<Entity> entities) {
+  collector.collectData(entities);
+}
+----
+
+**2. Replace `null` case with a guard element:** This is particularly effective for array and collection types, where `null` can easily be replaced with an empty array or collection instance.
+
+==== Noncompliant code example
+
+[source,java,diff-id=4,diff-type=noncompliant]
+----
+@NullMarked
+class Collector {
+  void collectData(List<Entity> entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List<Entity> entities) {
+  collector.collectData(entities);
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=4,diff-type=compliant]
+----
+@NullMarked
+class Collector {
+  void collectData(List<Entity> entities) {
+    // ...
+  }
+}
+
+void process(@Nullable List<Entity> entities) {
+  var nonNullEntities = entities != null? entities: List.of();
+  collector.collectData(nonNullEntities);
+}
+----
+
+**3. Throw an Exception in `null` case:** For unexpected or uninitialized values or unspecified behavior, throw an exception instead of returning `null`. This reports the issue at its origin, not somewhere else in the source code where the unexpected `null` value suddenly becomes a problem. This makes debugging easier.
+
+==== Noncompliant code example
+
+[source,java,diff-id=5,diff-type=noncompliant]
+----
+@Nullable Element getOrNull() {
+  // ...
+}
+
+@NonNull Element get() {
+  var element = getOrNull();
+  return element;
+}
+----
+
+==== Compliant solution
+
+[source,java,diff-id=5,diff-type=compliant]
+----
+@Nullable Element getOrNull() {
+  // ...
+}
+
+@NonNull Element get() {
+  var element = getOrNull();
+  if (element == null) throw new NoSuchElementException();
+  return element;
+}
+----
