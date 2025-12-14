@@ -1,0 +1,79 @@
+This rule raises an issue when database operation results (like `Database.SaveResult`, `Database.DeleteResult`, or `Database.UpsertResult`) are stored in a variable but never checked for success or failure.
+
+== Why is this an issue?
+
+When performing database operations in Apex using methods like `Database.insert()`, `Database.update()`, `Database.delete()`, or `Database.upsert()`, these methods return result objects that contain important information about whether the operation succeeded or failed.
+
+If you store these results but never check them, your code may continue executing even when the database operation failed. This creates several problems:
+
+* *Silent failures*: Your application appears to work normally, but data changes are not actually saved to the database
+* *Inconsistent application state*: Your code may assume the operation succeeded and continue with logic that depends on the data being saved
+* *Poor user experience*: Users receive no feedback when their actions fail to complete
+* *Difficult debugging*: When issues arise later, it's hard to trace back to the original failed operation
+
+Database operations can fail for many reasons: validation rule violations, required field errors, insufficient permissions, or system limits being exceeded. By checking the results, you can handle these failures gracefully and provide meaningful feedback to users.
+
+=== What is the potential impact?
+
+Unchecked database operation failures can lead to data integrity issues, inconsistent application behavior, and poor user experience. Users may believe their actions completed successfully when they actually failed, leading to confusion and potential business process disruptions.
+
+== How to fix it
+
+Check the database operation results and handle failures appropriately. Iterate through the results array and verify each operation succeeded using the `isSuccess()` method.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public static boolean shareRecord(Id recordId, Id userOrGroupId) {
+    MyCustomObject__Share shareRecord = new MyCustomObject__Share();
+    shareRecord.ParentId = recordId;
+    shareRecord.UserOrGroupId = userOrGroupId;
+    shareRecord.AccessLevel = 'Read';
+    shareRecord.RowCause = Schema.MyCustomObject__Share.RowCause.Manual;
+    
+    Database.SaveResult[] results = Database.insert(shareRecord, false); // Noncompliant
+    // Results are stored but never checked
+    return true;
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public static boolean shareRecord(Id recordId, Id userOrGroupId) {
+    MyCustomObject__Share shareRecord = new MyCustomObject__Share();
+    shareRecord.ParentId = recordId;
+    shareRecord.UserOrGroupId = userOrGroupId;
+    shareRecord.AccessLevel = 'Read';
+    shareRecord.RowCause = Schema.MyCustomObject__Share.RowCause.Manual;
+    
+    Database.SaveResult[] results = Database.insert(shareRecord, false);
+    
+    for (Database.SaveResult result : results) {
+        if (!result.isSuccess()) {
+            // Handle the error appropriately
+            System.debug('Insert failed: ' + result.getErrors());
+            return false;
+        }
+    }
+    return true;
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Database Methods and Error Handling - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_database.htm[Official Salesforce documentation on Database class methods and result handling]
+
+ * Database.SaveResult Class - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_database_saveresult.htm[Documentation for the SaveResult class returned by insert and update operations]
+
+ * Exception Handling and Debugging in Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_definition.htm[Guide to exception handling and debugging techniques in Apex]
+
+=== Standards
+
+ * CWE-252: Unchecked Return Value - https://cwe.mitre.org/data/definitions/252.html[Weakness related to ignoring return values that indicate errors or important state changes]
