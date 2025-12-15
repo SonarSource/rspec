@@ -1,0 +1,74 @@
+This rule raises an issue when a field is lazily initialized using a simple null check without proper synchronization in a multi-threaded context.
+
+== Why is this an issue?
+
+Lazy initialization is a common pattern where you delay creating an object until it's actually needed. This can improve performance by avoiding unnecessary object creation.
+
+However, the simple approach of checking if a field is null and then initializing it creates a race condition in multi-threaded applications. Here's what can go wrong:
+
+When multiple threads access the same lazy initialization code simultaneously, they might all see the field as null at the same time. This means multiple threads will create new instances of the object, and the field might be overwritten multiple times.
+
+This leads to several problems:
+
+* **Wasted resources**: Multiple objects are created when only one is needed
+* **Inconsistent state**: Different parts of your application might use different instances
+* **Memory leaks**: Unused instances consume memory unnecessarily
+* **Logic errors**: If the initialization has side effects, they might happen multiple times
+
+The issue is particularly problematic with singleton patterns, where you expect exactly one instance to exist throughout your application's lifetime.
+
+=== What is the potential impact?
+
+Race conditions can cause unpredictable behavior, memory waste, and logic errors. In singleton patterns, multiple instances can break application assumptions and lead to inconsistent state across the system.
+
+== How to fix it
+
+Use the `synchronized` keyword on the method to ensure only one thread can execute the initialization logic at a time.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+private SomeObject instance
+
+protected SomeObject getInstance() {
+    if (instance == null) { // Noncompliant
+        instance = new SomeObject()
+    }
+    return instance
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+private SomeObject instance
+
+protected synchronized SomeObject getInstance() {
+    if (instance == null) {
+        instance = new SomeObject()
+    }
+    return instance
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Groovy @Lazy annotation - https://docs.groovy-lang.org/latest/html/gapi/groovy/transform/Lazy.html[Official documentation for Groovy's @Lazy transformation]
+
+ * Java Concurrency in Practice - Safe Publication - https://jcip.net/[Comprehensive guide to thread-safe programming patterns]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race conditions in concurrent execution]
+
+=== Related rules
+
+ * RSPEC-3064 - https://rules.sonarsource.com/java/RSPEC-3064/[Lazy initialization should be thread-safe (Java)]
+
+ * RSPEC-2444 - https://rules.sonarsource.com/java/RSPEC-2444/[Lazy initialization of static fields should be thread-safe (Java)]
