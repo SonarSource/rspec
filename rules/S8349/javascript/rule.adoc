@@ -1,0 +1,95 @@
+
+== Why is this an issue?
+
+A Content-Security Policy (CSP) is an allow-list mechanism that a web
+application can provide to browsers to restrict requests originating from one of
+its own web pages.
+
+This is a semicolon-delimited string whose each entry is a `policy` of the form
+`<directive> <value>`. `value` can be `'none'`, `'self'`, or other hardcoded
+locations. For example:
+
+* `script-src https://example.com/` blocks loading and execution of any `<script src=...></script>` whose src is not exactly the specified value.
+* `media-src https://example.com/` blocks loading and execution of `<audio>` and `<video>` tags whose src is not exactly the specified value.
+* And so on. The full list of directives can be found in https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy#directives[Content-Security-Policy (CSP) header | MDN].
+
+Additionally, the directive `frame-ancestors` can be used to restrict which
+pages can embed a given page, in order to prevent 
+https://portswigger.net/web-security/cross-site-scripting/content-security-policy#protecting-against-clickjacking-using-csp[clickjacking].
+
+=== What is the potential impact?
+
+CSP injection occurs when an application unsafely retrieves data from an
+incoming request and reflects it into the Content-Security Policy (CSP) headers
+of the response without sanitization.
+
+This means that an a third-party can add new directives or change existing
+directives and enable uncontrolled execution of scripts or other dangerous
+elements within a webpage.
+
+Once unsafe policies are created, they pave the way to attacks on
+vulnerabilities which could have been deemed harmless otherwise, such as XSS or
+clickjacking.
+
+== How to fix it
+
+Generally, never use third-party data to set up CSP boundaries. Instead, create
+a strict allow-list of policies.
+
+=== Code examples
+
+In the following example, not only setting a user-controlled nonce defeats the
+purpose of the nonce, but the userId can be exploited to add more values to the
+`script-src` directive.
+
+The safest way to set a CSP is to maintain a hardcoded list of intentionnally
+trusted values.
+
+==== Noncompliant code example
+
+[source,javascript,diff-id=1,diff-type=noncompliant]
+----
+const express = require('express');
+const app = express();
+
+app.use((req, res, next) => {
+    const { domainName } = req.query;
+    const csp = [
+        "default-src 'none'",
+        `img-src 'self' ${domainName}`, // Noncompliant
+        "style-src 'self'"
+    ].join('; ');
+
+    res.setHeader("Content-Security-Policy", csp);
+    next();
+});
+----
+
+==== Compliant solution
+
+[source,javascript,diff-id=1,diff-type=compliant]
+----
+const express = require('express');
+const app = express();
+
+app.use((req, res, next) => {
+    const csp = [
+        "default-src 'none'",
+        "img-src 'self' https://images.example.com",
+        "style-src 'self'"
+    ].join('; ');
+
+    res.setHeader("Content-Security-Policy", csp);
+    next();
+});
+----
+
+== Resources
+
+=== Standards
+
+* OWASP - https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[Top 10 2021 Category A5 - Security Misconfiguration]
+* OWASP - https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration[Top 10 2017 Category A6 - Security Misconfiguration]
+* CWE - https://cwe.mitre.org/data/definitions/693[CWE-693 - Protection Mechanism Failure]
+* STIG Viewer - https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222602[Application Security and Development: V-222602] - The application must protect from Cross-Site Scripting (XSS) vulnerabilities.
+
