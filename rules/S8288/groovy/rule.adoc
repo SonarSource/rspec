@@ -1,0 +1,61 @@
+This rule raises an issue when a GINQ nested query in a select clause does not include a `limit 1` clause.
+
+== Why is this an issue?
+
+When using nested GINQ queries within select clauses, the subquery may return multiple values. If more than one value is returned, a `TooManyValuesException` will be thrown at runtime, causing the application to fail.
+
+The select clause expects a single value for each row in the result set. When a nested query returns multiple values without proper limiting, the GINQ engine cannot determine which value to use, leading to an exception.
+
+This issue typically occurs when:
+
+* The subquery's `where` condition matches multiple records
+* The data source contains duplicate values that satisfy the query conditions
+* The developer assumes the subquery will always return at most one result
+
+Using `limit 1` explicitly restricts the subquery to return only the first matching result, preventing the exception and making the query's behavior predictable.
+
+=== What is the potential impact?
+
+The application will throw a `TooManyValuesException` at runtime when the nested query returns multiple values. This can cause:
+
+* Application crashes or unexpected termination
+* Data processing failures in batch operations
+* Poor user experience due to unhandled exceptions
+* Difficulty in debugging since the error only occurs when specific data conditions are met
+
+== How to fix it
+
+Add `limit 1` to the nested query in the select clause to ensure only one value is returned.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+GQ {
+    from n in [1,2,3]
+    select (from m in [2,3,4]
+            where m == n
+            select m) // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+GQ {
+    from n in [1,2,3]
+    select (from m in [2,3,4]
+            where m == n
+            limit 1
+            select m)
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * GINQ Documentation - Nested GINQ in select clause - https://groovy-lang.org/using-ginq.html#_nested_ginq_in_select_clause[Official Groovy documentation explaining nested GINQ queries and the recommendation to use limit 1]
