@@ -1,0 +1,60 @@
+This is an issue when checking if a process is still running using immediate status checks like `Process.Signal(syscall.Signal(0))` instead of proper synchronization mechanisms.
+
+== Why is this an issue?
+
+Immediate process status checks create race conditions with the operating system's process cleanup mechanisms. When a process terminates, there's a window where the process struct might still exist in memory even though the process has actually died. During this time, status checks can incorrectly report the process as still running.
+
+Additionally, if you wait and perform the check later, the process ID (PID) might have been reused by the operating system for a completely different process. This means your status check could be testing an entirely different process than intended.
+
+These race conditions are particularly problematic on Windows systems, where process cleanup timing can be less predictable. The result is unreliable process management that can lead to incorrect program behavior, resource leaks, or failed cleanup operations.
+
+=== What is the potential impact?
+
+Race conditions in process status checking can lead to unreliable process management, causing applications to make incorrect decisions about process lifecycle. This can result in resource leaks, failed cleanup operations, or attempts to interact with the wrong process due to PID reuse.
+
+== How to fix it
+
+Use a goroutine with `Process.Wait()` and channels to properly synchronize process status checking. This approach waits for the actual process termination signal from the OS rather than racing with cleanup operations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+// Immediate check races with OS cleanup
+err := targetCmd.Process.Signal(syscall.Signal(0))
+if err != nil {
+    // Process might still be terminating // Noncompliant
+    fmt.Println("Process terminated")
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+// Use goroutine and channel for proper synchronization
+done := make(chan bool)
+go func() {
+    targetCmd.Process.Wait()
+    close(done)
+}()
+
+select {
+case <-done:
+    // Process has actually terminated
+    fmt.Println("Process terminated")
+case <-time.After(500 * time.Millisecond):
+    // Process still running after timeout
+    fmt.Println("Process still running")
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go os.Process documentation - https://pkg.go.dev/os#Process[Official documentation for Go's Process type and its methods]
+
+ * Go Concurrency Patterns - https://go.dev/blog/pipelines[Guide to Go concurrency patterns including channels and goroutines]
