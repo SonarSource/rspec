@@ -1,0 +1,45 @@
+This rule raises an issue when the `instanceof` operator is used to check the type of objects that could be Hibernate entities.
+
+== Why is this an issue?
+
+Hibernate uses proxy objects for lazy loading to improve performance. When you access a relationship that hasn't been loaded yet, Hibernate creates a proxy object instead of the actual entity.
+
+These proxy objects extend or implement your entity class, but they are not direct instances of it. This means `instanceof` checks can fail unexpectedly, even when the proxy represents the correct type.
+
+For example, if you have an entity `User` and Hibernate creates a proxy for it, `userProxy instanceof User` might return `false` even though the proxy represents a `User` object. This can cause your application logic to behave incorrectly, leading to bugs that are difficult to track down.
+
+The problem becomes more apparent when checking for interfaces. A Hibernate proxy might implement an interface like `DirtyCheckable`, but `instanceof DirtyCheckable` could still return `false` because the proxy class structure differs from what you expect.
+
+=== What is the potential impact?
+
+Using `instanceof` with Hibernate entities can cause application logic to fail silently. Methods that should execute might be skipped, leading to incorrect behavior, data inconsistencies, or missing functionality. These bugs are particularly difficult to debug because they may only occur under specific loading conditions.
+
+== How to fix it
+
+Use `Class.isAssignableFrom()` instead of `instanceof` to check if an object is compatible with a specific type. This method works correctly with Hibernate proxies because it checks the class hierarchy rather than the exact instance type.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+Object entityObject = ea.getEntity()
+boolean isDirtyCheckable = entityObject instanceof DirtyCheckable // Noncompliant
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+Object entityObject = ea.getEntity()
+boolean isDirtyCheckable = DirtyCheckable.class.isAssignableFrom(entityObject.getClass())
+----
+
+== Resources
+
+=== Documentation
+
+ * Hibernate User Guide - Proxies - https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#pc-proxy[Official Hibernate documentation explaining how proxies work and their implications]
+
+ * Java Class.isAssignableFrom() Documentation - https://docs.oracle.com/javase/8/docs/api/java/lang/Class.html#isAssignableFrom-java.lang.Class-[Official Java documentation for the isAssignableFrom method]
