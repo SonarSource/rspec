@@ -1,0 +1,62 @@
+Using `PhysicalFileResult` with dynamic file paths can expose ASP.NET applications to path traversal attacks. An attacker could inject specially crafted values, such as `../`, to access files outside the intended directory.
+
+== Why is this an issue?
+
+When `PhysicalFileResult` is instantiated or its `FileName` property is set with a value that is not a static string, the application may become vulnerable to path injection. If this path ever becomes user-controlled, a malicious user could manipulate the path to read arbitrary files from the file system, potentially exposing sensitive data like configuration files or credentials.
+
+=== What is the potential impact?
+
+An attacker exploiting this vulnerability could read any file accessible to the application process. This may include:
+
+* Application configuration files containing secrets
+* Source code or binaries
+* General system files which may help an attacker gain further access to the system
+
+== How to fix it
+
+In general, it is recommended to use File Providers to access files. This approach ensures that file access is restricted to a specific root directory and prevents path traversal attacks. It is generally good practice to use this rather than using the `PhysicalFileResult` class (even together with own sanitization logic).
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,csharp,diff-id=1,diff-type=noncompliant]
+----
+public class FileController : Controller
+{
+    public IActionResult Download(string filename)
+    {
+        string path = Path.Combine("/var/www/files", filename);
+        return new PhysicalFileResult(path, "application/octet-stream"); // Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,csharp,diff-id=1,diff-type=compliant]
+----
+public class FileController : Controller
+{
+    private readonly PhysicalFileProvider fileProvider = new("/var/www/files");
+
+    public IActionResult Download(string filename)
+    {
+        IFileInfo fileInfo = _fileProvider.GetFileInfo(filename);
+        return fileInfo.Exists
+            ? File(fileInfo.CreateReadStream(), "application/octet-stream")
+            : NotFound();
+    }
+}
+----
+
+=== How does this work?
+
+`PhysicalFileProvider` restricts file access to a designated root directory. When `GetFileInfo` is called, the provider automatically prevents path traversal by ensuring the resolved path remains within the root directory. This built-in protection eliminates the risk of directory escape attacks.
+
+== Resources
+
+=== Documentation
+
+* Microsoft Learn - https://learn.microsoft.com/en-us/aspnet/core/fundamentals/file-providers[File Providers in ASP.NET Core]
+* OWASP - https://owasp.org/www-community/attacks/Path_Traversal[Path Traversal]
