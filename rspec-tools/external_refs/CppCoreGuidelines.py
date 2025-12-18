@@ -16,7 +16,7 @@ def download_cpp_core_guidelines():
         guidelines = re.findall(r'^### (.+)$', response.text, re.MULTILINE)
         
         print(f"Found {len(guidelines)} guidelines:")
-        with open('CppCoreGuidelines.adoc', 'w', encoding='utf-8') as f:
+        with open('shared_content/CppCoreGuidelines.adoc', 'w', encoding='utf-8') as f:
             for guideline in guidelines:
                 # Parse the guideline header to extract anchor, ID, and title
                 # Format: <a name="Rxxx-yyyy"></a>R.1: Some title
