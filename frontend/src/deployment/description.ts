@@ -168,19 +168,9 @@ function generateRuleDescription(ruleAdocFile: string) {
     to_file: false
   };
 
-  // let currentDir = baseDir;
-  // let externalRefsPath = '';
-  // while (currentDir !== path.dirname(currentDir)) {
-  //   if (path.basename(currentDir) === 'rules') {
-  //     externalRefsPath = path.join(path.dirname(currentDir), 'ExternalReferences.adoc');
-  //     break;
-  //   }
-  //   currentDir = path.dirname(currentDir);
-  // }
-
   // Every rule documentation has an implicit level-1 "Description" header, and includes ExternalReferences.adoc.
   const fileData = fs.readFileSync(ruleAdocFile);
-  const data = 'include::' + EXTERNAL_REFERENCES_PATH + '[]\n\n== Description\n\n' + fileData;
+  const data = `include::${EXTERNAL_REFERENCES_PATH}[]\n\n== Description\n\n${fileData}`;
   const html = asciidoc.convert(data, opts) as string;
   return generateAutoRspecLinks(html);
 }

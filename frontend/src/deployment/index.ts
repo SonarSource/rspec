@@ -8,8 +8,6 @@ import { generateOneRuleDescription, generateRulesDescription, } from './descrip
 import { createIndexFiles } from './searchIndex';
 import { processIncompleteRspecs, PullRequest } from './pullRequestIndexing';
 
-import { PR_DIRECTORY, RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, EXTERNAL_REFERENCES_PATH } from './paths';
-
 process.on('unhandledRejection', up => {
   throw up;
 });
