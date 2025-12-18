@@ -92,7 +92,8 @@ do
           # and run asciidoctor on them instead.
           # We add the implicit header "Description" to prevent an asciidoctor warning.
           TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
-          echo "== Description" > "$TMP_ADOC"
+          echo "include::../../../ExternalReferences.adoc[]
+== Description" > "$TMP_ADOC"
           cat "$RULE" >> "$TMP_ADOC"
         else
           echo "ERROR: no asciidoc file $RULE"
@@ -119,8 +120,8 @@ cd ..
 # Use the tmp_SXYZ_language.adoc files (see note above).
 ADOC_COUNT=$(find rules -name "tmp*.adoc" | wc -l)
 if (( ADOC_COUNT > 0 )); then
-  if asciidoctor -a attribute-missing=warn --failure-level=WARNING -o /dev/null rules/*/*/tmp*.adoc; then
-    if asciidoctor -a rspecator-view -a attribute-missing=warn -o /dev/null rules/*/*/tmp*.adoc; then
+  if asciidoctor -a attribute-missing=warn --failure-level=WARNING --verbose --trace -o /dev/null rules/*/*/tmp*.adoc; then
+    if asciidoctor -a rspecator-view  --failure-level=WARNING --verbose --trace -o /dev/null rules/*/*/tmp*.adoc; then
       echo "${ADOC_COUNT} documents checked with success"
     else
       echo "ERROR: malformed asciidoc files in rspecator-view"
