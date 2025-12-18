@@ -1,0 +1,76 @@
+This rule raises an issue when a SOQL query is found inside any type of loop (for, while, or do-while).
+
+== Why is this an issue?
+
+Salesforce enforces strict governor limits to ensure fair resource usage across all tenants on the platform. One of these limits restricts the number of SOQL queries that can be executed in a single transaction: 100 queries for synchronous operations and 200 for asynchronous operations.
+
+When you place a SOQL query inside a loop, the query executes once for each iteration. This means that processing just 101 records in a synchronous context would exceed the governor limit and cause a runtime exception.
+
+Beyond hitting limits, this pattern is also inefficient from a performance perspective. Each SOQL query requires a round trip to the database, and multiple individual queries are much slower than a single bulk query that retrieves all needed data at once.
+
+Salesforce's architecture is designed for bulk operations. Triggers, for example, can process up to 200 records at once, and bulk API operations can process thousands of records in a single transaction. Code that works fine when processing individual records will fail catastrophically when processing bulk data.
+
+=== What is the potential impact?
+
+Applications will throw `System.LimitException` runtime errors when the SOQL query limit is exceeded, causing transaction failures and poor user experience.
+
+Performance will be significantly degraded due to multiple database round trips instead of efficient bulk operations.
+
+The application will not scale properly when processing larger datasets, making it unsuitable for enterprise use or bulk data operations.
+
+== How to fix it
+
+Move the SOQL query outside the loop and use bulk query patterns with the IN clause to retrieve all needed data in a single query. Then iterate over the results.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+trigger SoqlTriggerNotBulk on Account(after update) {
+    for(Account a : Trigger.new) {
+        // Inefficient SOQL query as it runs once for each account!
+        Opportunity[] opps = [SELECT Id,Name,CloseDate
+                             FROM Opportunity WHERE AccountId=:a.Id]; // Noncompliant
+        // Do some other processing
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+trigger SoqlTriggerBulk on Account(after update) {
+    // Perform SOQL query once outside the loop
+    List<Account> acctsWithOpps =
+        [SELECT Id,(SELECT Id,Name,CloseDate FROM Opportunities)
+         FROM Account WHERE Id IN :Trigger.new];
+    // Iterate over the returned accounts
+    for(Account a : acctsWithOpps) {
+        Opportunity[] relatedOpps = a.Opportunities;
+        // Do some other processing
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Salesforce Trailhead: Bulk Apex Triggers - https://trailhead.salesforce.com/content/learn/modules/apex_triggers/apex_triggers_bulk[Official Salesforce documentation on bulk trigger design patterns and avoiding SOQL queries in loops]
+
+ * Apex Developer Guide: Governor Limits - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_gov_limits.htm[Complete reference for Salesforce governor limits including SOQL query limits]
+
+ * Apex Developer Guide: SOQL and SOSL Queries - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/langCon_apex_SOQL.htm[Comprehensive guide to writing efficient SOQL queries in Apex]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[This pattern can lead to uncontrolled consumption of database query resources]
+
+=== Related rules
+
+ * RSPEC-5380 - https://rules.sonarsource.com/apex/RSPEC-5380[Duplicate rule addressing the same SOQL queries in loops issue]
+
+ * RSPEC-5382 - https://rules.sonarsource.com/apex/RSPEC-5382[Related rule about DML operations in loops]
