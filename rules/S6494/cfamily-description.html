@@ -1,0 +1,183 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In contrast to C printf-like functions, C&#43;&#43; provides safer and more robust interfaces for performing text formatting:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <code>std::format</code> interface family (C&#43;&#43;20) allows formatting text into a string.</p>
+</li>
+<li>
+<p>The <code>std::print</code> interface family (C&#43;&#43;23) allows printing formatted text.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43; formatting facilities perform validation of the format string against the type of the formatted argument. If the validation fails, it is reported as a compilation error for the calls of <code>std::print</code> and <code>std::format</code>. When the format string is not available at compile-time, <code>std::vformat</code>, <code>std::vprint_unicode</code>, and <code>std::vprint_nonunicode</code> can be used. They will report failures at runtime by throwing an instance of <code>std::format_error</code>.</p>
+</div>
+<div class="paragraph">
+<p>Secondly, the relation between the type and format specifier is more abstract.
+In particular, <code>{:d}</code> can be used to format any integer type, regardless of its size and signedness.
+Similarly, <code>{:f}</code> works for any floating point type.
+Furthermore, <code>{}</code> can be used for any type with default format spec, which makes it usable in the generic context.</p>
+</div>
+<div class="paragraph">
+<p>Finally, the text formatting API was designed with adaptability in mind:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Formatting of user-defined types is possible with the dedicated format specification via <code>std::formatter</code> specializations.</p>
+</li>
+<li>
+<p>The string formatting API provides functions for:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>receiving the formatted text by return - <code>std::format</code>.</p>
+</li>
+<li>
+<p>writing the formatted text to an output iterator - <code>std::format_to</code>.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>The <code>std::print</code> API provides function overloads for:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>printing implicitly to the standard output.</p>
+</li>
+<li>
+<p>printing to a <code>FILE*</code> handle.</p>
+</li>
+<li>
+<p>printing to a <code>std::ostream&amp;</code> object.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule raises issues for calls of the <code>printf</code>, <code>fprintf</code>, <code>sprintf</code> and <code>snprintf</code> functions that can be replaced by the C&#43;&#43; formatting functions.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void printTextIntoBuffer(char* out) {
+  // Assumes the buffer pointed-to by out is large enough
+  sprintf(out, "%u %s", 10u, "text"); // Noncompliant
+}
+
+void printTextIntoSizedBuffer(char* out, size_t n) {
+  std::snprintf(out, n, "%i %% %LG", 10, 10.0L); // Noncompliant
+}
+
+void printToFile(FILE* f) {
+  printf("%i", 10); // Noncompliant since C++23
+  std::fprintf(f, "%f", 10.0); // Noncompliant since C++23
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void printTextIntoBuffer(char* out) {
+  // Assumes the buffer pointed-to by out is large enough
+  std::format_to(out, "{} {}", 10u, "text"); // Compliant
+}
+// The function can also be redesigned to deal with memory allocation
+// and return a string:
+std::string getText() {
+  return std::format("{} {}", 10u, "text"); // Compliant
+}
+
+void printTextIntoSizedBuffer(char* out, size_t n) {
+  std::format_to_n(out, n, "{} % {:G}", 10, 10.0L); // Compliant
+}
+
+void printToFile(FILE* f) {
+  std::print("{}", 10);  // Compliant
+  std::print(f, "{}", 10.0);  // Compliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>The rule does not raise an issue if the format string passed to a printf-like function is computed dynamically instead of being spelled in the source code:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char const* localizedFormatString(unsigned id);
+/* …. */
+snprintf(buffer, localizedFormatString(123), 10, 20)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>While <code>std::vformat</code> may be used in such cases, it requires changing the format string, which may not be actionable.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/header/format"><code>&lt;format&gt;</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/header/print"><code>&lt;print&gt;</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/io/basic_ostream/print"><code>std::print(std::ostream)</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; Stories - <a href="https://www.cppstories.com/2022/custom-stdformat-cpp20/">Formatting Custom types with std::format from C&#43;&#43;20</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6185" class="rspec-auto-link">S6185</a> - "std::format" should be used instead of string concatenation and "std::to_string"</p>
+</li>
+<li>
+<p><a data-rspec-id="S6484" class="rspec-auto-link">S6484</a> - Concatenated "std::format" outputs should be replaced by a single invocation</p>
+</li>
+<li>
+<p><a data-rspec-id="S6495" class="rspec-auto-link">S6495</a> - "std::format" should be used instead of standard output manipulators</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

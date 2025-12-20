@@ -1,0 +1,94 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>emplace</code> and <code>insert</code> in <code>std::map</code> and <code>std::unordered_map</code> might construct the (key, value) pair, including the value object, even when it is not necessary.</p>
+</div>
+<div class="paragraph">
+<p><code>emplace</code> destroys the constructed pair if the key is already present, wasting the effort on construction and destruction of the value.</p>
+</div>
+<div class="paragraph">
+<p>If <code>insert</code> was called with a temporary, it leads to an extra copy or move construction and destruction of the temporary.</p>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;17 introduced <code>try_emplace</code> that does not construct the value if the key is already present in the map and constructs the value in place if necessary.</p>
+</div>
+<div class="paragraph">
+<p>In most cases, you should use <code>try_emplace</code>. In particular, if two conditions hold:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>You are inserting a single object at a time.</p>
+</li>
+<li>
+<p>You are creating a new mapped-to value and/or (key, value) pair just to insert it into the map.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You should keep the <code>insert</code> if one of the conditions holds:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The (key, value) pair is already constructed (for another purpose).</p>
+</li>
+<li>
+<p>You want to insert multiple (key, value) pairs with a single call.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You should keep <code>emplace</code> and <code>emplace_hint</code> if</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>You use piecewise construction with <code>std::piecewise_construct</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule detects calls to <code>insert</code> that lead to the construction of a large temporary object, as well as calls to <code>emplace</code> and <code>emplace_hint</code> with no piecewise construction.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f() {
+  std::map&lt;int, std::string&gt; bodies({{3, "Lorem ipsum..."}});
+  bodies.emplace(3, "Lorem ipsum..."); // Noncompliant
+  bodies.insert({3, "Lorem ipsum..."}); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f() {
+  std::map&lt;int, std::string&gt; bodies({{3, "Lorem ipsum..."}});
+  bodies.try_emplace(3, "Lorem ipsum..."); // Compliant
+  auto p = std::make_pair(3, "Lorem ipsum..."); // The (key, value) pair is already constructed for another purpose
+  bodies.insert(p); // Compliant
+  use_the_pair(p);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>You should keep <code>insert</code> for exception safety if your mapped-to type is a smart pointer and the argument is a <code>new</code> expression.</p>
+</div>
+</div>
+</div>
+</div>

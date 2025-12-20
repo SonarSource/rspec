@@ -1,0 +1,124 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when DML operations (insert, update, delete, upsert) are performed on both setup objects and non-setup objects within the same transaction context.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Salesforce enforces a strict separation between DML operations on setup objects and non-setup objects to maintain security and data integrity.</p>
+</div>
+<div class="paragraph">
+<p>Setup objects are special sObjects that affect user access and permissions in your organization. These include User, Profile, PermissionSet, UserRole, and other objects that control who can see and do what in your org.</p>
+</div>
+<div class="paragraph">
+<p>When you try to perform DML operations on both setup and non-setup objects in the same transaction, Salesforce throws a <code>MIXED_DML_OPERATION</code> runtime error. This restriction exists because setup object changes can affect record access permissions, and Salesforce needs to ensure these changes don&#8217;t interfere with ongoing operations on regular data objects.</p>
+</div>
+<div class="paragraph">
+<p>The error prevents your code from running and can cause unexpected failures in production environments, especially in complex business processes that involve user management alongside regular data operations.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When this restriction is violated, your application will fail at runtime with a <code>MIXED_DML_OPERATION</code> error. This can cause:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Complete failure of business processes that involve both user management and data operations</p>
+</li>
+<li>
+<p>Inconsistent data states where some operations succeed while others fail</p>
+</li>
+<li>
+<p>Poor user experience due to unexpected errors</p>
+</li>
+<li>
+<p>Difficulty in automated testing where setup data needs to be created alongside test data</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_test_methods">How to fix it in Test Methods</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In test methods, use System.runAs blocks to isolate setup object DML operations. This creates a separate execution context that bypasses the mixed DML restriction.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">@isTest
+static void testMixedDML() {
+    Account acc = new Account(Name = 'Test Account');
+    insert acc;
+
+    User usr = new User(
+        FirstName = 'Test',
+        LastName = 'User',
+        Email = 'test@example.com',
+        Username = 'test@example.com',
+        Alias = 'test'
+    );
+    insert usr; // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">@isTest
+static void testMixedDML() {
+    Account acc = new Account(Name = 'Test Account');
+    insert acc;
+
+    User thisUser = [SELECT Id FROM User WHERE Id = :UserInfo.getUserId()];
+    System.runAs(thisUser) {
+        User usr = new User(
+            FirstName = 'Test',
+            LastName = 'User',
+            Email = 'test@example.com',
+            Username = 'test@example.com',
+            Alias = 'test'
+        );
+        insert usr;
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Mixed DML Operations - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_dml_non_mix_sobjects.htm">Official Salesforce documentation on mixed DML operation restrictions</a></p>
+</li>
+<li>
+<p>Setup Objects - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_dml_non_mix_sobjects_list.htm">Complete list of setup objects that cannot be mixed with regular DML operations</a></p>
+</li>
+<li>
+<p>Future Methods - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm">Documentation on using @future methods for asynchronous processing</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,630 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue if the initializer of a global variable <code>a</code>,
+refers to another global variable <code>b</code>, when there is no guarantee that <code>b</code> is initialized before <code>a</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>C&#43;&#43; allows global variables to have arbitrally complex initializers.</p>
+</div>
+<div class="paragraph">
+<p>Such variables are zero-initialized statically,
+and further initialization is performed at runtime,
+in the process referred to as dynamic initialization.</p>
+</div>
+<div class="paragraph">
+<p>The dynamic initialization of such variables is performed in the order of their definitions within a single source file.
+However, the order of initialization of variables defined in different source files is not specified.
+Therefore, when a global variable refers to a variable defined in a different source file,
+the behavior of the program is not guaranteed:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">extern int global1;
+// Defined in different source file as:
+// int global1 = 20;
+
+int const global2 = global1 + 10; // Noncompliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Depending on the order of initialization of <code>global1</code> and <code>global2</code>, <code>global2</code> may be set to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>30</code> if <code>global1</code> is initialized before <code>global2</code></p>
+</li>
+<li>
+<p><code>10</code> if <code>global2</code> is initialized before <code>global1</code>, as <code>global1</code> will only be zero-initialized to <code>0</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue if the initializer of a global variable <code>a</code>,
+directly refers to another global variable <code>b</code>, when there is no guarantee that <code>b</code> is initialized before <code>a</code>.</p>
+</div>
+<div class="paragraph">
+<p>This is a subset of the issues related to initialization of global variables,
+commonly referred to as a static initialization order fiasco.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The behavior of any program that is prone to static initialization order fiasco issues,
+is very fragile.
+The order of initialization may change at any time, for instance, when performing unrelated changes to the source code, or even differ between the builds of the same source.
+Such issues are very hard to reproduce and debug.</p>
+</div>
+<div class="paragraph">
+<p>Furthermore, the impact is not only limited to observing fluctuating values of global variables, as presented in the previous example.</p>
+</div>
+<div class="paragraph">
+<p>For class types, invoking any member functions of an object that is only zero-initialized and
+for which the constructor has not run, may cause undefined behavior and crash the program:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">extern std::string const string1;
+std::string const string2 = string1; // Noncompliant: undefined behavior</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Even if, for a particular implementation, zero-initialized objects are equivalent to default-initialized objects,
+the program may still encounter undefined behavior:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">extern std::vector&lt;std::string&gt; const list;
+// Defined in different source file as:
+// std::vector&lt;std::string&gt; const list{"entry1", "entry2"};
+
+std::string const firstElem = list[0]; // Noncompliant: undefined behavior</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_static_class_data_members_also_use_dynamic_initialization">Static class data members also use dynamic initialization</h3>
+<div class="paragraph">
+<p>Static data members of classes are dynamically initialized if their initializers are not constant expressions.
+Therefore, this rule will consider static data members of classes as if they were global variables.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Clazz.hpp
+extern int global;
+class Clazz {
+  static int staticMem;
+};
+
+// Clazz.cpp
+#include "Clazz.hpp"
+
+int Clazz::staticMem = global + 10; // Noncompliant: "global" may not yet be fully initialized
+
+// Source.cpp
+#include "Clazz.hpp"
+
+int global = 10;
+int otherGlobal = Clazz::staticMem; // Noncompliant: "Clazz::staticMem" may not yet be fully initialized</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_initialization_of_instantiated_variable_is_unordered">Initialization of instantiated variable is unordered</h3>
+<div class="paragraph">
+<p>If a global variable instantiated from a template requires a dynamic initialization (because its initialization is non-constant),
+the ordering of this initialization is unspecified.
+It may be performed before the initialization of a global variable declared before it.
+As a consequence, such variables should not refer to any dynamically initialized global variable in their initializers,
+or be referred to from the initializer of any global variable with dynamic initialization.</p>
+</div>
+<div class="paragraph">
+<p>An instantiated variable may be produced directly from the instantiation of a variable template (introduced in C&#43;&#43;14):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int global1 = runtimeFunc();
+
+template&lt;typename T&gt;
+T varTempl = global1; // Noncompliant: "global1" may be initialized later
+
+int global2 = varTempl&lt;long&gt;; // Noncompliant: "varTempl" may be initialized later</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Similarly, static data members of class template instantiation behave as instantiated global variables:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int global1 = runtimeFunc();
+
+template&lt;typename T&gt;
+struct Clazz {
+  static T staticMem;
+};
+
+template&lt;typename T&gt;
+T Clazz&lt;T&gt;::staticMem = global1; // Noncompliant: "global1" may be initialized later
+
+int global2 = Clazz&lt;long&gt;::staticMem; // Noncompliant: "Clazz&lt;long&gt;::staticMem" may be initialized later</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This section presents a few general approaches to resolving issues related to the order of initialization,
+covering various scenarios and uses of the code.</p>
+</div>
+<div class="paragraph">
+<p>An important consideration is that if you are having trouble with the initialization order fiasco,
+this may be a sign that you are using too much global state in your code.</p>
+</div>
+<div class="sect2">
+<h3 id="_define_related_variables_in_a_single_source_file">Define related variables in a single source file.</h3>
+<div class="paragraph">
+<p>As the order of initialization is defined by the standard for variables defined in the same file,
+defining all dependent variables in a single source file addressed the issue.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+std::string s2 = s1 + " in other file"; // Compliant: "s1" is initialized before "s2"
+
+// source2.cpp
+#include "header.h"</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_force_constant_initialization_of_a_referred_variable">Force constant initialization of a referred variable.</h3>
+<div class="paragraph">
+<p>Order of initialization issues are limited to variables that are initialized at runtime (via dynamic initialization),
+and do not affect variables that are initialized at compile time, via constant initialization.</p>
+</div>
+<div class="paragraph">
+<p>A variable, even dynamically initialized, can safely use in its initializer data available at compile-time: literals or variables with constant initialization.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+extern int const count;
+extern std::vector&lt;int&gt; entries;
+
+// source1.cpp
+#include "header.h"
+int const count = 20;
+
+// source2.cpp
+#include "header.h"
+std::vector&lt;int&gt; entries(count); // Noncompliant: "count" may not initialized before "entries"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>If the project uses C&#43;&#43;11 or later standard, you may define the variable as <code>constexpr</code> to force constant initialization.
+In case when the initialization cannot be performed at compile time, the program will be ill-formed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+constexpr int count = 20;
+extern std::vector&lt;int&gt; entries;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::vector&lt;int&gt; entries(count); // Compliant: "count" is initialized at compile time to 20</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If the project is limited to C&#43;&#43;98/C&#43;&#43;03, constant initialization is only supported for variables of integral types
+that are defined as <code>const</code> and only use literals or other constants in their initializers.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+int const count = 20;
+extern std::vector&lt;int&gt; entries;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::vector&lt;int&gt; entries(count); // Compliant: "count" is initialized at compile time to 20</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_handling_class_static_data_members">Handling class static data members</h4>
+<div class="paragraph">
+<p>If a static data member is constant, its value may be defined in its class:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Clazz {
+  static int const constMem = 10;
+  static constexpr int constexprMem = 10;
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>However, in the case of <code>const</code> members and <code>constexpr</code> static data members before C&#43;&#43;17,
+the definition of the variable needs to be provided when its address is taken or a reference to it is created.</p>
+</div>
+<div class="paragraph">
+<p>Such a definition should not repeat the initializer, and can be placed in a source file (not in the header):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int const Clazz::constMem;
+// separate "Clazz::constexprMem" definition is only required before C++17
+constexpr int Clazz::constexprMem;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Or when using C&#43;&#43;17 or later in the header file with <code>inline</code> keyword.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">inline int const Clazz::constMem;
+// separate "Clazz::constexprMem" definition is not required in C++17 or later</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_using_inline_to_avoid_multiple_definitions">Using <code>inline</code> to avoid multiple definitions.</h4>
+<div class="paragraph">
+<p>In C&#43;&#43;, variables declared as <code>const</code>, which also includes <code>constexpr</code> variables, have internal linkage.
+This means that they are not visible outside of the translation unit.
+As a consequence, multiple files can define constants with the same name, and each such file will contain an independent occurrence of the variable.</p>
+</div>
+<div class="paragraph">
+<p>This also applies when the <code>const</code> variable is defined in a header file which is included from multiple files.
+In the following example, the translation units generated from <code>source1.cpp</code> and <code>source2.cpp</code> contain independent copies of the variable <code>count</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+constexpr int count = 20;
+
+// source1.cpp
+#include "header.h"
+
+void print1() {
+  std::cout &lt;&lt; &amp;count &lt;&lt; std::endl;
+}
+
+// source2.cpp
+#include "header.h"
+
+void print2() {
+  std::cout &lt;&lt; &amp;count &lt;&lt; std::endl;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As each copy of <code>count</code> is constantly initialized, the code is not susceptible to the initialization order fiasco.
+However, the address of such a variable is now different when observed from different files  (i.e., <code>print1</code> and <code>print2</code> will produce different outputs),
+and this solution may not be viable if the original code depends on <code>count</code> being unique.</p>
+</div>
+<div class="paragraph">
+<p>This limitation may be addressed when using C&#43;&#43;17 or later, by making the constant <code>inline</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+inline constexpr int count = 20;</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_replace_global_variable_with_static_function_variable">Replace global variable with static function variable</h3>
+<div class="paragraph">
+<p>A static variable defined in the function body is initialized when the function is called for the first time,
+so it is not possible to read its value before the initialization.
+In consequence, replacing a global variable with a function that declares a static variable and returns a reference to it eliminates the order of initialization issues.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+std::string&amp; getS1();
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string&amp; getS1() {
+  static std::string s1 = "Some string";
+  return s1;
+}
+
+// source2.cpp
+#include "header.h"
+
+std::string s2 = getS1() + " in other file"; // Compliant: "s1" is initialized as part of "getS1()" call</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>While the above is sufficient to fix the issue,
+replacing <code>s2</code> with a <code>getS2</code> function defined in a similar way would prevent future problems.</p>
+</div>
+<div class="paragraph">
+<p>This solution is also applicable to variable templates and static data members of class templates.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template&lt;typename CharT&gt;
+std::basic_string&lt;CharT&gt; const basicBuildID = /* runtime initializer */;
+
+std::string const buildID = basicBuildID&lt;char&gt;(); // Noncompliant: "basicBuildID&lt;char&gt;" may not be initialized</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template&lt;typename CharT&gt;
+std::basic_string&lt;CharT&gt; const&amp; getBuildID() {
+  static std:basic_stirng&lt;CharT&gt; basicBuildID =  /* runtime initializer */;
+  return basicBuildID;
+}
+
+std::string const buildID = getBuildID&lt;char&gt;(); // Compliant: "basicBuildID" is initialized as part of "getBuildID&lt;char&gt;()" call</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_constant_initialization_mitigates_initialization_overhead">Constant initialization mitigates initialization overhead</h4>
+<div class="paragraph">
+<p>As the static local variable is initialized when the function is first called,
+the compiler uses, under the hood, an additional boolean flag to record if the variable is already initialized.
+Furthermore, if the function is called from multiple threads, the compiler also needs to insert synchronization code.</p>
+</div>
+<div class="paragraph">
+<p>As a consequence, dynamic initialization of static local variables comes with a performance cost that can be avoided if the variable can be initialized constantly, at compile-time.</p>
+</div>
+<div class="paragraph">
+<p>You can enforce constant initialization, by using:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>constexpr</code> (since C&#43;&#43;11) if the variable is not mutated and has a constant destructor,</p>
+</li>
+<li>
+<p><code>continit</code> (since C&#43;&#43;20) otherwise</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_define_variables_as_inline_in_the_header">Define variables as inline in the header</h3>
+<div class="paragraph">
+<p>With the introduction of <code>inline</code> variables in C&#43;&#43;17, non-local variables can now be defined in the header without causing double-definition errors.
+Dynamic initialization of any such <code>inline</code> variables is performed before any variable that is defined consistently after it in all source files.
+This is generally true for variables defined in the same headers or in sources that always include a given header.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_5">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+inline std::string s1 = "Some string";
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Compliant: "s1" may be initialized after "s2"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Again, declaring <code>s1</code> in the header file is sufficient to address the issue,
+however, changing <code>s2</code> to also be declared in the header file will prevent initialization order issues related to it.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_use_constinit_for_constant_initilization">Use <code>constinit</code> for constant initilization</h4>
+<div class="paragraph">
+<p>As mentioned in the previous section, combining <code>inline</code> and <code>constexpr</code> will prevent the variable from being defined multiple times in different source files.
+Furthermore, since C&#43;&#43;20 you can use <code>constinit</code> to enforce constant initialization of global variables
+that needs to be mutated.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_templates_are_implicitly_inline">Templates are implicitly <code>inline</code></h4>
+<div class="paragraph">
+<p>Even though instantiations of variable templates and static data members of class template instantiation are
+implicitly <code>inline</code>, their order of initialization is not specified, and explicitly marking them inline will have no impact.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_updating_code_incrementally">Updating code incrementally</h3>
+<div class="paragraph">
+<p>The options for addressing the order of initialization issues for non-<code>const</code> global variables are limited,
+especially when targeting old C&#43;&#43; standards.
+The most robust solution is to replace the global variable with a function returning a reference to a local static variable. This requires replacing all references to the global variable with a function call.</p>
+</div>
+<div class="paragraph">
+<p>For some projects and code bases, this may be too expensive or even infeasible.
+In such a case, you may consider replacing the global variable with a reference variable that is initialized with the result of the getter function.
+Such variable should be local (e.g. declared <code>static</code>) to avoid multiple definition errors:</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_5">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+extern std::string s1;
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string s1 = "Some string";
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Noncompliant: "s1" may be initialized after "s2"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_6">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// header.h
+std::string&amp; getS1();
+static std::string&amp; s1 = getS1();
+extern std::string s2;
+
+// source1.cpp
+#include "header.h"
+std::string&amp; getS1() {
+  static std::string var = "Some string";
+  return var;
+}
+
+// source2.cpp
+#include "header.h"
+std::string s2 = s1 + " in other file"; // Compliant: "s1" is a reference to "var", that is initialized as part of "getS1()" call</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This solution is inspired by "Nifty Counter" idiom.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/siof">Static Initialization Order Fiasco</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/initialization#Non-local_variables">Initialization of non-local variables</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/zero_initialization">Zero-initialization</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/constant_initialization">Constant initialization</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>WikiBooks - <a href="https://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Nifty_Counter">Nifty Counter</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5421" class="rspec-auto-link">S5421</a> detects non-const global variables.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

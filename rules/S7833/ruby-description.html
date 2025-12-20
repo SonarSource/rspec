@@ -1,0 +1,138 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when the <code>mail()</code> method is called inside a loop within an ActionMailer method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In ActionMailer, each call to <code>mail()</code> within the same method overwrites the previous mail configuration. This means that when <code>mail()</code> is called inside a loop, only the email from the last iteration will actually be sent, while all previous iterations are silently ignored.</p>
+</div>
+<div class="paragraph">
+<p>This behavior occurs because ActionMailer methods are designed to return a single mail object. When <code>mail()</code> is called multiple times in the same method, each call replaces the mail configuration from the previous call, rather than creating separate emails.</p>
+</div>
+<div class="paragraph">
+<p>This can lead to confusing bugs where developers expect multiple emails to be sent but only one recipient receives the message. The issue is particularly problematic because it fails silently - no error is raised, making it difficult to detect during development.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Users who should receive important notifications may not get them, leading to missed communications. This can result in poor user experience, missed business opportunities, or failure to meet compliance requirements for notifications.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Pass multiple recipients as an array to a single <code>mail()</code> call. This is the most efficient approach when sending the same email content to multiple recipients.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def request_replacement(shift)
+  @shift = shift
+  recipients = User.where(replacement_emails: true)
+
+  recipients.each do |recipient|
+    @name = recipient.fname
+    mail(
+      to: recipient.email, # Noncompliant
+      subject: "A replacement clerk has been requested"
+    )
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def request_replacement(shift)
+  @shift = shift
+  recipients = User.where(replacement_emails: true)
+
+  mail(
+    to: recipients.pluck(:email),
+    subject: "A replacement clerk has been requested"
+  )
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When you need personalized emails for each recipient, iterate outside the mailer method and call <code>deliver</code> on each iteration.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def personalized_notification(users)
+  users.each do |user|
+    @user = user
+    @greeting = "Hello #{user.name}"
+    mail(
+      to: user.email, # Noncompliant
+      subject: "Personal notification for #{user.name}"
+    )
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class NotificationMailer &lt; ApplicationMailer
+  def self.send_personalized(users)
+    users.each do |user|
+      personalized_notification(user).deliver
+    end
+  end
+
+  def personalized_notification(user)
+    @user = user
+    @greeting = "Hello #{user.name}"
+    mail(
+      to: user.email,
+      subject: "Personal notification for #{user.name}"
+    )
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>ActionMailer Basics - <a href="https://guides.rubyonrails.org/action_mailer_basics.html">Official Rails guide explaining ActionMailer fundamentals and best practices</a></p>
+</li>
+<li>
+<p>ActionMailer API Documentation - <a href="https://api.rubyonrails.org/classes/ActionMailer/Base.html">Complete API reference for ActionMailer::Base class</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

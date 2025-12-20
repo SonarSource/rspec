@@ -1,0 +1,281 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Intent redirection vulnerabilities occur when an application publicly exposes a
+feature that uses an externally provided intent to start a new component.</p>
+</div>
+<div class="paragraph">
+<p>In that case, an application running on the same device as the affected one can
+launch the exposed, vulnerable component and provide it with a specially crafted
+intent. Depending on the application&#8217;s configuration and logic, this intent will
+be used in the context of the vulnerable application, which poses a security
+threat.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>An affected component that forwards a malicious externally provided intent does so using the vulnerable application&#8217;s context. In particular, the new component is created with the same permissions as the application and without limitations on what feature can be reached.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, an attacker exploiting an intent redirection vulnerability could
+manage to access a private application&#8217;s components. Depending on the features
+privately exposed, this can lead to further exploitations, sensitive data
+disclosure, or even persistent code execution.</p>
+</div>
+<div class="sect3">
+<h4 id="_information_disclosure">Information disclosure</h4>
+<div class="paragraph">
+<p>An attacker can use the affected feature as a gateway to access other components
+of the vulnerable application, even if they are not exported. This includes
+features that handle sensitive information.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, by crafting a malicious intent and submitting it to the vulnerable
+redirecting component, an attacker can retrieve most data exposed by private
+features. This affects the confidentiality of information that is not
+protected by an additional security mechanism, such as an encryption algorithm.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_attack_surface_increase">Attack surface increase</h4>
+<div class="paragraph">
+<p>Because the attacker can access most components of the application, they can
+identify and exploit other vulnerabilities that would be present in them. The
+actual impact depends on the nested vulnerability. Exploitation probability
+depends on the in-depth security level of the application.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_privilege_escalation">Privilege escalation</h4>
+<div class="paragraph">
+<p>If the vulnerable application has privileges on the underlying devices, an
+attacker exploiting the redirection issue might take advantage of them. For
+example by crafting a malicious intent action, the attacker could be able to
+pass phone calls on behalf of the entitled application.</p>
+</div>
+<div class="paragraph">
+<p>This can lead to various attack scenarios depending on the exploited
+permissions.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_persistent_code_execution">Persistent code execution</h4>
+<div class="paragraph">
+<p>A lot of applications rely on dynamic code loading to implement a variety of
+features, such as:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Minor feature updates.</p>
+</li>
+<li>
+<p>Application package size reduction.</p>
+</li>
+<li>
+<p>DRM or other code protection features.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When a component exposes a dynamic code loading feature, an attacker could use
+it during the redirection&#8217;s exploitation to deploy malicious code into the
+application. The component can be located in the application itself or one of
+its dependencies.</p>
+</div>
+<div class="paragraph">
+<p>Such an attack would compromise the application execution environment entirely
+and lead to multiple security threats. The malicious code could:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Intercept and exfiltrate all data used in the application.</p>
+</li>
+<li>
+<p>Steal authentication credentials to third-party services.</p>
+</li>
+<li>
+<p>Change the application&#8217;s behavior to serve another malicious purpose
+(phishing, ransoming, etc)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Note that in most cases, the deployed malware can persist application or
+hosting device restarts.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_android">How to fix it in Android</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>This code is vulnerable to intent injection attacks because it starts a new
+activity from a user-provided intent without prior validation.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val forward = intent.getParcelableExtra("anotherintent") as? Intent
+        startActivity(forward)
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val forward = intent.getParcelableExtra("anotherintent") as? Intent
+        val name = forward?.resolveActivity(packageManager)
+        if (name?.packageName == "safePackage" &amp;&amp; name.className == "safeClass")
+            startActivity(forward)
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>In general, security best practices discourage forwarding intents. However, when
+the application requires such a feature, it should precisely check the forwarded
+intents to ensure they do not pass malicious content.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, the components that are not meant to be accessed externally should
+be marked as non-exported in the application&#8217;s manifest. This is done by setting
+the <code>android:exported</code> attribute of the components to <code>"false"</code>.</p>
+</div>
+<div class="sect3">
+<h4 id="_checking_the_intent_destination">Checking the intent destination</h4>
+<div class="paragraph">
+<p>Most unintended usage of the forwarding feature can be prevented by
+verifying whether the destination package and class names belong to a list
+of accepted components.</p>
+</div>
+<div class="paragraph">
+<p>The allow-list of accepted destinations should only contain components that
+perform non-sensitive actions and handle non-sensitive data. Moreover, it should
+not allow reaching components that further redirect inner intents.</p>
+</div>
+<div class="paragraph">
+<p>The example compliant code uses the <code>resolveActivity</code> method of the inner intent
+to determine its target component. It then uses the <code>packageName</code> and
+<code>className</code> properties to validate this destination is not sensitive.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_checking_the_intent_origin">Checking the intent origin</h4>
+<div class="paragraph">
+<p>Before forwarding the intent, the application can check its origin. Verifying
+the origin package is trusted prevents the forwarding feature from being used by
+an external component.</p>
+</div>
+<div class="paragraph">
+<p>The <code>getCallingActivity</code> method of the forwarded intent can be used to
+determine the origin component.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_permissions_downgrade">Permissions downgrade</h4>
+<div class="paragraph">
+<p>Before forwarding an intent to another component, the application can verify or
+remove the permissions set on the forwarded intent. In that case, even if the
+destination is a sensitive component, the application can ensure the untrusted
+intent will not be able to read or write sensitive data or locations.</p>
+</div>
+<div class="paragraph">
+<p>In most cases, the application should drop the following permissions from
+untrusted intents:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>FLAG_GRANT_READ_URI_PERMISSION</p>
+</li>
+<li>
+<p>FLAG_GRANT_WRITE_URI_PERMISSION</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Google Support - <a href="https://support.google.com/faqs/answer/9267555?hl=en">Remediation for Intent Redirection Vulnerability</a></p>
+</li>
+<li>
+<p>Android Documentation - <a href="https://developer.android.com/topic/security/risks/intent-redirection">Intent redirection</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://mas.owasp.org/checklists/MASVS-PLATFORM/">Mobile AppSec Verification Standard - Platform Interaction Requirements</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2016-risks/m1-improper-platform-usage">Mobile Top 10 2016 Category M1 - Improper Platform Usage</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2023-risks/m4-insufficient-input-output-validation">Mobile Top 10 2024 Category M4 - Insufficient Input/Output Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not perform arbitrary intent redirection.</p>
+</div>
+</div>
+</div>
+</div>

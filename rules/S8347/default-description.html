@@ -1,0 +1,104 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using <code>PhysicalFileResult</code> with dynamic file paths can expose ASP.NET applications to path traversal attacks. An attacker could inject specially crafted values, such as <code>../</code>, to access files outside the intended directory.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When <code>PhysicalFileResult</code> is instantiated or its <code>FileName</code> property is set with a value that is not a static string, the application may become vulnerable to path injection. If this path ever becomes user-controlled, a malicious user could manipulate the path to read arbitrary files from the file system, potentially exposing sensitive data like configuration files or credentials.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>An attacker exploiting this vulnerability could read any file accessible to the application process. This may include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Application configuration files containing secrets</p>
+</li>
+<li>
+<p>Source code or binaries</p>
+</li>
+<li>
+<p>General system files which may help an attacker gain further access to the system</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In general, it is recommended to use File Providers to access files. This approach ensures that file access is restricted to a specific root directory and prevents path traversal attacks. It is generally good practice to use this rather than using the <code>PhysicalFileResult</code> class (even together with own sanitization logic).</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public class FileController : Controller
+{
+    public IActionResult Download(string filename)
+    {
+        string path = Path.Combine("/var/www/files", filename);
+        return new PhysicalFileResult(path, "application/octet-stream"); // Noncompliant
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public class FileController : Controller
+{
+    private readonly PhysicalFileProvider fileProvider = new("/var/www/files");
+
+    public IActionResult Download(string filename)
+    {
+        IFileInfo fileInfo = _fileProvider.GetFileInfo(filename);
+        return fileInfo.Exists
+            ? File(fileInfo.CreateReadStream(), "application/octet-stream")
+            : NotFound();
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p><code>PhysicalFileProvider</code> restricts file access to a designated root directory. When <code>GetFileInfo</code> is called, the provider automatically prevents path traversal by ensuring the resolved path remains within the root directory. This built-in protection eliminates the risk of directory escape attacks.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/aspnet/core/fundamentals/file-providers">File Providers in ASP.NET Core</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-community/attacks/Path_Traversal">Path Traversal</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

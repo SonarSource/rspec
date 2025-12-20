@@ -1,0 +1,430 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Accessing a <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null">null</a> value will always throw a <a href="https://learn.microsoft.com/en-us/dotnet/api/system.nullreferenceexception">NullReferenceException</a> most likely causing an abrupt program termination.</p>
+</div>
+<div class="paragraph">
+<p>Such termination might expose sensitive information that a malicious third party could exploit to, for instance, bypass security measures.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>In the following cases, the rule does not raise:</p>
+</div>
+<div class="sect3">
+<h4 id="_extensions_methods">Extensions Methods</h4>
+<div class="paragraph">
+<p>Calls to extension methods can still operate on <code>null</code> values.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">using System;
+using System.Text.RegularExpressions;
+
+public static class Program
+{
+    public static string RemoveVowels(this string value)
+    {
+        if (value == null)
+        {
+            return null;
+        }
+        return Regex.Replace(value, "[aeoui]*","", RegexOptions.IgnoreCase);
+    }
+
+    public static void Main()
+    {
+        Console.WriteLine(((string?)null).RemoveVowels());  // Compliant: 'RemoveVowels' is an extension method
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_unreachable_code">Unreachable code</h4>
+<div class="paragraph">
+<p>Unreachable code is not executed, thus <code>null</code> values will never be accessed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public void Method()
+{
+    object o = null;
+    if (false)
+    {
+        o.ToString();    // Compliant: code is unreachable
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_validated_value_by_analysis_attributes">Validated value by analysis attributes</h4>
+<div class="paragraph">
+<p><a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/attributes/nullable-analysis">Nullable analysis attributes</a> enable the developer to annotate methods with information about the null-state of its arguments. Thus, potential <code>null</code> values validated by one of the following attributes will not raise:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.notnullattribute">NotNullAttribute</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.notnullwhenattribute">NotNullWhenAttribute</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.doesnotreturnattribute">DoesNotReturnAttribute</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.doesnotreturnifattribute">DoesNotReturnIfAttribute</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is important to note those attributes are only available starting .NET Core 3. As a workaround, it is possible to define those attributes manually in a custom class:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">using System;
+
+public sealed class NotNullAttribute : Attribute { } // The alternative name 'ValidatedNotNullAttribute' is also supported
+
+public static class Guard
+{
+    public static void NotNull&lt;T&gt;([NotNull] T value, string name) where T : class
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(name);
+        }
+    }
+}
+
+public static class Utils
+{
+    public static string Normalize(string value)
+    {
+        Guard.NotNull(value, nameof(value)); // Will throw if value is null
+        return value.ToUpper(); // Compliant: value is known to be not null here.
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_validated_value_by_debug_assert">Validated value by Debug.Assert</h4>
+<div class="paragraph">
+<p>A value validated with <a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.debug.assert">Debug.Assert</a> to not be <code>null</code> is safe to access.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">using System.Diagnostics;
+
+public void Method(object myObject)
+{
+    Debug.Assert(myObject != null);
+    myObject.ToString(); // Compliant: 'myObject' is known to be not null here.
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_validated_value_by_ide_specific_attributes">Validated value by IDE-specific attributes</h4>
+<div class="paragraph">
+<p>Like with null-analysis-attribute, potential <code>null</code> values validated by one of the following IDE-specific attributes will not raise</p>
+</div>
+<div class="sect4">
+<h5 id="_visual_studio">Visual Studio</h5>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/api/microsoft.validatednotnullattribute">ValidatedNotNullAttribute</a></p>
+<div class="paragraph">
+<p>(The attribute is interpreted the same as the <a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.notnullattribute">NotNullAttribute</a>)</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_jetbrains_rider">JetBrains Rider</h5>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.jetbrains.com/help/resharper/Reference__Code_Annotation_Attributes.html#NotNullAttribute">NotNullAttribute</a></p>
+</li>
+<li>
+<p><a href="https://www.jetbrains.com/help/resharper/Reference__Code_Annotation_Attributes.html#TerminatesProgramAttribute">TerminatesProgramAttribute</a></p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">using System;
+using JetBrains.Annotations;
+
+public class Utils
+{
+    [TerminatesProgram]
+    public void TerminateProgram()
+    {
+        Environment.FailFast("A catastrophic failure has occurred.")
+    }
+
+    public void TerminatesProgramIsRespected()
+    {
+        object myObject = null;
+        TerminateProgram();
+        myObject.ToString(); // Compliant: unreachable
+    }
+}</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_null_forgiving_operator">Null forgiving operator</h4>
+<div class="paragraph">
+<p>Expression marked with the <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/null-forgiving">null forgiving operator</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public void Method()
+{
+    object o = null;
+    o!.ToString();    // Compliant: the null forgiving operator suppresses the nullable warning
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix the issue, the access of the <code>null</code> value needs to be prevented by either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>ensuring the variable has a value, or</p>
+</li>
+<li>
+<p>by checking if the value is not <code>null</code></p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The variable <code>myObject</code> is equal to <code>null</code>, meaning it has no value:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public void Method()
+{
+    object myObject = null;
+    Console.WriteLine(o.ToString()); // Noncompliant: 'myObject' is always null
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The parameter <code>input</code> might be <code>null</code> as suggested by the <code>if</code> condition:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public void Method(object input)
+{
+    if (input is null)
+    {
+        // ...
+    }
+    Console.WriteLine(input.ToString()); // Noncompliant: the if condition suggests 'input' might be null
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Ensuring the variable <code>myObject</code> has a value resolves the issue:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public void Method()
+{
+    var myObject = new object();
+    Console.WriteLine(myObject.ToString()); // Compliant: 'myObject' is not null
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Preventing the non-compliant code to be executed by returning early:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public void Method(object input)
+{
+    if (input is null)
+    {
+        return;
+    }
+    Console.WriteLine(input.ToString()); // Compliant: if 'input' is null, this is unreachable
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CVE  - <a href="https://cwe.mitre.org/data/definitions/476">CWE-476 - NULL Pointer Dereference</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.nullreferenceexception">NullReferenceException Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/attributes/nullable-analysis">Attributes for null-state static analysis interpreted by the C# compiler</a></p>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.notnullattribute">NotNullAttribute Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.notnullwhenattribute">NotNullWhenAttribute Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.doesnotreturnattribute">DoesNotReturnAttribute Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.codeanalysis.doesnotreturnifattribute">DoesNotReturnIfAttribute Class</a></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/microsoft.validatednotnullattribute">ValidatedNotNullAttribute Class</a> in Visual Studio</p>
+</li>
+<li>
+<p>JetBrains Resharper - <a href="https://www.jetbrains.com/help/resharper/Reference__Code_Annotation_Attributes.html#NotNullAttribute">NotNullAttribute</a></p>
+</li>
+<li>
+<p>JetBrains Resharper - <a href="https://www.jetbrains.com/help/resharper/Reference__Code_Annotation_Attributes.html#TerminatesProgramAttribute">TerminatesProgramAttribute</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null">null (C# Reference)</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/null-forgiving">! (null-forgiving) operator (C# reference)</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>"xxx" is null.</p>
+</li>
+<li>
+<p>"xxx" is null on at least one execution path.</p>
+</li>
+<li>
+<p>'xxx' can be null.</p>
+</li>
+<li>
+<p>The value returned by method 'xxx' can be null.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary : the variable on which a function call can lead to a null pointer dereference (if this value is the output of another function call, this other function call must be highlighted instead)</p>
+</div>
+<div class="paragraph">
+<p>Secondary : the last locations in the code where the nullability condition has been set on the variable. The associated location message should be either :</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>So "xxxx" is null</p>
+</li>
+<li>
+<p>So "xxxx" is nullable</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_duplicated_by_s1678">is duplicated by: <a data-rspec-id="S1678" class="rspec-auto-link">S1678</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_replaces_s2220">replaces: <a data-rspec-id="S2220" class="rspec-auto-link">S2220</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_supercedes_s1697">supercedes: <a data-rspec-id="S1697" class="rspec-auto-link">S1697</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_11_feb_2015_123815_sébastien_gioria_wrote">on 11 Feb 2015, 12:38:15 Sébastien Gioria wrote:</h3>
+<div class="paragraph">
+<p>This Rule fall into :</p>
+</div>
+<div class="paragraph">
+<p>OWASP A6 &#8658; if this expose informations</p>
+</div>
+<div class="paragraph">
+<p>OWASP A2 &#8658; if this can give attackers capacity to bypass authentication or authorization</p>
+</div>
+<div class="paragraph">
+<p>OWASP A1 &#8658; is this can give attacker capacity to inject something</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_feb_2015_131839_ann_campbell_wrote">on 11 Feb 2015, 13:18:39 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Thanks [~sebastien.gioria]</p>
+</div>
+</div>
+</div>
+</div>

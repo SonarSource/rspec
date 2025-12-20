@@ -1,0 +1,152 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when it detects the double-checked locking pattern: checking a field for null outside a synchronized block, then checking it again inside the synchronized block before initialization.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Double-checked locking is a flawed concurrency pattern that appears to optimize lazy initialization but actually creates serious thread safety issues.</p>
+</div>
+<div class="paragraph">
+<p>The pattern works by first checking if an object is null outside of a synchronized block. If it is null, the code enters a synchronized block and checks again before creating the object. This seems efficient because it avoids synchronization after the object is created.</p>
+</div>
+<div class="paragraph">
+<p>However, this pattern has fundamental problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Memory visibility issues</strong>: Due to how modern processors and compilers optimize code, other threads might see a partially constructed object. The assignment to the field might happen before the object is fully initialized.</p>
+</li>
+<li>
+<p><strong>Instruction reordering</strong>: Compilers and processors can reorder instructions for performance, which can break the expected sequence of operations.</p>
+</li>
+<li>
+<p><strong>Cache coherency problems</strong>: Different CPU cores might have inconsistent views of memory, leading to race conditions.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>These issues mean that even though the code appears to work correctly, it can fail unpredictably under certain conditions, especially under heavy load or on different hardware architectures.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using double-checked locking can lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Race conditions</strong>: Multiple threads might create multiple instances of what should be a singleton</p>
+</li>
+<li>
+<p><strong>Partially initialized objects</strong>: Threads might access objects that are not fully constructed, leading to null pointer exceptions or incorrect behavior</p>
+</li>
+<li>
+<p><strong>Unpredictable failures</strong>: The code might work in testing but fail in production under different load conditions or hardware</p>
+</li>
+<li>
+<p><strong>Hard-to-debug issues</strong>: Problems may only appear intermittently and be difficult to reproduce</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use the initialization-on-demand holder idiom, which leverages the JVM&#8217;s class loading mechanism to ensure thread-safe lazy initialization without synchronization overhead.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">class Singleton {
+    private static Singleton instance
+
+    static Singleton getInstance() {
+        if (instance == null) { // Noncompliant
+            synchronized(Singleton) {
+                if (instance == null) {
+                    instance = new Singleton()
+                }
+            }
+        }
+        return instance
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">class Singleton {
+    private static class InstanceHolder {
+        static final Singleton INSTANCE = new Singleton()
+    }
+
+    static Singleton getInstance() {
+        return InstanceHolder.INSTANCE
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Wikipedia - Double-checked locking - <a href="https://en.wikipedia.org/wiki/Double-checked_locking">Comprehensive explanation of the double-checked locking pattern and why it&#8217;s problematic</a></p>
+</li>
+<li>
+<p>Oracle Java Documentation - Memory Model - <a href="https://docs.oracle.com/javase/specs/jls/se8/html/jls-17.html">Java Language Specification on memory model and thread safety</a></p>
+</li>
+<li>
+<p>Effective Java - Initialization-on-demand holder idiom - <a href="https://www.informit.com/articles/article.aspx?p=1216151&amp;seqNum=7">Explanation of the safe initialization-on-demand holder pattern</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - <a href="https://cwe.mitre.org/data/definitions/362.html">Race condition vulnerability category</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2168" class="rspec-auto-link">RSPEC-2168</a> - <a href="https://rules.sonarsource.com/java/RSPEC-2168/">Java version of the same rule</a></p>
+</li>
+<li>
+<p><a data-rspec-id="S3064" class="rspec-auto-link">RSPEC-3064</a> - <a href="https://rules.sonarsource.com/java/RSPEC-3064/">Related rule about thread safety in lazy initialization</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

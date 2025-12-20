@@ -1,0 +1,176 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To parametrize an algorithm with a function, you can use one of the following techniques:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A function pointer</p>
+</li>
+<li>
+<p>A typed-erased function wrapper such as <code>std::function</code> (C&#43;&#43;11) or <code>std::move_only_function</code> (C&#43;&#43;23)</p>
+</li>
+<li>
+<p>A template parameter</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><a data-rspec-id="S5205" class="rspec-auto-link">S5205</a> explains why using function pointers is an inferior solution.</p>
+</div>
+<div class="sect2">
+<h3 id="_working_with_typed_erased_function_wrappers">Working with typed-erased function wrappers</h3>
+<div class="paragraph">
+<p>Thanks to type erasure, <code>std::function</code> is very flexible to use.
+You can store it in variables, including containers such as <code>std::map&lt;std::string, std::function&lt;void(void)&gt;&gt;</code>.
+In other words, <code>std::function</code> can represent any kind of functor, including lambdas, as long as their signatures are compatible.</p>
+</div>
+<div class="paragraph">
+<p><code>std::move_only_function</code> is very similar to <code>std::function</code>.
+The main difference is that, as its name implies, it cannot be copied and has to be moved.
+You can use it to store a lambda capturing a non-copyable object such as <code>std::unique_ptr</code>, which cannot be done with <code>std::function</code>.</p>
+</div>
+<div class="paragraph">
+<p>The abstraction offered by <code>std::function</code> and <code>std::move_only_function</code> comes at a cost: a compiler typically cannot inline a call to these types due to the type erasure.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, these wrappers can be "empty", meaning they do not currently represent any callable.
+While invoking an empty <code>std::function</code> throws a <code>std::bad_function_call</code>, invoking an empty <code>std::move_only_function</code> results in undefined behavior.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_working_with_template_parameters">Working with template-parameters</h3>
+<div class="paragraph">
+<p>Template parameters are less flexible than the type-erased wrapper:
+Each functor has its own type, which prevents storing different parameters together in a container even if they all have compatible signatures.</p>
+</div>
+<div class="paragraph">
+<p>On the other hand, since each template instance knows the type of the functor, calls can be inlined, making this a zero-cost abstraction.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, template parameters representing lambdas cannot be "empty".
+Therefore, by construction, there is no risk of undefined behavior or the need to handle <code>std::bad_function_call</code> when invoking such parameters.</p>
+</div>
+<div class="paragraph">
+<p>Furthermore, C&#43;&#43;20 concepts, such as <code>std::predicate</code> or <code>std::regular_invocable</code>, can enforce expected signatures and provide useful compile-time error messages when incorrect functors are passed to your parametrized function.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_which_solution_to_choose">Which solution to choose?</h3>
+<div class="paragraph">
+<p>In conclusion, if a functor is known at compile-time, you should prefer using a template parameter; if it has to be dynamic, a typed-erased function wrapper gives you greater flexibility.</p>
+</div>
+<div class="paragraph">
+<p>This rule detects function parameters of type <code>std::function</code> and <code>std::move_only_function</code> that can likely benefit from being replaced by a template parameter. It does so by looking at whether the functor is only called inside the function or if it participates in other operations.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>This rule ignores virtual functions because they don&#8217;t work well with templates.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Here, we show an example where the <code>filter</code> function is parametrized with a predicate represented using <code>std::function</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">using Criterion = std::function&lt;bool(DataPoint const&amp;)&gt;;
+void filter(DataSet&amp; data, Criterion criterion) { // Noncompliant
+  for (auto const&amp; dataPoint : data) {
+    if (criterion(dataPoint)) {
+      data.markForRemoval(dataPoint);
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Here is a solution based on C&#43;&#43;20&#8217;s concept <code>std::predicate</code> that ensures the template parameter has a compatible signature.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template &lt;std::predicate&lt;DataPoint const&amp;&gt; Criterion&gt;
+void filter(DataSet&amp; data, Criterion criterion) { // Compliant
+  for (auto const&amp; dataPoint : data) {
+    if (criterion(dataPoint)) {
+      data.markForRemoval(dataPoint);
+    }
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you are using C&#43;&#43;17, you can use <code>static_assert</code> with <code>std::is_invocable_r_v</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template &lt;typename Criterion&gt;
+void filter(DataSet&amp; data, Criterion criterion) { // Compliant
+  static_assert(std::is_invocable_r_v&lt;bool, Criterion, DataPoint const&amp;&gt;);
+  for (auto const&amp; dataPoint : data) {
+    if (criterion(dataPoint)) {
+      data.markForRemoval(dataPoint);
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/concepts/predicate"><code>std::predicate</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/types/is_invocable"><code>std::is_invocable_r_v</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/functional/function"><code>std::function</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/functional/move_only_function"><code>std::move_only_function</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5205" class="rspec-auto-link">S5205</a> Function pointers should not be used as function parameters</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

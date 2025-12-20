@@ -1,0 +1,120 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>RDD.groupByKey</code> is used in conjunction with <code>RDD.mapValues</code>
+and a commutative and associative function instead of <code>RDD.reduceByKey</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The PySpark API offers multiple ways of performing aggregation.
+When performing aggregations, data is usually shuffled between partitions.
+This shuffling is needed to compute the result correctly.
+It has an associated cost that can impact performance, as shuffling moves data over the network between Spark tasks.</p>
+</div>
+<div class="paragraph">
+<p>There are however cases where some aggregation methods could be more efficient than others.
+For example when using <code>RDD.groupByKey</code> in conjunction with <code>RDD.mapValues</code> if the function passed to <code>RDD.mapValues</code>
+is commutative and associative, it is preferable to use <code>RDD.reduceByKey</code> instead.
+The performance gain from <code>RDD.reduceByKey</code> comes from the amount of data that needs to be moved between PySpark tasks.
+<code>RDD.reduceByKey</code> will effectively reduce the number of rows in a partition before sending the data over the network for further reduction.
+On the other hand, when using <code>RDD.groupByKey</code> with <code>RDD.mapValues</code> the reduction is only done
+after the data has been moved around the cluster, effectively slowing down
+the computation process by transferring a higher amount of data over the network.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue replace the call <code>RDD.groupByKey</code> and <code>RDD.mapValues</code>  with <code>RDD.reduceByKey</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pyspark import SparkContext
+
+sc = SparkContext("local", "Example")
+rdd = sc.parallelize([("a", 1), ("b", 1), ("a", 2), ("b", 3)])
+result = rdd.groupByKey().mapValues(lambda values: sum(values)).collect() # Noncompliant: an associative and commutative operation is used with `groupByKey` and `mapValues`</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pyspark import SparkContext
+
+sc = SparkContext("local", "Example")
+rdd = sc.parallelize([("a", 1), ("b", 1), ("a", 2), ("b", 3)])
+result = rdd.reduceByKey(lambda x, y: x + y).collect() # Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PySpark Documentation - <a href="https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.reduceByKey.html#pyspark.RDD.reduceByKey">pyspark.RDD.reduceByKey</a></p>
+</li>
+<li>
+<p>PySpark Documentation - <a href="https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.groupByKey.html#pyspark.RDD.groupByKey">pyspark.RDD.groupByKey</a></p>
+</li>
+<li>
+<p>PySpark Documentation - <a href="https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.RDD.mapValues.html#pyspark.RDD.mapValues">pyspark.RDD.mapValues</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Spark By Example - <a href="https://sparkbyexamples.com/spark/spark-groupbykey-vs-reducebykey/">Spark groupByKey() vs reduceByKey()</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_implementation_specification">Implementation Specification</h3>
+<div class="paragraph">
+<p>As a first implementation we should focus on simple operations: sum and math.prod</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Replace the usage of "RDD.groupByKey" and "RDD.mapValues" with "RDD.reduceByKey"</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>The main location is the method <code>groupByKey</code> and the secondary location is the <code>mapValues</code> call.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_quickfix">Quickfix</h3>
+<div class="paragraph">
+<p>N/A as we cannot easily convert the function passed to mapValues to a function passed to reduceByKey</p>
+</div>
+</div>
+</div>
+</div>

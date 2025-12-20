@@ -1,0 +1,269 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using the value of a pointer to a <code>FILE</code> object after the associated file is closed is undefined behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Once a file has been closed, its corresponding <code>FILE*</code> typed variable becomes invalid and the stream may no longer be accessed through this variable.
+In particular, a pointer to a <code>FILE</code> object may not be passed to <code>fclose</code> more than once.</p>
+</div>
+<div class="paragraph">
+<p>Using the value of a pointer to a <code>FILE</code> object after the associated file is closed results in undefined behavior.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int process_file(int print) {
+  FILE *f = fopen("example.txt", "r");
+  if (!f) {
+    perror("fopen() failed");
+    return 1;
+  }
+
+  if (print) {
+    char buffer[256];
+    while (fgets(buffer, 256, f)) {
+      printf("%s", buffer);
+    }
+    fclose(f);
+  }
+
+  // Further processing ...
+
+  fclose(f); // Noncompliant: file associated with `f` might already be closed.
+  return 0;
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>If a pointer to a <code>FILE</code> object is used after the associated file is closed, the behavior of the application is undefined.</p>
+</div>
+<div class="paragraph">
+<p>When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.
+The application might just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Do not use the value of a pointer to a <code>FILE</code> object after the associated file has been closed.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int process_file(int print) {
+  FILE *f = fopen("example.txt", "r");
+  if (!f) {
+    perror("fopen() failed");
+    return 1;
+  }
+
+  if (print) {
+    char buffer[256];
+    while (fgets(buffer, 256, f)) {
+      printf("%s", buffer);
+    }
+    fclose(f);
+  }
+
+  fclose(f); // Noncompliant: file associated with `f` might already be closed.
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int process_file(int print) {
+  FILE *f = fopen("example.txt", "r");
+  if (!f) {
+    perror("fopen() failed");
+    return 1;
+  }
+
+  if (print) {
+    char buffer[256];
+    while (fgets(buffer, 256, f)) {
+      printf("%s", buffer);
+    }
+  }
+
+  if (fclose(f) == EOF) { // Compliant: file associated with `f` is closed only once.
+    return 1;
+  }
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>Using C&#43;&#43;'s <em>RAII</em> idiom can mitigate these "double-close" issues.</p>
+</div>
+<div class="paragraph">
+<p>Following this idiom, one would create a class that manages the underlying file by opening it when the object is constructed and closing it when the object is destroyed, effectively using a constructor-destructor pair as a "do-undo"-mechanism.</p>
+</div>
+<div class="paragraph">
+<p>An exemplary class that manages a pointer to a file is shown in what follows.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;cstdio&gt;
+#include &lt;fstream&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+
+// Although `std::fstream` should be preferred, if available, a file stream
+// managed by this `File` class cannot suffer from "double-close" issues.
+class File {
+  FILE *f;
+
+public:
+  // Opens file stream on construction.
+  File(std::string const &amp;path, std::string const &amp;modes)
+      : f(fopen(path.c_str(), modes.c_str())) {
+    if (!f) {
+      throw std::ios_base::failure("fopen() failed");
+    }
+  }
+  // Will close the file stream upon destruction.
+  ~File() {
+    // Here we are fine with `std::terminate` being called here in case `close`
+    // throws and exception.
+    close();
+  }
+  // Allow only one owner of a file, disallow copy operations.
+  File(const File &amp;other) = delete;
+  File &amp;operator=(const File &amp;other) = delete;
+  // Moving a file to a different scope shall be allowed.
+  File(File &amp;&amp;other) : f(std::exchange(other.f, nullptr)) {}
+  File &amp;operator=(File &amp;&amp;other) {
+    if (this != &amp;other) {
+      // In case of non-self-assignment, close the currently managed file and
+      // "steal" the other's file.
+      close();
+      f = std::exchange(other.f, nullptr);
+    }
+    return *this;
+  }
+  // Allow file to be closed explicitly.
+  void close() {
+    if (f != nullptr &amp;&amp; fclose(std::exchange(f, nullptr)) == EOF) {
+      throw std::ios_base::failure("fclose() failed");
+    }
+  }
+  // Allow access to underlying file via `f`.
+  FILE *handle() { return f; }
+  // Release `f`, i.e., stop managing it.
+  FILE *release() { return std::exchange(f, nullptr); }
+};
+
+void file_user() {
+  File fh{"example.txt", "r"};
+  FILE *f = fh.handle();
+  // Use `f` for the desired file operation(s).
+  //
+  // The file stream managed by `fh` will be automatically closed when `fh` goes
+  // out of scope at the end of this function.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With the design shown above, it is still possible to "double-close" a file by passing the raw <code>FILE</code> pointer obtained by a call to <code>File::handle</code> to <code>fclose</code> (e.g. <code>fclose(f.handle())</code>).
+However, this design reduces the risk of such occurrence by eliminating the need for manually closing files.
+If even the reduced possibility of "double-close" is still a concern, the function member <code>File::handle</code> should be removed and any required file operations should be wrapped by the <code>File</code> class.</p>
+</div>
+<div class="paragraph">
+<p>If falling back to low-level file operations is not necessary, one should prefer <code>std::fstream</code>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/QdUxBQ">FIO46-C. Do not access a closed file</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S3520" class="rspec-auto-link">S3520</a> addresses "double-free" memory issues</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>File "xxx" has already been closed.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>primary: <code>FILE</code> access</p>
+</div>
+<div class="paragraph">
+<p>secondary: where the <code>FILE</code> was closed</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5485">relates to: <a data-rspec-id="S5485" class="rspec-auto-link">S5485</a></h3>
+
+</div>
+</div>
+</div>

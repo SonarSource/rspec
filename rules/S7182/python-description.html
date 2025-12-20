@@ -1,0 +1,235 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when no value is provided to the <code>subset</code> parameter of PySpark DataFrame&#8217;s <code>dropDuplicates</code> method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In PySpark, the <code>dropDuplicates</code> method is used to remove duplicate rows from a DataFrame.
+By default, if no column names are provided, <code>dropDuplicates</code> will consider all columns to identify duplicates.</p>
+</div>
+<div class="paragraph">
+<p>This default is defensive and avoids removing rows that are partially similar, but it can also lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>unintended results. The simplest example would be to try removing duplicates on a DataFrame that holds
+a unique id per row. It is easy to forget that an id is part of a DataFrame and when trying to remove duplicates, the output DataFrame is the same as the input DataFrame.
+For example, applying <code>dropDuplicates</code> on the following DataFrame will not remove any rows:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">+---+-----+---+
+| id| name|age|
++---+-----+---+
+|  1|Alice| 29|
+|  2|  Bob| 29|
+|  3|Alice| 29|
+|  4|Alice| 30|
+|  5|  Bob| 29|
++---+-----+---+</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>performance inefficiencies. Identifying duplicates is a very costly operation, as Spark has to compare each column of each row with each other.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To ensure clarity, prevent incorrect results, and optimize performance,
+it is a good practice to specify the column names when using <code>dropDuplicates</code>.</p>
+</div>
+<div class="paragraph">
+<p>This rule will raise issues on <code>pyspark.sql.DataFrame.dropDuplicates</code>, <code>pyspark.sql.DataFrame.drop_duplicates</code>
+and <code>pyspark.sql.DataFrame.dropDuplicatesWithinWaterMark</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>If however, the intent is to remove duplicates based on all columns, the <code>distinct</code> method can be used, or
+the <code>None</code> value can be provided to the <code>subset</code> parameter. This way the intention is clear and this rule will not raise any issues.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+data = ...
+
+df = spark.createDataFrame(data, ["id", "name", "age"])
+
+df_dedup = df.dropDuplicates(None) # Compliant
+df_dedup = df.dropDuplicates(subset=None) # Compliant
+df_dedup = df.distinct() # Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue, provide the column names to the <code>subset</code> parameter of the <code>dropDuplicates</code> method or use the <code>distinct</code> method instead.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+data = [
+    (1, "Alice", 29),
+    (2, "Bob", 29),
+    (3, "Alice", 29),
+    (4, "Alice", 30),
+    (5, "Bob", 29)
+]
+df = spark.createDataFrame(data, ["id", "name", "age"])
+
+df_dedup = df.dropDuplicates() # Non-compliant: No column names are specified</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The above code example result in no rows being removed:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 60%;">
+<col style="width: 20%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">id</th>
+<th class="tableblock halign-left valign-top">name</th>
+<th class="tableblock halign-left valign-top">age</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Alice</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">29</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bob</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">29</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Alice</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">29</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Alice</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">30</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bob</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">29</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+data = [
+    (1, "Alice", 29),
+    (2, "Bob", 29),
+    (3, "Alice", 29),
+    (4, "Alice", 30),
+    (5, "Bob", 29)
+]
+df = spark.createDataFrame(data, ["id", "name", "age"])
+
+df_dedup = df.dropDuplicates(subset=["name", "age"]) # Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this example duplicates are removed based on the <code>name</code> and <code>age</code> columns:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 60%;">
+<col style="width: 20%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">id</th>
+<th class="tableblock halign-left valign-top">name</th>
+<th class="tableblock halign-left valign-top">age</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Alice</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">29</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bob</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">29</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Alice</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">30</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PySpark Documentation - <a href="https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.dropDuplicates.html">pyspark.sql.DataFrame.dropDuplicates</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>stratascratch blog - <a href="https://www.stratascratch.com/blog/how-to-drop-duplicates-in-pyspark/">How to drop duplicates in PySpark</a></p>
+</li>
+<li>
+<p>Medium blog - <a href="https://medium.com/@santosh_beora/distinct-and-dropduplicates-in-pyspark-fedb1e9e8738">distinct() and dropDuplicates() in PySpark</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

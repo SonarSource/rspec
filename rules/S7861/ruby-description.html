@@ -1,0 +1,183 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when code iterates over association records and accesses related associations within the loop, causing multiple database queries instead of using efficient joins or eager loading.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The N+1 query problem is a common performance anti-pattern that occurs when code executes one query to retrieve a list of records, then executes additional queries for each record to fetch related data.</p>
+</div>
+<div class="paragraph">
+<p>For example, if you have 100 company memberships and iterate through them to access each membership&#8217;s user, your application will execute 101 database queries: 1 query to get the memberships, plus 100 additional queries to get each user. This pattern scales poorly as your data grows.</p>
+</div>
+<div class="paragraph">
+<p>The problem often goes unnoticed during development with small datasets but becomes a serious bottleneck in production. Each database query has overhead - network latency, connection management, and query processing time. When you multiply this by hundreds or thousands of records, response times can increase from milliseconds to seconds.</p>
+</div>
+<div class="paragraph">
+<p>Modern ORMs like ActiveRecord provide powerful tools to solve this problem through joins, eager loading, and association queries that can retrieve all necessary data in a single optimized query.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>This pattern can severely impact application performance and scalability:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Slow response times</strong>: What should be a fast operation becomes sluggish as the number of records grows</p>
+</li>
+<li>
+<p><strong>Database overload</strong>: Excessive queries can overwhelm your database server, affecting other parts of your application</p>
+</li>
+<li>
+<p><strong>Poor user experience</strong>: Users experience delays when loading pages or performing actions</p>
+</li>
+<li>
+<p><strong>Increased infrastructure costs</strong>: Higher database load may require more powerful servers or connection pooling</p>
+</li>
+<li>
+<p><strong>Timeout errors</strong>: In extreme cases, the accumulated query time may exceed request timeout limits</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use association queries with joins or conditions instead of iterating and accessing associations. This executes a single optimized database query.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def admins
+  company_memberships.where(admin: true).collect do |membership|
+    membership.user  # Noncompliant: executes a query for each membership
+  end
+end
+
+def is_admin?(user)
+  admins.include?(user)  # Noncompliant: loads all admins to check inclusion
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def admins
+  users.joins(:company_memberships).where(company_memberships: { admin: true })
+end
+
+def is_admin?(user)
+  company_memberships.exists?(user: user, admin: true)
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Define association scopes to encapsulate the filtering logic and make the code more readable while maintaining performance.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def admin_users
+  memberships.where(admin: true).map(&amp;:user)  # Noncompliant: N+1 queries
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">has_many :admin_memberships, -&gt; { where(admin: true) },
+         class_name: 'CompanyMembership'
+has_many :admin_users, through: :admin_memberships,
+         source: :user
+
+def admin_users
+  admin_users  # Uses the association scope
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use eager loading with <code>includes</code> when you need to access association data but want to avoid N+1 queries.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def user_emails
+  company_memberships.collect do |membership|
+    membership.user.email  # Noncompliant: queries user for each membership
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">def user_emails
+  company_memberships.includes(:user).collect do |membership|
+    membership.user.email  # User data is already loaded
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Active Record Query Interface - <a href="https://guides.rubyonrails.org/active_record_querying.html">Official Rails guide covering joins, includes, and efficient querying techniques</a></p>
+</li>
+<li>
+<p>Rails Association Basics - <a href="https://guides.rubyonrails.org/association_basics.html">Comprehensive guide to Rails associations and their query methods</a></p>
+</li>
+<li>
+<p>Bullet Gem Documentation - <a href="https://github.com/flyerhzm/bullet">Tool for detecting N+1 queries and unused eager loading in Rails applications</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-400: Uncontrolled Resource Consumption - <a href="https://cwe.mitre.org/data/definitions/400.html">Inefficient database queries can lead to resource exhaustion</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

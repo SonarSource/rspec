@@ -1,0 +1,453 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When an array or an object of aggregate type is non-zero initialized,
+values for each element or field should be provided.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In C or C&#43;&#43;, it is possible to provide an initial value for the elements of an array.
+When fewer values are provided than the size of the array,
+the last elements of the array are zero-initialized for builtin-types (like <code>int</code> or pointers),
+and <em>value-initialized</em> otherwise.
+However, as soon as some values are provided, it is clearer to provide them all and not rely on these default initializations.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int a1[5] = {1, 2, 3};              // Noncompliant, last two elements are initialized with 0
+int a2[4] = {1, 2, 3, 4, 5};        // Compliant
+int* a3[3] = {a1, a1 + 1};          // Noncompliant, the last pointer is null
+int* a4[3] = {a1, a1 + 1, nullptr}; // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Similarly, when an aggregate class or struct is initialized,
+an initial value may be provided for each field.
+All remaining fields are initialized in the same manner as
+elements of an array, but this rule requests explicit initialization:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Pod {
+  int x;
+  int y;
+};
+
+Pod p1{1};    // Noncompliant, `y` does not have an initial value
+Pod p2{1, 0}; // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This behavior applies recursively when arrays and aggregates are nested:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">struct PodPair {
+  Pod first;
+  Pod second;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+int c1[2][2] = {{1}, {2}};  // Noncompliant, the second elements of each nested array do not have an initial value provided
+Pod c2[3] = {{1, 2}, {2}};  // Noncompliant, field `y` of `c2[1]` and whole `c2[2]` object do not have an initial value provided
+PodPair c3 = {{1}};         // Noncompliant, field `y` of `c3.first` and whole `c3.second` object do not have an initial value provided,
+ArrayMember c4 = {1, 2, 3}; // Noncompliant, the last two elements of `c4.vals` do not have an initial value provided</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when a non-zero initialization of an aggregate (array or class/struct),
+does not provide values for all its elements or fields.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The intent of the code is unclear when the initializer omits the values for some of the elements or fields:
+Is the initial value skipped on purpose or is it an oversight?
+Is it because, after the initial code was written, the array size was changed, or a new field was added, and the initialization was not updated?
+In that case, the zero or default value may not be handled properly,
+leading to unexpected program behavior.</p>
+</div>
+<div class="paragraph">
+<p>As an illustration, if the field or element has a pointer type, it will be initialized with a null-pointer value,
+and may lead to null-pointer dereference.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_about_zero_initialization">What about zero initialization?</h3>
+<div class="paragraph">
+<p>When initializing an array with a large number of elements, or a complex structure,
+it is often desired to set all the elements or fields to zero, or to their default values (for classes with default constructors).
+Such situations are usually indicated by an empty set of braces <code>{}</code> for C&#43;&#43;,
+or braces with <code>{0}</code> or <code>{NULL}</code> in the case of C.
+The issue is not raised in such a situation.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int a1[10] = {0}; // Compliant
+int a2[10] = {};  // Compliant
+Pod p1 = {0};     // Compliant
+PodPair c1 = {0}; // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This exception also applies when the nested aggregate is zero-initialized:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int c1[2][2]{{1, 2}, {}};     // Compliant
+Pod c2[3] = {{1, 2}, {}, {}}; // Compliant
+PodPair c3 = {{}, {1, 0}};    // Compliant
+ArrayMember c4{1, {}};        // Compliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_if_designated_initializers_are_used">What if designated initializers are used?</h3>
+<div class="paragraph">
+<p>The C standard provides a designated initialization syntax
+that explicitly denotes the field or element of the aggregate for which value is provided.
+This rule also raises an issue if the initial value for an element or field is not provided.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int a1[3] = { [1] = 1, [2] = 2 };          // Noncompliant, first element do not have initial value provided
+int a2[3] = { [0] = 0, [1] = 1, [2] = 2 }; // Compliant
+Pod p1 = {.y = 10};                        // Noncompliant, `p.x` do not have initial value provided
+Pod p2 = {.x = 0, .y = 10};                // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;20 has adopted a limited version of this feature.
+This rule also raises an issue in the case of incomplete initializers.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_if_the_field_has_a_default_member_initializer">What if the field has a default member initializer?</h3>
+<div class="paragraph">
+<p>C&#43;&#43;11 allows class fields to specify a default value
+that will be used if no other value is provided during construction.
+Such default member initializers cannot be used in aggregate types until C&#43;&#43;14,
+which guarantees that the default value is used if the initializer list does not provide a value for the field.
+The issue is not raised when a field with a default value is not explicitly initialized, as an initial value was provided by the class author,
+and should be handled properly.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Aggr {
+  int a;
+  int b;
+  int c = 0;
+};
+
+Aggr a0{};           // Compliant, zero-initialization
+Aggr a1{10};         // Noncompliant, no initial value for field `b`, which does not have a default value
+Aggr a2{10, 20};     // Compliant, field `c` has a default value specified in `Aggr` definition
+Aggr a3{10, 20, 30}; // Compliant, all fields have initial values</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With the use of a designated initializer, such default value is meaningful for non-trailing fields:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Mid {
+  int a;
+  int b = 10;
+  int c;
+};
+
+Mid m1{.a = 10, .b = 10}; // Noncompliant, no initial value for field `c`, which does not have a default value
+Mid m1{.a = 10, .c = 2};  // Compliant, field `b` has a default value specified in `Mid` definition</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_can_the_issue_be_raised_if_i_use_parenthesis">Can the issue be raised if I use parenthesis?</h3>
+<div class="paragraph">
+<p>C&#43;&#43;20 allows aggregate types to be initialized using the parenthesis (<code>()</code>) in addition to the braces (<code>{}</code>),
+which simplifies writing generic code that creates an object (see <a data-rspec-id="S6872" class="rspec-auto-link">S6872</a> for more details).
+This syntax also allows not to specify all values during initialization and this rule raises an issue in that case too.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int a1[5](1, 2, 3);       // Noncompliant, the last two elements do not have an initial value
+int a2[4](1, 2, 3, 4, 5); // Compliant
+Pod p1(1);                // Noncompliant, `y` does not have an inital value
+Pod p2(1, 0);             // Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This issue can be addressed by either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>providing an initial value for the elements or fields in the initializer or using default member initializer (C&#43;&#43;14 and later);</p>
+</li>
+<li>
+<p>using the idiomatic zero-initialization syntax.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>Provide values for all elements of field in intializer.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Pod {
+  int x;
+  int y;
+};
+
+struct PodPair {
+  Pod first;
+  Pod second;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+
+int a1[5] = {1, 2, 3};        // Noncompliant
+Pod p1{1};                    // Noncompliant
+int c1[2][2] = {{1}, {2}};    // Noncompliant
+Pod c2[3] = {{1, 2}, {2}};    // Noncompliant
+PodPair c3 = {{1}};           // Noncompliant
+ArrayMember c4 = {1, {2, 3}}; // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">struct Pod {
+  int x;
+  int y;
+};
+
+struct PodPair {
+  Pod first;
+  Pod second;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+
+int a1[5] = {1, 2, 3, 0, 0};             // Compliant
+Pod p1{1, 0};                            // Compliant
+int c1[2][2] = {{1, 0}, {2, 0}};         // Compliant
+Pod c2[3] = {{1, 2}, {2, 0}, {0, 0}};    // Compliant
+PodPair c3 = {{1, 0}, {0, 0}};           // Compliant
+ArrayMember c4 = {1, {2, 3, 0, 0, 0}};   // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Or use zero-initialization syntax for <code>c2</code> and <code>c3</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">Pod c2[3] = {{1, 2}, {2, 0}, {}};  // Compliant
+PodPair c3{{1, 0}, {}};            // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use idomatic syntax for zero-intialization.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+int a1[5] = {0, 0, 0};           // Noncompliant
+int c1[2][3] = {{0, 0}, {0, 0}}; // Noncompliant
+ArrayMember c2 = {11};           // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+int a1[5] = {0};            // Compliant
+int c1[2][3] = {0};         // Compliant
+ArrayMember c2 = {11, {0}}; // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The previous solution works for both C and C&#43;&#43;.
+Here is an alternative C&#43;&#43;-specific version:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int a1[5]{};               // Compliant
+int c1[2][3] = {{}, {}};   // Compliant
+ArrayMember c2 = {11, {}}; // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For C&#43;&#43;14 or later, provide default value for the field in class.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Pod {
+  int x;
+  int y;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4];
+};
+
+Pod p1{1};           // Noncompliant
+ArrayMember m1{11};  // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Pod {
+  int x;
+  int y = 2;
+};
+
+struct ArrayMember {
+  int id;
+  int vals[4]{1, 2, 3, 4};
+};
+
+Pod p1{1};           // Compliant
+ArrayMember m1{11};  // Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>When initializing a nested aggregate type (e.g., an array of aggregates),
+braces around nested object initial values may be omitted.
+This feature is referred to as <em>brace elision</em>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">struct Pod {
+  int x;
+  int y;
+};
+
+int e1[3][2] = {1, 2, 3}; // Noncompliant, `e1[1][2]` and `e1[2]` do not have initial valus
+Pod e2[4] = {1, 2, 3};    // Noncompliant, `e2[1].y`, `e[2]`, and `e[3]` do not have initial value</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To comply with this rule, supplying an initial value to all elements is required:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int e1[3][2] = {1, 2, 3, 0, 0, 0};    // Compliant
+Pod e2[2] = {1, 2, 3, 0, 0, 0, 0, 0}; // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>However, for the sake of readability, it is recommended to use nested braces to reflect the structure of the object (see <a data-rspec-id="S835" class="rspec-auto-link">S835</a>):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">int e1[3][2] = {{1, 2}, {3, 0}, {0, 0}};      // Compliant
+Pod e2[2] = {{1, 2}, {3, 0}, {0, 0}, {0, 0}}; // Compliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Or use zero initialization, when appropriate:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int e1[3][2] = {{1, 2}, {3, 0}, {}};  // Compliant
+Pod e2[2] = {{1, 2}, {3, 0}, {}, {}}; // Compliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference&#8201;&#8212;&#8201;<a href="https://en.cppreference.com/w/cpp/language/aggregate_initialization">Aggregate initialization</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference&#8201;&#8212;&#8201;<a href="https://en.cppreference.com/w/cpp/language/value_initialization">Value-initialization</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>MISRA C:2012, 9.3 - Arrays shall not be partially initialized.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S835" class="rspec-auto-link">S835</a> - Braces should be used to indicate and match the structure in the non-zero initialization of arrays and structures</p>
+</li>
+<li>
+<p><a data-rspec-id="S6872" class="rspec-auto-link">S6872</a> - Aggregates should be initialized with braces in non-generic code</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

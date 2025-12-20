@@ -1,0 +1,110 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when dropout layers are instantiated directly in the <code>forward</code> method instead of being defined as instance attributes in the model&#8217;s <code>__init__</code> method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When dropout layers are created inline during the forward pass, they are not tracked by PyTorch&#8217;s module system. This means they will not respond to <code>model.eval()</code> and <code>model.train()</code> calls, leading to inconsistent behavior between training and evaluation modes.</p>
+</div>
+<div class="paragraph">
+<p>During training, dropout randomly sets some neurons to zero to prevent overfitting. However, during evaluation or inference, dropout should be disabled to ensure consistent and deterministic predictions. When dropout layers are instantiated inline, they remain active even when the model is set to evaluation mode using <code>model.eval()</code>.</p>
+</div>
+<div class="paragraph">
+<p>This can cause several problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Non-deterministic predictions during evaluation</p>
+</li>
+<li>
+<p>Reduced model performance during inference</p>
+</li>
+<li>
+<p>Inconsistent results when the same input is processed multiple times</p>
+</li>
+<li>
+<p>Debugging difficulties due to unpredictable behavior</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>PyTorch&#8217;s module system automatically manages the training/evaluation state of all registered modules. By defining dropout layers as instance attributes in the <code>__init__</code> method, they become part of the model&#8217;s module hierarchy and will properly respond to mode changes.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The application may produce inconsistent and non-deterministic results during evaluation or inference. This can lead to unreliable model predictions, reduced performance, and difficulties in debugging model behavior. In production environments, this could result in unpredictable application behavior and degraded user experience.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_fix">How to fix?</h3>
+<div class="paragraph">
+<p>Move the dropout layer definition from the forward method to the <code>__init__</code> method as an instance attribute. This ensures the dropout layer is properly tracked by the model and responds to training/evaluation mode changes.</p>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+
+class MyModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MyModel, self).__init__()
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = nn.Dropout(p=0.3)(x)  # Noncompliant Dropout layer is instantiated inline
+        x = self.linear2(x)
+        return x</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import torch.nn as nn
+
+class MyModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MyModel, self).__init__()
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.dropout = nn.Dropout(p=0.3)  # Define as instance attribute
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.dropout(x)  # Use the predefined dropout layer
+        x = self.linear2(x)
+        return x</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PyTorch nn.Module Documentation - <a href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html">Official PyTorch documentation for nn.Module</a></p>
+</li>
+<li>
+<p>PyTorch Dropout Documentation - <a href="https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html">Official documentation for PyTorch&#8217;s Dropout layer</a></p>
+</li>
+<li>
+<p>PyTorch Training vs Evaluation Mode - <a href="https://pytorch.org/tutorials/beginner/introyt/trainingyt.html#the-training-loop">The training loop</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
