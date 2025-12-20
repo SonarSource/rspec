@@ -1,0 +1,104 @@
+This rule raises an issue when softmax activation is applied to model outputs before passing them to CrossEntropyLoss, or when softmax layers are included in model architectures that use CrossEntropyLoss for training.
+
+== Why is this an issue?
+
+CrossEntropyLoss in PyTorch internally combines LogSoftmax and NLLLoss operations for optimal numerical stability. When you apply softmax activation before CrossEntropyLoss, you create a redundant computation chain that can degrade model performance.
+
+The mathematical issue occurs because CrossEntropyLoss expects raw logits (unbounded values from the final linear layer) as input. It then applies LogSoftmax internally, which is numerically stable even for large input values. When you manually apply softmax first, the loss function receives probability values between 0 and 1, then applies LogSoftmax again, creating a "double softmax" effect.
+
+This double application reduces gradient magnitudes during backpropagation. Smaller gradients mean slower learning and can prevent the model from reaching optimal performance. Additionally, the intermediate softmax step can introduce numerical instability, especially when dealing with very small probability values that approach zero.
+
+The correct approach is to let your model output raw logits and pass them directly to CrossEntropyLoss. The loss function handles the softmax transformation internally using the more stable LogSoftmax operation.
+
+=== What is the potential impact?
+
+This anti-pattern can significantly impact model training performance. Reduced gradient magnitudes slow down learning, potentially requiring more training epochs to reach convergence. In some cases, the model may fail to learn effectively at all, resulting in poor accuracy on validation and test datasets. The numerical instability can also cause training loss to fluctuate unpredictably or even diverge in extreme cases.
+
+=== How to fix in PyTorch?
+
+Remove manual softmax calls before CrossEntropyLoss. Pass raw logits directly to the loss function.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import torch
+import torch.nn as nn
+
+logits = model(input)
+probs = torch.softmax(logits, dim=1)  # Noncompliant
+loss = nn.CrossEntropyLoss()(probs, target)
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import torch
+import torch.nn as nn
+
+logits = model(input)
+loss = nn.CrossEntropyLoss()(logits, target)  # Pass raw logits directly
+----
+
+Remove softmax layers from model architectures when using CrossEntropyLoss. The final layer should output raw logits.
+
+==== Non-compliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import torch.nn as nn
+
+model = nn.Sequential(
+    nn.Linear(784, 128),
+    nn.ReLU(),
+    nn.Linear(128, 10),
+    nn.Softmax(dim=1)  # Noncompliant
+)
+loss = nn.CrossEntropyLoss()(model(inputs), targets)
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import torch.nn as nn
+
+model = nn.Sequential(
+    nn.Linear(784, 128),
+    nn.ReLU(),
+    nn.Linear(128, 10)  # No softmax layer
+)
+loss = nn.CrossEntropyLoss()(model(inputs), targets)
+----
+
+Use CrossEntropyLoss directly instead of manually combining softmax with other loss functions.
+
+==== Non-compliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+import torch
+import torch.nn.functional as F
+
+logits = model(x)
+probs = F.softmax(logits, dim=1)  # Noncompliant
+loss = F.nll_loss(torch.log(probs), targets)
+----
+
+==== Compliant code example
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+import torch
+import torch.nn.functional as F
+
+logits = model(x)
+loss = F.cross_entropy(logits, targets)  # Use cross_entropy directly
+----
+
+=== Documentation
+
+ * PyTorch CrossEntropyLoss Documentation - https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html[Official documentation explaining that CrossEntropyLoss combines LogSoftmax and NLLLoss]
+ * PyTorch Softmax Documentation - https://pytorch.org/docs/stable/generated/torch.nn.Softmax.html[Documentation for the Softmax activation function and its proper usage]
+
