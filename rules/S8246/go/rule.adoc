@@ -1,0 +1,90 @@
+This rule raises an issue when global or package-level variables are accessed concurrently from multiple goroutines without proper synchronization mechanisms.
+
+== Why is this an issue?
+
+Data races occur when multiple goroutines access the same memory location concurrently, and at least one of the accesses is a write operation. In Go, global and package-level variables are shared across all goroutines in a program, making them particularly vulnerable to race conditions.
+
+When goroutines access shared variables without synchronization, several problems can occur:
+
+* *Data corruption*: Partial writes from one goroutine can be interleaved with reads or writes from another, leading to inconsistent or invalid data states.
+* *Unpredictable behavior*: The program's behavior becomes non-deterministic, making bugs difficult to reproduce and debug.
+* *Memory safety violations*: In some cases, concurrent access can lead to memory corruption or crashes.
+* *Performance issues*: The Go runtime's race detector can slow down execution significantly when races are present.
+
+Go's memory model guarantees that programs with data races have undefined behavior. This means that even seemingly simple operations like reading or writing a single variable can produce unexpected results when performed concurrently without proper synchronization.
+
+The problem is particularly common with interface types like `io.Writer`, `http.Handler`, or custom interfaces, because developers often treat them as simple assignments without considering that the underlying implementations may not be thread-safe.
+
+=== What is the potential impact?
+
+Data races can lead to data corruption, unpredictable program behavior, crashes, and security vulnerabilities. In production systems, this can result in incorrect business logic execution, data loss, or system instability. The non-deterministic nature of race conditions makes them extremely difficult to debug and can cause intermittent failures that are hard to reproduce.
+
+== How to fix it
+
+Use a mutex to synchronize access to the global variable. Use `sync.RWMutex` when you have many readers and few writers, or `sync.Mutex` for simpler cases.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+package main
+
+import "io"
+
+var globalWriter io.Writer
+
+func writeData(data []byte) {
+    globalWriter.Write(data) // Noncompliant
+}
+
+func setWriter(w io.Writer) {
+    globalWriter = w // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+package main
+
+import (
+    "io"
+    "sync"
+)
+
+var (
+    globalWriter io.Writer
+    writerMutex  sync.RWMutex
+)
+
+func writeData(data []byte) {
+    writerMutex.RLock()
+    defer writerMutex.RUnlock()
+    globalWriter.Write(data)
+}
+
+func setWriter(w io.Writer) {
+    writerMutex.Lock()
+    defer writerMutex.Unlock()
+    globalWriter = w
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Memory Model - https://go.dev/ref/mem[Official Go documentation explaining memory model and synchronization]
+
+ * Effective Go - Concurrency - https://go.dev/doc/effective_go#concurrency[Best practices for concurrent programming in Go]
+
+ * Go Race Detector - https://go.dev/doc/articles/race_detector[Tool for detecting race conditions during testing]
+
+ * sync package - https://pkg.go.dev/sync[Go standard library package for synchronization primitives]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race condition vulnerability classification]
