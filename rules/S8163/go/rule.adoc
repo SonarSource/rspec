@@ -1,0 +1,87 @@
+This rule raises an issue when Go HTTP servers use blocking server calls without implementing proper signal handling and graceful shutdown mechanisms.
+
+== Why is this an issue?
+
+HTTP servers that don't implement graceful shutdown can cause significant problems in production environments. When a service is restarted or terminated without graceful shutdown, ongoing requests are abruptly cut off, potentially causing data loss, incomplete transactions, and poor user experience.
+
+Consider a user uploading a file or submitting a form when the server restarts. Without graceful shutdown, their request dies mid-stream, leaving them confused and potentially losing their work. This creates a poor user experience and can lead to data inconsistency.
+
+Graceful shutdown ensures that:
+
+* The server stops accepting new requests
+* Existing requests are allowed to complete within a reasonable timeout
+* Resources like database connections are properly closed
+* The application exits cleanly
+
+Go provides excellent tools for this through the `os/signal` package for catching termination signals (SIGINT, SIGTERM) and the `context` package for managing timeouts. The `http.Server` type includes a `Shutdown()` method specifically designed for graceful termination.
+
+Without implementing this pattern, applications become unreliable in production environments where deployments, scaling events, and maintenance operations require service restarts.
+
+=== What is the potential impact?
+
+Applications without graceful shutdown can experience:
+
+* **Data Loss**: Incomplete requests may result in partial data writes or lost user input
+* **Poor User Experience**: Users may see connection errors or timeouts during deployments
+* **Service Reliability Issues**: Abrupt termination can leave resources in inconsistent states
+* **Deployment Problems**: Rolling updates become disruptive to active users
+* **Resource Leaks**: Database connections and other resources may not be properly cleaned up
+
+== How to fix it
+
+Implement graceful shutdown by running the HTTP server in a goroutine, setting up signal handling for termination signals, and using the server's Shutdown method with a timeout context.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func main() {
+    http.HandleFunc("/", handler)
+    log.Fatal(http.ListenAndServe(":8080", nil)) // Noncompliant
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("Hello"))
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func main() {
+    server := &http.Server{Addr: ":8080"}
+    http.HandleFunc("/", handler)
+    
+    go func() {
+        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            log.Fatal(err)
+        }
+    }()
+    
+    // Graceful shutdown
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+    server.Shutdown(ctx)
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("Hello"))
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go HTTP Server Shutdown - https://pkg.go.dev/net/http#Server.Shutdown[Official documentation for the http.Server.Shutdown method]
+
+ * Go Signal Package - https://pkg.go.dev/os/signal[Documentation for handling OS signals in Go applications]
+
+ * Go Context Package - https://pkg.go.dev/context[Documentation for Go's context package for managing timeouts and cancellation]
