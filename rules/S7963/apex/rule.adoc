@@ -1,0 +1,67 @@
+This rule raises an issue when Apex code performs database operations (Create, Read, Update, Delete) without first checking if the current user has the necessary permissions using Schema methods.
+
+== Why is this an issue?
+
+Apex code runs in system mode by default, which means it bypasses the user's profile and permission set restrictions. This can lead to serious security vulnerabilities where users can access, modify, or delete data they shouldn't have access to.
+
+When Apex classes are called from different contexts, such as Flows, the permission enforcement behavior can vary. Flows may execute with elevated privileges, but the underlying Apex code should still respect the current user's actual permissions to maintain proper security boundaries.
+
+Without explicit permission checks, your application becomes vulnerable to:
+
+* **Unauthorized data access**: Users might read sensitive information they don't have permission to view
+* **Privilege escalation**: Users could perform actions beyond their authorized scope
+* **Data integrity issues**: Unauthorized modifications could compromise data quality and business processes
+* **Compliance violations**: Many regulatory frameworks require proper access controls
+
+Salesforce provides Schema methods specifically for this purpose, allowing developers to programmatically verify object-level permissions before executing database operations. These methods check the current user's actual permissions, ensuring that security policies are consistently enforced regardless of the execution context.
+
+=== What is the potential impact?
+
+Without proper permission checks, users may gain unauthorized access to sensitive data or perform operations beyond their intended privileges. This can lead to data breaches, compliance violations, and compromise of business-critical information. The impact is particularly severe when Apex classes are invoked from Flows or other contexts where permission enforcement may be inconsistent.
+
+== How to fix it
+
+Use Schema methods to check object-level permissions before performing database operations. Always verify that the current user has the necessary CRUD permissions for the specific operation you're about to perform.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class AccountProcessor {
+    public static void deleteAccount(Id accountId) {
+        delete [SELECT Id FROM Account WHERE Id = :accountId]; // Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class AccountProcessor {
+    public static void deleteAccount(Id accountId) {
+        if (!Schema.sObjectType.Account.isDeletable()) {
+            throw new SecurityException('User lacks delete permission for Account');
+        }
+        delete [SELECT Id FROM Account WHERE Id = :accountId];
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Security and Sharing - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_security.htm[Official Salesforce documentation on Apex security best practices and sharing rules]
+
+ * Schema Class Methods - https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_methods_system_schema.htm[Reference documentation for Schema class methods used to check permissions]
+
+ * Enforcing CRUD and FLS - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_perms_enforcing.htm[Guide on enforcing Create, Read, Update, Delete and Field Level Security in Apex]
+
+=== Standards
+
+ * CWE-862: Missing Authorization - https://cwe.mitre.org/data/definitions/862.html[The software does not perform an authorization check when an actor attempts to access a resource or perform an action]
+
+ * OWASP Top 10:2021-A01-Broken Access Control - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Failures related to access control are common and can lead to unauthorized information disclosure, modification, or destruction]
