@@ -1,0 +1,85 @@
+:object_replacement_protocol: https://docs.python.org/3/library/copy.html#object.__replace__
+
+This rule raises an issue when ``++copy.replace++`` is used on an incorrect type.
+
+== Why is this an issue?
+
+Python 3.13 introduced the function ``++copy.replace(obj, /, **changes)++`` which creates a new duplicate of the same type as ``++obj++`` then updating the values of the fields provided in ``++changes++``.
+However, calling ``++copy.replace(...)++`` with an argument of an unsupported type will raise an ``++TypeError++``.
+In order for a type to be supported by ``++copy.replace(...)++``, the {object_replacement_protocol}[replace protocol] must be implemented.
+
+The following built-in types implement the {object_replacement_protocol}[replace protocol] and are thus supported by ``++copy.replace(...)++``
+
+* ``++datetime.datetime++``, ``++datetime.date++``, ``++datetime.time++``
+* ``++inspect.Signature++``, ``++inspect.Parameter++``
+* ``++types.SimpleNamespace++``
+* https://docs.python.org/3/library/typing.html#typing.NamedTuple[typed named tuples], ``++collections.namedtuple()++``
+* https://docs.python.org/3/library/dataclasses.html[data classes]
+* https://docs.python.org/3/reference/datamodel.html#code-objects[code objects]
+
+=== Exceptions
+
+This issue is only raised for Python 3.13 and above, since the respective method isn't available in previous versions of Python.
+
+== How to fix it
+
+If the argument passed to ``++copy.replace(...)++`` is a class defined in this project then, to fix the issue, implement the {object_replacement_protocol}[replace protocol] by defining the ``++__replace__++`` method in the class.
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+class SomeClass:
+    def __init__(self, name):
+        self.name = name
+
+    def __replace__(self, /, **changes):
+        return SomeClass(changes.get("name", self.name))
+----
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import copy
+
+class AClass: 
+    ...
+
+a = AClass()
+b = copy.replace(a) # Noncompliant: AClass does not implement __replace__(...)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import copy
+
+class AClass: 
+    ...
+    def __replace__(self, /, **changes):
+        ...
+
+a = AClass()
+b = copy.replace(a) # Compliant
+
+
+@dataclass
+class ADataClass:
+    ...
+
+c = ADataClass()
+d = copy.replace(c) # Compliant
+----
+
+=== Pitfalls
+
+Ensure that if the ``++__replace__++`` is implemented that the implementation creates a new object instead of updating the old one. 
+
+
+== Resources
+=== Documentation
+* Python Documentation - https://docs.python.org/3/library/copy.html#copy.replace[copy — Shallow and deep copy operations — copy.replace]
+* Python Documentation - {object_replacement_protocol}[copy — Shallow and deep copy operations — object.\\__replace__]
+* Python Documentation - https://docs.python.org/3/whatsnew/3.13.html#copy[What's New in Python 3.13]
