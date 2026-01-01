@@ -1,0 +1,146 @@
+This rule raises an issue when asynchronous Apex methods like `@future` methods, batch classes, or queueable jobs do not include proper exception handling around their main logic.
+
+== Why is this an issue?
+
+Asynchronous operations in Salesforce run in the background, separate from the main execution thread. When these operations encounter exceptions without proper handling, they fail silently.
+
+This silent failure creates several problems:
+
+* *Debugging becomes extremely difficult* - Without exception handling, there's no record of what went wrong or when the failure occurred.
+* *Data inconsistencies may occur* - Partial processing can leave your data in an inconsistent state, with some records updated and others not.
+* *Business processes may break* - Critical background operations might fail without anyone knowing, disrupting important workflows.
+* *Governor limit violations go unnoticed* - Asynchronous methods can hit Salesforce limits, but without proper handling, these failures are invisible.
+
+Salesforce provides several mechanisms for asynchronous processing (`@future` methods, Batch Apex, Queueable Apex, and Schedulable Apex), but none of them automatically handle exceptions. It's the developer's responsibility to implement proper error handling to ensure reliable background processing.
+
+=== What is the potential impact?
+
+Silent failures in asynchronous operations can lead to data corruption, incomplete business processes, and difficult-to-diagnose production issues. Without proper exception handling, critical background operations may fail unnoticed, potentially affecting data integrity and business continuity.
+
+== How to fix it in Batch Apex
+
+In Batch Apex classes, implement exception handling in the execute method. Use the Database.RaisesPlatformEvents interface to track batch job failures.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=1,diff-type=noncompliant]
+----
+public class AccountBatch implements Database.Batchable<sObject> {
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id, Name FROM Account');
+    }
+    
+    public void execute(Database.BatchableContext bc, List<Account> accounts) {
+        for (Account acc : accounts) {
+            acc.Name = acc.Name + ' - Batch Processed';
+        }
+        update accounts; // Noncompliant
+    }
+    
+    public void finish(Database.BatchableContext bc) {}
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=1,diff-type=compliant]
+----
+public class AccountBatch implements Database.Batchable<sObject> {
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id, Name FROM Account');
+    }
+    
+    public void execute(Database.BatchableContext bc, List<Account> accounts) {
+        try {
+            for (Account acc : accounts) {
+                acc.Name = acc.Name + ' - Batch Processed';
+            }
+            update accounts;
+        } catch (Exception e) {
+            System.debug('Batch execution error: ' + e.getMessage());
+            // Log error details for monitoring
+        }
+    }
+    
+    public void finish(Database.BatchableContext bc) {}
+}
+----
+
+== How to fix it in Queueable Apex
+
+In Queueable classes, wrap the execute method logic in try-catch blocks. Consider implementing retry logic by re-queuing the job with modified parameters.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,apex,diff-id=2,diff-type=noncompliant]
+----
+public class DataProcessor implements Queueable {
+    private Set<Id> recordIds;
+    
+    public DataProcessor(Set<Id> recordIds) {
+        this.recordIds = recordIds;
+    }
+    
+    public void execute(QueueableContext context) {
+        List<Account> accounts = [SELECT Id, Name FROM Account WHERE Id IN :recordIds];
+        for (Account acc : accounts) {
+            acc.Name = acc.Name + ' - Queued';
+        }
+        update accounts; // Noncompliant
+    }
+}
+----
+
+==== Compliant solution
+
+[source,apex,diff-id=2,diff-type=compliant]
+----
+public class DataProcessor implements Queueable {
+    private Set<Id> recordIds;
+    private Integer retryCount;
+    
+    public DataProcessor(Set<Id> recordIds) {
+        this(recordIds, 0);
+    }
+    
+    public DataProcessor(Set<Id> recordIds, Integer retryCount) {
+        this.recordIds = recordIds;
+        this.retryCount = retryCount;
+    }
+    
+    public void execute(QueueableContext context) {
+        try {
+            List<Account> accounts = [SELECT Id, Name FROM Account WHERE Id IN :recordIds];
+            for (Account acc : accounts) {
+                acc.Name = acc.Name + ' - Queued';
+            }
+            update accounts;
+        } catch (Exception e) {
+            System.debug('Queueable execution error: ' + e.getMessage());
+            if (retryCount < 3) {
+                System.enqueueJob(new DataProcessor(recordIds, retryCount + 1));
+            }
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Apex Developer Guide - Future Methods - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_invoking_future_methods.htm[Official Salesforce documentation on future methods and best practices]
+
+ * Apex Developer Guide - Batch Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_batch.htm[Comprehensive guide to implementing and monitoring Batch Apex]
+
+ * Apex Developer Guide - Queueable Apex - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_queueing_jobs.htm[Documentation on Queueable Apex implementation and error handling]
+
+ * Apex Developer Guide - Exception Handling - https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_exception_handling.htm[Best practices for exception handling in Apex]
+
+=== Standards
+
+ * CWE-248: Uncaught Exception - https://cwe.mitre.org/data/definitions/248.html[Weakness related to uncaught exceptions that can lead to application crashes or unexpected behavior]
