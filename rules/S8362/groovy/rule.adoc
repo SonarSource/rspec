@@ -1,16 +1,29 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when closure-based operations like `each`, `findAll`, `collect`, `sort`, or `eachLine` are used in Jenkins pipeline scripts, as these operations are incompatible with CPS transformation and lead to unexpected behavior.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Jenkins uses Continuation Passing Style (CPS) transformation to make pipeline scripts resumable after interruptions. However, this transformation causes closure-based operations to behave incorrectly.
 
-//=== What is the potential impact?
+When CPS encounters closure-based iteration methods like `each` or `collect`, the closure is executed only once instead of for each element in the collection. This happens because the CPS transformation interrupts the iteration loop prematurely, causing:
+
+* Early termination where only the first iteration is processed
+* Silent failures that produce unexpected results
+* Runtime exceptions with confusing error messages
+* Methods returning wrong data types (e.g., a String instead of a List)
+
+Sorting operations with custom comparators face similar issues. The CPS transformation cannot properly handle the closure-based comparison logic, leading to assertion failures or incorrect sorting results.
+
+Asynchronous operations within closures compound these problems. When a closure contains pipeline steps like `sh` or `readFile`, the CPS transformation throws a `CpsCallableInvocation` exception that breaks out of the iteration loop, causing the method to return the result of only the first operation instead of processing the entire collection.
+
+These issues are particularly problematic because they often fail silently, making debugging difficult. The code appears to run without errors but produces incorrect results, which can lead to subtle bugs in build processes.
+
+=== What is the potential impact?
+
+Silent failures in data processing operations can lead to incomplete build steps, incorrect file processing, or missing deployment targets. Runtime exceptions can cause pipeline failures with unclear error messages, making debugging time-consuming. Incorrect sorting results may affect deployment order or configuration processing.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Replace closure-based iteration with C-style loops to avoid CPS transformation issues.
 
 === Code examples
 
@@ -18,27 +31,33 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+node {
+  [1, 2, 3].each { println it } // Noncompliant
+  def file = readFile('file.txt')
+  file.eachLine { line -> println line } // Noncompliant
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+node {
+  def items = [1, 2, 3]
+  for(int i = 0; i < items.size(); i++) {
+    println items[i]
+  }
+  def lines = readFile('file.txt').split('\n')
+  for(int i = 0; i < lines.size(); i++) {
+    println lines[i]
+  }
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Jenkins Pipeline CPS Limitations - https://www.jenkins.io/doc/book/pipeline/cps-method-mismatches/[Official Jenkins documentation explaining CPS transformation limitations and workarounds]
 
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Pipeline Best Practices - https://www.jenkins.io/doc/book/pipeline/pipeline-best-practices/[Jenkins pipeline best practices including guidance on avoiding CPS issues]
