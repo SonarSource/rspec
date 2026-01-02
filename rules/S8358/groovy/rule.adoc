@@ -1,16 +1,35 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when a method annotated with `@NonCPS` contains calls to Pipeline steps such as `node`, `sh`, `echo`, `readFile`, `httpRequest`, or other CPS-transformed code.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Jenkins Pipeline uses a Continuation-Passing Style (CPS) transformation system to enable state persistence and restart capabilities. This system transforms most Pipeline code to handle interruptions and resumptions gracefully.
 
-//=== What is the potential impact?
+Methods annotated with `@NonCPS` are compiled normally without CPS transformation, behaving like binary methods from the Java Platform or Jenkins core. This provides performance benefits and allows the use of more Groovy language features.
+
+However, when `@NonCPS` methods call Pipeline steps (which are CPS-transformed), the CPS interpreter cannot operate correctly. This creates a fundamental incompatibility between non-CPS-transformed code calling CPS-transformed code.
+
+The result is anomalous behavior where:
+
+* The Pipeline step's return value becomes the method's return value
+* Normal execution flow is interrupted
+* The rest of the method code after the Pipeline step call is not executed
+* Confusing error messages may appear in logs
+
+This behavior occurs because `CpsCallableInvocation` exceptions are thrown from Pipeline steps and interrupt the method's execution, leading to incorrect and often confusing results.
+
+=== What is the potential impact?
+
+This anti-pattern can cause several serious issues:
+
+* **Unexpected execution flow**: Methods may return prematurely with unexpected values, causing logic errors in the Pipeline
+* **Silent failures**: Code after Pipeline step calls in `@NonCPS` methods will not execute, potentially skipping critical operations
+* **Difficult debugging**: The anomalous behavior can be confusing to diagnose, leading to wasted development time
+* **Pipeline instability**: The CPS interpreter's inability to handle these calls correctly can lead to unpredictable Pipeline behavior
+* **Maintenance problems**: Future modifications to the code may not work as expected due to the underlying execution flow issues
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Remove the @NonCPS annotation to allow the method to be CPS-transformed and safely call Pipeline steps.
 
 === Code examples
 
@@ -18,27 +37,35 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+@NonCPS
+def compileOnPlatforms() {
+  ['linux', 'windows'].each { arch ->
+    node(arch) { // Noncompliant
+      sh 'make'
+    }
+  }
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+def compileOnPlatforms() {
+  ['linux', 'windows'].each { arch ->
+    node(arch) {
+      sh 'make'
+    }
+  }
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Jenkins Pipeline CPS Method Mismatches - https://www.jenkins.io/doc/book/pipeline/cps-method-mismatches/[Official Jenkins documentation explaining CPS method mismatches and their solutions]
 
+ * Pipeline: Groovy Plugin Documentation - https://plugins.jenkins.io/workflow-cps/[Technical documentation for the Pipeline Groovy plugin explaining CPS transformation]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Scaling Pipelines - @NonCPS Best Practices - https://www.jenkins.io/doc/book/pipeline/scaling-pipeline/[Jenkins documentation on scaling pipelines with proper @NonCPS usage]
