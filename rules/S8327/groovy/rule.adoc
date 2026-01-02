@@ -1,26 +1,25 @@
-This rule raises an issue when a closure is used inside a GString expression in a Jenkins Pipeline script.
+This is an issue when pipeline parameters use environment variables (env.*) in their default values, as these variables are not available during parameter definition.
 
 == Why is this an issue?
 
-Jenkins Pipeline uses a Continuation Passing Style (CPS) transformation to allow scripts to be paused and resumed. This transformation affects how closures work in the Pipeline environment.
+Pipeline parameters are defined before the pipeline starts executing, but environment variables only become available after a node is allocated and the pipeline begins running. This creates a timing problem where the environment variables will be null or undefined when the parameter defaults are evaluated.
 
-In regular Groovy, you can use closures inside GString expressions to create dynamic strings where the closure is evaluated each time the GString is converted to a String. However, in Jenkins Pipeline scripts, this pattern doesn't work as expected because the closure inside the GString gets CPS-transformed.
+This can lead to several problems:
 
-When the Pipeline runtime tries to evaluate the GString, it encounters a CPS-transformed closure in a non-CPS context, which causes the CPS interpreter to fail. This results in incorrect behavior and confusing error messages in the Pipeline logs.
+* Parameters may receive null or empty values instead of the intended defaults
+* Runtime errors when the pipeline tries to use these undefined values
+* Unpredictable behavior that's difficult to debug
+* Inconsistent pipeline behavior across different environments
 
-The typical error you'll see in the logs looks like:
-
-> expected to call WorkflowScript.echo but wound up catching org.jenkinsci.plugins.workflow.cps.CpsClosure2.call
-
-This happens because the Pipeline runtime cannot properly handle the interaction between the non-CPS GString evaluation and the CPS-transformed closure.
+The fundamental issue is a chicken-and-egg problem: you need environment variables to set parameter defaults, but you need to define parameters before the environment is available.
 
 === What is the potential impact?
 
-The code will not behave as expected and may produce runtime errors or unexpected results. The Pipeline may fail with confusing error messages, making debugging difficult. In some cases, the GString may not evaluate to the expected value, leading to incorrect string interpolation.
+Using environment variables in parameter defaults can cause pipeline failures, unpredictable behavior, and make debugging difficult. Parameters may receive unexpected null values, leading to runtime errors or incorrect pipeline execution paths.
 
 == How to fix it
 
-Replace the GString containing a closure with a closure that returns a GString using normal expressions. Call the closure when you need the string value.
+Replace environment variable references with static values or computed variables that are available during parameter definition. Use context like BRANCH_NAME that's available early in the pipeline lifecycle.
 
 === Code examples
 
@@ -28,26 +27,39 @@ Replace the GString containing a closure with a closure that returns a GString u
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-def x = 1
-def s = "x = ${-> x}" // Noncompliant
-x = 2
-echo(s)
+pipeline {
+  parameters {
+    string(name: 'BUILD_ARCH', defaultValue: "${env.BUILD_ARCHS}", description: 'Architecture to build') // Noncompliant
+    booleanParam(name: 'DEPLOY', defaultValue: env.AUTO_DEPLOY == 'true', description: 'Deploy after build') // Noncompliant
+  }
+  stages {
+    // pipeline stages
+  }
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-def x = 1
-def s = { -> "x = ${x}" }
-x = 2
-echo(s())
+def defaultArch = 'linux-x86_64'
+def defaultDeploy = BRANCH_NAME != 'production'
+
+pipeline {
+  parameters {
+    string(name: 'BUILD_ARCH', defaultValue: defaultArch, description: 'Architecture to build')
+    booleanParam(name: 'DEPLOY', defaultValue: defaultDeploy, description: 'Deploy after build')
+  }
+  stages {
+    // pipeline stages
+  }
+}
 ----
 
 == Resources
 
 === Documentation
 
- * Jenkins Pipeline CPS Method Mismatches - https://www.jenkins.io/doc/book/pipeline/cps-method-mismatches/[Official Jenkins documentation explaining CPS transformation issues and solutions]
+ * Jenkins Pipeline Parameters - https://www.jenkins.io/doc/book/pipeline/syntax/#parameters[Official Jenkins documentation on pipeline parameters and their usage]
 
- * Pipeline: Groovy Plugin - https://plugins.jenkins.io/workflow-cps/[Technical background on the Groovy CPS library used by Jenkins Pipeline]
+ * Jenkins Environment Variables - https://www.jenkins.io/doc/book/pipeline/jenkinsfile/#using-environment-variables[Documentation on when and how environment variables are available in Jenkins pipelines]
