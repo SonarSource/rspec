@@ -1,16 +1,26 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when Jenkins pipeline scripts use direct Java or Groovy file I/O operations like `new File()`, `Files.copy()`, or `FileUtils` instead of Jenkins-provided pipeline steps.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Jenkins pipelines have a unique execution model that requires special handling of file operations. Direct Java or Groovy file I/O operations cause several critical problems:
 
-//=== What is the potential impact?
+**Serialization failures**: Jenkins pipelines must serialize their entire state to disk when they pause for asynchronous operations or when Jenkins restarts. Direct file operations create non-serializable objects that break this mechanism, causing pipeline failures during restarts.
+
+**Security sandbox violations**: Jenkins uses a Groovy security sandbox to prevent malicious scripts from accessing the file system directly. Direct file operations are blocked by this sandbox and require administrator approval, which defeats the security purpose.
+
+**Incorrect execution location**: In distributed Jenkins environments, direct file operations execute on the Jenkins master node instead of the intended build agent. This violates Jenkins' architecture where heavy operations should run on agents, not the master.
+
+**Workspace management bypass**: Jenkins pipeline steps are designed to work correctly with Jenkins' workspace management, handling permissions, paths, and distributed file systems properly. Direct operations bypass these safeguards.
+
+Jenkins provides purpose-built pipeline steps like `readFile()`, `writeFile()`, and shell commands that are designed to work safely within the pipeline execution model.
+
+=== What is the potential impact?
+
+Using direct file I/O operations can cause pipeline failures when Jenkins restarts, security violations that require administrator intervention, and incorrect execution on the master node instead of build agents. This can lead to performance issues, security vulnerabilities, and unreliable builds in distributed Jenkins environments.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Replace direct file reading operations with the `readFile()` pipeline step. This step works correctly with Jenkins' serialization and distributed execution model.
 
 === Code examples
 
@@ -18,27 +28,28 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+// Reading files with direct File operations
+new File(env.SERVICE_VERSIONS_FILE).each { line ->
+    echo "$line" // Noncompliant
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+// Using Jenkins readFile step
+readFile(env.SERVICE_VERSIONS_FILE).split("\n").each { line ->
+    echo "$line"
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Jenkins Pipeline Steps Reference - https://www.jenkins.io/doc/pipeline/steps/[Official documentation for Jenkins pipeline steps including readFile and writeFile]
 
+ * Pipeline: Groovy Plugin Documentation - https://plugins.jenkins.io/workflow-cps/[Documentation explaining Jenkins pipeline execution model and serialization requirements]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * File Operations Plugin - https://plugins.jenkins.io/file-operations/[Jenkins plugin providing safe file operation steps for pipelines]
