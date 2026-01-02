@@ -1,25 +1,22 @@
-This is an issue when pipeline parameters use environment variables (env.*) in their default values, as these variables are not available during parameter definition.
+This is an issue when environment variables containing boolean values (stored as strings) are compared directly to boolean literals or used in boolean contexts without proper conversion.
 
 == Why is this an issue?
 
-Pipeline parameters are defined before the pipeline starts executing, but environment variables only become available after a node is allocated and the pipeline begins running. This creates a timing problem where the environment variables will be null or undefined when the parameter defaults are evaluated.
+In Jenkins declarative pipelines, environment variables are always stored as strings, even when they originate from boolean-returning functions like `fileExists()`. When a function like `fileExists 'Dockerfile'` returns `true`, it gets stored in the environment variable as the string `'true'`, not the boolean `true`.
 
-This can lead to several problems:
+When developers try to compare these string values directly to boolean literals (`env.IS_DOCKERFILE == true`), the comparison will always fail because you're comparing a string to a boolean. This leads to conditional expressions that don't behave as expected.
 
-* Parameters may receive null or empty values instead of the intended defaults
-* Runtime errors when the pipeline tries to use these undefined values
-* Unpredictable behavior that's difficult to debug
-* Inconsistent pipeline behavior across different environments
+For example, if `fileExists 'Dockerfile'` returns `true`, the environment variable `IS_DOCKERFILE` will contain the string `'true'`. Comparing `'true' == true` evaluates to `false` in Groovy, causing stages that should run to be skipped.
 
-The fundamental issue is a chicken-and-egg problem: you need environment variables to set parameter defaults, but you need to define parameters before the environment is available.
+This type of bug can be particularly frustrating because the logic appears correct at first glance, but the pipeline behaves unexpectedly due to the implicit type conversion between boolean functions and string environment variables.
 
 === What is the potential impact?
 
-Using environment variables in parameter defaults can cause pipeline failures, unpredictable behavior, and make debugging difficult. Parameters may receive unexpected null values, leading to runtime errors or incorrect pipeline execution paths.
+Pipeline stages may not execute when they should, or may execute when they shouldn't. This can lead to incomplete builds, missing deployment steps, or incorrect conditional logic in CI/CD workflows. In critical deployment scenarios, this could result in failed releases or inconsistent application states.
 
 == How to fix it
 
-Replace environment variable references with static values or computed variables that are available during parameter definition. Use context like BRANCH_NAME that's available early in the pipeline lifecycle.
+Convert the environment variable to a boolean using `.toBoolean()` before using it in boolean expressions.
 
 === Code examples
 
@@ -27,14 +24,13 @@ Replace environment variable references with static values or computed variables
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-pipeline {
-  parameters {
-    string(name: 'BUILD_ARCH', defaultValue: "${env.BUILD_ARCHS}", description: 'Architecture to build') // Noncompliant
-    booleanParam(name: 'DEPLOY', defaultValue: env.AUTO_DEPLOY == 'true', description: 'Deploy after build') // Noncompliant
-  }
-  stages {
-    // pipeline stages
-  }
+environment {
+    IS_DOCKERFILE = fileExists 'Dockerfile'
+}
+when {
+    expression {
+        env.IS_DOCKERFILE == true // Noncompliant
+    }
 }
 ----
 
@@ -42,17 +38,13 @@ pipeline {
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-def defaultArch = 'linux-x86_64'
-def defaultDeploy = BRANCH_NAME != 'production'
-
-pipeline {
-  parameters {
-    string(name: 'BUILD_ARCH', defaultValue: defaultArch, description: 'Architecture to build')
-    booleanParam(name: 'DEPLOY', defaultValue: defaultDeploy, description: 'Deploy after build')
-  }
-  stages {
-    // pipeline stages
-  }
+environment {
+    IS_DOCKERFILE = fileExists 'Dockerfile'
+}
+when {
+    expression {
+        env.IS_DOCKERFILE.toBoolean()
+    }
 }
 ----
 
@@ -60,6 +52,8 @@ pipeline {
 
 === Documentation
 
- * Jenkins Pipeline Parameters - https://www.jenkins.io/doc/book/pipeline/syntax/#parameters[Official Jenkins documentation on pipeline parameters and their usage]
+ * Jenkins Pipeline Syntax - Environment Variables - https://www.jenkins.io/doc/book/pipeline/syntax/#environment[Official Jenkins documentation on environment variables in declarative pipelines]
 
- * Jenkins Environment Variables - https://www.jenkins.io/doc/book/pipeline/jenkinsfile/#using-environment-variables[Documentation on when and how environment variables are available in Jenkins pipelines]
+ * Jenkins Pipeline Syntax - When Conditions - https://www.jenkins.io/doc/book/pipeline/syntax/#when[Official Jenkins documentation on when conditions in declarative pipelines]
+
+ * Groovy String to Boolean Conversion - https://docs.groovy-lang.org/latest/html/groovy-jdk/java/lang/String.html#toBoolean()[Groovy documentation for the toBoolean() method]
