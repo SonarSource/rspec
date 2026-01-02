@@ -1,16 +1,22 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when environment variables containing boolean values (stored as strings) are compared directly to boolean literals or used in boolean contexts without proper conversion.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+In Jenkins declarative pipelines, environment variables are always stored as strings, even when they originate from boolean-returning functions like `fileExists()`. When a function like `fileExists 'Dockerfile'` returns `true`, it gets stored in the environment variable as the string `'true'`, not the boolean `true`.
 
-//=== What is the potential impact?
+When developers try to compare these string values directly to boolean literals (`env.IS_DOCKERFILE == true`), the comparison will always fail because you're comparing a string to a boolean. This leads to conditional expressions that don't behave as expected.
+
+For example, if `fileExists 'Dockerfile'` returns `true`, the environment variable `IS_DOCKERFILE` will contain the string `'true'`. Comparing `'true' == true` evaluates to `false` in Groovy, causing stages that should run to be skipped.
+
+This type of bug can be particularly frustrating because the logic appears correct at first glance, but the pipeline behaves unexpectedly due to the implicit type conversion between boolean functions and string environment variables.
+
+=== What is the potential impact?
+
+Pipeline stages may not execute when they should, or may execute when they shouldn't. This can lead to incomplete builds, missing deployment steps, or incorrect conditional logic in CI/CD workflows. In critical deployment scenarios, this could result in failed releases or inconsistent application states.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Convert the environment variable to a boolean using `.toBoolean()` before using it in boolean expressions.
 
 === Code examples
 
@@ -18,27 +24,36 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+environment {
+    IS_DOCKERFILE = fileExists 'Dockerfile'
+}
+when {
+    expression {
+        env.IS_DOCKERFILE == true // Noncompliant
+    }
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+environment {
+    IS_DOCKERFILE = fileExists 'Dockerfile'
+}
+when {
+    expression {
+        env.IS_DOCKERFILE.toBoolean()
+    }
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Jenkins Pipeline Syntax - Environment Variables - https://www.jenkins.io/doc/book/pipeline/syntax/#environment[Official Jenkins documentation on environment variables in declarative pipelines]
 
+ * Jenkins Pipeline Syntax - When Conditions - https://www.jenkins.io/doc/book/pipeline/syntax/#when[Official Jenkins documentation on when conditions in declarative pipelines]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Groovy String to Boolean Conversion - https://docs.groovy-lang.org/latest/html/groovy-jdk/java/lang/String.html#toBoolean()[Groovy documentation for the toBoolean() method]
