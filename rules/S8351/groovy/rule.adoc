@@ -1,16 +1,28 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when `input` statements are used within agent blocks or without timeout configuration in Jenkins pipelines.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Jenkins `input` statements pause pipeline execution to wait for manual or automated approval. This waiting period can cause significant resource waste and pipeline reliability issues.
 
-//=== What is the potential impact?
+When an `input` statement is placed within an agent block, it locks both the workspace and a heavyweight Jenkins executor during the entire approval waiting period. Jenkins executors are limited resources that should be available for actual build work, not sitting idle waiting for human approval. This can lead to resource starvation where other builds queue up waiting for executors that are unnecessarily locked.
+
+Without timeout configuration, `input` statements can cause pipelines to hang indefinitely if the required approval never comes. This might happen when:
+
+* The approver is unavailable or forgets to respond
+* The approval notification is missed or lost
+* There are communication issues in the approval system
+
+These hanging pipelines consume resources indefinitely and can accumulate over time, eventually exhausting available executors and causing the entire Jenkins system to become unresponsive.
+
+=== What is the potential impact?
+
+Resource exhaustion can occur when multiple pipelines with improperly configured input statements consume all available Jenkins executors. This leads to build queues backing up and delayed deployments.
+
+Pipelines may hang indefinitely without timeout configuration, requiring manual intervention to clean up stuck builds. In severe cases, this can cause the entire Jenkins system to become unresponsive, affecting all development teams.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Move input statements outside of agent blocks and wrap them with timeout blocks. Place input statements in stages without agents, then use separate stages with agents for the actual work that requires executors.
 
 === Code examples
 
@@ -18,27 +30,48 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+pipeline {
+    agent any
+    stages {
+        stage('Deploy') {
+            steps {
+                input message: 'Deploy to production?' // Noncompliant
+                sh 'deploy.sh'
+            }
+        }
+    }
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+pipeline {
+    stages {
+        stage('Approval') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    input message: 'Deploy to production?'
+                }
+            }
+        }
+        stage('Deploy') {
+            agent any
+            steps {
+                sh 'deploy.sh'
+            }
+        }
+    }
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Jenkins Pipeline Best Practices - https://www.cloudbees.com/blog/best-practices-for-jenkins-pipeline[CloudBees guide covering Jenkins Pipeline best practices including proper input statement usage]
 
+ * Jenkins Pipeline Syntax - Input Step - https://www.jenkins.io/doc/pipeline/steps/pipeline-input-step/[Official Jenkins documentation for the input pipeline step]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Jenkins Pipeline Syntax - Timeout Step - https://www.jenkins.io/doc/pipeline/steps/workflow-basic-steps/#timeout-enforce-time-limit[Official Jenkins documentation for the timeout pipeline step]
