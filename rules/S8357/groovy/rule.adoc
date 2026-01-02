@@ -1,16 +1,31 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+Methods in Jenkins Pipeline scripts should be annotated with @NonCPS when they are called from constructors, override external class methods, or perform operations incompatible with CPS transformation.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Jenkins Pipeline uses Continuation Passing Style (CPS) transformation to save and restore the execution state of pipeline scripts. This allows pipelines to survive Jenkins restarts and resume where they left off.
 
-//=== What is the potential impact?
+However, CPS transformation has limitations and can cause runtime failures in specific scenarios:
+
+**Constructor calls**: Object construction via the `new` operator cannot be CPS-transformed. When a constructor calls a CPS-transformed method, it throws a `CpsCallableInvocation` exception that cannot be caught, causing the build to fail.
+
+**Override methods**: When you override methods from external classes (Java/Groovy standard libraries, binary classes), the overridden methods become CPS-transformed by default. If these methods are called from non-CPS contexts (like standard library code), it creates a mismatch that can lead to serialization problems and unexpected behavior.
+
+**Performance impact**: CPS transformation adds significant overhead. Methods that don't need pipeline state management (like simple calculations or data transformations) perform better without CPS transformation.
+
+The `@NonCPS` annotation tells Jenkins to skip CPS transformation for specific methods, allowing them to execute using normal Groovy semantics while avoiding the compatibility issues described above.
+
+=== What is the potential impact?
+
+Without proper use of `@NonCPS` annotation, you may experience:
+
+* **Build failures**: Constructor calls to CPS-transformed methods cause uncatchable exceptions that abort the build
+* **Runtime errors**: Method mismatches between CPS and non-CPS contexts can cause unexpected behavior or failures
+* **Performance degradation**: Unnecessary CPS transformation adds overhead to methods that don't require it
+* **Serialization issues**: Override methods may fail when called from external library code that expects normal method behavior
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Add @NonCPS annotation to methods called from constructors. This prevents CPS transformation issues when object construction calls these methods.
 
 === Code examples
 
@@ -18,27 +33,37 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+class Test {
+  def x
+  public Test() {
+    setX()  // Noncompliant: CPS-transformed method called from constructor
+  }
+  private void setX() {
+    this.x = 1
+  }
+}
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-FIXME
+class Test {
+  def x
+  public Test() {
+    setXNonCPS()
+  }
+  @NonCPS
+  private void setXNonCPS() {
+    this.x = 1
+  }
+}
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Jenkins Pipeline CPS Method Mismatches - https://www.jenkins.io/doc/book/pipeline/cps-method-mismatches/[Official Jenkins documentation explaining CPS transformation issues and solutions]
 
-
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Pipeline: Groovy Plugin Documentation - https://plugins.jenkins.io/workflow-cps/[Technical documentation for the Pipeline Groovy plugin including @NonCPS usage]
