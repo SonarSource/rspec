@@ -1,28 +1,26 @@
-This is an issue when `input` statements are used within agent blocks or without timeout configuration in Jenkins pipelines.
+This rule raises an issue when a closure is used inside a GString expression in a Jenkins Pipeline script.
 
 == Why is this an issue?
 
-Jenkins `input` statements pause pipeline execution to wait for manual or automated approval. This waiting period can cause significant resource waste and pipeline reliability issues.
+Jenkins Pipeline uses a Continuation Passing Style (CPS) transformation to allow scripts to be paused and resumed. This transformation affects how closures work in the Pipeline environment.
 
-When an `input` statement is placed within an agent block, it locks both the workspace and a heavyweight Jenkins executor during the entire approval waiting period. Jenkins executors are limited resources that should be available for actual build work, not sitting idle waiting for human approval. This can lead to resource starvation where other builds queue up waiting for executors that are unnecessarily locked.
+In regular Groovy, you can use closures inside GString expressions to create dynamic strings where the closure is evaluated each time the GString is converted to a String. However, in Jenkins Pipeline scripts, this pattern doesn't work as expected because the closure inside the GString gets CPS-transformed.
 
-Without timeout configuration, `input` statements can cause pipelines to hang indefinitely if the required approval never comes. This might happen when:
+When the Pipeline runtime tries to evaluate the GString, it encounters a CPS-transformed closure in a non-CPS context, which causes the CPS interpreter to fail. This results in incorrect behavior and confusing error messages in the Pipeline logs.
 
-* The approver is unavailable or forgets to respond
-* The approval notification is missed or lost
-* There are communication issues in the approval system
+The typical error you'll see in the logs looks like:
 
-These hanging pipelines consume resources indefinitely and can accumulate over time, eventually exhausting available executors and causing the entire Jenkins system to become unresponsive.
+> expected to call WorkflowScript.echo but wound up catching org.jenkinsci.plugins.workflow.cps.CpsClosure2.call
+
+This happens because the Pipeline runtime cannot properly handle the interaction between the non-CPS GString evaluation and the CPS-transformed closure.
 
 === What is the potential impact?
 
-Resource exhaustion can occur when multiple pipelines with improperly configured input statements consume all available Jenkins executors. This leads to build queues backing up and delayed deployments.
-
-Pipelines may hang indefinitely without timeout configuration, requiring manual intervention to clean up stuck builds. In severe cases, this can cause the entire Jenkins system to become unresponsive, affecting all development teams.
+The code will not behave as expected and may produce runtime errors or unexpected results. The Pipeline may fail with confusing error messages, making debugging difficult. In some cases, the GString may not evaluate to the expected value, leading to incorrect string interpolation.
 
 == How to fix it
 
-Move input statements outside of agent blocks and wrap them with timeout blocks. Place input statements in stages without agents, then use separate stages with agents for the actual work that requires executors.
+Replace the GString containing a closure with a closure that returns a GString using normal expressions. Call the closure when you need the string value.
 
 === Code examples
 
@@ -30,48 +28,26 @@ Move input statements outside of agent blocks and wrap them with timeout blocks.
 
 [source,groovy,diff-id=1,diff-type=noncompliant]
 ----
-pipeline {
-    agent any
-    stages {
-        stage('Deploy') {
-            steps {
-                input message: 'Deploy to production?' // Noncompliant
-                sh 'deploy.sh'
-            }
-        }
-    }
-}
+def x = 1
+def s = "x = ${-> x}" // Noncompliant
+x = 2
+echo(s)
 ----
 
 ==== Compliant solution
 
 [source,groovy,diff-id=1,diff-type=compliant]
 ----
-pipeline {
-    stages {
-        stage('Approval') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    input message: 'Deploy to production?'
-                }
-            }
-        }
-        stage('Deploy') {
-            agent any
-            steps {
-                sh 'deploy.sh'
-            }
-        }
-    }
-}
+def x = 1
+def s = { -> "x = ${x}" }
+x = 2
+echo(s())
 ----
 
 == Resources
 
 === Documentation
 
- * Jenkins Pipeline Best Practices - https://www.cloudbees.com/blog/best-practices-for-jenkins-pipeline[CloudBees guide covering Jenkins Pipeline best practices including proper input statement usage]
+ * Jenkins Pipeline CPS Method Mismatches - https://www.jenkins.io/doc/book/pipeline/cps-method-mismatches/[Official Jenkins documentation explaining CPS transformation issues and solutions]
 
- * Jenkins Pipeline Syntax - Input Step - https://www.jenkins.io/doc/pipeline/steps/pipeline-input-step/[Official Jenkins documentation for the input pipeline step]
-
- * Jenkins Pipeline Syntax - Timeout Step - https://www.jenkins.io/doc/pipeline/steps/workflow-basic-steps/#timeout-enforce-time-limit[Official Jenkins documentation for the timeout pipeline step]
+ * Pipeline: Groovy Plugin - https://plugins.jenkins.io/workflow-cps/[Technical background on the Groovy CPS library used by Jenkins Pipeline]
