@@ -1,16 +1,27 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when Flask applications access form data without proper validation, either through direct `request.form` access or by using form objects without calling their validation methods.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+User input validation is a fundamental security practice in web applications. When Flask applications process form data without validation, they become vulnerable to various security threats and data integrity issues.
 
-//=== What is the potential impact?
+Direct access to form data through `request.form` bypasses all validation mechanisms. This means malicious or malformed data can be processed directly by the application, potentially leading to:
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+* **Injection attacks**: Unvalidated input can contain malicious code that gets executed
+* **Data corruption**: Invalid data formats can corrupt database records or application state
+* **Application crashes**: Unexpected data types or values can cause runtime errors
+* **Business logic violations**: Data that doesn't meet business rules can create inconsistent application state
+
+Even when using form libraries like WTForms, simply creating a form object doesn't provide protection. The validation must be explicitly triggered by calling methods like `validate()` or `validate_on_submit()`. Without these calls, the form's validation rules are never executed.
+
+Dynamic fields obtained through `request.form.getlist()` present additional challenges, as they may not be covered by standard form schemas and require custom validation logic.
+
+=== What is the potential impact?
+
+Processing unvalidated form data can lead to serious security vulnerabilities including injection attacks, data corruption, and application crashes. Attackers can exploit this to manipulate application behavior, access unauthorized data, or cause denial of service.
+
+== How to fix it in Flask
+
+Always validate form data before processing it. Use WTForms or similar libraries to define validation rules and call the validate() method before accessing form data.
 
 === Code examples
 
@@ -18,27 +29,81 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+@app.route('/submit', methods=['POST'])
+def submit_form():
+    # Direct access without validation
+    name = request.form['name']  # Noncompliant
+    phone_numbers = request.form.getlist('phone')  # Noncompliant
+    user = User(name)
+    for phone in phone_numbers:
+        save_phone(phone)
+    return redirect(url_for('success'))
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+@app.route('/submit', methods=['POST'])
+def submit_form():
+    form = ContactForm(request.form)
+    if form.validate():
+        phone_numbers = request.form.getlist('phone')
+        for phone in phone_numbers:
+            if not validate_phone_format(phone):
+                flash('Invalid phone format')
+                return render_template('contact.html', form=form)
+            save_phone(phone)
+        user = User(form.name.data)
+        return redirect(url_for('success'))
+    return render_template('contact.html', form=form)
 ----
 
-//=== How does this work?
+When using form objects, always call the validation method before processing the data. Never access form.field.data without first ensuring the form is valid.
 
-//=== Pitfalls
+==== Noncompliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+@app.route('/register', methods=['POST'])
+def register():
+    form = RegistrationForm(request.form)
+    # Processing without validation
+    user = User(form.username.data, form.email.data)  # Noncompliant
+    db_session.add(user)
+    return redirect(url_for('login'))
+----
 
+==== Compliant solution
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+[source,python,diff-id=2,diff-type=compliant]
+----
+@app.route('/register', methods=['POST'])
+def register():
+    form = RegistrationForm(request.form)
+    if form.validate():
+        user = User(form.username.data, form.email.data)
+        db_session.add(user)
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask Form Validation with WTForms - https://flask.palletsprojects.com/en/stable/patterns/wtforms/[Official Flask documentation on form validation patterns using WTForms]
+
+ * WTForms Documentation - https://wtforms.readthedocs.io/en/stable/[Complete documentation for the WTForms validation library]
+
+ * Flask-WTF Documentation - https://flask-wtf.readthedocs.io/en/stable/[Documentation for Flask-WTF extension that integrates WTForms with Flask]
+
+=== Standards
+
+ * OWASP Top 10 2021 A3 - https://owasp.org/Top10/A03_2021-Injection/[Injection vulnerabilities occur when untrusted data is sent to an interpreter as part of a command or query]
+
+ * CWE 20 - https://cwe.mitre.org/data/definitions/20.html[Improper Input Validation - The product does not validate or incorrectly validates input]
+
+=== Related rules
+
+ * S6967 - ASP.NET Core controllers should validate model state
