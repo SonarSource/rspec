@@ -1,97 +1,56 @@
-This rule raises an issue when `torch.tensor()` is used to convert a list or sequence of existing PyTorch tensors into a single tensor.
+This is an issue when Flask error handlers that may be triggered by database errors do not include a database session rollback.
 
 == Why is this an issue?
 
-When you have a list of existing tensors and want to combine them into a single tensor, using `torch.tensor()` creates unnecessary memory overhead and can lead to out-of-memory errors.
+When a database error occurs in a Flask application, the database session enters a failed state. If an error handler is triggered by such a database error but doesn't roll back the session, any subsequent database operations will fail.
 
-The `torch.tensor()` constructor creates a completely new tensor by copying data from the input. When applied to a list of existing tensors, this means:
+This commonly happens with 500 error handlers, which are often triggered by database constraint violations, connection issues, or other database-related problems. When these handlers render error templates or perform other operations that might access the database, they will encounter additional errors because the session is still in a failed state.
 
-* The original tensors remain in memory
-* A new tensor is created with duplicated data
-* Memory usage effectively doubles
+For example, if a user tries to register with a username that already exists, a database constraint violation occurs. The 500 error handler is triggered, but if it doesn't roll back the session, any database queries in the error template (like fetching user information for the navigation bar) will fail, potentially causing a cascade of errors.
 
-This memory duplication becomes particularly problematic when working with GPU tensors, where memory is often limited. Large tensor operations can quickly exhaust available CUDA memory, causing runtime errors.
-
-The `torch.cat()` function is specifically designed for concatenating existing tensors. It efficiently combines tensors along a specified dimension without creating unnecessary copies of the original data.
+Rolling back the session resets it to a clean state, ensuring that subsequent database operations can proceed normally. This prevents error handlers from becoming sources of additional errors and ensures a better user experience during error conditions.
 
 === What is the potential impact?
 
-Memory inefficiency can lead to:
+Without proper session rollbacks in error handlers, applications may experience cascading failures where a single database error triggers multiple subsequent errors. This can lead to:
 
-* Increased memory consumption, potentially doubling memory usage
-* CUDA out-of-memory errors when working with GPU tensors
-* Slower performance due to unnecessary data copying
-* Application crashes in memory-constrained environments
+* Error pages that fail to render properly
+* Incomplete error logging or reporting
+* Poor user experience with confusing error messages
+* Difficulty in debugging the root cause of issues
+* Potential application crashes in severe cases
 
-=== How to fix in PyTorch?
+== How to fix it
 
-Replace `torch.tensor()` with `torch.cat()` when concatenating existing tensors. Specify the dimension along which to concatenate using the `dim` parameter.
+Add a database session rollback at the beginning of error handlers that may be triggered by database errors. This ensures the session is reset to a clean state before any subsequent operations.
 
-==== Non-compliant code example
+=== Code examples
+
+==== Noncompliant code example
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-import torch
-
-# Collect tensors in a list
-tensor_list = []
-for i in range(10):
-    tensor_list.append(torch.randn(5, 10))
-
-# Memory-inefficient: creates duplicate data
-result = torch.tensor(tensor_list)  # Noncompliant
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('500.html'), 500  # Noncompliant
 ----
 
-==== Compliant code example
+==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-import torch
-
-# Collect tensors in a list
-tensor_list = []
-for i in range(10):
-    tensor_list.append(torch.randn(5, 10))
-
-# Memory-efficient: concatenates without duplication
-result = torch.cat(tensor_list, dim=0)
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('500.html'), 500
 ----
 
-When working with GPU tensors, the memory efficiency of `torch.cat()` becomes even more critical to avoid CUDA out-of-memory errors.
-
-==== Non-compliant code example
-
-[source,python,diff-id=2,diff-type=noncompliant]
-----
-import torch
-
-device = torch.device('cuda')
-tensor_list = []
-for i in range(100):
-    tensor_list.append(torch.randn(1000, 1000).to(device))
-
-# Risk of CUDA OOM due to memory duplication
-result = torch.tensor(tensor_list)  # Noncompliant
-----
-
-==== Compliant code example
-
-[source,python,diff-id=2,diff-type=compliant]
-----
-import torch
-
-device = torch.device('cuda')
-tensor_list = []
-for i in range(100):
-    tensor_list.append(torch.randn(1000, 1000).to(device))
-
-# Efficient concatenation without memory duplication
-result = torch.cat(tensor_list, dim=0)
-----
+== Resources
 
 === Documentation
 
- * PyTorch torch.cat documentation - https://pytorch.org/docs/stable/generated/torch.cat.html[Official documentation for torch.cat function]
- * PyTorch torch.tensor documentation - https://pytorch.org/docs/stable/generated/torch.tensor.html[Official documentation for torch.tensor constructor]
- * PyTorch Memory Management - https://pytorch.org/docs/stable/notes/cuda.html#memory-management[Guide to PyTorch CUDA memory management best practices]
+ * Flask Error Handling Documentation - https://flask.palletsprojects.com/en/2.3.x/errorhandling/[Official Flask documentation on error handling patterns and best practices]
 
+ * SQLAlchemy Session Management - https://docs.sqlalchemy.org/en/20/orm/session_basics.html#rolling-back[SQLAlchemy documentation on session rollback and transaction management]
+
+ * Flask-SQLAlchemy Error Handling - https://flask-sqlalchemy.palletsprojects.com/en/3.0.x/contexts/[Flask-SQLAlchemy documentation on handling database errors and session management]
