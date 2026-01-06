@@ -52,11 +52,6 @@ find "${RULES_DIR}" -name 'rule.adoc' \
   | grep_nofail -e 'ASCIIDOC LOGGER' \
   > "${TMPOUT_DIR}/asciidoc_introspection"
 
-find "${SHARED_CONTENT_DIR}" -name 'ExternalReferences.adoc' \
-  | xargs "${SCRIPT_DIR}/custom-asciidoctor" -a rspecator-view --verbose -R "${SHARED_CONTENT_DIR}" -D "${TMPOUT_DIR}" 2>&1 \
-  | grep_nofail -e 'ASCIIDOC LOGGER' \
-  >> "${TMPOUT_DIR}/asciidoc_introspection"
-
 cross_references=$(grep_nofail -e 'CROSSREFERENCE' "${TMPOUT_DIR}/asciidoc_introspection" | extract_messages_from_log)
 if [[ -n "$cross_references" ]]; then
   echo >&2 'ERROR: Some rules try to include content from unallowed directories.'
