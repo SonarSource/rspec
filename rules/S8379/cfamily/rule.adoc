@@ -1,16 +1,35 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when a mutex is destroyed (either implicitly by going out of scope or explicitly through operations like `reset()`) while it is in a locked state.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+A mutex (mutual exclusion object) is a synchronization primitive used to protect shared data from concurrent access. When a thread locks a mutex, it gains exclusive access to the protected resource. The mutex must be unlocked before it can be destroyed.
 
-//=== What is the potential impact?
+Destroying a locked mutex violates the fundamental contract of mutex ownership and results in undefined behavior according to the C++ standard. This can occur in two ways:
+
+* *Implicit destruction*: When a mutex object goes out of scope while still locked
+* *Explicit destruction*: When explicitly destroying a mutex (such as calling `reset()` on an `std::optional<std::mutex>`) while it is locked
+
+The undefined behavior can manifest in various ways:
+
+* The program may crash immediately or at a later point
+* Other threads waiting on the mutex may deadlock indefinitely
+* Memory corruption may occur
+* The behavior may appear to work in some environments but fail in others
+
+The C++ standard library provides RAII (Resource Acquisition Is Initialization) wrappers like `std::lock_guard` and `std::scoped_lock` that automatically unlock mutexes when they go out of scope, helping prevent this issue. However, manual locking with `lock()` requires careful attention to ensure `unlock()` is called before the mutex is destroyed.
+
+=== What is the potential impact?
+
+Destroying a locked mutex causes undefined behavior, which can lead to:
+
+* *Program crashes*: The application may terminate unexpectedly
+* *Deadlocks*: Other threads waiting to acquire the mutex may hang indefinitely
+* *Data corruption*: The undefined behavior may corrupt program state or memory
+* *Unpredictable behavior*: The program may appear to work in some scenarios but fail in others, making bugs difficult to reproduce and diagnose
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Ensure the mutex is unlocked before it goes out of scope. When using manual locking with `lock()`, always call `unlock()` before the mutex is destroyed.
 
 === Code examples
 
@@ -18,27 +37,39 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,cpp,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+void processData() {
+  std::mutex m;
+  m.lock();
+  // ... perform operations ...
+} // Noncompliant: mutex destroyed while locked
 ----
 
 ==== Compliant solution
 
 [source,cpp,diff-id=1,diff-type=compliant]
 ----
-FIXME
+void processData() {
+  std::mutex m;
+  m.lock();
+  // ... perform operations ...
+  m.unlock();
+} // mutex unlocked before destruction
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * C++ Reference - std::mutex - https://en.cppreference.com/w/cpp/thread/mutex[Documentation for std::mutex including lifecycle requirements]
 
+ * C++ Reference - std::lock_guard - https://en.cppreference.com/w/cpp/thread/lock_guard[RAII wrapper for mutex management]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * C++ Reference - std::scoped_lock - https://en.cppreference.com/w/cpp/thread/scoped_lock[RAII wrapper that can lock multiple mutexes]
+
+=== Standards
+
+ * CWE 667 - https://cwe.mitre.org/data/definitions/667.html[CWE-667: Improper Locking]
+
+=== Related rules
+
+ * S5487 - Related rule for C/C++ mutex handling
