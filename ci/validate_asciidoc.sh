@@ -92,7 +92,7 @@ do
           # and run asciidoctor on them instead.
           # We add the implicit header "Description" to prevent an asciidoctor warning.
           TMP_ADOC="$language/tmp_$(basename "${dir}")_${language##*/}.adoc"
-          echo "include::../../../shared_content/ExternalReferences.adoc[]
+          echo "include::../../../external_refs/ExternalReferences.adoc[]
 == Description" > "$TMP_ADOC"
           cat "$RULE" >> "$TMP_ADOC"
         else
