@@ -1,16 +1,24 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when a Flask signal handler function does not include a `++**extra++` parameter in its signature.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Flask signal handlers that don't include a `++**extra++` parameter may break when Flask is upgraded to a newer version that introduces additional arguments to signals.
 
-//=== What is the potential impact?
+Flask uses the Blinker library to implement signals, which are a lightweight way to notify subscribers of certain events during the application lifecycle. When you subscribe to a signal, Flask calls your handler function with specific arguments.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+The Flask team may add new arguments to signals in future versions to provide additional context or functionality. If your signal handler doesn't accept these new arguments through a `++**extra++` parameter, Python will raise a TypeError when Flask tries to call your function with the unexpected arguments.
+
+This creates a maintenance burden because your application could suddenly break after a Flask upgrade, even though your code hasn't changed. The `++**extra++` parameter acts as a safety net, allowing your handler to gracefully accept any additional arguments that Flask might introduce.
+
+=== What is the potential impact?
+
+When Flask introduces new signal arguments in a future version, signal handlers without `++**extra++` parameters will raise TypeError exceptions. This can cause application crashes, failed request processing, or broken functionality that depends on signal handling.
+
+The impact is particularly problematic during Flask upgrades, as previously working code will suddenly fail without any changes to your application logic.
+
+== How to fix it in Flask
+
+Add a `++**extra++` parameter to the signal handler function signature. This parameter will capture any additional arguments that Flask might pass to the signal in future versions.
 
 === Code examples
 
@@ -18,27 +26,54 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from flask import template_rendered
+
+@template_rendered.connect_via(app)
+def when_template_rendered(sender, template, context):  # Noncompliant
+    print(f'Template {template.name} is rendered')
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from flask import template_rendered
+
+@template_rendered.connect_via(app)
+def when_template_rendered(sender, template, context, **extra):
+    print(f'Template {template.name} is rendered')
 ----
 
-//=== How does this work?
+The same principle applies when using the `connect()` method directly to subscribe to signals.
 
-//=== Pitfalls
+==== Noncompliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from flask import request_started
 
+def log_request_start(sender):  # Noncompliant
+    print(f'Request started for {sender.name}')
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+request_started.connect(log_request_start, app)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from flask import request_started
+
+def log_request_start(sender, **extra):
+    print(f'Request started for {sender.name}')
+
+request_started.connect(log_request_start, app)
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask Signals Documentation - https://flask.palletsprojects.com/en/stable/signals/[Official Flask documentation on signals, including the recommendation to use **extra parameters]
+
+ * Blinker Documentation - https://blinker.readthedocs.io/[Documentation for the Blinker library that Flask uses to implement signals]
