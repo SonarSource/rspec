@@ -23,7 +23,8 @@ def download_cpp_core_guidelines():
                 match = re.match(r'(?:<a name="([^"]+)"></a>)?([^:]+):\s*(.+)$', guideline)
                             
                 if match:
-                    guideline_anchor = match.group(1) if match.group(1) else match.group(2).lower().replace('.', '')
+                    guideline_anchor = match.group(2) + ": " + match.group(3)
+                    guideline_anchor = ''.join(c.lower() if c.isalnum() else '-' if c == ' ' else '' for c in guideline_anchor)
                     guideline_id = match.group(2)
                     guideline_title = match.group(3)
                 else:
