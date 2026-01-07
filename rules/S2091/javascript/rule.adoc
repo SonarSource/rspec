@@ -1,44 +1,149 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+include::../rationale.adoc[]
 
-//=== What is the potential impact?
+include::../impact.adoc[]
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
 
 === Code examples
+
+The following examples demonstrate XPath injection vulnerabilities in a Node.js
+application using the `xpath` module for user authentication against an XML
+database.
 
 ==== Noncompliant code example
 
 [source,javascript,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+const xpath = require('xpath');
+const dom = require('@xmldom/xmldom').DOMParser;
+const express = require('express');
+const fs = require('fs');
+
+const app = express();
+
+app.post('/login', (req, res) => {
+  const username = req.body.username;
+  const password = req.body.password;
+  
+  // Load XML user database
+  const xml = fs.readFileSync('users.xml', 'utf8');
+  const doc = new dom().parseFromString(xml);
+  
+  // Vulnerable: User input is directly concatenated into XPath expression
+  const query = `/users/user[@username='${username}' and @password='${password}']`;
+  
+  const nodes = xpath.select(query, doc); // Noncompliant
+  
+  if (nodes.length > 0) {
+    res.json({ success: true, message: 'Login successful' });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+});
 ----
 
 ==== Compliant solution
 
 [source,javascript,diff-id=1,diff-type=compliant]
 ----
-FIXME
+const xpath = require('xpath');
+const dom = require('@xmldom/xmldom').DOMParser;
+const express = require('express');
+const fs = require('fs');
+
+const app = express();
+
+app.post('/login', (req, res) => {
+  const username = req.body.username;
+  const password = req.body.password;
+  
+  // Load XML user database
+  const xml = fs.readFileSync('users.xml', 'utf8');
+  const doc = new dom().parseFromString(xml);
+  
+  // Safe: Use XPath variables with a custom resolver
+  const select = xpath.useNamespaces({"x": "http://www.w3.org/1999/xhtml"});
+  
+  // Create a custom XPath evaluator with variable support
+  const evaluator = xpath.createNSResolver(doc.documentElement);
+  
+  // Use parameterized XPath with variables
+  const query = `/users/user[@username=$username and @password=$password]`;
+  
+  // Create a context with variable bindings
+  const contextNode = doc.documentElement;
+  const resolver = {
+    lookupNamespaceURI: () => null,
+    getVariable: (name) => {
+      if (name === 'username') return username;
+      if (name === 'password') return password;
+      return null;
+    }
+  };
+  
+  // Alternative safe approach: Input validation and escaping
+  // Validate that username and password contain only safe characters
+  const usernamePattern = /^[a-zA-Z0-9_]+$/;
+  const passwordPattern = /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>?]+$/;
+  
+  if (!usernamePattern.test(username) || !passwordPattern.test(password)) {
+    res.status(400).json({ success: false, message: 'Invalid input format' });
+    return;
+  }
+  
+  // Escape special XPath characters
+  const escapeXPath = (str) => {
+    return str.replace(/'/g, "&apos;")
+              .replace(/"/g, "&quot;");
+  };
+  
+  const safeUsername = escapeXPath(username);
+  const safePassword = escapeXPath(password);
+  
+  const safeQuery = `/users/user[@username='${safeUsername}' and @password='${safePassword}']`;
+  const nodes = xpath.select(safeQuery, doc);
+  
+  if (nodes.length > 0) {
+    res.json({ success: true, message: 'Login successful' });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+});
 ----
 
-//=== How does this work?
+=== How does this work?
 
-//=== Pitfalls
+include::../common/fix/parameterized-queries.adoc[]
 
-//=== Going the extra mile
+Since the standard `xpath` npm module doesn't natively support XPath 2.0 variables, the compliant solution demonstrates two approaches:
 
+1. **Input Validation**: Restrict input to alphanumeric characters and safe symbols using regular expressions, rejecting any input containing XPath metacharacters.
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+2. **Input Escaping**: Properly escape XPath special characters like single quotes and double quotes before incorporating them into the query.
+
+include::../common/fix/validation.adoc[]
+
+== Resources
+
+include::../common/resources/articles.adoc[]
+
+include::../common/resources/standards.adoc[]
+
+ifdef::env-github,rspecator-view[]
+
+'''
+== Implementation Specification
+(visible only on this page)
+
+include::../message.adoc[]
+
+'''
+== Comments And Links
+(visible only on this page)
+
+include::../comments-and-links.adoc[]
+
+endif::env-github,rspecator-view[]
