@@ -1,5 +1,9 @@
 == Why is this an issue?
 
+When a workflow invokes an action with untrusted input parameters, and that action forwards them unchecked to a shell interpreter, the interpreter may treat those inputs as shell commands causing a command injection vulnerability.
+
+Note, that actions implemented in other languages (such as JavaScript) are not directly vulnerable to this issue, as long as they do not evaluate the input as code.
+
 GitHub Actions workflows can access various sources of untrusted data through the GitHub context, such as:
 
 * Pull request titles, descriptions, and commit messages
@@ -7,13 +11,10 @@ GitHub Actions workflows can access various sources of untrusted data through th
 * Branch names and tag names
 * User-provided inputs
 
-If this untrusted data is given as a parameter to an invoked action and directly interpolated into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to script injection vulnerabilities.
+If this untrusted data is given as a parameter to an invoked action, which directly interpolates it into shell commands using GitHub's expression syntax (`${{ ... }}`), it can lead to script injection vulnerabilities.
 An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.
 
-For instance, if a pull request title contains shell metacharacters like `$(whoami)` or `; rm -rf /`, these will be executed as commands when the workflow runs, potentially compromising the build environment or exposing sensitive information.
-
-The risk is particularly high when untrusted data is passed as inputs to actions that use `run` blocks to execute shell commands.
-Actions written in other languages, like Javascript, are not directly vulnerable if they do not evaluate the input like a shell interpreter does.
+For instance, if a pull request title contains shell metacharacters like `$(whoami)` or `; rm -rf /`, these can be executed as commands when the called workflow executes, potentially compromising the build environment or exposing sensitive information.
 
 === What is the potential impact?
 
@@ -29,7 +30,8 @@ include::../../../shared_content/githubactions/impact/repository_manipulation.ad
 
 == How to fix it
 
-To prevent command injection in GitHub Actions workflows, avoid directly interpolating untrusted data into shell commands. Instead, use environment variables to safely pass untrusted data without risk of code execution.
+To prevent potential command injection in called GitHub Actions workflows, avoid directly interpolating untrusted data passed into the invoked actions.
+Instead, use environment variables to safely pass untrusted data without risk of code execution even if the receiving action passes them as-is into a step executed by a shell interpreter.
 
 The recommended approach is to assign untrusted data to environment variables using the `env` key, then reference these variables using standard shell variable syntax (`$VARIABLE_NAME` or `${VARIABLE_NAME}`) rather than GitHub's expression syntax (`${{ ... }}`).
 
@@ -37,7 +39,7 @@ The recommended approach is to assign untrusted data to environment variables us
 
 ==== Noncompliant code example
 
-The following GitHub Action is vulnerable to command injections as it uses untrusted input directly in a run command:
+The following workflow is vulnerable to command injection if the `helloaction` passes the `message` parameter directly to a shell interpreter.
 
 [source,yaml,diff-id=1,diff-type=noncompliant]
 ----
