@@ -1,0 +1,54 @@
+This rule raises an issue when a call to `Object.wait()` is not within a `while` loop.
+
+== Why is this an issue?
+
+Calls to `Object.wait()` should always be placed inside `while` loops to handle two critical concurrency scenarios properly.
+
+First, the Java Virtual Machine can produce **spurious wakeups**. This means that a thread waiting on a condition can be awakened even when the condition has not actually been satisfied. If the `wait()` call is inside an `if` statement, the thread will proceed after the spurious wakeup without rechecking the condition, potentially leading to incorrect behavior.
+
+Second, **race conditions** can occur when multiple threads are involved. Between the time a condition is checked and the `wait()` method is called, another thread might change the condition. If the condition was satisfied by another thread before `wait()` is invoked, the current thread could wait indefinitely for a condition that has already been met.
+
+Using a `while` loop ensures that the condition is rechecked immediately after the thread wakes up, providing protection against both spurious wakeups and race conditions.
+
+=== What is the potential impact?
+
+When `wait()` calls are not properly guarded by `while` loops, applications can experience:
+
+* **Deadlocks**: Threads may wait indefinitely for conditions that have already been satisfied
+* **Data corruption**: Threads may proceed with operations when the required conditions are not actually met
+* **Unpredictable behavior**: Spurious wakeups can cause threads to execute code at inappropriate times
+* **Race conditions**: Multiple threads may interfere with each other's execution in unexpected ways
+
+These issues are particularly difficult to debug because they may occur intermittently and depend on timing and thread scheduling.
+
+== How to fix it
+
+Replace the `if` statement with a `while` loop.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+synchronized(data) {
+    if (!data.isReady()) {
+        data.wait() // Noncompliant
+    }
+    data.process()
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+synchronized(data) {
+    while (!data.isReady()) {
+        data.wait() // Compliant
+    }
+    data.process()
+}
+----
+
+== Resources
