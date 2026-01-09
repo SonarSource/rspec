@@ -31,12 +31,13 @@ app.post('/login', (req, res) => {
   // Load XML user database
   const xml = fs.readFileSync('users.xml', 'utf8');
   const doc = new dom().parseFromString(xml);
-  
-  // Vulnerable: User input is directly concatenated into XPath expression
-  const query = `/users/user[@username='${username}' and @password='${password}']`;
-  
-  const nodes = xpath.select(query, doc); // Noncompliant
-  
+
+  const evaluator = xpath.parse(`/users/user[@username='${username}' and @password='${password}']`);
+
+  const nodes = evaluator.select({
+    node: doc,
+  }); // Noncompliant
+
   if (nodes.length > 0) {
     res.json({ success: true, message: 'Login successful' });
   } else {
@@ -63,49 +64,17 @@ app.post('/login', (req, res) => {
   // Load XML user database
   const xml = fs.readFileSync('users.xml', 'utf8');
   const doc = new dom().parseFromString(xml);
-  
-  // Safe: Use XPath variables with a custom resolver
-  const select = xpath.useNamespaces({"x": "http://www.w3.org/1999/xhtml"});
-  
-  // Create a custom XPath evaluator with variable support
-  const evaluator = xpath.createNSResolver(doc.documentElement);
-  
-  // Use parameterized XPath with variables
-  const query = `/users/user[@username=$username and @password=$password]`;
-  
-  // Create a context with variable bindings
-  const contextNode = doc.documentElement;
-  const resolver = {
-    lookupNamespaceURI: () => null,
-    getVariable: (name) => {
-      if (name === 'username') return username;
-      if (name === 'password') return password;
-      return null;
+
+  const evaluator = xpath.parse('/users/user[@username=$username and @password=$password]');
+
+  const nodes = evaluator.select({
+    node: doc,
+    variables: {
+      username: username,
+      password: password
     }
-  };
-  
-  // Alternative safe approach: Input validation and escaping
-  // Validate that username and password contain only safe characters
-  const usernamePattern = /^[a-zA-Z0-9_]+$/;
-  const passwordPattern = /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>?]+$/;
-  
-  if (!usernamePattern.test(username) || !passwordPattern.test(password)) {
-    res.status(400).json({ success: false, message: 'Invalid input format' });
-    return;
-  }
-  
-  // Escape special XPath characters
-  const escapeXPath = (str) => {
-    return str.replace(/'/g, "&apos;")
-              .replace(/"/g, "&quot;");
-  };
-  
-  const safeUsername = escapeXPath(username);
-  const safePassword = escapeXPath(password);
-  
-  const safeQuery = `/users/user[@username='${safeUsername}' and @password='${safePassword}']`;
-  const nodes = xpath.select(safeQuery, doc);
-  
+  });
+
   if (nodes.length > 0) {
     res.json({ success: true, message: 'Login successful' });
   } else {
