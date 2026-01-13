@@ -1,16 +1,31 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when Python code generates HTML containing inline `<script>` tags without proper Content Security Policy (CSP) nonce attributes.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Content Security Policy (CSP) is a security feature that helps prevent Cross-Site Scripting (XSS) attacks by controlling which scripts can execute on a web page.
 
-//=== What is the potential impact?
+When you include inline scripts in HTML without proper CSP nonces, you create security vulnerabilities. A nonce (number used once) is a random value that must be included in both the CSP header and the script tag. This ensures that only scripts with the correct nonce can execute.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+Without nonces, inline scripts either:
+
+* Get blocked by strict CSP policies, breaking functionality
+* Require unsafe CSP directives like `'unsafe-inline'`, which defeats the security purpose
+* Leave the application vulnerable to XSS attacks where malicious scripts can be injected
+
+Modern web applications should generate unique nonces for each request and include them in all inline scripts to maintain both security and functionality.
+
+=== What is the potential impact?
+
+Missing CSP nonces can lead to:
+
+* **Cross-Site Scripting (XSS) vulnerabilities**: Attackers can inject malicious scripts that will execute in users' browsers
+* **Data theft**: Malicious scripts can steal sensitive user data, session tokens, or personal information
+* **Account compromise**: Attackers can perform actions on behalf of users without their knowledge
+* **Broken functionality**: Strict CSP policies will block inline scripts without nonces, causing application features to fail
+
+== How to fix it in Django
+
+Use Django's CSP middleware to generate nonces and include them in inline scripts. Install django-csp and configure it properly.
 
 === Code examples
 
@@ -18,27 +33,99 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from django.http import HttpResponse
+
+def my_view(request):
+    html = '''
+    <script>
+        console.log('This script has no nonce'); // Noncompliant
+    </script>
+    '''
+    return HttpResponse(html)
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from django.http import HttpResponse
+from django.template import Template, Context
+
+def my_view(request):
+    template = Template('''
+    <script nonce="{{ request.csp_nonce }}">
+        console.log('This script has a proper nonce');
+    </script>
+    ''')
+    html = template.render(Context({'request': request}))
+    return HttpResponse(html)
 ----
 
-//=== How does this work?
+== How to fix it in Flask
 
-//=== Pitfalls
+Generate a unique nonce for each request and include it in both the CSP header and inline scripts.
 
-//=== Going the extra mile
+=== Code examples
 
+==== Noncompliant code example
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from flask import Flask, render_template_string
+import secrets
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    html = '''
+    <script>
+        console.log('No nonce here'); // Noncompliant
+    </script>
+    '''
+    return html
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from flask import Flask, render_template_string, g
+import secrets
+
+app = Flask(__name__)
+
+@app.before_request
+def generate_nonce():
+    g.nonce = secrets.token_urlsafe(16)
+
+@app.after_request
+def set_csp_header(response):
+    response.headers['Content-Security-Policy'] = f"script-src 'nonce-{g.nonce}'"
+    return response
+
+@app.route('/')
+def index():
+    html = f'''
+    <script nonce="{g.nonce}">
+        console.log('This script has a proper nonce');
+    </script>
+    '''
+    return html
+----
+
+== Resources
+
+=== Documentation
+
+ * MDN Content Security Policy - https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP[Comprehensive guide to Content Security Policy implementation]
+
+ * Django CSP Documentation - https://django-csp.readthedocs.io/[Django Content Security Policy middleware documentation]
+
+ * Flask-CSP Extension - https://flask-csp.readthedocs.io/[Flask extension for Content Security Policy headers]
+
+=== Standards
+
+ * OWASP Top 10 2021 A3 - https://owasp.org/Top10/A03_2021-Injection/[Injection vulnerabilities including XSS]
+
+ * CWE 79 - https://cwe.mitre.org/data/definitions/79.html[Cross-site Scripting (XSS)]
