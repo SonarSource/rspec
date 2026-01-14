@@ -1,0 +1,78 @@
+This rule raises an issue when boolean variables are used for check-and-set operations in code that may run concurrently, creating potential race conditions.
+
+== Why is this an issue?
+
+In multi-threaded applications, using regular boolean variables for check-and-set patterns creates race conditions. When one thread checks a boolean value and then sets it based on that check, another thread might perform the same operations simultaneously.
+
+For example, consider an initialization flag. Thread A checks `if (!initialized)` and finds it false. Before Thread A can set `initialized = true`, Thread B also checks the flag and also finds it false. Now both threads think they need to perform initialization, leading to duplicate work or corrupted state.
+
+This happens because the check and set operations are separate, non-atomic operations. Between these two operations, other threads can interfere and see inconsistent state.
+
+The `AtomicBoolean` class provides atomic operations like `compareAndSet(expectedValue, newValue)` and `getAndSet(newValue)` that perform check-and-set operations atomically. This eliminates the race condition window entirely, ensuring that only one thread can successfully perform the state transition.
+
+=== What is the potential impact?
+
+Race conditions from non-atomic check-and-set operations can lead to:
+
+* *Duplicate initialization*: Multiple threads may initialize the same resource, wasting CPU and memory
+* *Inconsistent application state*: Operations that should run only once may execute multiple times
+* *Data corruption*: Concurrent modifications without proper synchronization can corrupt shared data
+* *Resource leaks*: Duplicate resource allocation without proper cleanup
+* *Unpredictable behavior*: The application may work correctly in testing but fail intermittently in production under load
+
+== How to fix it
+
+Replace the boolean variable with AtomicBoolean and use compareAndSet() for atomic check-and-set operations. This ensures that only one thread can successfully transition from false to true.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+class StateManager {
+    private boolean initialized = false
+    
+    void initialize() {
+        if (!initialized) { // Noncompliant
+            initialized = true
+            doInitialization()
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+import java.util.concurrent.atomic.AtomicBoolean
+
+class StateManager {
+    private AtomicBoolean initialized = new AtomicBoolean(false)
+    
+    void initialize() {
+        if (initialized.compareAndSet(false, true)) {
+            doInitialization()
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * AtomicBoolean (Java Platform SE 8) - https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/atomic/AtomicBoolean.html[Official Java documentation for AtomicBoolean class and its atomic operations]
+
+ * Java Concurrency in Practice - Atomic Variables - https://jcip.net/[Comprehensive guide to Java concurrency patterns and atomic operations]
+
+ * Groovy Documentation - Working with Collections - https://groovy-lang.org/working-with-collections.html[Groovy documentation covering concurrent programming patterns]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race conditions that occur when multiple threads access shared resources without proper synchronization]
+
+=== Related rules
+
+ * RSPEC-2204 - https://rules.sonarsource.com/java/RSPEC-2204/[Java rule for using AtomicBoolean instead of synchronized blocks for simple boolean operations]
