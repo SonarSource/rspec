@@ -1,0 +1,90 @@
+This is an issue when an io.Reader implementation writes to the buffer parameter and then reads from it again, or stores references to it for later use, without copying the data first.
+
+== Why is this an issue?
+
+The `io.Reader` interface contract does not guarantee exclusive ownership of the buffer parameter passed to the `Read()` method. The buffer may be shared between multiple goroutines or reused by the caller for different purposes.
+
+When an implementation assumes it owns the buffer and performs operations like:
+
+* Writing to the buffer and then reading from it again
+* Storing references to the buffer for later use
+* Passing the buffer to other functions that may access it concurrently
+
+This creates data races. Multiple goroutines might simultaneously access the same memory location, leading to unpredictable behavior, corrupted data, or program crashes.
+
+The Go standard library itself has encountered this issue. For example, `ioutil.Discard` originally had a race condition because it reused a global buffer, causing problems when multiple goroutines used it simultaneously with readers that assumed buffer ownership.
+
+This type of bug is particularly difficult to debug because:
+
+* It may only manifest under specific timing conditions
+* Race detectors might not always catch it
+* The symptoms can be subtle data corruption rather than obvious crashes
+
+=== What is the potential impact?
+
+Data races can lead to unpredictable program behavior, including data corruption, incorrect calculations, and program crashes. In concurrent applications, this can cause intermittent failures that are difficult to reproduce and debug. The impact is especially severe in applications that process sensitive data or perform critical calculations, where data integrity is essential.
+
+== How to fix it
+
+Copy data from the shared buffer to a private buffer before using it for additional operations. This ensures your implementation doesn't rely on exclusive ownership of the parameter buffer.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+type trackDigestReader struct {
+    r io.Reader
+    h hash.Hash
+}
+
+func (t *trackDigestReader) Read(p []byte) (n int, err error) {
+    if t.h == nil {
+        t.h = sha1.New()
+    }
+    n, err = t.r.Read(p)    // Noncompliant
+    t.h.Write(p[:n])      // Noncompliant: using shared buffer
+    return
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+type trackDigestReader struct {
+    r io.Reader
+    h hash.Hash
+}
+
+func (t *trackDigestReader) Read(p []byte) (n int, err error) {
+    if t.h == nil {
+        t.h = sha1.New()
+    }
+    n, err = t.r.Read(p)
+    if n > 0 {
+        // Copy to avoid data race on shared buffer
+        buf := make([]byte, n)
+        copy(buf, p[:n])
+        t.h.Write(buf)
+    }
+    return
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go io.Reader documentation - https://pkg.go.dev/io#Reader[Official documentation for the io.Reader interface]
+
+ * Go Memory Model - https://go.dev/ref/mem[Official Go memory model documentation explaining data races and synchronization]
+
+=== Standards
+
+ * CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - https://cwe.mitre.org/data/definitions/362.html[Race conditions and improper synchronization in concurrent programs]
+
+=== Related rules
+
+ * RSPEC-2886 - https://rules.sonarsource.com/go/RSPEC-2886/[Getters and setters should be synchronized in pairs]
