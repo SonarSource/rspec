@@ -1,0 +1,74 @@
+This is an issue when creating unbuffered channels that multiple goroutines will send to, especially when not all sends are guaranteed to have immediate receivers.
+
+== Why is this an issue?
+
+Unbuffered channels require both a sender and receiver to be ready at the same time for communication to occur. When multiple goroutines send to an unbuffered channel without guaranteed receivers, some goroutines may block indefinitely on channel writes.
+
+This blocking prevents goroutines from completing their execution and being garbage collected. Since blocked goroutines hold references to the channel, the channel itself cannot be garbage collected either. Over time, this leads to goroutine leaks and memory consumption that grows without bounds.
+
+The problem is particularly common in patterns where:
+
+* Multiple goroutines are launched to perform work concurrently
+* Results are sent back through a shared channel
+* The main goroutine may return early (e.g., on first error) without reading all results
+
+In such scenarios, remaining goroutines will hang forever trying to send their results to a channel that no longer has receivers.
+
+=== What is the potential impact?
+
+Goroutine leaks can cause serious memory issues in long-running applications. Each leaked goroutine consumes memory for its stack (typically 2KB initially, but can grow). In applications that repeatedly create such patterns, hundreds or thousands of goroutines may accumulate, leading to:
+
+* Increased memory usage that never decreases
+* Potential out-of-memory errors
+* Degraded application performance
+* Resource exhaustion in containerized environments
+
+== How to fix it
+
+Buffer the channel with capacity equal to the number of goroutines that will send to it. This ensures all sends can complete without blocking, allowing goroutines to finish and be garbage collected.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func Query(conns []Conn, query string) Result {
+    ch := make(chan Result) // Noncompliant
+    for _, conn := range conns {
+        go func(c Conn) {
+            ch <- c.DoQuery(query) // may block if no receiver ready
+        }(conn)
+    }
+    return <-ch
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func Query(conns []Conn, query string) Result {
+    ch := make(chan Result, len(conns)) // buffered channel
+    for _, conn := range conns {
+        go func(c Conn) {
+            ch <- c.DoQuery(query) // won't block
+        }(conn)
+    }
+    return <-ch
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Blog: Concurrency Patterns - https://go.dev/blog/go-concurrency-patterns-timing-out-and[Official Go blog post explaining channel buffering patterns and goroutine management]
+
+ * Effective Go: Channels - https://go.dev/doc/effective_go#channels[Official documentation on proper channel usage in Go]
+
+ * Go Memory Model - https://go.dev/ref/mem[Specification of Go's memory model and channel synchronization guarantees]
+
+=== Standards
+
+ * CWE-401: Missing Release of Memory after Effective Lifetime - https://cwe.mitre.org/data/definitions/401.html[Covers memory leaks caused by unreleased resources, including goroutine leaks]
