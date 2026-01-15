@@ -1,0 +1,71 @@
+This is an issue when processing collections of independent items sequentially in a simple loop, where concurrent processing would improve performance without introducing race conditions.
+
+== Why is this an issue?
+
+Sequential processing of independent operations can create performance bottlenecks, especially in cloud and network services where scalability is critical.
+
+When you process items one by one in a loop, your application waits for each operation to complete before starting the next one. This approach underutilizes system resources, particularly when operations involve I/O (network calls, file operations, database queries) or CPU-intensive computations.
+
+In cloud environments, this sequential approach can lead to:
+
+* Poor resource utilization on multi-core systems
+* Increased response times for batch operations
+* Reduced throughput under load
+* Higher infrastructure costs due to inefficient processing
+
+Go's goroutines are designed specifically to address these concurrency challenges. They are lightweight (starting with only 2KB of stack space) and managed efficiently by the Go runtime, making them ideal for concurrent processing of independent operations.
+
+However, concurrent processing is only beneficial when operations are truly independent and don't share mutable state. Adding concurrency to dependent operations can introduce race conditions and data corruption.
+
+=== What is the potential impact?
+
+Sequential processing of independent operations can significantly impact application performance and scalability:
+
+* *Response time*: Batch operations take much longer to complete, affecting user experience
+* *Resource utilization*: CPU cores remain idle while waiting for I/O operations
+* *Scalability*: Applications cannot handle increased load efficiently
+* *Cost*: Cloud deployments require more resources and time to process the same workload
+
+== How to fix it
+
+Use goroutines with sync.WaitGroup to process independent items concurrently. This approach ensures all operations complete before the function returns.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,go,diff-id=1,diff-type=noncompliant]
+----
+func processRequests(requests []Request) {
+    for _, req := range requests {
+        processRequest(req) // Noncompliant: sequential processing
+    }
+}
+----
+
+==== Compliant solution
+
+[source,go,diff-id=1,diff-type=compliant]
+----
+func processRequests(requests []Request) {
+    var wg sync.WaitGroup
+    for _, req := range requests {
+        wg.Add(1)
+        go func(r Request) {
+            defer wg.Done()
+            processRequest(r)
+        }(req)
+    }
+    wg.Wait()
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Go Concurrency Patterns - https://go.dev/blog/pipelines[Official Go blog post explaining concurrency patterns and best practices]
+
+ * Effective Go - Goroutines - https://go.dev/doc/effective_go#goroutines[Official documentation on goroutines and concurrent programming in Go]
+
+ * Go for Cloud & Network Services - https://go.dev/solutions/cloud[Official guide on using Go for cloud computing and the importance of concurrency]
