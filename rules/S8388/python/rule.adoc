@@ -1,31 +1,26 @@
-This is an issue when Python code generates HTML containing inline `<script>` tags without proper Content Security Policy (CSP) nonce attributes.
+This rule raises an issue when a Flask application uses `app.run()` with `host='0.0.0.0'` or similar configurations that bind to all network interfaces, especially when combined with debug mode enabled.
 
 == Why is this an issue?
 
-Content Security Policy (CSP) is a security feature that helps prevent Cross-Site Scripting (XSS) attacks by controlling which scripts can execute on a web page.
+When a Flask application binds to all network interfaces using `host='0.0.0.0'`, it becomes accessible from any network interface on the machine, including external networks. This creates several security risks:
 
-When you include inline scripts in HTML without proper CSP nonces, you create security vulnerabilities. A nonce (number used once) is a random value that must be included in both the CSP header and the script tag. This ensures that only scripts with the correct nonce can execute.
+**Network Exposure**: The application becomes reachable from outside the local machine, potentially exposing it to attackers on the same network or the internet.
 
-Without nonces, inline scripts either:
+**Debug Mode Risks**: When combined with `debug=True`, the application exposes sensitive debugging information, including stack traces, source code, and an interactive debugger that can execute arbitrary code.
 
-* Get blocked by strict CSP policies, breaking functionality
-* Require unsafe CSP directives like `'unsafe-inline'`, which defeats the security purpose
-* Leave the application vulnerable to XSS attacks where malicious scripts can be injected
+**Production Misconfigurations**: Development configurations that bind to all interfaces can accidentally be deployed to production, creating unintended security vulnerabilities.
 
-Modern web applications should generate unique nonces for each request and include them in all inline scripts to maintain both security and functionality.
+**Lack of Access Controls**: Without proper firewall rules or reverse proxy configurations, the application has no protection against unauthorized access attempts.
+
+The `app.run()` method is primarily intended for development purposes. In production environments, Flask applications should be deployed using proper WSGI servers with appropriate security configurations.
 
 === What is the potential impact?
 
-Missing CSP nonces can lead to:
+Attackers can gain unauthorized access to the application from external networks. If debug mode is enabled, they can execute arbitrary code on the server through the interactive debugger. Sensitive application data, configuration details, and system information may be exposed through error messages and debug output.
 
-* **Cross-Site Scripting (XSS) vulnerabilities**: Attackers can inject malicious scripts that will execute in users' browsers
-* **Data theft**: Malicious scripts can steal sensitive user data, session tokens, or personal information
-* **Account compromise**: Attackers can perform actions on behalf of users without their knowledge
-* **Broken functionality**: Strict CSP policies will block inline scripts without nonces, causing application features to fail
+== How to fix it in Flask
 
-== How to fix it in Django
-
-Use Django's CSP middleware to generate nonces and include them in inline scripts. Install django-csp and configure it properly.
+For development, bind to localhost only. For production, use a proper WSGI server instead of app.run().
 
 === Code examples
 
@@ -33,99 +28,80 @@ Use Django's CSP middleware to generate nonces and include them in inline script
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-from django.http import HttpResponse
+from flask import Flask
 
-def my_view(request):
-    html = '''
-    <script>
-        console.log('This script has no nonce'); // Noncompliant
-    </script>
-    '''
-    return HttpResponse(html)
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return 'Hello World!'
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', debug=True)  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-from django.http import HttpResponse
-from django.template import Template, Context
+from flask import Flask
 
-def my_view(request):
-    template = Template('''
-    <script nonce="{{ request.csp_nonce }}">
-        console.log('This script has a proper nonce');
-    </script>
-    ''')
-    html = template.render(Context({'request': request}))
-    return HttpResponse(html)
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return 'Hello World!'
+
+if __name__ == '__main__':
+    # For development only
+    app.run(host='127.0.0.1', debug=False)
+    # For production, use a WSGI server like Gunicorn:
+    # gunicorn -w 4 -b 127.0.0.1:5000 app:app
 ----
 
-== How to fix it in Flask
-
-Generate a unique nonce for each request and include it in both the CSP header and inline scripts.
-
-=== Code examples
+Use environment-based configuration to safely handle different deployment scenarios.
 
 ==== Noncompliant code example
 
 [source,python,diff-id=2,diff-type=noncompliant]
 ----
-from flask import Flask, render_template_string
-import secrets
+import os
+from flask import Flask
 
 app = Flask(__name__)
 
-@app.route('/')
-def index():
-    html = '''
-    <script>
-        console.log('No nonce here'); // Noncompliant
-    </script>
-    '''
-    return html
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=2,diff-type=compliant]
 ----
-from flask import Flask, render_template_string, g
-import secrets
+import os
+from flask import Flask
 
 app = Flask(__name__)
 
-@app.before_request
-def generate_nonce():
-    g.nonce = secrets.token_urlsafe(16)
-
-@app.after_request
-def set_csp_header(response):
-    response.headers['Content-Security-Policy'] = f"script-src 'nonce-{g.nonce}'"
-    return response
-
-@app.route('/')
-def index():
-    html = f'''
-    <script nonce="{g.nonce}">
-        console.log('This script has a proper nonce');
-    </script>
-    '''
-    return html
+if __name__ == '__main__':
+    # Safe defaults for development
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    app.run(host=host, port=5000, debug=debug)
 ----
 
 == Resources
 
 === Documentation
 
- * MDN Content Security Policy - https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP[Comprehensive guide to Content Security Policy implementation]
+ * Flask Deployment Options - https://flask.palletsprojects.com/en/2.3.x/deploying/[Official Flask documentation on secure deployment practices]
 
- * Django CSP Documentation - https://django-csp.readthedocs.io/[Django Content Security Policy middleware documentation]
+ * Flask Security Considerations - https://flask.palletsprojects.com/en/2.3.x/security/[Flask security best practices and common vulnerabilities]
 
- * Flask-CSP Extension - https://flask-csp.readthedocs.io/[Flask extension for Content Security Policy headers]
+ * Gunicorn Documentation - https://docs.gunicorn.org/en/stable/[Production WSGI server for Python web applications]
 
 === Standards
 
- * OWASP Top 10 2021 A3 - https://owasp.org/Top10/A03_2021-Injection/[Injection vulnerabilities including XSS]
+ * OWASP Top 10 2021 A5 - https://owasp.org/Top10/A05_2021-Security_Misconfiguration/[Security Misconfiguration]
 
- * CWE 79 - https://cwe.mitre.org/data/definitions/79.html[Cross-site Scripting (XSS)]
+ * CWE 200 - https://cwe.mitre.org/data/definitions/200.html[Exposure of Sensitive Information to an Unauthorized Actor]
