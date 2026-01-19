@@ -1,16 +1,57 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when a FastAPI path operation function accepts an `UploadFile` parameter but does not explicitly close the file handle after processing. The underlying `SpooledTemporaryFile` remains open, leading to resource leaks that can exhaust available file handles in production environments.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+FastAPI's `UploadFile` class wraps a `SpooledTemporaryFile` object that manages file handles at the operating system level. Unlike regular Python file objects used in `with` statements, `UploadFile` instances are not automatically closed when the request completes.
 
-//=== What is the potential impact?
+When file handles are not explicitly closed, they remain allocated in the operating system until the Python garbage collector runs. In high-traffic applications, this can lead to:
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+* **Resource exhaustion**: The operating system has a limited number of file handles available. Unclosed files consume these handles, eventually preventing the application from opening new files or accepting new connections.
+* **Memory leaks**: `SpooledTemporaryFile` may keep file contents in memory or on disk until explicitly closed, increasing memory pressure.
+* **Unpredictable behavior**: When file handle limits are reached, the application may fail with cryptic errors like "Too many open files" that are difficult to diagnose.
+
+The issue is particularly severe in production environments where:
+
+* Multiple concurrent requests process file uploads
+* The application runs for extended periods without restarts
+* System file handle limits are reached before garbage collection occurs
+
+While FastAPI may handle cleanup automatically in some scenarios, relying on this behavior is risky because:
+
+* The cleanup timing is unpredictable and depends on garbage collection
+* Custom error handlers or middleware may interrupt the normal cleanup flow
+* Different deployment configurations (ASGI servers, worker processes) may behave differently
+
+=== What is the potential impact?
+
+**Resource Exhaustion and Service Degradation**
+
+In production environments, unclosed file handles accumulate over time, leading to:
+
+* Application crashes when the operating system file handle limit is reached
+* Degraded performance as the system struggles with resource constraints
+* Cascading failures affecting other services on the same host
+* Difficult-to-diagnose intermittent errors that only appear under load
+
+**Security and Reliability Concerns**
+
+Resource leaks can be exploited for denial-of-service attacks:
+
+* Attackers can deliberately upload files to exhaust file handles
+* The application becomes unavailable to legitimate users
+* Recovery requires manual intervention (process restart)
+
+**Operational Complexity**
+
+Without proper cleanup:
+
+* Monitoring and alerting become more complex
+* Root cause analysis is harder when issues only manifest under specific load patterns
+* Deployment rollbacks may be necessary when resource leaks are discovered in production
+
+== How to fix it in FastAPI
+
+Use a `try/finally` block to ensure the file is closed even if an exception occurs during processing. For async path operations, use `await file.close()`. For sync operations, use `file.file.close()` to access the underlying `SpooledTemporaryFile`.
 
 === Code examples
 
@@ -18,27 +59,92 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    contents = await file.read()  # Noncompliant
+    with open(file.filename, 'wb') as f:
+        f.write(contents)
+    return {"message": "File uploaded"}
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        with open(file.filename, 'wb') as f:
+            f.write(contents)
+    finally:
+        await file.close()
+    return {"message": "File uploaded"}
 ----
 
-//=== How does this work?
+For synchronous path operations, access the underlying file object via `file.file` and close it explicitly in a `finally` block.
 
-//=== Pitfalls
+==== Noncompliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+@app.post("/upload")
+def upload_file(file: UploadFile = File(...)):
+    contents = file.file.read()  # Noncompliant
+    # Process contents
+    return {"message": "Processed"}
+----
 
+==== Compliant solution
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+[source,python,diff-id=2,diff-type=compliant]
+----
+@app.post("/upload")
+def upload_file(file: UploadFile = File(...)):
+    try:
+        contents = file.file.read()
+        # Process contents
+    finally:
+        file.file.close()
+    return {"message": "Processed"}
+----
+
+When handling multiple file uploads, ensure each file is closed individually. Use a loop with try/finally for each file, or collect files and close them all in a single finally block.
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+@app.post("/upload-multiple")
+async def upload_multiple(files: List[UploadFile] = File(...)):
+    for file in files:  # Noncompliant
+        contents = await file.read()
+        # Process each file
+    return {"message": "Files uploaded"}
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+@app.post("/upload-multiple")
+async def upload_multiple(files: List[UploadFile] = File(...)):
+    try:
+        for file in files:
+            contents = await file.read()
+            # Process each file
+    finally:
+        for file in files:
+            await file.close()
+    return {"message": "Files uploaded"}
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI Request Files Documentation - https://fastapi.tiangolo.com/tutorial/request-files/[Official FastAPI documentation on handling file uploads with UploadFile]
+
+ * Starlette UploadFile API Reference - https://www.starlette.io/requests/#request-files[Starlette documentation for UploadFile, which FastAPI uses internally]
+
+ * Python SpooledTemporaryFile Documentation - https://docs.python.org/3/library/tempfile.html#tempfile.SpooledTemporaryFile[Documentation for the underlying SpooledTemporaryFile class used by UploadFile]
