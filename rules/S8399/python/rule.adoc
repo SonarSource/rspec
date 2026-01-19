@@ -1,16 +1,48 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when you use `@app.exception_handler(Exception)` to catch all exceptions globally in a FastAPI application, especially when debug mode is enabled or when handling built-in exceptions like `StarletteHTTPException`.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+In FastAPI, the `@app.exception_handler(Exception)` decorator may seem like a straightforward way to catch all unhandled exceptions globally. However, this approach has significant limitations that can lead to unhandled errors in your application.
 
-//=== What is the potential impact?
+== The Problem with Exception Handlers
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+FastAPI's exception handler mechanism doesn't intercept all exceptions as you might expect:
+
+* *Debug mode interference*: When `debug=True` is set in your FastAPI application, the framework's built-in debug exception handler takes precedence over your custom handler for the base `Exception` class.
+* *Built-in exception bypass*: Certain Starlette exceptions (like `StarletteHTTPException`) are handled by the framework before reaching your custom exception handler.
+* *Handler priority*: More specific exception handlers registered by FastAPI or Starlette internally may execute before your generic `Exception` handler.
+
+This means that exceptions you expect to catch may slip through, resulting in:
+
+* Unhandled errors reaching your clients
+* Inconsistent error responses
+* Missing error logs for debugging
+* Potential security information leaks through default error pages
+
+== Understanding the Exception Flow
+
+When an exception occurs in FastAPI, it travels through several layers:
+
+. The exception is raised in your endpoint or dependency
+. FastAPI checks for registered exception handlers, starting with the most specific type
+. If no handler matches, the exception propagates to Starlette's exception handling
+. Finally, if still unhandled, it may reach the ASGI server's default error handling
+
+The `@app.exception_handler(Exception)` decorator only registers a handler at step 2, which means exceptions handled at other layers won't trigger your callback.
+
+=== What is the potential impact?
+
+Without proper global exception handling, your application may:
+
+* Expose sensitive error details to clients through default error pages
+* Miss critical errors in your logging system, making debugging difficult
+* Provide inconsistent error responses to API consumers
+* Fail to properly clean up resources when exceptions occur
+* Violate API contracts by returning unexpected error formats
+
+== How to fix it in FastAPI
+
+Use middleware with a try-except block to catch all exceptions globally. Middleware executes for every request and wraps the entire request-response cycle, ensuring no exception escapes unhandled.
 
 === Code examples
 
@@ -18,27 +50,63 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+@app.exception_handler(Exception)
+async def exception_callback(request: Request, exc: Exception):
+    logger.error(exc.detail)
+    return JSONResponse(status_code=500, content={"error": "Internal error"}) # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+@app.middleware("http")
+async def exception_handling(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        logger.error(f"Unhandled exception: {exc}")
+        return JSONResponse(status_code=500, content={"error": "Internal error"})
 ----
 
-//=== How does this work?
+Combine specific exception handlers with middleware for comprehensive coverage. Register handlers for known exception types (like `StarletteHTTPException`) and use middleware as a safety net for unexpected exceptions. Also ensure debug mode is disabled in production.
 
-//=== Pitfalls
+==== Noncompliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+app = FastAPI(debug=True) # Noncompliant
 
+@app.exception_handler(Exception)
+async def handle_exception(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": str(exc)})
+----
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+app = FastAPI(debug=False)
+
+@app.exception_handler(StarletteHTTPException)
+async def handle_http_exception(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+@app.middleware("http")
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        logger.exception("Unhandled exception")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI - Middleware - https://fastapi.tiangolo.com/tutorial/middleware/[Official FastAPI documentation on middleware]
+
+ * FastAPI - Handling Errors - https://fastapi.tiangolo.com/tutorial/handling-errors/[Official FastAPI documentation on exception handlers]
+
+ * Starlette - Exception Handling - https://www.starlette.io/exceptions/[Starlette documentation on exception handling mechanisms]
