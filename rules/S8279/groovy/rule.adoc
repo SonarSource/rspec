@@ -1,0 +1,59 @@
+This rule raises an issue when GINQ parallel querying is used without calling `shutdown` to release the shared thread pool resources.
+
+== Why is this an issue?
+
+GINQ (Groovy-Integrated Query) parallel querying uses a shared thread pool to improve performance when processing large data sources. When parallel querying is enabled with `GQ(parallel: true)`, the system allocates thread pool resources that remain active even after the query completes.
+
+If these resources are not explicitly released by calling `GQ { shutdown }`, they will continue to consume memory and system resources. Over time, this can lead to resource leaks, especially in applications that perform many parallel queries.
+
+The GINQ documentation explicitly states that the shutdown code should be used to release resources after all GINQ statement executions are completed. Without proper shutdown, the thread pool remains active indefinitely, preventing proper garbage collection and potentially causing memory pressure in long-running applications.
+
+=== What is the potential impact?
+
+Resource leaks can accumulate over time, leading to increased memory consumption and potential performance degradation. In server applications or long-running processes, this can eventually cause memory exhaustion or system instability.
+
+== How to fix it
+
+Add a shutdown call after completing all parallel GINQ operations to properly release the shared thread pool resources.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+GQ(parallel: true) {
+    from n in 1..1000
+    select n
+}.toList()
+// Missing shutdown - resources not released
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+GQ(parallel: true) {
+    from n in 1..1000
+    select n
+}.toList()
+
+// Properly release resources
+GQ {
+    shutdown
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * GINQ Parallel Querying Documentation - https://groovy-lang.org/using-ginq.html#_parallel_querying[Official Groovy documentation explaining parallel querying and resource management in GINQ]
+
+=== Standards
+
+ * CWE-404: Improper Resource Shutdown or Release - https://cwe.mitre.org/data/definitions/404.html[Weakness related to improper resource shutdown or release]
+
+=== Related rules
+
+ * RSPEC-2095 - https://rules.sonarsource.com/java/RSPEC-2095/[Resources should be closed in Java - similar resource management pattern]
