@@ -1,16 +1,51 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when a FastAPI path operation function declares a `response_model` that does not include `None` as a valid type, but the function returns `None` either explicitly or implicitly. This violates the API contract and will cause a runtime error in FastAPI 0.80.0 and later.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+When you declare a `response_model` in a FastAPI path operation decorator, you are establishing a contract about what type of data the endpoint will return. FastAPI uses this information to:
 
-//=== What is the potential impact?
+* Validate the response data
+* Generate accurate API documentation
+* Provide type safety for API consumers
+
+If your function returns `None` but the `response_model` doesn't explicitly allow it, you are breaking this contract. This can lead to:
+
+* **Runtime errors**: Starting from FastAPI 0.80.0, returning `None` when not allowed by `response_model` will raise an internal server error (HTTP 500)
+* **Misleading documentation**: The generated OpenAPI documentation will not indicate that `None` (or `null` in JSON) is a possible response
+* **Client confusion**: API consumers will not expect `None` responses, potentially causing errors in their code
+* **Type safety issues**: Type checkers and IDE autocompletion will not reflect the actual behavior
+
+The issue can occur in two ways:
+
+1. **Explicit return of None**: The function explicitly returns `None` with a `return None` statement
+2. **Implicit return of None**: The function has code paths that don't return anything, which implicitly returns `None` in Python
+
+For example, a function with conditional logic might return a value in some branches but not others:
+
+[source,python]
+----
+@app.get("/items/", response_model=Item)
+def get_item(item_id: int):
+    if item_id > 0:
+        return {"name": "foo", "price": 42.0}
+    # Implicit return None when item_id <= 0
+----
+
+This violates the principle of least surprise and can cause production issues that are difficult to debug.
+
+=== What is the potential impact?
+
+The impact of this issue includes:
+
+* **Service disruption**: Users will receive HTTP 500 errors when the endpoint returns `None`, making the API unreliable
+* **Debugging difficulty**: The error occurs at runtime rather than during development, making it harder to catch and fix
+* **API contract violations**: The actual behavior doesn't match the documented behavior, breaking trust with API consumers
+* **Security concerns**: Unexpected `None` values might bypass validation logic that assumes a specific data structure
+* **Maintenance burden**: Developers must track down all code paths to ensure they handle the `None` case correctly
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+If your function can legitimately return `None`, update the `response_model` to explicitly allow it using `Union` or `Optional`. This makes the contract clear and prevents runtime errors.
 
 === Code examples
 
@@ -18,27 +53,28 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+@app.get("/items/{item_id}", response_model=Item)
+def get_item(item_id: int):
+    if item_id == 0:
+        return None  # Noncompliant
+    return {"name": "foo", "price": 42.0}
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from typing import Union
+
+@app.get("/items/{item_id}", response_model=Union[Item
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * FastAPI Response Model Documentation - https://fastapi.tiangolo.com/tutorial/response-model/[Official FastAPI documentation on using response_model parameter]
 
+ * FastAPI Release Notes 0.80.0 - https://fastapi.tiangolo.com/release-notes/#0800[Release notes documenting the fix for response_model not invalidating None]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Python typing module - Union - https://docs.python.org/3/library/typing.html#typing.Union[Documentation for Python's Union type hint]
