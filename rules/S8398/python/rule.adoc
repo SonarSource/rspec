@@ -1,16 +1,40 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when setting cookies in FastAPI that will be sent with cross-site requests, but the `samesite` attribute is not set to `'none'` or the `secure` attribute is not set to `True`.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Modern web browsers implement strict cookie policies to protect users from cross-site request forgery (CSRF) attacks and improve privacy. When a cookie needs to be sent with cross-site requests (for example, when your API is called from a frontend hosted on a different domain), browsers require specific attributes to be set.
 
-//=== What is the potential impact?
+The `SameSite` attribute controls when browsers send cookies with cross-site requests. It has three possible values:
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+* `'strict'`: The cookie is only sent with same-site requests
+* `'lax'`: The cookie is sent with same-site requests and top-level navigation from other sites (default in modern browsers)
+* `'none'`: The cookie is sent with all requests, including cross-site requests
+
+When `SameSite='none'` is used, browsers also require the `Secure` attribute to be set to `True`. This ensures the cookie is only transmitted over HTTPS connections, preventing it from being intercepted over insecure connections.
+
+If you set a cookie without these attributes in a cross-site scenario, modern browsers will block it. This breaks functionality that depends on the cookie, such as:
+
+* Authentication and session management
+* Cross-origin API requests
+* Third-party integrations
+
+The browser console will show warnings like: "A cookie associated with a cross-site resource was set without the `SameSite` attribute. It has been blocked, as Chrome now only delivers cookies with cross-site requests if they are set with `SameSite=None` and `Secure`."
+
+It's important to note that `SameSite='none'` should only be used when you genuinely need cross-site cookie access. For same-site scenarios, using `'lax'` or `'strict'` provides better security by preventing CSRF attacks.
+
+=== What is the potential impact?
+
+When cookies lack the proper `SameSite` and `Secure` attributes in cross-site scenarios, browsers will block them. This leads to:
+
+* *Authentication failures*: Users cannot log in or maintain sessions across different domains
+* *Broken functionality*: Features that rely on cross-site cookies stop working
+* *Poor user experience*: Users encounter unexpected errors and cannot use the application as intended
+
+For applications that require cross-site cookie access (such as APIs consumed by frontends on different domains), this can completely break the application's functionality.
+
+== How to fix it in FastAPI
+
+When setting cookies that need to work in cross-site scenarios, explicitly set both `samesite='none'` and `secure=True`. The `secure=True` attribute requires HTTPS, so ensure your application is served over HTTPS in production.
 
 === Code examples
 
@@ -18,27 +42,87 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from fastapi import FastAPI, Response
+
+app = FastAPI()
+
+@app.get("/api/login")
+def login(response: Response):
+    response.set_cookie(key="session_token", value="abc123")  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from fastapi import FastAPI, Response
+
+app = FastAPI()
+
+@app.get("/api/login")
+def login(response: Response):
+    response.set_cookie(
+        key="session_token",
+        value="abc123",
+        samesite="none",
+        secure=True
+    )
 ----
 
-//=== How does this work?
+For enhanced security, also include the `httponly=True` attribute to prevent JavaScript access to the cookie. This protects against XSS attacks. Only use `SameSite='none'` when you genuinely need cross-site access; for same-site scenarios, use `'lax'` or `'strict'` instead.
 
-//=== Pitfalls
+==== Noncompliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from fastapi import FastAPI, Response
 
+app = FastAPI()
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+@app.post("/api/authenticate")
+def authenticate(response: Response, token: str):
+    response.set_cookie(
+        key="auth_token",
+        value=token,
+        httponly=True  # Noncompliant: missing samesite and secure
+    )
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from fastapi import FastAPI, Response
+
+app = FastAPI()
+
+@app.post("/api/authenticate")
+def authenticate(response: Response, token: str):
+    response.set_cookie(
+        key="auth_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none"
+    )
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI - Response Cookies - https://fastapi.tiangolo.com/advanced/response-cookies/[Official FastAPI documentation on setting response cookies]
+
+ * MDN Web Docs - SameSite cookies - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite[Comprehensive explanation of the SameSite cookie attribute]
+
+ * Chrome Platform Status - SameSite Cookie Changes - https://www.chromestatus.com/feature/5088147346030592[Details about Chrome's SameSite cookie policy changes]
+
+ * web.dev - SameSite cookies explained - https://web.dev/articles/samesite-cookies-explained[Google's guide to understanding and implementing SameSite cookies]
+
+=== Standards
+
+ * CWE 352 - https://cwe.mitre.org/data/definitions/352.html[CWE-352: Cross-Site Request Forgery (CSRF)]
+
+ * CWE 614 - https://cwe.mitre.org/data/definitions/614.html[CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute]
+
+ * OWASP Top 10 2021 A01 - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[A01:2021 - Broken Access Control]
