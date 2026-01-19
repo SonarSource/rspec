@@ -1,16 +1,43 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when you import variables with the same name from different modules using `from ... import` statements. The second import silently overwrites the first, making the originally imported variable inaccessible.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+In Python, when you use `from module import variable` multiple times with the same variable name, each subsequent import overwrites the previous one. This happens silently without any warning or error.
 
-//=== What is the potential impact?
+For example:
+
+[source,python]
+----
+from .routers.items import router
+from .routers.users import router  # Silently overwrites the previous router
+----
+
+After these imports, only `router` from `users` is accessible. The `router` from `items` is lost, even though the code appears to import both.
+
+This is particularly common in FastAPI applications where multiple router modules each export a variable named `router`. When you try to include both routers in your main application, you'll only get the last one imported.
+
+The problem occurs because Python's import system treats each `from ... import` statement as a simple variable assignment. The name in the current namespace gets reassigned with each import, just like any other variable assignment would.
+
+This can lead to:
+
+* *Missing functionality*: Routes or features from the overwritten module won't be registered
+* *Silent failures*: The code runs without errors, making the bug hard to detect
+* *Confusion during debugging*: The import statements look correct at first glance
+* *Maintenance issues*: Future developers might not notice the collision when adding new imports
+
+=== What is the potential impact?
+
+The application will have missing functionality because only the last imported variable is accessible. In FastAPI applications, this means some routes won't be registered, leading to 404 errors for endpoints that should exist.
+
+This bug is particularly insidious because:
+
+* The code runs without errors or warnings
+* Tests might pass if they only cover the routes from the last imported module
+* The issue only becomes apparent when trying to access functionality from the overwritten module
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Import the modules themselves instead of importing the variables directly. Then access the variables using dot notation. This keeps all imports accessible under their respective module names.
 
 === Code examples
 
@@ -18,27 +45,28 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from .routers.items import router
+from .routers.users import router  # Noncompliant: overwrites the previous router
+
+app.include_router(router)  # Only includes users.router
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from .routers import items, users
+
+app.include_router(items.router)
+app.include_router(users.router)
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Python Documentation - Import System - https://docs.python.org/3/reference/import.html[Official Python documentation on the import system and how imports work]
 
+ * FastAPI - Bigger Applications - https://fastapi.tiangolo.com/tutorial/bigger-applications/[FastAPI tutorial on structuring larger applications and avoiding import collisions]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * PEP 8 - Imports - https://peps.python.org/pep-0008/#imports[Python style guide recommendations for imports]
