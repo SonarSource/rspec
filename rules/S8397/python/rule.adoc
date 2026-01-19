@@ -1,16 +1,39 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when calling `uvicorn.run()` with the `reload`, `debug`, or `workers` parameters while passing the application object directly instead of as an import string.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+Uvicorn is an ASGI server that can run your FastAPI application. When you use certain features like auto-reload (for development) or multiple workers (for production), Uvicorn needs to start new Python processes.
 
-//=== What is the potential impact?
+When Uvicorn starts a new process, it needs to import your application fresh in that process. This is where the problem occurs: Python cannot serialize and pass application objects between processes. Instead, Uvicorn needs an import string (like `"main:app"`) that tells it how to import the application in each new process.
+
+If you pass the application object directly, Uvicorn will:
+
+* Issue a warning message
+* Disable the requested feature (reload or workers)
+* Continue running with a single process and no auto-reload
+
+This means your development workflow breaks (no auto-reload when you change code) or your production deployment doesn't scale (no worker processes).
+
+The import string format is `"module:variable"`, where:
+
+* `module` is the Python module path (like `"main"` or `"my_package.server"`)
+* `variable` is the name of the FastAPI application instance in that module
+
+For example, if your application is defined as `app = FastAPI()` in `main.py`, the import string would be `"main:app"`.
+
+*Note:* The `reload` and `workers` parameters are mutually exclusive. You should use `reload=True` for development (single process with auto-reload) or `workers=N` for production (multiple processes without auto-reload), but never both together.
+
+=== What is the potential impact?
+
+When the application object is passed directly instead of as an import string:
+
+* *Development impact:* Auto-reload functionality will not work, forcing developers to manually restart the server after every code change. This significantly slows down the development cycle.
+* *Production impact:* Multiple worker processes will not spawn, meaning the application runs on a single process. This limits the application's ability to handle concurrent requests and reduces overall throughput.
+* *Debugging impact:* Developers may waste time troubleshooting why reload or workers aren't functioning, not realizing the issue is in how the application is passed to Uvicorn.
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Replace the direct application object reference with an import string in the format `"module:variable"`. The module path should match your file structure, and the variable should be the name of your FastAPI instance.
 
 === Code examples
 
@@ -18,27 +41,42 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+def main():
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+def main():
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * Uvicorn Deployment Documentation - https://www.uvicorn.org/deployment/[Official Uvicorn documentation on deployment options, including how to use workers and the import string format]
 
+ * FastAPI Deployment with Uvicorn - https://fastapi.tiangolo.com/deployment/server-workers/[FastAPI's guide on deploying with Uvicorn, explaining workers and the import string requirement]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Uvicorn Settings Documentation - https://www.uvicorn.org/settings/[Complete reference for Uvicorn configuration options including reload and workers parameters]
