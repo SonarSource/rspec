@@ -1,0 +1,76 @@
+This rule raises an issue when a `Sql` instance is created using `Sql.newInstance()` but is not explicitly closed with `sql.close()` and doesn't use the automatic resource management pattern with `Sql.withInstance()`.
+
+== Why is this an issue?
+
+Database connections are limited and expensive resources that must be properly managed to prevent resource leaks.
+
+When you create a `Sql` instance using `Sql.newInstance()`, it establishes a connection to the database. This connection consumes memory and occupies a slot in the database's connection pool. If the connection is not properly closed, it remains open indefinitely, even after your code finishes executing.
+
+Over time, these unclosed connections accumulate and can exhaust the database's connection pool. Once the pool is full, new connection requests will fail, causing your application to throw exceptions and potentially become unavailable.
+
+Groovy provides two approaches to handle this properly:
+
+1. **Manual resource management**: Explicitly call `sql.close()` when you're done with the connection
+2. **Automatic resource management**: Use `Sql.withInstance()` which automatically closes the connection when the closure completes, even if an exception occurs
+
+The automatic approach is generally preferred because it's more reliable and handles edge cases like exceptions automatically.
+
+=== What is the potential impact?
+
+Unclosed database connections can lead to:
+
+* **Connection pool exhaustion**: When all available connections are consumed, new database operations will fail
+* **Application instability**: Database-related functionality becomes unreliable or completely unavailable
+* **Memory leaks**: Each unclosed connection consumes system resources
+* **Service outages**: In severe cases, the entire application may become unresponsive
+* **Cascading failures**: Other parts of the system that depend on database access may also fail
+
+== How to fix it
+
+Explicitly close the database connection by calling `sql.close()` when you're finished using it. This ensures the connection is returned to the pool and resources are freed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+import groovy.sql.Sql
+def url = 'jdbc:hsqldb:mem:yourDB'
+def user = 'sa'
+def password = ''
+def driver = 'org.hsqldb.jdbcDriver'
+def sql = Sql.newInstance(url, user, password, driver) // Noncompliant
+// use 'sql' instance ...
+// Missing sql.close()
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+import groovy.sql.Sql
+def url = 'jdbc:hsqldb:mem:yourDB'
+def user = 'sa'
+def password = ''
+def driver = 'org.hsqldb.jdbcDriver'
+def sql = Sql.newInstance(url, user, password, driver)
+// use 'sql' instance ...
+sql.close() // Properly close the connection
+----
+
+== Resources
+
+=== Documentation
+
+ * Groovy Database Documentation - https://groovy-lang.org/databases.html[Official Groovy documentation covering database operations and resource management]
+
+ * Groovy Sql Class Documentation - https://docs.groovy-lang.org/latest/html/gapi/groovy/sql/Sql.html[API documentation for the Groovy Sql class including resource management methods]
+
+=== Standards
+
+ * CWE-404: Improper Resource Shutdown or Release - https://cwe.mitre.org/data/definitions/404.html[Describes the security implications of not properly releasing resources]
+
+=== Related rules
+
+ * RSPEC-2095 - https://rules.sonarsource.com/java/RSPEC-2095/[Java rule for resources that should be closed (try-with-resources pattern)]
