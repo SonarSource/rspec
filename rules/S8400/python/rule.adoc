@@ -1,16 +1,28 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when a FastAPI endpoint is configured with `status_code=204` but does not explicitly return `None` or use the `Response` class to ensure an empty body.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+The HTTP 204 (No Content) status code indicates that the server successfully processed the request but is not returning any content. According to https://tools.ietf.org/html/rfc7231#section-6.3.5[RFC 7231], a 204 response must not contain a message body.
 
-//=== What is the potential impact?
+In FastAPI, if you define an endpoint with `status_code=204` but don't explicitly handle the response, the framework may send a small response body (typically 4 bytes containing `null`). This violates the HTTP specification and can cause issues with:
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+* HTTP clients that strictly validate response formats
+* Proxies and caching layers that expect empty bodies for 204 responses
+* API consumers relying on standard HTTP behavior
+
+The problem occurs because FastAPI's default serialization behavior attempts to serialize the return value, even when the status code indicates no content should be sent.
+
+=== What is the potential impact?
+
+This issue can lead to:
+
+* *Protocol violations*: The response doesn't comply with HTTP specifications, which may cause unexpected behavior in strict HTTP clients
+* *Interoperability problems*: Some clients, proxies, or middleware may reject or mishandle responses that have a body with a 204 status code
+* *Confusion for API consumers*: Developers using your API may be confused by receiving content when the status code explicitly indicates there should be none
+
+== How to fix it in FastAPI
+
+Return `None` explicitly from the endpoint function. This ensures FastAPI sends an empty response body.
 
 === Code examples
 
@@ -18,27 +30,70 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.delete("/resource/{id}", status_code=204)
+def delete_resource(id: int):
+    # Delete the resource
+    ...  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.delete("/resource/{id}", status_code=204)
+def delete_resource(id: int):
+    # Delete the resource
+    return None
 ----
 
-//=== How does this work?
+Use the `Response` class with `status_code=204`. This gives you explicit control over the response and guarantees no content is sent.
 
-//=== Pitfalls
+==== Noncompliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from fastapi import FastAPI
 
+app = FastAPI()
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+@app.put("/resource/{id}/archive", status_code=204)
+def archive_resource(id: int):
+    # Archive the resource
+    ...  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from fastapi import FastAPI, Response
+
+app = FastAPI()
+
+@app.put("/resource/{id}/archive", status_code=204)
+def archive_resource(id: int):
+    # Archive the resource
+    return Response(status_code=204)
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI Response Status Code - https://fastapi.tiangolo.com/advanced/response-change-status-code/[Official FastAPI documentation on changing response status codes]
+
+ * FastAPI Custom Response - https://fastapi.tiangolo.com/advanced/custom-response/[Official FastAPI documentation on custom responses]
+
+ * RFC 7231 - HTTP/1.1 Semantics: 204 No Content - https://tools.ietf.org/html/rfc7231#section-6.3.5[HTTP specification defining the 204 No Content status code]
+
+=== Standards
+
+ * CWE 1004 - https://cwe.mitre.org/data/definitions/1004.html[Sensitive Cookie Without 'HttpOnly' Flag (related to HTTP protocol compliance)]
