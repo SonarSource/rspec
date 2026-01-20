@@ -1,0 +1,84 @@
+This rule raises an issue when Rails models override the default primary key using `self.primary_key =` or when database tables are created without primary keys using `id: false`.
+
+== Why is this an issue?
+
+Rails is built around the convention of using integer auto-incrementing primary keys named `id`. This convention enables many framework features to work seamlessly.
+
+When you override the primary key with `self.primary_key = "custom_field"`, several problems can occur:
+
+* *Foreign key mismatches*: Rails generates foreign keys expecting integer IDs, but your custom primary key might be a string or other type
+* *Routing issues*: Rails URL helpers expect integer IDs in routes like `/users/123`
+* *Plugin compatibility*: Many Rails gems and plugins assume standard primary keys
+* *Association problems*: `belongs_to` and `has_many` relationships may not work correctly
+
+Creating tables without primary keys using `id: false` causes different but equally serious issues:
+
+* *DELETE operation failures*: ActiveRecord cannot generate proper DELETE queries without a primary key, leading to SQL syntax errors
+* *Record identification problems*: The ORM cannot uniquely identify records for updates or deletions
+* *Dependent destroy failures*: Cascading deletes and `dependent: :destroy` options will not work
+* *Replication issues*: Database replication systems often require primary keys
+
+These problems are particularly common in join tables where developers mistakenly think primary keys are unnecessary.
+
+=== What is the potential impact?
+
+Applications may experience runtime errors during record deletion, foreign key constraint violations, broken associations between models, and compatibility issues with Rails plugins and gems. In production, this can lead to data integrity problems and application crashes.
+
+== How to fix it in Rails
+
+Remove the custom primary key assignment and let Rails use its default integer `id` primary key. Update any foreign key references to use the standard naming convention.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class State < ActiveRecord::Base
+  self.primary_key = "state" # Noncompliant
+  has_many :acquisitions
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class State < ActiveRecord::Base
+  # Rails automatically creates an 'id' integer primary key
+  has_many :acquisitions
+end
+----
+
+Remove the `id: false` option from table creation to allow Rails to create the default primary key. This ensures proper record identification and deletion operations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+create_table :regions, id: false do |t| # Noncompliant
+  t.belongs_to :company, index: true
+  t.belongs_to :province, index: true
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+create_table :regions do |t|
+  t.belongs_to :company, index: true
+  t.belongs_to :province, index: true
+  t.timestamps
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Active Record Basics - https://guides.rubyonrails.org/active_record_basics.html#naming-conventions[Official Rails guide explaining naming conventions and primary key defaults]
+
+ * Rails Migrations Guide - https://guides.rubyonrails.org/active_record_migrations.html#creating-a-table[Official documentation on creating tables with proper primary keys]
