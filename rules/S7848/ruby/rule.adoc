@@ -1,0 +1,172 @@
+This is an issue when Rails controllers contain business logic, data manipulation, presentation logic, or directly call actions from other controllers instead of focusing solely on handling HTTP requests and responses.
+
+== Why is this an issue?
+
+Rails follows the Model-View-Controller (MVC) architectural pattern, which promotes separation of concerns for better code organization and maintainability.
+
+When controllers contain business logic, several problems arise:
+
+**Violation of MVC principles**: Controllers should act as intermediaries between models and views, handling HTTP requests and coordinating responses. Business logic belongs in models, while presentation logic belongs in views or helpers.
+
+**Reduced testability**: Business logic mixed into controllers becomes harder to test in isolation. Unit testing becomes more complex when controller actions contain multiple responsibilities.
+
+**Poor reusability**: Logic embedded in controllers cannot be easily reused across different parts of the application. This leads to code duplication when the same business rules need to be applied elsewhere.
+
+**Tight coupling**: When controllers directly call actions from other controllers, it creates tight coupling between components. This makes the codebase harder to maintain and refactor.
+
+**Scalability issues**: As applications grow, fat controllers become increasingly difficult to understand, modify, and debug. They violate the single responsibility principle and become maintenance bottlenecks.
+
+=== What is the potential impact?
+
+Fat controllers with mixed responsibilities lead to code that is difficult to test, maintain, and scale. Business logic scattered across controllers cannot be easily reused, leading to duplication. Direct controller-to-controller calls create tight coupling that makes refactoring risky and complex. The codebase becomes less organized and harder for team members to understand and contribute to effectively.
+
+== How to fix it in Rails
+
+Move business logic from controllers to models using callbacks or instance methods. Controllers should only handle the HTTP request/response cycle.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class UsersController < ApplicationController
+  def create
+    @user = User.new(user_params)
+    # Business logic in controller
+    if @user.email.present? && @user.email.include?('@')
+      @user.email = @user.email.downcase.strip
+      @user.status = 'active'
+      @user.save
+      UserMailer.welcome_email(@user).deliver_now
+      @user.create_profile
+      Analytics.track_user_signup(@user)
+      redirect_to @user
+    else
+      render :new
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class UsersController < ApplicationController
+  def create
+    @user = User.new(user_params)
+    if @user.save_and_activate
+      redirect_to @user
+    else
+      render :new
+    end
+  end
+
+  private
+
+  def user_params
+    params.require(:user).permit(:name, :email)
+  end
+end
+
+# Move business logic to the model
+class User < ApplicationRecord
+  before_save :normalize_email
+  after_create :send_welcome_email, :create_user_profile, :track_signup
+
+  def save_and_activate
+    return false unless valid_email?
+    self.status = 'active'
+    save
+  end
+
+  private
+
+  def normalize_email
+    self.email = email.downcase.strip if email.present?
+  end
+
+  def valid_email?
+    email.present? && email.include?('@')
+  end
+
+  def send_welcome_email
+    UserMailer.welcome_email(self).deliver_now
+  end
+
+  def create_user_profile
+    create_profile
+  end
+
+  def track_signup
+    Analytics.track_user_signup(self)
+  end
+end
+----
+
+Extract shared logic into service objects instead of calling controller actions directly. This maintains loose coupling and proper separation of concerns.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class AdminController < ApplicationController
+  def create_user
+    # Bad: Directly calling another controller's action
+    users_controller = UsersController.new
+    users_controller.create
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class UserService
+  def self.create_user(params)
+    User.create(params)
+  end
+end
+
+class AdminController < ApplicationController
+  def create_user
+    @user = UserService.create_user(user_params)
+    redirect_to admin_dashboard_path
+  end
+
+  private
+
+  def user_params
+    params.require(:user).permit(:name, :email)
+  end
+end
+
+class UsersController < ApplicationController
+  def create
+    @user = UserService.create_user(user_params)
+    redirect_to @user
+  end
+
+  private
+
+  def user_params
+    params.require(:user).permit(:name, :email)
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails MVC Architecture Guide - https://guides.rubyonrails.org/getting_started.html#mvc-and-you[Official Rails guide explaining the Model-View-Controller pattern]
+
+ * Rails Controller Best Practices - https://guides.rubyonrails.org/action_controller_overview.html[Official documentation on Rails controller conventions and best practices]
+
+=== Standards
+
+ * Rails Convention: Separation of Concerns - https://rubyonrails.org/doctrine#convention-over-configuration[Rails doctrine emphasizing convention over configuration and proper separation of concerns]
