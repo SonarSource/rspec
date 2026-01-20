@@ -1,0 +1,101 @@
+This is an issue when using `map` or `collect` to extract attributes from ActiveRecord collections, when using ActiveRecord methods like `pluck` on Array objects, or when unnecessarily converting ActiveRecord collections to Arrays before extracting attributes.
+
+== Why is this an issue?
+
+ActiveRecord collections and Array objects require different methods for efficient attribute extraction.
+
+When you use `map` or `collect` on ActiveRecord collections to extract simple attributes, you force Rails to load all database columns for every record into memory first, then extract only the attributes you need. This is inefficient because:
+
+* All database columns are retrieved, not just the ones you need
+* Full ActiveRecord objects are instantiated in memory
+* Memory usage increases significantly with large datasets
+* Database transfer time is longer due to unnecessary data
+
+ActiveRecord's `pluck` method operates at the database level. It generates SQL that selects only the specified columns, reducing both memory usage and database transfer time.
+
+Conversely, ActiveRecord methods like `pluck` don't exist on Array objects and will raise a `NoMethodError`. Arrays require standard Ruby methods like `map` or `collect`.
+
+Unnecessarily converting ActiveRecord collections to Arrays (using `to_a`) before extracting attributes defeats the purpose of database optimization, as you lose the ability to use efficient database-level operations.
+
+=== What is the potential impact?
+
+Performance degradation due to increased memory usage and slower database queries. In applications with large datasets, using `collect` instead of `pluck` can cause significant slowdowns and memory consumption. Using ActiveRecord methods on Arrays will cause runtime errors that crash the application.
+
+== How to fix it in Rails
+
+Use `pluck` to extract attributes efficiently from ActiveRecord collections. This operates at the database level and only retrieves the specified columns.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Using collect/map on ActiveRecord collections loads unnecessary data
+user_ids = User.all.collect(&:id) # Noncompliant
+user_emails = User.all.map(&:email) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use pluck to extract attributes efficiently from ActiveRecord collections
+user_ids = User.pluck(:id)
+user_emails = User.pluck(:email)
+----
+
+Use `map` or `collect` on Array objects since ActiveRecord methods are not available on Arrays.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Trying to use ActiveRecord methods on Array objects
+arr = User.all.to_a
+emails = arr.pluck(:email) # Noncompliant - NoMethodError
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Use map/collect on Array objects
+arr = User.all.to_a
+emails = arr.map(&:email)
+----
+
+Avoid unnecessarily converting ActiveRecord collections to Arrays when you only need to extract specific attributes. Use `pluck` directly on the ActiveRecord collection instead.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Unnecessarily converting to Array when only extracting attributes
+arr = User.all.to_a # Noncompliant
+emails = arr.map(&:email)
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Use pluck directly on ActiveRecord collection
+emails = User.pluck(:email)
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html#pluck[Official Rails documentation on the pluck method and query optimization]
+
+ * Ruby Array Documentation - https://ruby-doc.org/core/Array.html#method-i-map[Official Ruby documentation for Array methods like map and collect]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[Inefficient database queries can lead to excessive resource consumption]
