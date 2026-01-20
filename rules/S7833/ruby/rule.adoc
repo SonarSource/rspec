@@ -1,0 +1,102 @@
+This rule raises an issue when the `mail()` method is called inside a loop within an ActionMailer method.
+
+== Why is this an issue?
+
+In ActionMailer, each call to `mail()` within the same method overwrites the previous mail configuration. This means that when `mail()` is called inside a loop, only the email from the last iteration will actually be sent, while all previous iterations are silently ignored.
+
+This behavior occurs because ActionMailer methods are designed to return a single mail object. When `mail()` is called multiple times in the same method, each call replaces the mail configuration from the previous call, rather than creating separate emails.
+
+This can lead to confusing bugs where developers expect multiple emails to be sent but only one recipient receives the message. The issue is particularly problematic because it fails silently - no error is raised, making it difficult to detect during development.
+
+=== What is the potential impact?
+
+Users who should receive important notifications may not get them, leading to missed communications. This can result in poor user experience, missed business opportunities, or failure to meet compliance requirements for notifications.
+
+== How to fix it in Rails
+
+Pass multiple recipients as an array to a single `mail()` call. This is the most efficient approach when sending the same email content to multiple recipients.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def request_replacement(shift)
+  @shift = shift
+  recipients = User.where(replacement_emails: true)
+  
+  recipients.each do |recipient|
+    @name = recipient.fname
+    mail(
+      to: recipient.email, # Noncompliant
+      subject: "A replacement clerk has been requested"
+    )
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def request_replacement(shift)
+  @shift = shift
+  recipients = User.where(replacement_emails: true)
+  
+  mail(
+    to: recipients.pluck(:email),
+    subject: "A replacement clerk has been requested"
+  )
+end
+----
+
+When you need personalized emails for each recipient, iterate outside the mailer method and call `deliver` on each iteration.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def personalized_notification(users)
+  users.each do |user|
+    @user = user
+    @greeting = "Hello #{user.name}"
+    mail(
+      to: user.email, # Noncompliant
+      subject: "Personal notification for #{user.name}"
+    )
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class NotificationMailer < ApplicationMailer
+  def self.send_personalized(users)
+    users.each do |user|
+      personalized_notification(user).deliver
+    end
+  end
+
+  def personalized_notification(user)
+    @user = user
+    @greeting = "Hello #{user.name}"
+    mail(
+      to: user.email,
+      subject: "Personal notification for #{user.name}"
+    )
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActionMailer Basics - https://guides.rubyonrails.org/action_mailer_basics.html[Official Rails guide explaining ActionMailer fundamentals and best practices]
+
+ * ActionMailer API Documentation - https://api.rubyonrails.org/classes/ActionMailer/Base.html[Complete API reference for ActionMailer::Base class]
