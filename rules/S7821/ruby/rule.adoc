@@ -1,0 +1,90 @@
+This rule raises an issue when Rails controllers manually decode JSON from `request.body` instead of using the automatically parsed `params` hash.
+
+== Why is this an issue?
+
+Rails automatically parses JSON requests when the proper `Content-Type` header is set (typically `application/json`). This parsed data is made available through the `params` hash, which is the standard Rails way to access request parameters.
+
+Manual JSON decoding using methods like `ActiveSupport::JSON.decode(request.body)` or `JSON.parse(request.body)` creates several problems:
+
+* *Redundancy*: You're duplicating work that Rails already does automatically
+* *Error-prone*: Manual parsing can fail if the request body is malformed or empty
+* *Security bypass*: Rails' built-in parameter filtering and strong parameters are bypassed
+* *Inconsistency*: Other parts of your application expect to use `params`, creating inconsistent patterns
+
+Rails' parameter parsing also handles edge cases like empty request bodies and provides consistent behavior across different request types (form data, JSON, XML).
+
+=== What is the potential impact?
+
+Manual JSON decoding can lead to security vulnerabilities by bypassing Rails' parameter filtering mechanisms. It also makes code less maintainable and more prone to runtime errors when handling malformed JSON requests.
+
+== How to fix it in Rails
+
+Replace manual JSON decoding with Rails' automatically parsed `params` hash. Ensure your client sends the proper `Content-Type: application/json` header.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def create
+  req = ActiveSupport::JSON.decode(request.body) # Noncompliant
+  if user = User.authenticate(req["email"], req["password"])
+    session[:user_id] = user.id
+    render json: { success: true }
+  else
+    render json: { success: false }
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def create
+  if user = User.authenticate(params["email"], params["password"])
+    session[:user_id] = user.id
+    render json: { success: true }
+  else
+    render json: { success: false }
+  end
+end
+----
+
+This also applies to other JSON parsing methods. Use `params` instead of manually parsing the request body.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def update
+  data = JSON.parse(request.body.read) # Noncompliant
+  @user.update(data["user"])
+  render json: @user
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def update
+  @user.update(params["user"])
+  render json: @user
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Action Controller Parameters - https://guides.rubyonrails.org/action_controller_overview.html#parameters[Official Rails guide on how parameters work in controllers]
+
+ * Rails Strong Parameters - https://guides.rubyonrails.org/action_controller_overview.html#strong-parameters[Documentation on Rails' parameter filtering and security features]
+
+=== Standards
+
+ * CWE-20: Improper Input Validation - https://cwe.mitre.org/data/definitions/20.html[Manual parsing can bypass input validation mechanisms]
