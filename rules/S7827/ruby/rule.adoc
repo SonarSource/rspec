@@ -1,0 +1,61 @@
+This rule raises an issue when a `Date` object is converted to `DateTime` using `to_datetime` without proper timezone consideration, especially when followed by `in_time_zone`.
+
+== Why is this an issue?
+
+Converting a `Date` to `DateTime` using the `to_datetime` method creates a UTC datetime at midnight (00:00:00 +0000). When you subsequently apply `in_time_zone` to convert this to your local timezone, the timezone offset calculation can shift the date to the previous day.
+
+For example, if you're in Pacific Daylight Time (PDT, UTC-7), converting August 19th using `Date.current.to_datetime.in_time_zone` results in August 18th at 17:00:00 PDT. This happens because the UTC midnight (00:00:00) gets shifted back 7 hours to account for the timezone difference.
+
+This behavior can cause subtle bugs in applications where date boundaries are important, such as:
+
+* Financial calculations that depend on specific dates
+* Scheduling systems that need to preserve date integrity
+* Reporting features that group data by date
+* Any business logic that assumes the date remains unchanged during conversion
+
+The root cause is mixing naive datetime operations (creating UTC datetime) with timezone-aware operations (applying local timezone), which leads to unexpected timezone offset calculations.
+
+=== What is the potential impact?
+
+Date shifts can cause incorrect business logic execution, leading to wrong financial calculations, scheduling errors, or data being grouped under incorrect dates. This can result in user confusion, incorrect reports, and potential financial or operational losses.
+
+== How to fix it
+
+Use timezone-aware conversion methods that preserve the intended date. The `in_time_zone` method on Date objects creates a proper timezone-aware datetime without shifting the date.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Naive conversion that may shift dates due to timezone offsets
+date = Date.current
+datetime = date.to_datetime.in_time_zone  # Noncompliant
+
+# Direct to_datetime without timezone consideration
+datetime = date.to_datetime  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use timezone-aware conversion that preserves the date
+date = Date.current
+datetime = date.in_time_zone.to_datetime
+
+# Or use Time.zone.parse for explicit timezone handling
+datetime = Time.zone.parse(date.to_s).to_datetime
+
+# Or use beginning_of_day for clarity
+datetime = date.beginning_of_day.to_datetime
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails TimeZone Documentation - https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html[Official Rails documentation for timezone handling]
+
+ * Rails Date and Time Guide - https://guides.rubyonrails.org/active_support_core_extensions.html#time[Rails guide covering date and time extensions and best practices]
