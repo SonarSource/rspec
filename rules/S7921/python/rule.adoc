@@ -1,0 +1,99 @@
+This rule raises an issue when Spring controller methods use mapping annotations (@RequestMapping, @GetMapping, @PostMapping, etc.) without explicitly specifying the `produces` attribute to define the response media type.
+
+== Why is this an issue?
+
+Spring controller methods that don't specify the `produces` attribute rely on default content negotiation, which can lead to several problems.
+
+When you omit the `produces` attribute, Spring uses its default content negotiation strategy to determine the response format. While this might work in simple cases, it creates several risks:
+
+* **Ambiguous API contracts**: Clients cannot be certain what format they will receive, making the API less predictable and harder to consume.
+* **Content negotiation failures**: If a client sends an `Accept` header that Spring cannot satisfy, it returns an HTTP 406 "Not Acceptable" error instead of a clear response.
+* **Method mapping conflicts**: When multiple controller methods handle the same URL path but return different data types, Spring cannot determine which method to invoke without explicit media type specification.
+* **Inconsistent behavior**: The actual response format may vary depending on the classpath dependencies (like Jackson for JSON) rather than explicit design decisions.
+
+Explicitly specifying the `produces` attribute makes your API contract clear and predictable. It tells both Spring and API consumers exactly what format to expect, enabling proper content negotiation and preventing runtime errors.
+
+=== What is the potential impact?
+
+Without explicit media type specification, applications may experience HTTP 406 errors when clients request unsupported formats, ambiguous method routing when multiple endpoints share the same URL path, and unpredictable API behavior that depends on classpath configuration rather than explicit design decisions.
+
+=== How to fix in Spring?
+
+Add the `produces` attribute to your mapping annotation and specify the media type your endpoint returns. For JSON responses, use `MediaType.APPLICATION_JSON_VALUE` or the string `"application/json"`.
+
+==== Non-compliant code example
+
+[source,java,diff-id=1,diff-type=noncompliant]
+----
+@GetMapping("/greetings")
+public String getGreeting() {
+    return "{\"message\": \"Hello\"}";
+} // Noncompliant
+----
+
+==== Compliant code example
+
+[source,java,diff-id=1,diff-type=compliant]
+----
+@GetMapping(value = "/greetings", produces = MediaType.APPLICATION_JSON_VALUE)
+public String getGreeting() {
+    return "{\"message\": \"Hello\"}";
+}
+----
+
+For methods returning objects that will be serialized to JSON, explicitly specify the JSON media type to ensure proper content negotiation.
+
+==== Non-compliant code example
+
+[source,java,diff-id=2,diff-type=noncompliant]
+----
+@RequestMapping(value = "/company")
+public Company getCompany() {
+    return new Company(1, "Xpto");
+} // Noncompliant
+----
+
+==== Compliant code example
+
+[source,java,diff-id=2,diff-type=compliant]
+----
+@RequestMapping(value = "/company", produces = MediaType.APPLICATION_JSON_VALUE)
+public Company getCompany() {
+    return new Company(1, "Xpto");
+}
+----
+
+When using @PostMapping or other HTTP method-specific annotations, include the produces attribute to specify the response format.
+
+==== Non-compliant code example
+
+[source,java,diff-id=3,diff-type=noncompliant]
+----
+@PostMapping("/content")
+@ResponseBody
+public ResponseTransfer postResponse() {
+    return new ResponseTransfer("Content!");
+} // Noncompliant
+----
+
+==== Compliant code example
+
+[source,java,diff-id=3,diff-type=compliant]
+----
+@PostMapping(value = "/content", produces = MediaType.APPLICATION_JSON_VALUE)
+@ResponseBody
+public ResponseTransfer postResponse() {
+    return new ResponseTransfer("Content!");
+}
+----
+
+=== Documentation
+
+ * Spring Framework Reference - Request Mapping - https://docs.spring.io/spring-framework/docs/current/reference/html/web.html#mvc-ann-requestmapping[Official Spring documentation on @RequestMapping and its attributes including produces]
+ * Spring Boot - Content Negotiation - https://docs.spring.io/spring-boot/docs/current/reference/html/web.html#web.servlet.spring-mvc.content-negotiation[Spring Boot documentation on content negotiation and media type handling]
+ * Baeldung - Spring MVC Content Type - https://www.baeldung.com/spring-mvc-set-json-content-type[Tutorial on setting content types in Spring MVC applications]
+
+=== Standards
+
+ * RFC 7231 - HTTP/1.1 Semantics - https://tools.ietf.org/html/rfc7231#section-5.3.2[HTTP specification for Accept header and content negotiation]
+
