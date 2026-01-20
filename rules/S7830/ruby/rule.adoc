@@ -1,0 +1,84 @@
+This rule raises an issue when `Thread.new` is used to make HTTP requests while accessing shared mutable data structures without proper synchronization mechanisms.
+
+== Why is this an issue?
+
+Using basic threading with `Thread.new` for HTTP requests without proper synchronization creates several serious problems:
+
+**Race Conditions**: When multiple threads access and modify shared data structures simultaneously, race conditions occur. In the problematic pattern, threads check if all URLs have been processed using `urls.all?`, but this check can happen concurrently, leading to unpredictable results.
+
+**Shared Mutable State**: Modifying hash elements like `u['content']` from multiple threads without synchronization can corrupt data or cause inconsistent program state.
+
+**Resource Management Issues**: Naive threading doesn't provide proper resource cleanup, connection pooling, or error handling. Each thread creates its own HTTP connection without coordination, potentially overwhelming the target server or exhausting system resources.
+
+**Unpredictable Program Termination**: The pattern often includes calls to `exit` from within threads, which can terminate the program at unexpected times, potentially leaving resources in an inconsistent state.
+
+**No Error Handling**: Basic threading doesn't provide structured error handling for network failures, timeouts, or other HTTP-related issues that commonly occur in distributed systems.
+
+=== What is the potential impact?
+
+This pattern can lead to data corruption, unpredictable application behavior, resource exhaustion, and difficult-to-debug concurrency issues. In production environments, it may cause intermittent failures that are hard to reproduce and diagnose.
+
+== How to fix it
+
+Replace naive threading with a proper async library like the `async` gem. This provides structured concurrency, proper resource management, and eliminates race conditions.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+require 'net/http'
+
+urls = [
+  {'link' => 'http://www.google.com/'},
+  {'link' => 'http://www.facebook.com/'}
+]
+
+urls.each do |u|
+  Thread.new do
+    u['content'] = Net::HTTP.get(URI.parse(u['link']))  # Noncompliant
+    
+    if urls.all? {|u| u.has_key?("content") }  # Noncompliant
+      puts "Fetched all urls!"
+      exit  # Noncompliant
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+require 'async'
+require 'async/http/internet'
+
+urls = ['http://www.google.com/', 'http://www.facebook.com/']
+
+Async do
+  internet = Async::HTTP::Internet.new
+  
+  tasks = urls.map do |url|
+    Async do
+      response = internet.get(url)
+      response.read
+    end
+  end
+  
+  results = tasks.map(&:wait)
+  puts "Fetched all urls!"
+ensure
+  internet&.close
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby Async Gem Documentation - https://github.com/socketry/async[Official documentation for the async gem providing structured concurrency]
+
+ * Ruby Thread Synchronization - https://ruby-doc.org/core/Thread.html[Official Ruby documentation on thread synchronization primitives]
+
+ * Concurrent Ruby - https://github.com/ruby-concurrency/concurrent-ruby[Modern concurrency tools for Ruby including thread pools and async utilities]
