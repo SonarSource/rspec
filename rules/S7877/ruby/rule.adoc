@@ -1,0 +1,121 @@
+This rule raises an issue when timezone-naive time methods like `Time.now`, `DateTime.now`, or manual timezone manipulations are used instead of Rails' timezone-aware alternatives.
+
+== Why is this an issue?
+
+Using timezone-naive time methods in Ruby/Rails applications can lead to serious timezone-related bugs and inconsistent behavior across different environments.
+
+When you use methods like `Time.now` or `DateTime.now`, they return the system's local time, which ignores your Rails application's configured timezone (`Time.zone` or `config.time_zone`). This creates several problems:
+
+* **Environment inconsistency**: Your development machine, staging server, and production server might be in different timezones, causing the same code to behave differently in each environment.
+* **User timezone issues**: When dealing with users in different timezones, system time methods don't respect user-specific timezone preferences.
+* **Daylight saving time bugs**: Manual timezone calculations often fail to handle daylight saving time transitions correctly, leading to off-by-one-hour errors twice a year.
+* **Database storage problems**: Storing timezone-naive timestamps in the database can cause confusion about when events actually occurred.
+
+Rails provides timezone-aware methods specifically to solve these problems. Methods like `Time.current`, `Time.zone.now`, and `Time.zone.parse` respect your application's timezone configuration and handle complex timezone logic correctly.
+
+Manual timezone manipulations, such as modifying time arrays or adding raw offsets, are particularly dangerous because they bypass Rails' sophisticated timezone handling and can easily introduce subtle bugs that only appear under specific conditions.
+
+=== What is the potential impact?
+
+Using timezone-naive time methods can cause:
+
+* **Data corruption**: Timestamps stored with incorrect timezone information
+* **Business logic errors**: Scheduled tasks running at wrong times, incorrect time-based calculations
+* **User experience issues**: Events displayed at wrong times for users in different timezones
+* **Compliance problems**: Incorrect audit trails and logging timestamps
+* **Difficult debugging**: Timezone-related bugs that only appear in certain environments or during daylight saving time transitions
+
+== How to fix it in Rails
+
+Replace `Time.now` and `DateTime.now` with timezone-aware alternatives like `Time.current` or `Time.zone.now`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+current_time = Time.now # Noncompliant
+current_datetime = DateTime.now # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+current_time = Time.current
+current_datetime = DateTime.current
+# or
+current_time = Time.zone.now
+----
+
+Use `Time.zone.local` and `Time.zone.parse` instead of `DateTime.new` and `DateTime.parse` for creating timezone-aware time objects.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+event_time = DateTime.new(2012, 7, 11, 20, 10, 0) # Noncompliant
+parsed_date = DateTime.parse(params[:date]) # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+Time.zone = "Pacific Time (US & Canada)"
+event_time = Time.zone.local(2012, 7, 11, 20, 10, 0)
+parsed_date = Time.zone.parse(params[:date])
+----
+
+Use Rails' `in_time_zone()` method instead of manual timezone calculations or array manipulations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Manual array manipulation
+temp = input_date.to_time.to_a # Noncompliant
+temp[8] = true
+temp[9] = "Eastern Daylight Time"
+input_date = Time.local(*temp)
+
+# Manual offset calculation
+send_time = Time.now + user.timezone_offset.hours # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Use Rails timezone conversion methods
+utc_time = Time.current
+eastern_time = utc_time.in_time_zone('Eastern Time (US & Canada)')
+
+# Proper timezone conversion
+send_time = Time.current.in_time_zone(user.timezone)
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Time Zone Guide - https://guides.rubyonrails.org/configuring.html#configuring-time-zones[Official Rails documentation on configuring and working with time zones]
+
+ * Rails API: Time Zone - https://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html[API documentation for ActiveSupport::TimeZone class]
+
+ * Working with Time Zones in Rails - https://thoughtbot.com/blog/its-about-time-zones[Comprehensive guide on handling time zones correctly in Rails applications]
+
+=== Standards
+
+ * ISO 8601 - https://en.wikipedia.org/wiki/ISO_8601[International standard for date and time representation]
+
+=== Related rules
+
+ * RSPEC-6903 - https://rules.sonarsource.com/python/RSPEC-6903/[Python rule for timezone-aware datetime usage]
+
+ * RSPEC-6566 - https://rules.sonarsource.com/csharp/RSPEC-6566/[C# rule for timezone-aware DateTime usage]
