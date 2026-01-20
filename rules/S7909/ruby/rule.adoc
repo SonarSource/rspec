@@ -1,0 +1,87 @@
+This rule raises an issue when SQL date functions like `DATE()` or direct date comparisons are used in ActiveRecord where clauses with datetime columns.
+
+== Why is this an issue?
+
+Using SQL date functions in ActiveRecord queries can cause timezone conversion issues and unexpected results. When you use functions like `DATE()` or compare datetime columns directly with Date objects, the database performs timezone conversions that may not align with your application's timezone settings.
+
+For example, `Subscription.where("DATE(created_at) = ?", Date.today)` might miss records created late in the day if your application timezone differs from the database timezone. The `DATE()` function strips the time component using the database's timezone, while `Date.today` uses the application's timezone.
+
+Additionally, SQL date functions are database-specific, making your code less portable. Functions like `DATEPART()` work in SQL Server but not in PostgreSQL or MySQL, creating maintenance challenges when switching databases.
+
+These issues are particularly problematic in applications serving users across multiple timezones, where incorrect date filtering can lead to missing or duplicate data in reports and user interfaces.
+
+=== What is the potential impact?
+
+This issue can lead to incorrect query results, causing data inconsistencies in reports, missing records in time-sensitive operations, and subtle bugs that are difficult to detect and debug. In multi-timezone applications, users may see incorrect data or miss important information due to timezone conversion errors.
+
+== How to fix it in Ruby on Rails
+
+Use Ruby date ranges with `beginning_of_day` and `end_of_day` methods instead of SQL date functions. This ensures proper timezone handling and database portability.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Avoid SQL DATE() function - causes timezone issues
+Subscription.where("DATE(created_at) = ?", Date.today) // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use date ranges for timezone-aware date queries
+Subscription.where(created_at: Date.today.beginning_of_day..Date.today.end_of_day)
+----
+
+Use ActiveRecord's `all_day` helper method for cleaner date range queries that respect timezone settings.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# Avoid direct date comparison with datetime columns
+Subscription.where("created_at = ?", Date.today) // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# Use ActiveRecord's date helpers
+Subscription.where(created_at: Date.current.all_day)
+----
+
+For open-ended date comparisons, use explicit time boundaries instead of database-specific date functions.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+# Avoid database-specific date functions
+Subscription.where("DATEPART(day, created_at) = ?", Date.today.day) // Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+# Be explicit about time boundaries
+Subscription.where(created_at: Date.today.beginning_of_day..)
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html[Official Rails documentation on querying with Active Record]
+
+ * Ruby Date and Time Classes - https://ruby-doc.org/core/Date.html[Ruby documentation for Date class methods including beginning_of_day and end_of_day]
+
+ * Rails Time Zone Handling - https://guides.rubyonrails.org/configuring.html#configuring-time-zones[Rails guide on configuring and handling time zones]
