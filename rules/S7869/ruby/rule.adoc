@@ -1,0 +1,63 @@
+This rule raises an issue when `serializer:` is used with collections or `each_serializer:` is used with single objects in Rails JSON rendering.
+
+== Why is this an issue?
+
+Rails provides two different options for JSON serialization depending on the data type being rendered. The `serializer:` option is designed for single objects, while `each_serializer:` is intended for collections like arrays or ActiveRecord relations.
+
+When you use `serializer:` with a collection, the serializer attempts to call methods like `read_attribute_for_serialization` or `id` directly on the collection object rather than on individual items within the collection. This causes a `NoMethodError` because collections don't have these methods.
+
+Similarly, using `each_serializer:` with a single object is unnecessary and can lead to confusion about the intended data structure.
+
+The ActiveModel Serializer gem expects these options to be used correctly to properly iterate through collections and serialize individual objects.
+
+=== What is the potential impact?
+
+Using the wrong serializer option will cause runtime `NoMethodError` exceptions, breaking the JSON API endpoints. This leads to failed HTTP requests and poor user experience. The application may crash when trying to render JSON responses, making the affected endpoints completely unusable.
+
+== How to fix it
+
+Use `each_serializer:` when rendering collections and `serializer:` when rendering single objects.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def index
+  @records = Record.where(artist_id: params[:artist_id])
+  # Incorrect: using serializer for a collection will cause NoMethodError
+  render json: @records, serializer: RecordSummarySerializer # Noncompliant
+end
+
+def show
+  @record = Record.find(params[:id])
+  # Incorrect: using each_serializer for single object is unnecessary
+  render json: @record, each_serializer: RecordDetailSerializer # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def index
+  @records = Record.where(artist_id: params[:artist_id])
+  # Correct: use each_serializer for collections
+  render json: @records, each_serializer: RecordSummarySerializer
+end
+
+def show
+  @record = Record.find(params[:id])
+  # Correct: use serializer for single objects
+  render json: @record, serializer: RecordDetailSerializer
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveModel Serializers Documentation - https://github.com/rails-api/active_model_serializers[Official documentation for ActiveModel Serializers gem]
+
+ * Rails JSON Rendering Guide - https://guides.rubyonrails.org/layouts_and_rendering.html#rendering-json[Rails guide on rendering JSON responses]
