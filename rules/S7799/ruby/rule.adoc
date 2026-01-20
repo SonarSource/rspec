@@ -1,0 +1,99 @@
+This is an issue when `redirect_to` is called in a Rails controller method without an explicit `return` statement, allowing subsequent code to execute unexpectedly.
+
+== Why is this an issue?
+
+In Rails controllers, calling `redirect_to` does not automatically stop method execution. The method continues running any code that follows the redirect call.
+
+This behavior can cause several problems:
+
+* *Double render errors*: If the method later tries to render a view or redirect again, Rails will raise a "double render" error because a response has already been sent.
+* *Security vulnerabilities*: Code that should be skipped after a redirect (like authorization checks or sensitive operations) may still execute, potentially exposing data or allowing unauthorized actions.
+* *Unexpected behavior*: Business logic that was meant to be bypassed continues to run, leading to inconsistent application state or incorrect data processing.
+
+Unlike some other web frameworks, Rails requires explicit control flow management. The `redirect_to` method only sets up the HTTP redirect response - it doesn't halt execution like a `return` statement would.
+
+=== What is the potential impact?
+
+Without proper returns after redirects, applications may experience runtime errors from double renders, security vulnerabilities from bypassed authorization checks, or data corruption from unintended code execution. These issues can lead to application crashes, unauthorized access to sensitive data, or inconsistent application behavior that affects user experience.
+
+== How to fix it in Rails
+
+Add an explicit `return` statement before `redirect_to` to immediately exit the method after the redirect is set up.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def check_permissions
+  unless user_authorized?
+    flash[:error] = "Access denied"
+    redirect_to root_path  # Noncompliant
+  end
+  # This sensitive code still executes!
+  @secret_data = fetch_sensitive_data
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def check_permissions
+  unless user_authorized?
+    flash[:error] = "Access denied"
+    return redirect_to root_path
+  end
+  # This code only runs for authorized users
+  @secret_data = fetch_sensitive_data
+end
+----
+
+Alternatively, you can add a `return` statement on the line immediately following the `redirect_to` call.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def update
+  if @user.update(user_params)
+    redirect_to @user  # Noncompliant
+  else
+    redirect_to edit_user_path(@user)  # Noncompliant
+  end
+  # This code runs regardless of the redirect
+  log_user_activity
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def update
+  if @user.update(user_params)
+    redirect_to @user
+    return
+  else
+    redirect_to edit_user_path(@user)
+    return
+  end
+  # This code is now unreachable, which may indicate a logic error
+  log_user_activity
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Action Controller Overview - https://guides.rubyonrails.org/action_controller_overview.html#redirecting[Official Rails documentation explaining redirect behavior and best practices]
+
+ * Rails API Documentation - redirect_to - https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_to[Detailed API documentation for the redirect_to method]
+
+=== Standards
+
+ * CWE-670: Always-Incorrect Control Flow Implementation - https://cwe.mitre.org/data/definitions/670.html[Covers control flow issues that can lead to unexpected program behavior]
