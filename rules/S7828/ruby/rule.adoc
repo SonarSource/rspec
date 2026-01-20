@@ -1,0 +1,112 @@
+This rule raises an issue when `count` or `length` methods are called on ActiveRecord associations instead of the more efficient `size` method.
+
+== Why is this an issue?
+
+ActiveRecord provides three methods for counting association records: `count`, `length`, and `size`. Each method has different performance characteristics that can significantly impact your application's efficiency.
+
+The `count` method always performs a SQL COUNT query against the database, even when a counter cache is available. This means unnecessary database round trips that could be avoided.
+
+The `length` method loads all association records into memory first, then counts them. For large collections, this approach consumes excessive memory and is much slower than a simple COUNT query.
+
+The `size` method is the smartest choice because it automatically selects the most efficient counting strategy:
+
+* If a counter cache is available, it uses the cached value without any database query
+* If the association is already loaded in memory, it counts the loaded records
+* Otherwise, it performs a SQL COUNT query
+
+This intelligent behavior means you get optimal performance without having to manually choose the right strategy for each situation.
+
+=== What is the potential impact?
+
+Using `count` or `length` instead of `size` can lead to:
+
+* Unnecessary database queries that slow down your application
+* Excessive memory usage when loading large collections just to count them
+* Poor scalability as your data grows
+* Missed opportunities to leverage counter caches for instant counting
+
+In high-traffic applications or those with large datasets, these inefficiencies can cause significant performance bottlenecks and increased server costs.
+
+== How to fix it in Ruby on Rails
+
+Replace `count` with `size` to automatically use the most efficient counting strategy. The `size` method will use counter caches when available or perform SQL queries when needed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class User < ActiveRecord::Base
+  has_many :photos
+end
+
+user = User.find(1)
+photo_count = user.photos.count  # Noncompliant: always hits database
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class User < ActiveRecord::Base
+  has_many :photos
+end
+
+user = User.find(1)
+photo_count = user.photos.size  # Uses optimal counting strategy
+----
+
+Replace `length` with `size` to avoid loading all records into memory. The `size` method will count efficiently without unnecessary memory usage.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+user = User.find(1)
+photo_count = user.photos.length  # Noncompliant: loads all records first
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+user = User.find(1)
+photo_count = user.photos.size  # Counts efficiently without loading records
+----
+
+When using counter caches, `size` automatically uses the cached value for instant counting without database queries.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+class Photo < ActiveRecord::Base
+  belongs_to :user, counter_cache: true
+end
+
+user.photos.count  # Noncompliant: ignores counter cache
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+class Photo < ActiveRecord::Base
+  belongs_to :user, counter_cache: true
+end
+
+user.photos.size  # Uses counter cache for instant result
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveRecord Associations Guide - https://guides.rubyonrails.org/association_basics.html[Official Rails guide covering association methods including counting strategies]
+
+ * ActiveRecord Counter Cache - https://guides.rubyonrails.org/association_basics.html#counter-cache[Documentation on setting up and using counter caches in Rails]
