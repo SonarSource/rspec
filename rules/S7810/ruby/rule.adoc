@@ -1,0 +1,106 @@
+This rule raises an issue when Rails model validations are bypassed using methods like `save(validate: false)`, `update_attribute`, or `update_column` without clear justification.
+
+== Why is this an issue?
+
+Rails model validations are a crucial part of maintaining data integrity in your application. They ensure that only valid data is stored in your database and that business rules are consistently enforced.
+
+When you bypass validations using methods like `save(validate: false)`, `update_attribute`, or `update_column`, you're essentially telling Rails to skip these important checks. This can lead to several problems:
+
+* *Invalid data storage*: Data that doesn't meet your validation criteria can be saved to the database
+* *Inconsistent business logic*: Validations often encode important business rules that get ignored
+* *Unexpected application behavior*: Other parts of your code may assume that data is valid, leading to errors or security issues
+* *Data corruption*: Over time, invalid data can accumulate and cause problems
+
+Methods like `update_column` also skip callbacks, which means important side effects (like updating timestamps or triggering notifications) won't happen.
+
+While there are legitimate reasons to bypass validations (such as system migrations, bulk operations, or performance-critical updates), these cases should be rare and well-documented. In most situations, it's better to fix the underlying validation issue or handle validation errors properly.
+
+=== What is the potential impact?
+
+Bypassing model validations can lead to data integrity issues, inconsistent business logic enforcement, and unexpected application behavior. Invalid data stored in the database may cause errors in other parts of the application or create security vulnerabilities.
+
+== How to fix it in Rails
+
+Use standard Rails update methods that respect validations. Handle validation errors appropriately instead of bypassing them.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def update_user_status
+  user = User.find(params[:id])
+  user.status = 'inactive'
+  user.save(validate: false) # Noncompliant
+end
+
+def quick_update
+  user.update_attribute(:status, 'inactive') # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def update_user_status
+  user = User.find(params[:id])
+  user.status = 'inactive'
+  
+  if user.save
+    # Handle success
+  else
+    # Handle validation errors appropriately
+    handle_validation_errors(user.errors)
+  end
+end
+
+def update_with_validation
+  if user.update(status: 'inactive')
+    # Handle success
+  else
+    # Handle validation errors
+  end
+end
+----
+
+When bypassing validations is necessary, document the reason clearly and consider the implications.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def bulk_deactivate
+  users.each do |user|
+    user.update_column(:status, 'inactive') # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def bulk_deactivate
+  # Bypassing validations for performance in bulk operation
+  # Data is pre-validated and this is a system-level update
+  users.each do |user|
+    user.update_column(:status, 'inactive')
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Active Record Validations - https://guides.rubyonrails.org/active_record_validations.html[Official Rails guide on model validations and their importance]
+
+ * Rails Active Record Persistence - https://guides.rubyonrails.org/active_record_basics.html#create[Documentation on Rails model persistence methods and their behavior]
+
+=== Standards
+
+ * CWE-20: Improper Input Validation - https://cwe.mitre.org/data/definitions/20.html[Bypassing validations can lead to improper input validation vulnerabilities]
