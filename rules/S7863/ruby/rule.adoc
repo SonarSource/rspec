@@ -1,0 +1,129 @@
+This rule raises an issue when controllers contain business logic that should be encapsulated in models, violating the 'fat models, skinny controllers' principle.
+
+== Why is this an issue?
+
+In Rails applications, following the Model-View-Controller (MVC) architectural pattern is crucial for maintainable code. Controllers should be thin and focused on handling HTTP requests and responses, while models should contain the business logic and domain-specific operations.
+
+When business logic is placed in controllers, several problems arise:
+
+* **Reduced testability**: Business logic in controllers is harder to test in isolation, as it requires setting up HTTP request contexts and controller state.
+* **Code duplication**: The same business logic may need to be repeated across multiple controllers or actions, violating the DRY (Don't Repeat Yourself) principle.
+* **Poor separation of concerns**: Controllers become bloated with responsibilities that don't belong to them, making the codebase harder to understand and maintain.
+* **Reduced reusability**: Business logic trapped in controllers cannot be easily reused in other parts of the application, such as background jobs, rake tasks, or API endpoints.
+
+Models are the appropriate place for business logic because they represent the domain entities and their behaviors. They provide a clean interface for encapsulating complex operations and can be easily tested, reused, and maintained.
+
+=== What is the potential impact?
+
+Placing business logic in controllers leads to code that is harder to test, maintain, and reuse. It violates fundamental MVC principles and can result in duplicated code across the application. This makes the codebase more prone to bugs and increases development time for new features.
+
+== How to fix it in Ruby on Rails
+
+Move business logic from controllers to appropriate model methods. Create descriptive method names that clearly express the business operation being performed.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class UsersController < ApplicationController
+  def show
+    @user = User.find(params[:id])
+    @is_subscribed = @user.subscription_end_date > Date.current # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class User < ApplicationRecord
+  def subscribed?
+    subscription_end_date > Date.current
+  end
+end
+
+class UsersController < ApplicationController
+  def show
+    @user = User.find(params[:id])
+    @is_subscribed = @user.subscribed?
+  end
+end
+----
+
+For more complex business logic involving multiple calculations or conditions, create dedicated model methods that encapsulate the entire operation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class OrdersController < ApplicationController
+  def create
+    @order = Order.new(order_params)
+    # Business logic in controller
+    @order.total = @order.items.sum(&:price) # Noncompliant
+    @order.tax = @order.total * 0.08 # Noncompliant
+    @order.final_total = @order.total + @order.tax # Noncompliant
+    
+    if @order.save
+      redirect_to @order
+    else
+      render :new
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class Order < ApplicationRecord
+  def calculate_totals
+    self.total = items.sum(&:price)
+    self.tax = total * tax_rate
+    self.final_total = total + tax
+  end
+  
+  private
+  
+  def tax_rate
+    0.08
+  end
+end
+
+class OrdersController < ApplicationController
+  def create
+    @order = Order.new(order_params)
+    @order.calculate_totals
+    
+    if @order.save
+      redirect_to @order
+    else
+      render :new
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Models Guide - https://guides.rubyonrails.org/active_record_basics.html[Official Rails guide explaining Active Record models and their responsibilities]
+
+ * Rails Models Best Practices - https://avohq.io/glossary/models[Comprehensive guide on Rails models responsibilities and best practices]
+
+=== Standards
+
+ * MVC Pattern - https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller[Model-View-Controller architectural pattern for separating concerns]
+
+=== Related rules
+
+ * RSPEC-5384 - https://rules.sonarsource.com/apex/RSPEC-5384[Similar rule for Apex: Business logic should not be implemented in controllers]
+
+ * RSPEC-6960 - https://rules.sonarsource.com/csharp/RSPEC-6960[Similar rule for C#: Business logic should not be implemented in controllers]
