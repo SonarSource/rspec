@@ -1,0 +1,123 @@
+This is an issue when a controller defines custom actions (beyond the standard RESTful actions) but these actions are not explicitly defined in the routes file.
+
+== Why is this an issue?
+
+Rails follows a specific route matching order when processing requests. When you use `resources :posts` in your routes file, Rails automatically creates standard RESTful routes including `GET /posts/:id` for the show action.
+
+If you add a custom action like `start` to your controller without defining a corresponding route, accessing `/posts/start` will match the show route pattern. Rails will treat "start" as an ID parameter and pass it to the show action, typically resulting in a `RecordNotFound` error when trying to find a record with ID "start".
+
+This happens because Rails matches routes in the order they are defined, and the generic `:id` parameter in the show route will match any string, including your custom action name.
+
+This routing conflict can cause:
+
+* Runtime errors when users try to access the custom action
+* Confusion for developers who expect the custom action to work
+* Unpredictable behavior if the custom action name happens to match an existing record ID
+
+=== What is the potential impact?
+
+Users will encounter `RecordNotFound` errors when trying to access custom controller actions. This can break application functionality and create a poor user experience. The issue may not be immediately apparent during development if the custom action name doesn't conflict with existing record IDs.
+
+== How to fix it in Rails
+
+Define the custom action explicitly in your routes file using collection routes for actions that don't operate on a specific resource instance.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# routes.rb
+Rails.application.routes.draw do
+  resources :posts  # Only standard RESTful routes defined
+end
+
+# posts_controller.rb
+class PostsController < ApplicationController
+  def start  # Noncompliant: Custom action without corresponding route
+    # This will cause routing conflicts
+  end
+  
+  def show
+    @post = Post.find(params[:id])
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# routes.rb
+Rails.application.routes.draw do
+  resources :posts do
+    collection do
+      get 'start'  # Custom action properly routed
+    end
+  end
+end
+
+# posts_controller.rb
+class PostsController < ApplicationController
+  def start
+    # Custom action implementation
+  end
+  
+  def show
+    @post = Post.find(params[:id])
+  end
+end
+----
+
+For custom actions that operate on a specific resource instance, use member routes instead of collection routes.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# routes.rb
+Rails.application.routes.draw do
+  resources :posts
+end
+
+# posts_controller.rb
+class PostsController < ApplicationController
+  def archive  # Noncompliant: Custom action without corresponding route
+    @post = Post.find(params[:id])
+    @post.update(archived: true)
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# routes.rb
+Rails.application.routes.draw do
+  resources :posts do
+    member do
+      patch 'archive'  # Custom action for specific resource
+    end
+  end
+end
+
+# posts_controller.rb
+class PostsController < ApplicationController
+  def archive
+    @post = Post.find(params[:id])
+    @post.update(archived: true)
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Routing from the Outside In - https://guides.rubyonrails.org/routing.html#adding-more-restful-actions[Official Rails guide on adding custom actions to RESTful routes]
+
+ * Rails Resource Routing - https://guides.rubyonrails.org/routing.html#resource-routing-the-rails-default[Complete guide to Rails resource routing and RESTful conventions]
