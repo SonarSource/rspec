@@ -1,0 +1,67 @@
+This rule raises an issue when ActiveSupport duration methods (like `days.from_now`, `hours.from_now`) are mixed with second-based arithmetic operations.
+
+== Why is this an issue?
+
+Mixing ActiveSupport's time duration methods with second-based arithmetic can produce incorrect results during daylight saving time (DST) transitions.
+
+ActiveSupport duration methods like `2.days.from_now` automatically compensate for DST changes. When clocks "spring forward" or "fall back", these methods ensure that "2 days from now" means the same time of day two calendar days later, regardless of whether those days contain 23, 24, or 25 hours.
+
+However, second-based arithmetic assumes every day has exactly 86400 seconds (24 × 60 × 60). During DST transitions:
+
+* When clocks spring forward (lose an hour), a day has only 82800 seconds (23 hours)
+* When clocks fall back (gain an hour), a day has 90000 seconds (25 hours)
+
+When you mix these approaches, the ActiveSupport method accounts for DST while your arithmetic doesn't, creating a mismatch. For example, `2.days.from_now` might represent a time that's 25 hours away, but dividing the time difference by 86400 will give you 1.04 days instead of 2.
+
+This inconsistency becomes particularly problematic in applications that:
+
+* Calculate trial periods or subscription durations
+* Display "days remaining" counters
+* Schedule recurring tasks
+* Generate time-based reports
+
+=== What is the potential impact?
+
+Incorrect time calculations can lead to:
+
+* Users losing access to services earlier or later than expected
+* Billing discrepancies in subscription-based applications  
+* Scheduled tasks running at wrong times
+* Confusing user interfaces showing incorrect "days remaining" values
+* Data integrity issues in time-sensitive business logic
+
+== How to fix it
+
+Use Date arithmetic for day-based calculations to avoid DST complications entirely.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# Mixing ActiveSupport duration with second arithmetic
+user.trial_expires = 14.days.from_now
+days_remaining = (user.trial_expires - Time.now) / 86400 # Noncompliant
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# Use Date arithmetic for day calculations
+user.trial_expires = 14.days.from_now
+days_remaining = (user.trial_expires.to_date - Date.current).to_i
+----
+
+== Resources
+
+=== Documentation
+
+ * ActiveSupport Time Extensions - https://guides.rubyonrails.org/active_support_core_extensions.html#time[Official Rails guide on ActiveSupport time and date extensions]
+
+ * Ruby Time and Date Classes - https://ruby-doc.org/core/Time.html[Ruby documentation for Time class and time arithmetic]
+
+=== Standards
+
+ * ISO 8601 - https://en.wikipedia.org/wiki/ISO_8601[International standard for date and time representation]
