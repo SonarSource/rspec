@@ -1,0 +1,134 @@
+This is an issue when a Rails controller action has multiple execution paths that can result in `render` or `redirect` being called more than once during the same request.
+
+== Why is this an issue?
+
+Rails controllers can only render a response or redirect once per request. When multiple render or redirect calls occur in the same action execution path, Rails raises a `DoubleRenderError` with the message "Render and/or redirect were called multiple times in this action".
+
+This error commonly occurs in three scenarios:
+
+* **Direct multiple calls**: Explicitly calling render or redirect multiple times in the same action
+* **Helper method calls**: Calling methods that perform rendering or redirecting without proper control flow to halt the calling action's execution
+* **Conditional logic paths**: Having multiple conditional branches that each contain render or redirect calls without ensuring only one path executes
+
+The root cause is usually missing control flow management. When a helper method renders or redirects, the calling action continues executing unless explicitly told to stop. This leads to the action attempting its own render or redirect after the helper method has already done so.
+
+=== What is the potential impact?
+
+This error causes the application to crash with a runtime exception, resulting in a 500 Internal Server Error for users. The application becomes unusable for the affected request paths until the code is fixed.
+
+From a development perspective, this error can be frustrating to debug because the issue may not be immediately obvious, especially when it involves helper methods or complex conditional logic. It can also indicate poor separation of concerns in controller design.
+
+== How to fix it in Rails
+
+Use early returns when calling methods that render or redirect. Add explicit `return` statements to prevent further execution after a render or redirect call.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+def index
+  @models = Model.all
+  my_action if current_user.name == "Bob"
+  
+  # This executes after my_action's render
+  respond_to do |format|
+    format.html # Noncompliant
+  end
+end
+
+def my_action
+  render js: "my_function();"
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+def index
+  @models = Model.all
+  if current_user.name == "Bob"
+    return my_action # Early return prevents double rendering
+  end
+  
+  respond_to do |format|
+    format.html
+  end
+end
+
+def my_action
+  render js: "my_function();"
+end
+----
+
+Use the "render and return" pattern in helper methods to ensure execution stops immediately after rendering.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+def auth_callback
+  if condition
+    process_data
+  end
+  render :default_view # Noncompliant
+end
+
+def process_data
+  render :success # Missing return - execution continues
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+def auth_callback
+  if condition
+    return process_data
+  end
+  render :default_view
+end
+
+def process_data
+  render :success and return
+end
+----
+
+Use `respond_to` blocks to handle different formats in a single render call instead of multiple separate render calls.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+def show
+  render json: @product
+  render :show # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+def show
+  respond_to do |format|
+    format.json { render json: @product }
+    format.html { render :show }
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Action Controller Overview - https://guides.rubyonrails.org/action_controller_overview.html#rendering-xml-and-json-data[Official Rails documentation on controller rendering and response handling]
+
+ * Rails API - AbstractController::DoubleRenderError - https://api.rubyonrails.org/classes/AbstractController/DoubleRenderError.html[API documentation for the DoubleRenderError exception]
