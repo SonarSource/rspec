@@ -1,0 +1,124 @@
+This rule raises an issue when a model class calls view rendering methods like `render`, `render_to_string`, or `render_partial`.
+
+== Why is this an issue?
+
+In the Model-View-Controller (MVC) architectural pattern, each component has a specific responsibility. Models handle data persistence and business logic, views handle presentation, and controllers coordinate between them.
+
+When models directly render views, they violate the separation of concerns principle. This creates several problems:
+
+* **Tight coupling**: The model becomes dependent on view templates, making it harder to change either independently.
+* **Testing complexity**: Unit tests for models become more complex because they need to account for view rendering logic.
+* **Reusability issues**: Models that render views are harder to reuse in different contexts, such as API endpoints or background jobs.
+* **Maintenance burden**: Changes to view logic require modifications in model classes, breaking the single responsibility principle.
+
+The MVC pattern exists to keep code organized and maintainable. When models handle presentation concerns, the architecture becomes muddled and harder to understand.
+
+=== What is the potential impact?
+
+Violating MVC separation of concerns leads to tightly coupled code that is difficult to maintain, test, and scale. Models become harder to reuse in different contexts, and changes to view logic require modifications across multiple layers of the application.
+
+== How to fix it in Rails
+
+Move view rendering logic to a controller or dedicated service class. Use callbacks to trigger notifications or background jobs instead of direct rendering.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class WallFeed < ApplicationRecord
+  after_create :push_create
+  
+  private
+  
+  def push_create
+    rendered_content = render_to_string(partial: 'feeds/feed_item') # Noncompliant
+    push_notification(rendered_content)
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class WallFeed < ApplicationRecord
+  after_create :notify_creation
+  
+  private
+  
+  def notify_creation
+    WallFeedNotificationService.new(self).push_create
+  end
+end
+
+class WallFeedNotificationService
+  include AbstractController::Rendering
+  
+  def initialize(wall_feed)
+    @wall_feed = wall_feed
+  end
+  
+  def push_create
+    rendered_content = render_to_string(partial: 'feeds/feed_item', locals: { feed_item: @wall_feed })
+    push_notification(rendered_content)
+  end
+end
+----
+
+Use background jobs to handle rendering and notifications asynchronously, keeping models focused on data operations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class User < ApplicationRecord
+  after_update :send_welcome_email
+  
+  private
+  
+  def send_welcome_email
+    email_body = render(template: 'mailers/welcome') # Noncompliant
+    UserMailer.send_email(email, email_body)
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class User < ApplicationRecord
+  after_update :queue_welcome_email
+  
+  private
+  
+  def queue_welcome_email
+    WelcomeEmailJob.perform_later(self.id)
+  end
+end
+
+class WelcomeEmailJob < ApplicationJob
+  def perform(user_id)
+    user = User.find(user_id)
+    UserMailer.welcome_email(user).deliver_now
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails MVC Architecture Guide - https://guides.rubyonrails.org/getting_started.html#mvc-and-you[Official Rails guide explaining the Model-View-Controller pattern]
+
+ * Active Record Callbacks - https://guides.rubyonrails.org/active_record_callbacks.html[Guide on using Active Record callbacks properly without violating MVC]
+
+ * AbstractController::Rendering - https://api.rubyonrails.org/classes/AbstractController/Rendering.html[Rails API documentation for proper rendering in service classes]
+
+=== Standards
+
+ * SOLID Principles - Single Responsibility Principle - https://en.wikipedia.org/wiki/Single-responsibility_principle[Each class should have only one reason to change]
