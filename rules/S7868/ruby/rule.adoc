@@ -1,0 +1,125 @@
+This is an issue when iterating over ActiveRecord collections that may contain large numbers of records using methods like `all.each`, `each`, `map`, or `to_a`, which load all records into memory simultaneously.
+
+== Why is this an issue?
+
+When working with ActiveRecord collections, methods like `all.each`, `each`, `map`, or `to_a` load all matching records into memory at once. This approach can cause serious problems:
+
+**Memory Exhaustion**: Loading thousands or millions of records simultaneously can consume excessive memory, potentially causing the application to crash with out-of-memory errors.
+
+**Poor Performance**: Large memory allocations can trigger frequent garbage collection cycles, significantly slowing down the application.
+
+**Resource Contention**: High memory usage can impact other parts of the application and the system as a whole.
+
+**Scalability Issues**: As the dataset grows, the memory requirements grow proportionally, making the application less scalable.
+
+ActiveRecord provides batch processing methods specifically designed to handle large datasets efficiently. These methods process records in manageable chunks (batches), keeping memory usage constant regardless of the total dataset size. The default batch size is 1000 records, but this can be customized based on your needs.
+
+=== What is the potential impact?
+
+Memory exhaustion can cause application crashes, especially in production environments with large datasets. Poor performance due to excessive memory allocation and garbage collection can significantly degrade user experience. In extreme cases, the application may become unresponsive or require restart.
+
+== How to fix it in Rails
+
+Use `find_each` instead of `each` for iterating over individual records. This method processes records in batches of 1000 by default, keeping memory usage constant.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+User.all.each do |user|
+  user.send_notification # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+User.find_each do |user|
+  user.send_notification
+end
+----
+
+Use `find_in_batches` when you need to process records in batches rather than individually. This is useful for operations that can be optimized by working with groups of records.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+Person.where("age > 21").to_a.each do |person|
+  process(person) # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+Person.where("age > 21").find_in_batches(batch_size: 1000) do |batch|
+  batch.each { |person| process(person) }
+end
+----
+
+Use `update_all` for bulk updates instead of iterating over records and updating them individually. This generates a single SQL UPDATE statement instead of multiple queries.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+Product.where(category: 'electronics').each do |product|
+  product.update(stale: true) # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+Product.where(category: 'electronics').update_all(stale: true)
+----
+
+Use `in_batches` when you need to chain additional query methods on batches. This method returns ActiveRecord relations that can be further queried.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=4,diff-type=noncompliant]
+----
+User.where(active: true).all.each do |user|
+  update_user_stats(user) # Noncompliant
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=4,diff-type=compliant]
+----
+User.where(active: true).in_batches(of: 1000) do |users|
+  users.update_all(last_processed: Time.current)
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Active Record Query Interface - https://guides.rubyonrails.org/active_record_querying.html#retrieving-multiple-objects-in-batches[Official Rails documentation on batch processing methods including find_each, find_in_batches, and in_batches]
+
+ * Rails API Documentation - Batches - https://api.rubyonrails.org/classes/ActiveRecord/Batches.html[Complete API reference for ActiveRecord batch processing methods]
+
+ * Rails Style Guide - find_each - https://rails.rubystyle.guide/#find-each[Community style guide recommendations for using find_each with large collections]
+
+=== Standards
+
+ * CWE-400: Uncontrolled Resource Consumption - https://cwe.mitre.org/data/definitions/400.html[Describes the security implications of uncontrolled resource consumption, including memory exhaustion]
+
+=== Related rules
+
+ * RSPEC-2068 - https://rules.sonarsource.com/ruby/RSPEC-2068/[Objects should not be created only to getClass]
