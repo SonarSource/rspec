@@ -1,0 +1,130 @@
+This rule raises an issue when Rails migrations use rescue blocks or inline rescue statements to handle database schema operations like adding columns or creating tables.
+
+== Why is this an issue?
+
+Using rescue blocks for database schema existence checks in Rails migrations creates several problems that can make your application unreliable and harder to maintain.
+
+When you use rescue blocks to catch exceptions from schema operations, you're essentially using exception handling as control flow. This approach has significant drawbacks:
+
+*Database-specific behavior*: Different database systems handle failed schema operations differently. While SQLite might allow continued execution after a rescued exception, PostgreSQL will mark the entire transaction as failed. This means your migration might work in development with SQLite but fail in production with PostgreSQL.
+
+*Transaction integrity issues*: In PostgreSQL, when a statement fails within a transaction, the entire transaction enters an error state. Even if you rescue the exception, subsequent statements in the same transaction will fail. This can leave your database in an inconsistent state.
+
+*Poor error handling*: Rescue blocks often suppress important error information. Using `rescue nil` or generic rescue statements can hide real problems that need attention, making debugging much harder.
+
+*Code clarity*: Exception handling for normal program flow makes the code harder to understand and maintain. Other developers might not immediately understand why rescue blocks are being used.
+
+=== What is the potential impact?
+
+Using rescue blocks for schema existence checks can lead to:
+
+* *Failed migrations in production*: Migrations that work in development might fail when deployed to production databases like PostgreSQL
+* *Inconsistent database state*: Transaction failures can leave the database schema in an unexpected state
+* *Hidden errors*: Important migration errors might be suppressed, making issues harder to diagnose
+* *Database portability issues*: Code becomes tied to specific database behaviors, reducing flexibility
+
+== How to fix it in Rails
+
+Use Rails' built-in `column_exists?` method to check if a column exists before adding it. This approach is database-agnostic and doesn't rely on exception handling.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class AddHoldReasonToStatuses < ActiveRecord::Migration
+  def change
+    # Using rescue to handle existing columns
+    add_column :statuses, :hold_reason, :string rescue puts "column already added" # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class AddHoldReasonToStatuses < ActiveRecord::Migration
+  def change
+    # Use column_exists? for conditional schema changes
+    unless column_exists?(:statuses, :hold_reason)
+      add_column :statuses, :hold_reason, :string
+    end
+  end
+end
+----
+
+Use the `if_not_exists` option available in Rails 6.1+ for a cleaner approach to conditional column creation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+class AddColumnMigration < ActiveRecord::Migration
+  def change
+    # Generic exception handling for schema operations
+    begin
+      add_column :statuses, :hold_reason, :string
+    rescue ActiveRecord::StatementInvalid # Noncompliant
+      puts "Column might already exist"
+    end
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+class AddColumnMigration < ActiveRecord::Migration
+  def change
+    # Use if_not_exists option (Rails 6.1+)
+    add_column :statuses, :hold_reason, :string, if_not_exists: true
+  end
+end
+----
+
+Use `table_exists?` to check table existence before creating or modifying tables, avoiding silent failures.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=3,diff-type=noncompliant]
+----
+class CreateTableMigration < ActiveRecord::Migration
+  def change
+    # Rescue without proper error handling
+    create_table :new_table do |t|
+      t.string :name
+    end rescue nil # Noncompliant
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=3,diff-type=compliant]
+----
+class CreateTableMigration < ActiveRecord::Migration
+  def change
+    # Check table existence before modifications
+    unless table_exists?(:new_table)
+      create_table :new_table do |t|
+        t.string :name
+      end
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Migration Methods - https://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/SchemaStatements.html[Official Rails documentation for schema statement methods including column_exists? and table_exists?]
+
+ * Rails Migration Guide - https://guides.rubyonrails.org/active_record_migrations.html[Comprehensive guide to Rails migrations and best practices]
