@@ -1,0 +1,101 @@
+This is an issue when a class file is located in a subdirectory but the class is not wrapped in the corresponding namespace module that matches the directory structure.
+
+== Why is this an issue?
+
+Ruby's autoloading mechanism expects the file structure to match the namespace structure. When this convention is not followed, several problems can occur:
+
+**Autoloading failures**: Ruby's autoloader may fail to properly load the class, leading to `NameError` or `LoadError` exceptions at runtime.
+
+**Circular dependency errors**: When a class in a subdirectory references other classes in the same namespace without proper module wrapping, it can create circular dependencies. The autoloader gets confused about which file to load first, resulting in `RuntimeError: Circular dependency detected while autoloading constant` errors.
+
+**Inconsistent behavior**: The application may work in some environments (like production with eager loading) but fail in development mode where autoloading is more active.
+
+**Maintenance issues**: Code becomes harder to understand and maintain when the file structure doesn't match the namespace structure, violating the principle of least surprise.
+
+=== What is the potential impact?
+
+Applications may experience runtime errors, particularly `RuntimeError: Circular dependency detected while autoloading constant` exceptions. This can cause complete application failures in development environments and unpredictable behavior during deployment. The issue is especially problematic in Rails applications where autoloading is heavily used.
+
+== How to fix it
+
+Wrap the class in the appropriate module that matches the directory structure. The module name should correspond to the subdirectory name.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+# app/controllers/admin/users_controller.rb
+class UsersController < Admin::BaseController # Noncompliant
+  def index
+    # action code
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+# app/controllers/admin/users_controller.rb
+module Admin
+  class UsersController < Admin::BaseController
+    def index
+      # action code
+    end
+  end
+end
+----
+
+== How to fix it in Rails
+
+For Rails controllers in namespaced routes, ensure the controller class is properly wrapped in the namespace module to match the directory structure and route namespace.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=2,diff-type=noncompliant]
+----
+# app/controllers/api/v1/users_controller.rb
+class UsersController < ApplicationController # Noncompliant
+  def show
+    render json: User.find(params[:id])
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=2,diff-type=compliant]
+----
+# app/controllers/api/v1/users_controller.rb
+module Api
+  module V1
+    class UsersController < ApplicationController
+      def show
+        render json: User.find(params[:id])
+      end
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Ruby Autoloading and Reloading Constants - https://guides.rubyonrails.org/autoloading_and_reloading_constants.html[Official Rails guide explaining autoloading mechanisms and best practices]
+
+ * Ruby Module and Class Naming Conventions - https://ruby-doc.org/core/doc/syntax/modules_and_classes_rdoc.html[Ruby documentation on module and class naming conventions]
+
+=== Standards
+
+ * Ruby Style Guide - Modules - https://rubystyle.guide/#modules[Community Ruby style guide recommendations for module usage]
+
+=== Related rules
+
+ * RSPEC-3903 - https://rules.sonarsource.com/vbnet/RSPEC-3903[VB.NET rule for proper namespace declaration]
+
+ * RSPEC-3259 - https://rules.sonarsource.com/csharp/RSPEC-3259[C# rule for proper namespace declaration]
