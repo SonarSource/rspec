@@ -1,0 +1,76 @@
+This rule raises an issue when a custom validation method in a Rails model returns `false` or boolean values without adding errors to the model's errors collection.
+
+== Why is this an issue?
+
+Rails custom validation methods work differently from built-in validation helpers. When you define a custom validation method using `validate :method_name`, Rails calls that method but ignores its return value.
+
+Rails only prevents saving a model when the model's `errors` collection contains validation errors. Simply returning `false` from a validation method does not add any errors to this collection.
+
+This behavior can be confusing because:
+
+* Built-in validation helpers like `validates_presence_of` automatically add errors when validation fails
+* Many developers expect custom validation methods to work the same way
+* The model will save successfully even when the validation method returns `false`
+
+This leads to invalid data being persisted in the database, which can cause data integrity issues and unexpected application behavior.
+
+=== What is the potential impact?
+
+Invalid data may be saved to the database, leading to:
+
+* Data integrity violations
+* Unexpected application behavior when invalid records are processed
+* Difficult-to-debug issues where validation appears to run but doesn't prevent saving
+* Potential security vulnerabilities if validation is meant to enforce security constraints
+
+== How to fix it
+
+Add errors to the model's errors collection instead of returning boolean values. Use `errors.add()` to specify which attribute has the error and provide a meaningful error message.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,ruby,diff-id=1,diff-type=noncompliant]
+----
+class Company < ActiveRecord::Base
+  validate :check_business_rules
+
+  private
+
+  def check_business_rules
+    return false if name.blank? # Noncompliant
+    return false if invalid_condition? # Noncompliant
+    true
+  end
+end
+----
+
+==== Compliant solution
+
+[source,ruby,diff-id=1,diff-type=compliant]
+----
+class Company < ActiveRecord::Base
+  validate :check_business_rules
+
+  private
+
+  def check_business_rules
+    if name.blank?
+      errors.add(:name, 'cannot be blank')
+    end
+    
+    if invalid_condition?
+      errors.add(:base, 'business rule violation')
+    end
+  end
+end
+----
+
+== Resources
+
+=== Documentation
+
+ * Rails Guides - Active Record Validations - https://guides.rubyonrails.org/active_record_validations.html#custom-methods[Official Rails documentation on custom validation methods]
+
+ * Rails API - ActiveModel::Errors - https://api.rubyonrails.org/classes/ActiveModel/Errors.html[Documentation for the errors collection and its methods]
