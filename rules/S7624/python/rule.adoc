@@ -1,0 +1,123 @@
+This rule raises an issue when FastAPI dependency functions lack proper type annotations, are not used with the `Depends()` function, or when shared logic is duplicated across endpoints instead of using dependency injection.
+
+== Why is this an issue?
+
+FastAPI's dependency injection system is a core feature that provides several important benefits when used correctly.
+
+When dependency functions lack type annotations, FastAPI cannot generate accurate API documentation or provide proper type checking. The framework relies on type hints to understand what data types are expected and returned, which is essential for automatic OpenAPI schema generation.
+
+Using dependencies without the `Depends()` function breaks FastAPI's dependency injection mechanism. When you call a dependency function directly (like `user=get_current_user()`), the function executes immediately during module import, not during request processing. This can lead to runtime errors and prevents FastAPI from managing the dependency lifecycle properly.
+
+Duplicating shared logic across multiple endpoints violates the DRY (Don't Repeat Yourself) principle and creates maintenance problems. When authentication, validation, or database connection logic is copied between endpoints, any changes must be made in multiple places, increasing the risk of inconsistencies and bugs.
+
+Inconsistent application of security dependencies is particularly dangerous. When some endpoints that should be protected are missing security dependencies, they become vulnerable to unauthorized access. This creates security gaps that attackers can exploit.
+
+=== What is the potential impact?
+
+Missing type annotations lead to incomplete API documentation and potential runtime type errors that could have been caught during development.
+
+Incorrect use of dependencies can cause application startup failures or unexpected behavior during request processing.
+
+Code duplication makes the application harder to maintain and increases the likelihood of introducing bugs when making changes to shared logic.
+
+Inconsistent security dependency application can result in unauthorized access to protected resources, potentially exposing sensitive data or functionality.
+
+=== How to fix in FastAPI?
+
+Add proper type annotations to dependency functions and use them with Depends() in endpoint parameters.
+
+==== Non-compliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+def get_current_user(token):
+    # Missing type annotations
+    return verify_token(token)
+
+@app.get("/protected/")
+def protected_route(user=get_current_user()):  # Noncompliant
+    return {"user": user}
+----
+
+==== Compliant code example
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    # Proper type annotations for dependency
+    return verify_token(token)
+
+@app.get("/protected/")
+def protected_route(user: User = Depends(get_current_user)):
+    return {"user": user}
+----
+
+Extract duplicated logic into a dependency function and reuse it across endpoints.
+
+==== Non-compliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+@app.get("/items/")
+def read_items(token: str):
+    if not token or token != "valid-token":  # Noncompliant
+        raise HTTPException(status_code=401)
+    return ["item1", "item2"]
+
+@app.get("/users/")
+def read_users(token: str):
+    if not token or token != "valid-token":  # Noncompliant
+        raise HTTPException(status_code=401)
+    return ["user1", "user2"]
+----
+
+==== Compliant code example
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+def verify_token(token: str) -> str:
+    if not token or token != "valid-token":
+        raise HTTPException(status_code=401)
+    return token
+
+@app.get("/items/")
+def read_items(token: str = Depends(verify_token)):
+    return ["item1", "item2"]
+
+@app.get("/users/")
+def read_users(token: str = Depends(verify_token)):
+    return ["user1", "user2"]
+----
+
+Apply security dependencies consistently to all protected endpoints.
+
+==== Non-compliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+@app.get("/users/profile")
+def get_profile():  # Noncompliant
+    # Missing security dependency
+    return get_user_profile()
+----
+
+==== Compliant code example
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+@app.get("/users/profile")
+def get_profile(current_user: User = Depends(get_current_user)):
+    # Security dependency properly applied
+    return get_user_profile(current_user.id)
+----
+
+=== Documentation
+
+ * FastAPI Dependencies Tutorial - https://fastapi.tiangolo.com/tutorial/dependencies/[Official FastAPI documentation on dependency injection system]
+ * FastAPI Security Tutorial - https://fastapi.tiangolo.com/tutorial/security/[Guide on implementing security with FastAPI dependencies]
+ * Python Type Hints - https://docs.python.org/3/library/typing.html[Python documentation on type annotations]
+
+=== Standards
+
+ * CWE-862: Missing Authorization - https://cwe.mitre.org/data/definitions/862.html[Weakness related to missing authorization checks]
+
