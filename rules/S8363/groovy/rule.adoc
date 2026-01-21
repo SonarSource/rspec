@@ -1,0 +1,66 @@
+This is an issue when methods in Jenkins pipeline scripts use closure-heavy operations like `collect`, `findAll`, `each`, or `eachLine` without the `@NonCPS` annotation.
+
+== Why is this an issue?
+
+Jenkins pipelines use Continuation Passing Style (CPS) transformation to make code serializable and resumable. However, this transformation can cause issues with closure-heavy operations, leading to unexpected behavior such as:
+
+* Closures executing only once instead of for each element
+* Incorrect return values from closure-based methods
+* Runtime exceptions during pipeline execution
+
+The CPS transformation struggles with complex closure operations because it needs to serialize the execution state at each step. When closures are used extensively for data processing, the transformation can produce incorrect bytecode that doesn't behave as expected.
+
+For example, `[1, 2, 3].each { println it }` might only print `1` instead of all three numbers, or `list.findAll { condition }` might return unexpected results.
+
+=== What is the potential impact?
+
+Without proper handling of closure-heavy operations, Jenkins pipelines may:
+
+* Produce incorrect results from data processing operations
+* Skip iterations in loops, leading to incomplete processing
+* Fail with runtime exceptions during execution
+* Behave inconsistently between different pipeline runs
+
+These issues can cause deployment failures, incorrect data processing, and unreliable CI/CD workflows.
+
+== How to fix it
+
+Add the `@NonCPS` annotation to methods that use closure-heavy operations. This disables CPS transformation for the method, allowing closures to work correctly. However, ensure the method only performs computations and doesn't call asynchronous pipeline steps.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+def processData() {
+  return [1, 2, 3].collect { it * 2 } // Noncompliant
+}
+
+def filterTargets(config) {
+  return config.deployTargets.findAll { !it.hasProperty("deployed") } // Noncompliant
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+@com.cloudbees.groovy.cps.NonCPS
+def processData() {
+  return [1, 2, 3].collect { it * 2 }
+}
+
+@com.cloudbees.groovy.cps.NonCPS
+def filterTargets(config) {
+  return config.deployTargets.findAll { !it.hasProperty("deployed") }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Jenkins Pipeline CPS Documentation - https://www.jenkins.io/doc/book/pipeline/cps-method-mismatches/[Official Jenkins documentation on CPS method mismatches and the @NonCPS annotation]
+
+ * Groovy CPS Plugin Documentation - https://github.com/jenkinsci/workflow-cps-plugin[Documentation for the Jenkins Workflow CPS plugin that handles pipeline execution]
