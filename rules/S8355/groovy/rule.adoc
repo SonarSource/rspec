@@ -1,0 +1,71 @@
+This rule raises an issue when variables are declared in the `environment` block and assigned values from functions that return complex objects like Maps or Lists.
+
+== Why is this an issue?
+
+In Jenkins declarative pipelines, the `environment` block automatically converts all variables to strings, regardless of their original data type. This string conversion breaks the structure and functionality of complex objects returned by utility functions like `readYaml`, `readJSON`, or `readProperties`.
+
+When a Map or List is converted to a string, you lose the ability to access its properties, iterate over its elements, or use any of its methods. This leads to runtime errors when your pipeline tries to use these objects as intended.
+
+For example, if `readYaml` returns a Map with nested properties, converting it to a string means you can no longer access those properties using dot notation or bracket syntax. The pipeline will fail with errors like "No such field found" because the string representation doesn't have the expected structure.
+
+=== What is the potential impact?
+
+This issue causes runtime failures in Jenkins pipelines when attempting to access properties or methods of complex objects. The pipeline will crash with `RejectedAccessException` or similar errors, preventing successful builds and deployments. This can block development workflows and cause confusion for developers who expect the objects to maintain their original structure.
+
+== How to fix it
+
+Move the variable declaration from the `environment` block to a `script` block within a stage. This preserves the original data type and structure of complex objects.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+pipeline {
+  agent any
+  environment {
+    valuesYaml = readYaml(file: 'values.yaml') // Noncompliant
+  }
+  stages {
+    stage('Process') {
+      steps {
+        script {
+          // This will fail because valuesYaml is a string
+          echo valuesYaml.appName
+        }
+      }
+    }
+  }
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+pipeline {
+  agent any
+  stages {
+    stage('Process') {
+      steps {
+        script {
+          def valuesYaml = readYaml(file: 'values.yaml')
+          // This works because valuesYaml preserves its Map structure
+          echo valuesYaml.appName
+        }
+      }
+    }
+  }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Jenkins Pipeline Utility Steps - readYaml - https://jenkins.io/doc/pipeline/steps/pipeline-utility-steps/#readyaml-read-yaml-from-files-in-the-workspace-or-text[Official documentation for the readYaml pipeline utility step]
+
+ * Jenkins Declarative Pipeline - Environment Directive - https://www.jenkins.io/doc/book/pipeline/syntax/#environment[Documentation explaining how the environment directive works in declarative pipelines]
+
+ * Jenkins Pipeline Utility Steps Plugin - https://plugins.jenkins.io/pipeline-utility-steps/[Plugin providing utility steps for reading and writing common file formats]
