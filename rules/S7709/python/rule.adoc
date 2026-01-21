@@ -1,0 +1,56 @@
+This is an issue when Flask error handlers that may be triggered by database errors do not include a database session rollback.
+
+== Why is this an issue?
+
+When a database error occurs in a Flask application, the database session enters a failed state. If an error handler is triggered by such a database error but doesn't roll back the session, any subsequent database operations will fail.
+
+This commonly happens with 500 error handlers, which are often triggered by database constraint violations, connection issues, or other database-related problems. When these handlers render error templates or perform other operations that might access the database, they will encounter additional errors because the session is still in a failed state.
+
+For example, if a user tries to register with a username that already exists, a database constraint violation occurs. The 500 error handler is triggered, but if it doesn't roll back the session, any database queries in the error template (like fetching user information for the navigation bar) will fail, potentially causing a cascade of errors.
+
+Rolling back the session resets it to a clean state, ensuring that subsequent database operations can proceed normally. This prevents error handlers from becoming sources of additional errors and ensures a better user experience during error conditions.
+
+=== What is the potential impact?
+
+Without proper session rollbacks in error handlers, applications may experience cascading failures where a single database error triggers multiple subsequent errors. This can lead to:
+
+* Error pages that fail to render properly
+* Incomplete error logging or reporting
+* Poor user experience with confusing error messages
+* Difficulty in debugging the root cause of issues
+* Potential application crashes in severe cases
+
+== How to fix it
+
+Add a database session rollback at the beginning of error handlers that may be triggered by database errors. This ensures the session is reset to a clean state before any subsequent operations.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('500.html'), 500  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('500.html'), 500
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask Error Handling Documentation - https://flask.palletsprojects.com/en/2.3.x/errorhandling/[Official Flask documentation on error handling patterns and best practices]
+
+ * SQLAlchemy Session Management - https://docs.sqlalchemy.org/en/20/orm/session_basics.html#rolling-back[SQLAlchemy documentation on session rollback and transaction management]
+
+ * Flask-SQLAlchemy Error Handling - https://flask-sqlalchemy.palletsprojects.com/en/3.0.x/contexts/[Flask-SQLAlchemy documentation on handling database errors and session management]
