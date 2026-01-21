@@ -1,0 +1,73 @@
+This is an issue when environment variables are referenced using `${variable}` syntax in parameter definitions outside of script blocks in Jenkins declarative pipelines.
+
+== Why is this an issue?
+
+In Jenkins declarative pipelines, environment variables defined in the `environment` block cannot be directly interpolated in parameter definitions using `${variable}` syntax. This occurs because parameter definitions are evaluated in a different context where environment variables are not accessible.
+
+When Jenkins processes the pipeline, it attempts to resolve the variable reference during the pipeline parsing phase, before the environment variables are actually set. This results in a `MissingPropertyException` because the variable does not exist in the current scope.
+
+The declarative pipeline syntax has specific rules about where and how variables can be accessed. Parameter definitions in `input` blocks are processed before the environment context is fully established, making direct variable interpolation impossible.
+
+=== What is the potential impact?
+
+This issue causes pipeline execution to fail with a `MissingPropertyException`, preventing the pipeline from running successfully. This can block deployments and disrupt CI/CD workflows, requiring manual intervention to fix the pipeline configuration.
+
+== How to fix it
+
+Move the dynamic parameter generation into a script block within the steps section. Use the `input` step programmatically with proper variable scoping instead of the declarative `input` block.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,groovy,diff-id=1,diff-type=noncompliant]
+----
+pipeline {
+    agent any
+    stages {
+        stage('User Input') {
+            environment {
+                jars = 'v1 v2 v3'
+            }
+            input {
+                message "What are we deploying today?"
+                parameters {
+                    choice(choices: ${jars}, description: 'Select a tag', name: 'TAG') // Noncompliant
+                }
+            }
+            steps {
+                echo "Deploying ${TAG}"
+            }
+        }
+    }
+}
+----
+
+==== Compliant solution
+
+[source,groovy,diff-id=1,diff-type=compliant]
+----
+pipeline {
+    agent any
+    stages {
+        stage('User Input') {
+            steps {
+                script {
+                    List<String> CHOICES = ["v1", "v2", "v3"]
+                    env.selectedTag = input message: 'What are we deploying today?',
+                                          parameters: [choice(choices: CHOICES, description: 'Select a tag', name: 'TAG')]
+                }
+                echo "Deploying ${env.selectedTag}"
+            }
+        }
+    }
+}
+----
+
+== Resources
+
+=== Documentation
+
+ * Jenkins Pipeline Syntax - Input Step - https://www.jenkins.io/doc/pipeline/steps/pipeline-input-step/[Official documentation for the input step in Jenkins pipelines]
+
+ * Jenkins Pipeline Syntax - Environment Directive - https://www.jenkins.io/doc/book/pipeline/syntax/#environment[Documentation on environment variables in Jenkins declarative pipelines]
