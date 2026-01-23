@@ -1,0 +1,69 @@
+== How to fix it in tarfile
+
+=== Code examples
+
+:canonicalization_function1: os.path.abspath
+:canonicalization_function2: os.path.realpath
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+import os
+import tarfile
+
+target_directory = "/tmp/uploads/"
+
+def extract_entry(tar_path):
+    with tarfile.open(tar_path, 'r') as tar_file:
+        for member in tar_file.getmembers():
+            out_filename = os.path.join(target_directory, member.name)  # Noncompliant
+
+            if member.isdir():
+                os.makedirs(out_filename, exist_ok=True)
+            else:
+                os.makedirs(os.path.dirname(out_filename), exist_ok=True)
+                with tar_file.extractfile(member) as source:
+                    if source:
+                        with open(out_filename, 'wb') as target:
+                            target.write(source.read())
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+import os
+import tarfile
+
+target_directory = "/tmp/uploads/"
+
+def extract_entry(tar_path):
+    canonical_target = os.path.abspath(target_directory)
+    if not canonical_target.endswith(os.sep):
+        canonical_target += os.sep
+
+    with tarfile.open(tar_path, 'r') as tar_file:
+        for member in tar_file.getmembers():
+            out_filename = os.path.join(target_directory, member.name)
+            canonical_destination = os.path.abspath(out_filename)
+
+            if not canonical_destination.startswith(canonical_target):
+                continue  # zip slip detected
+
+            if member.isdir():
+                os.makedirs(out_filename, exist_ok=True)
+            else:
+                os.makedirs(os.path.dirname(out_filename), exist_ok=True)
+                with tar_file.extractfile(member) as source:
+                    if source:
+                        with open(out_filename, 'wb') as target:
+                            target.write(source.read())
+----
+
+=== How does this work?
+
+include::../../common/fix/how-does-this-work.adoc[]
+

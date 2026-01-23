@@ -1,0 +1,61 @@
+== How to fix it in zipfile
+
+=== Code examples
+
+:canonicalization_function1: os.path.abspath
+:canonicalization_function2: os.path.realpath
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import os
+import zipfile
+
+target_directory = "/tmp/uploads/"
+
+def extract_entry(zip_path):
+    with zipfile.ZipFile(zip_path, 'r') as zip_file:
+        for file_info in zip_file.filelist:
+            out_filename = os.path.join(target_directory, file_info.filename)  # Noncompliant
+
+            os.makedirs(os.path.dirname(out_filename), exist_ok=True)
+            with zip_file.open(file_info) as source:
+                with open(out_filename, 'wb') as target:
+                    target.write(source.read())
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import os
+import zipfile
+
+target_directory = "/tmp/uploads/"
+
+def extract_entry(zip_path):
+    canonical_target = os.path.abspath(target_directory)
+    if not canonical_target.endswith(os.sep):
+        canonical_target += os.sep
+
+    with zipfile.ZipFile(zip_path, 'r') as zip_file:
+        for file_info in zip_file.filelist:
+            out_filename = os.path.join(target_directory, file_info.filename)
+            canonical_destination = os.path.abspath(out_filename)
+
+            if not canonical_destination.startswith(canonical_target):
+                continue  # zip slip detected
+
+            os.makedirs(os.path.dirname(out_filename), exist_ok=True)
+            with zip_file.open(file_info) as source:
+                with open(out_filename, 'wb') as target:
+                    target.write(source.read())
+----
+
+=== How does this work?
+
+include::../../common/fix/how-does-this-work.adoc[]
+
