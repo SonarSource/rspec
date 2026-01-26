@@ -7,6 +7,7 @@ import { generateOneRuleMetadata, generateRulesMetadata } from './metadata';
 import { generateOneRuleDescription, generateRulesDescription, } from './description';
 import { createIndexFiles } from './searchIndex';
 import { processIncompleteRspecs, PullRequest } from './pullRequestIndexing';
+import { RULE_SRC_DIRECTORY, RULE_DST_DIRECTORY, PR_DIRECTORY } from './paths';
 
 process.on('unhandledRejection', up => {
   throw up;
