@@ -14,6 +14,7 @@ SUPPORTED_LANGUAGES_FILENAME = REPO_ROOT / "supported_languages.adoc"
 LANG_TO_LABEL = {
     "abap": "abap",
     "apex": "slang",
+    "azurepipelines": "iac",
     "azureresourcemanager": "iac",
     "cfamily": "cfamily",
     "cobol": "cobol",
@@ -58,6 +59,7 @@ LANG_TO_LABEL = {
 LANG_TO_SOURCE = {
     # languages with syntax coloring in highlight.js
     "abap": "abap",
+    "azurepipelines": "yaml",
     "cfamily": "cpp",
     "cloudformation": "yaml",
     "csharp": "csharp",
