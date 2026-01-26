@@ -1,16 +1,33 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This is an issue when `CORSMiddleware` is added to a FastAPI application and then followed by additional middleware using `add_middleware()`.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+In FastAPI, middleware is executed in reverse order of how it's added to the application. When you call `app.add_middleware()`, each middleware wraps the previous one, forming a stack.
 
-//=== What is the potential impact?
+Think of it like wrapping a gift: the first layer you add becomes the innermost layer, and the last layer you add becomes the outermost layer. When processing a request, FastAPI starts from the outermost layer and works its way in.
+
+CORS (Cross-Origin Resource Sharing) middleware needs to add specific HTTP headers to responses to allow browsers to make cross-origin requests. For these headers to be present on all responses - including those modified by other middleware - CORSMiddleware must be the outermost layer.
+
+If you add other middleware after CORSMiddleware, those middleware will wrap around it and process requests/responses outside of the CORS layer. This means:
+
+* CORS headers may not be added to responses modified by the outer middleware
+* Preflight requests may not be handled correctly
+* Cross-origin requests from browsers will fail
+
+=== What is the potential impact?
+
+When CORSMiddleware is not positioned correctly, cross-origin requests from web browsers will fail. This breaks the functionality of web applications that need to make API calls from a different domain.
+
+Users will see errors in their browser console, and features that depend on cross-origin requests will not work. This can affect:
+
+* Single-page applications (SPAs) hosted on different domains
+* Mobile apps using web views
+* Third-party integrations
+* Development environments where frontend and backend run on different ports
 
 == How to fix it
-//== How to fix it in FRAMEWORK NAME
+
+Move the `CORSMiddleware` configuration to be the last `add_middleware()` call in your application setup. Add all other middleware before adding CORSMiddleware.
 
 === Code examples
 
@@ -18,27 +35,48 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(GZipMiddleware)  # Noncompliant
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+
+app = FastAPI()
+
+app.add_middleware(GZipMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 ----
 
-//=== How does this work?
+== Resources
 
-//=== Pitfalls
+=== Documentation
 
-//=== Going the extra mile
+ * FastAPI CORS Documentation - https://fastapi.tiangolo.com/tutorial/cors/[Official FastAPI documentation on CORS middleware configuration]
 
+ * FastAPI Middleware Documentation - https://fastapi.tiangolo.com/tutorial/middleware/[Official FastAPI documentation explaining middleware execution order]
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+ * Starlette Middleware Documentation - https://www.starlette.io/middleware/[Starlette middleware documentation (FastAPI is built on Starlette)]
