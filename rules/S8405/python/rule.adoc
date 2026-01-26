@@ -1,0 +1,161 @@
+This is an issue when using Starlette or FastAPI's `TestClient` with the `data` parameter to send raw bytes or text strings in HTTP requests. The `data` parameter should only be used for form data (dictionaries), while raw content should use the `content` parameter.
+
+== Why is this an issue?
+
+Starlette version 0.21.0 introduced a breaking change by replacing the underlying HTTP client from `requests` to `httpx`. These two libraries have different parameter conventions for sending request bodies.
+
+In the `requests` library, the `data` parameter accepts various types including bytes, strings, and dictionaries. However, in `httpx`, the parameter naming is more specific:
+
+* The `data` parameter is reserved for form data (dictionaries that will be encoded as `application/x-www-form-urlencoded`)
+* The `content` parameter should be used for raw bytes or text strings
+
+When you use `data` with bytes or text in an httpx-based `TestClient`, the request may not behave as expected. The library might attempt to process the raw content as form data, leading to incorrect encoding or Content-Type headers.
+
+This issue commonly appears when upgrading Starlette or FastAPI applications, causing previously working tests to fail or behave unexpectedly. The parameter mismatch can result in:
+
+* Incorrect request body encoding
+* Wrong Content-Type headers being set
+* Test failures that are difficult to diagnose
+* API endpoints receiving malformed data in tests
+
+=== What is the potential impact?
+
+Using the wrong parameter can cause tests to fail or pass incorrectly, masking real issues in the application code. This reduces the reliability of the test suite and may allow bugs to reach production.
+
+The incorrect parameter usage may also cause confusion during debugging, as the test behavior differs from what the code suggests.
+
+== How to fix it in Starlette
+
+Replace the `data` parameter with `content` when passing bytes to a TestClient request method. This ensures the raw bytes are sent correctly as the request body.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.post('/api/endpoint', data=b'raw bytes')  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.post('/api/endpoint', content=b'raw bytes')
+----
+
+Replace the `data` parameter with `content` when passing text strings to a TestClient request method. This ensures the text is sent correctly as the request body.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.put('/api/resource', data='text content')  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.put('/api/resource', content='text content')
+----
+
+== How to fix it in FastAPI
+
+Replace the `data` parameter with `content` when passing bytes to a FastAPI TestClient request. This is necessary because FastAPI's TestClient uses httpx, which requires the `content` parameter for raw bytes.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+app = FastAPI()
+client = TestClient(app)
+
+response = client.post('/upload', data=b'\x89PNG\r\n\x1a\n')  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+app = FastAPI()
+client = TestClient(app)
+
+response = client.post('/upload', content=b'\x89PNG\r\n\x1a\n')
+----
+
+Replace the `data` parameter with `content` when passing JSON strings to a FastAPI TestClient request. Note that for JSON data, you should typically use the `json` parameter instead, but if you're sending a pre-serialized JSON string, use `content`.
+
+==== Noncompliant code example
+
+[source,python,diff-id=4,diff-type=noncompliant]
+----
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+import json
+
+app = FastAPI()
+client = TestClient(app)
+
+payload = json.dumps({"key": "value"})
+response = client.post('/api/data', data=payload)  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=4,diff-type=compliant]
+----
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+import json
+
+app = FastAPI()
+client = TestClient(app)
+
+payload = json.dumps({"key": "value"})
+response = client.post('/api/data', content=payload)
+----
+
+== Resources
+
+=== Documentation
+
+ * HTTPX - Request Parameters - https://www.python-httpx.org/quickstart/#sending-data[Official HTTPX documentation explaining the difference between 'data' and 'content' parameters]
+
+ * Starlette TestClient Documentation - https://www.starlette.io/testclient/[Official Starlette documentation for the TestClient]
+
+ * FastAPI Testing Documentation - https://fastapi.tiangolo.com/tutorial/testing/[Official FastAPI documentation on testing applications]
+
+ * bump-testclient Migration Tool - https://pypi.org/project/bump-testclient/[Automated tool to help migrate TestClient code from requests to httpx API]
