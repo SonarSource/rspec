@@ -1,0 +1,194 @@
+This is an issue when a FastAPI endpoint accepts file uploads (using `File()`) and also receives structured data through `Body()` parameters or query parameters (via `Depends()` without proper form handling). This pattern causes either validation errors at runtime or exposes sensitive information in URLs and logs.
+
+== Why is this an issue?
+
+When building web APIs with FastAPI, developers often need to create endpoints that accept both file uploads and structured data. However, the way this data is transmitted requires careful consideration due to HTTP protocol constraints and security implications.
+
+== Understanding HTTP Content Types
+
+HTTP requests can encode data in different ways, specified by the `Content-Type` header:
+
+* `application/json` - Used for JSON data in the request body
+* `multipart/form-data` - Required for file uploads, encodes both files and form fields
+* Query parameters - Appended to the URL after a `?` character
+
+When a FastAPI endpoint includes `File()` parameters, the client must send the request using `multipart/form-data` encoding. This creates a fundamental incompatibility: you cannot mix `Body()` parameters (which expect `application/json`) with `File()` parameters in the same endpoint.
+
+== The Technical Problem
+
+If you declare both `Body()` and `File()` parameters in the same endpoint, FastAPI cannot properly parse the request. The framework expects JSON in the body when it sees `Body()` parameters, but receives form-encoded data instead when files are included. This results in validation errors like "value is not a valid dict" or similar type mismatches.
+
+== The Security Problem
+
+Some developers work around the technical constraint by passing structured data through query parameters using `Depends()` with a Pydantic model. While this avoids the encoding conflict, it creates a serious security vulnerability.
+
+Query parameters appear in the URL itself, which means they are:
+
+* Visible in browser address bars
+* Stored in browser history
+* Logged in web server access logs
+* Potentially cached by proxies and CDNs
+* Visible in network monitoring tools
+
+If the structured data contains sensitive information (user credentials, personal data, tokens, etc.), this exposure creates a significant security risk. An attacker with access to server logs, browser history, or network traffic can extract this sensitive information.
+
+== Why Form Data is the Solution
+
+Form data transmitted via `multipart/form-data` encoding:
+
+* Is compatible with file uploads
+* Is sent in the request body, not the URL
+* Does not appear in server logs (only the URL path is logged)
+* Can be properly validated and parsed by FastAPI
+
+The challenge is that form data is transmitted as strings, not as structured JSON objects. This is where Pydantic's custom validators become essential - they allow you to parse JSON strings from form fields while maintaining type safety and validation.
+
+=== What is the potential impact?
+
+=== Exposure of Sensitive Data
+
+When structured data containing sensitive information is passed through query parameters, it becomes visible in multiple locations:
+
+* Server access logs permanently record the full URL including all query parameters
+* Browser history stores the complete URL, accessible to anyone with access to the device
+* Network intermediaries (proxies, load balancers) may log or cache the URLs
+* Referrer headers may leak the URL to third-party sites
+
+This exposure can lead to unauthorized access to user accounts, personal information disclosure, or compliance violations (GDPR, HIPAA, PCI-DSS).
+
+=== Application Failures
+
+When `Body()` and `File()` parameters are mixed incorrectly, the application will fail at runtime with validation errors. Users will be unable to complete file upload operations, resulting in:
+
+* Poor user experience
+* Failed business processes
+* Support burden from confused users
+* Potential data loss if users abandon the operation
+
+== How to fix it in FastAPI
+
+Replace `Body()` parameters with `Form()` parameters and add a Pydantic validator to parse JSON strings. This ensures compatibility with file uploads while maintaining type safety.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+@router.post("/upload")
+async def create_policy(
+    countryId: str = Body(...),  # Noncompliant
+    policyDetails: List[dict] = Body(...),  # Noncompliant
+    files: List[UploadFile] = File(...)
+):
+    return {"status": "ok"}
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+class PolicyData(BaseModel):
+    countryId: str
+    policyDetails: List[dict]
+    
+    @model_validator(mode='before')
+    @classmethod
+    def validate_to_json(cls, value):
+        if isinstance(value, str):
+            return cls(**json.loads(value))
+        return value
+
+@router.post("/upload")
+async def create_policy(
+    data: PolicyData = Form(...),
+    files: List[UploadFile] = File(...)
+):
+    return {"status": "ok"}
+----
+
+Replace `Depends()` with `Form()` when passing structured data alongside file uploads. Use a custom validator to parse the JSON string from the form field.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+@app.post("/submit")
+def submit(
+    base: Base = Depends(),  # Noncompliant - data exposed in query parameters
+    files: List[UploadFile] = File(...)
+):
+    return {"JSON Payload": base, "Filenames": [file.filename for file in files]}
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+class Base(BaseModel):
+    countryId: str
+    sensitiveData: str
+    
+    @model_validator(mode='before')
+    @classmethod
+    def validate_to_json(cls, value):
+        if isinstance(value, str):
+            return cls(**json.loads(value))
+        return value
+
+@app.post("/submit")
+def submit(
+    base: Base = Form(...),
+    files: List[UploadFile] = File(...)
+):
+    return {"JSON Payload": base, "Filenames": [file.filename for file in files]}
+----
+
+If you need to accept complex nested structures, create a dependency function that reads from `Form()` and performs validation with proper error handling.
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+@app.post("/data")
+async def upload_data(
+    config: DataConfiguration = Depends(),  # Noncompliant
+    csvFile: UploadFile = File(...)
+):
+    pass
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
+
+def parse_config(data: str = Form(...)) -> DataConfiguration:
+    try:
+        return DataConfiguration.model_validate_json(data)
+    except ValidationError as e:
+        raise HTTPException(
+            detail=jsonable_encoder(e.errors()),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+@app.post("/data")
+async def upload_data(
+    config: DataConfiguration = Depends(parse_config),
+    csvFile: UploadFile = File(...)
+):
+    pass
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI - Request Forms and Files - https://fastapi.tiangolo.com/tutorial/request-forms-and-files/[Official FastAPI documentation on handling forms and files together]
+
+ * FastAPI - Request Body - https://fastapi.tiangolo.com/tutorial/body/[Official documentation explaining Body parameters and JSON encoding]
+
+ * Pydantic - Validators - https://docs.pydantic.dev/latest/concepts/validators/[Documentation on Pydantic validators for custom data parsing]
