@@ -1,16 +1,29 @@
-FIXME: add a description
-
-// If you want to factorize the description uncomment the following line and create the file.
-//include::../description.adoc[]
+This rule raises an issue when FastAPI route handler parameters use `Depends()`, `Query()`, `Path()`, `Body()`, or similar dependency injection functions as default parameter values instead of within `Annotated` type hints.
 
 == Why is this an issue?
 
-FIXME: remove the unused optional headers (that are commented out)
+FastAPI originally allowed declaring dependencies by using them as default parameter values. While this approach still works, it has several drawbacks that make code harder to maintain and understand.
 
-//=== What is the potential impact?
+When dependencies are declared as default values, the actual type of the parameter becomes ambiguous. For example, `db = Depends(get_db)` doesn't clearly indicate what type `db` will be at runtime. This makes the code harder to read and reduces the effectiveness of IDE autocompletion and type checking tools.
 
-== How to fix it
-//== How to fix it in FRAMEWORK NAME
+The modern `Annotated` syntax separates the type information from the dependency declaration, making both aspects explicit. This approach provides better clarity about what the parameter actually is, while still specifying how it should be injected.
+
+Using `Annotated` consistently across your codebase also aligns with FastAPI's current recommendations and ensures your code follows modern Python typing conventions introduced in Python 3.9.
+
+The old syntax mixes concerns by using the default value mechanism for dependency injection, which is semantically confusing since the "default" isn't really a default value in the traditional sense.
+
+=== What is the potential impact?
+
+Using the deprecated syntax makes code less maintainable in several ways:
+
+* Type checkers and IDEs cannot accurately infer the actual runtime type of parameters, reducing the effectiveness of static analysis and autocompletion
+* Developers reading the code must mentally separate the dependency injection mechanism from the actual parameter type
+* Mixing old and new syntax across a codebase creates inconsistency that increases cognitive load
+* Future FastAPI versions may deprecate or remove support for the old syntax, requiring migration work
+
+== How to fix it in FastAPI
+
+Replace dependency declarations in default values with `Annotated` type hints. Import `Annotated` from the `typing` module (Python 3.9+) or `typing_extensions` (Python 3.8 and earlier). The first argument to `Annotated` is the actual type of the parameter, and the second argument is the dependency injection specification.
 
 === Code examples
 
@@ -18,27 +31,109 @@ FIXME: remove the unused optional headers (that are commented out)
 
 [source,python,diff-id=1,diff-type=noncompliant]
 ----
-FIXME
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+def get_db():
+    return "database_connection"
+
+@app.get("/items/")
+def read_items(db = Depends(get_db)):  # Noncompliant
+    return {"db": db}
 ----
 
 ==== Compliant solution
 
 [source,python,diff-id=1,diff-type=compliant]
 ----
-FIXME
+from typing import Annotated
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+def get_db():
+    return "database_connection"
+
+@app.get("/items/")
+def read_items(db: Annotated[str, Depends(get_db)]):
+    return {"db": db}
 ----
 
-//=== How does this work?
+The same pattern applies to query parameters, path parameters, and request body parameters. Use `Annotated` to combine the type with the parameter specification.
 
-//=== Pitfalls
+==== Noncompliant code example
 
-//=== Going the extra mile
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from fastapi import FastAPI, Query
 
+app = FastAPI()
 
-//== Resources
-//=== Documentation
-//=== Articles & blog posts
-//=== Conference presentations
-//=== Standards
-//=== External coding guidelines
-//=== Benchmarks
+@app.get("/search/")
+def search_items(
+    q: str = Query(None, max_length=50)  # Noncompliant
+):
+    return {"query": q}
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from typing import Annotated
+from fastapi import FastAPI, Query
+
+app = FastAPI()
+
+@app.get("/search/")
+def search_items(
+    q: Annotated[str | None, Query(max_length=50)] = None
+):
+    return {"query": q}
+----
+
+For complex dependencies that return specific types, specify the return type explicitly in the `Annotated` declaration to improve type safety.
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+async def common_parameters(q: str | None = None, skip: int = 0):
+    return {"q": q, "skip": skip}
+
+@app.get("/items/")
+async def read_items(commons: dict = Depends(common_parameters)):  # Noncompliant
+    return commons
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from typing import Annotated
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+async def common_parameters(q: str | None = None, skip: int = 0):
+    return {"q": q, "skip": skip}
+
+@app.get("/items/")
+async def read_items(commons: Annotated[dict, Depends(common_parameters)]):
+    return commons
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI Documentation - Dependencies - https://fastapi.tiangolo.com/tutorial/dependencies/[Official FastAPI documentation on dependency injection]
+
+ * FastAPI Documentation - Annotated Dependencies - https://fastapi.tiangolo.com/tutorial/dependencies/#use-annotated-in-fastapi[FastAPI guide on using Annotated for dependencies]
+
+ * Python typing.Annotated - https://docs.python.org/3/library/typing.html#typing.Annotated[Python documentation for the Annotated type hint]
