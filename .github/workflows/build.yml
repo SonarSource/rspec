@@ -13,7 +13,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: github-ubuntu-latest-s
+    name: Check changed files
+    outputs:
+      rspec_system: ${{ steps.filter.outputs.rspec_system }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rspec_system:
+              - '.github/**'
+              - 'ci/**'
+              - 'ci_tests/**'
+              - 'frontend/**'
+              - 'rspec-tools/**'
   tooling_tests:
+    needs: [changes]
+    if: needs.changes.outputs.rspec_system == 'true'
     runs-on: github-ubuntu-latest-s
     name: Tooling Tests
     permissions:
@@ -49,6 +67,8 @@ jobs:
           SONAR_HOST_URL: ${{ fromJSON(steps.secrets.outputs.vault).SONAR_HOST_URL }}
 
   frontend_tests:
+    needs: [changes]
+    if: needs.changes.outputs.rspec_system == 'true'
     runs-on: github-ubuntu-latest-s
     name: Frontend Tests
     permissions:
@@ -92,6 +112,8 @@ jobs:
           SONAR_HOST_URL: ${{ fromJSON(steps.secrets.outputs.vault).SONAR_HOST_URL }}
 
   validate_ci_tests:
+    needs: [changes]
+    if: needs.changes.outputs.rspec_system == 'true'
     runs-on: github-ubuntu-latest-s
     name: Validate CI Tests
     permissions:
@@ -174,6 +196,7 @@ jobs:
           key: link-probing-cache-${{ github.sha }}
 
   all_required_checks:
+    if: always()
     needs:
       - tooling_tests
       - frontend_tests
@@ -182,5 +205,24 @@ jobs:
     runs-on: github-ubuntu-latest-s
     name: all_required_checks
     steps:
-      - name: All required checks passed
-        run: echo 'All required checks have passed'
+      - name: Check job results
+        run: |
+          # Check that conditionally run jobs either succeeded or were skipped
+          if [[ "${{ needs.tooling_tests.result }}" != "success" && "${{ needs.tooling_tests.result }}" != "skipped" ]]; then
+            echo "tooling_tests failed or was cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.frontend_tests.result }}" != "success" && "${{ needs.frontend_tests.result }}" != "skipped" ]]; then
+            echo "frontend_tests failed or was cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.validate_ci_tests.result }}" != "success" && "${{ needs.validate_ci_tests.result }}" != "skipped" ]]; then
+            echo "validate_ci_tests failed or was cancelled"
+            exit 1
+          fi
+          # Check that validate_rules always succeeds (it's not conditional)
+          if [[ "${{ needs.validate_rules.result }}" != "success" ]]; then
+            echo "validate_rules failed or was cancelled"
+            exit 1
+          fi
+          echo "All required checks passed"
