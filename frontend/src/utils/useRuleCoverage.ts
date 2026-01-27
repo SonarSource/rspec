@@ -6,6 +6,7 @@ type RuleCoverage = Record<string, Record<string, Version>>;
 const languageToSonarpedia = new Map<string, string[]>(Object.entries({
   'abap': ['ABAP'],
   'apex': ['APEX'],
+  'azurepipelines': ['AZURE_PIPELINES'],
   'azureresourcemanager': ['AZURE_RESOURCE_MANAGER'],
   'cfamily': ['CPP', 'C', 'OBJC'],
   'cobol': ['COBOL'],
