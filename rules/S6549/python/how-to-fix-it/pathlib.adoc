@@ -1,0 +1,97 @@
+== How to fix it in Python Standard Library
+
+=== Code examples
+
+include::../../common/fix/code-rationale.adoc[]
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from pathlib import Path
+from flask import Flask, request
+app = Flask(__name__)
+TARGET_DIRECTORY = Path("/path/to/target/directory/")
+@app.route("/exists")
+def exists():
+    filename = request.args.get("filename")
+    file_path = TARGET_DIRECTORY / filename
+    if not file_path.exists():  # Noncompliant
+        raise IOError("File does not exist in the target directory")
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pathlib import Path
+from flask import Flask, request
+app = Flask(__name__)
+TARGET_DIRECTORY = Path("/path/to/target/directory/")
+@app.route("/exists")
+def exists():
+    filename = request.args.get("filename")
+    file_path = TARGET_DIRECTORY / filename
+    canonical_path = file_path.resolve()
+    try:
+        canonical_path.relative_to(TARGET_DIRECTORY.resolve())
+    except ValueError:
+        raise IOError("Entry is outside of the target directory")
+    if not canonical_path.exists():
+        raise IOError("File does not exist in the target directory")
+----
+
+=== How does this work?
+
+:canonicalization_function: pathlib.Path.resolve
+
+include::../../common/fix/canonical-path-validation.adoc[]
+
+=== Pitfalls
+
+include::../../common/pitfalls/partial-path-traversal.adoc[]
+
+For example, the following code is vulnerable to partial path injection. Note
+that the string `target_directory` does not end with a path separator:
+
+[source,python]
+----
+from pathlib import Path
+
+target_directory = Path("/Users/John")
+
+def endpoint(filename: str):
+    file_path = Path(filename)
+    canonical_path = file_path.resolve()
+
+    if not str(canonical_path).startswith(str(target_directory)):
+        raise IOError("Entry is outside of the target directory")
+----
+
+This check can be bypassed if other directories start with `John`. For instance, `"/Users/Johnny".startswith("/Users/John")`
+returns `True`. Thus, for validation, `"/Users/John"` should actually be
+`"/Users/John/"`.
+
+A safer approach is to use `pathlib.Path.relative_to()` which properly handles
+path boundaries:
+
+[source,python]
+----
+from pathlib import Path
+
+target_directory = Path("/Users/John/")
+
+def endpoint(filename: str):
+    file_path = target_directory / filename
+    canonical_path = file_path.resolve()
+
+    try:
+        canonical_path.relative_to(target_directory.resolve())
+    except ValueError:
+        raise IOError("Entry is outside of the target directory")
+----
+
+:joining_docs: https://docs.python.org/3/library/pathlib.html#pathlib.PurePath.joinpath
+:joining_func: pathlib.Path.joinpath or the `/` operator
+
+include::../../common/pitfalls/oob-specific-path-joining.adoc[]
