@@ -1,0 +1,109 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a database connection obtained through <code>DB.Conn()</code> is not closed by calling <code>conn.Close()</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Go&#8217;s <code>database/sql</code> package, connections obtained through <code>DB.Conn()</code> represent individual database connections from the connection pool. These connections are finite resources that must be properly managed.</p>
+</div>
+<div class="paragraph">
+<p>When you call <code>DB.Conn()</code>, you&#8217;re borrowing a connection from the pool. The Go documentation explicitly states that "Every Conn must be returned to the database pool after use by calling Conn.Close()." This is because the connection pool has a limited number of connections available.</p>
+</div>
+<div class="paragraph">
+<p>If connections are not closed, they remain allocated and cannot be reused by other parts of your application. Over time, this leads to connection pool exhaustion. Once all connections in the pool are exhausted, subsequent calls to <code>DB.Conn()</code> will block until a connection becomes available or the context times out.</p>
+</div>
+<div class="paragraph">
+<p>This resource leak can cause:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Application hangs when trying to acquire new connections</p>
+</li>
+<li>
+<p>Degraded performance as the application waits for connections</p>
+</li>
+<li>
+<p>Complete application failure in high-traffic scenarios</p>
+</li>
+<li>
+<p>Database server resource exhaustion if many applications exhibit this behavior</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The connection pool is designed to be shared across goroutines and reused efficiently. Proper connection management ensures optimal performance and prevents resource-related failures.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Connection pool exhaustion can lead to application hangs, performance degradation, and complete service failures. In production environments, this can result in downtime and poor user experience as the application becomes unable to perform database operations.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Always call <code>conn.Close()</code> to return the connection to the pool. Use <code>defer</code> to ensure the connection is closed even if an error occurs.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func queryData(db *sql.DB) error {
+    conn, err := db.Conn(ctx)
+    if err != nil {
+        return err
+    }
+    // Missing conn.Close() // Noncompliant
+    return conn.QueryRowContext(ctx, "SELECT * FROM users").Scan(&amp;user)
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func queryData(db *sql.DB) error {
+    conn, err := db.Conn(ctx)
+    if err != nil {
+        return err
+    }
+    defer conn.Close()
+    return conn.QueryRowContext(ctx, "SELECT * FROM users").Scan(&amp;user)
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go database/sql package documentation - <a href="https://pkg.go.dev/database/sql">Official Go documentation for the database/sql package, including connection management</a></p>
+</li>
+<li>
+<p>Go database/sql Conn type - <a href="https://pkg.go.dev/database/sql#Conn">Documentation for the Conn type and its Close method</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

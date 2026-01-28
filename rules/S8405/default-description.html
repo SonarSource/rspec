@@ -1,0 +1,228 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when using Starlette or FastAPI&#8217;s <code>TestClient</code> with the <code>data</code> parameter to send raw bytes or text strings in HTTP requests. The <code>data</code> parameter should only be used for form data (dictionaries), while raw content should use the <code>content</code> parameter.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Starlette version 0.21.0 introduced a breaking change by replacing the underlying HTTP client from <code>requests</code> to <code>httpx</code>. These two libraries have different parameter conventions for sending request bodies.</p>
+</div>
+<div class="paragraph">
+<p>In the <code>requests</code> library, the <code>data</code> parameter accepts various types including bytes, strings, and dictionaries. However, in <code>httpx</code>, the parameter naming is more specific:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <code>data</code> parameter is reserved for form data (dictionaries that will be encoded as <code>application/x-www-form-urlencoded</code>)</p>
+</li>
+<li>
+<p>The <code>content</code> parameter should be used for raw bytes or text strings</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When you use <code>data</code> with bytes or text in an httpx-based <code>TestClient</code>, the request may not behave as expected. The library might attempt to process the raw content as form data, leading to incorrect encoding or Content-Type headers.</p>
+</div>
+<div class="paragraph">
+<p>This issue commonly appears when upgrading Starlette or FastAPI applications, causing previously working tests to fail or behave unexpectedly. The parameter mismatch can result in:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Incorrect request body encoding</p>
+</li>
+<li>
+<p>Wrong Content-Type headers being set</p>
+</li>
+<li>
+<p>Test failures that are difficult to diagnose</p>
+</li>
+<li>
+<p>API endpoints receiving malformed data in tests</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using the wrong parameter can cause tests to fail or pass incorrectly, masking real issues in the application code. This reduces the reliability of the test suite and may allow bugs to reach production.</p>
+</div>
+<div class="paragraph">
+<p>The incorrect parameter usage may also cause confusion during debugging, as the test behavior differs from what the code suggests.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_starlette">How to fix it in Starlette</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace the <code>data</code> parameter with <code>content</code> when passing bytes to a TestClient request method. This ensures the raw bytes are sent correctly as the request body.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.post('/api/endpoint', data=b'raw bytes')  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.post('/api/endpoint', content=b'raw bytes')</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Replace the <code>data</code> parameter with <code>content</code> when passing text strings to a TestClient request method. This ensures the text is sent correctly as the request body.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.put('/api/resource', data='text content')  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+response = client.put('/api/resource', content='text content')</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_fastapi">How to fix it in FastAPI</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace the <code>data</code> parameter with <code>content</code> when passing bytes to a FastAPI TestClient request. This is necessary because FastAPI&#8217;s TestClient uses httpx, which requires the <code>content</code> parameter for raw bytes.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+app = FastAPI()
+client = TestClient(app)
+
+response = client.post('/upload', data=b'\x89PNG\r\n\x1a\n')  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+app = FastAPI()
+client = TestClient(app)
+
+response = client.post('/upload', content=b'\x89PNG\r\n\x1a\n')</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Replace the <code>data</code> parameter with <code>content</code> when passing JSON strings to a FastAPI TestClient request. Note that for JSON data, you should typically use the <code>json</code> parameter instead, but if you&#8217;re sending a pre-serialized JSON string, use <code>content</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from fastapi import FastAPI
+from fastapi.testclient import TestClient
+import json
+
+app = FastAPI()
+client = TestClient(app)
+
+payload = json.dumps({"key": "value"})
+response = client.post('/api/data', data=payload)  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from fastapi import FastAPI
+from fastapi.testclient import TestClient
+import json
+
+app = FastAPI()
+client = TestClient(app)
+
+payload = json.dumps({"key": "value"})
+response = client.post('/api/data', content=payload)</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>HTTPX - Request Parameters - <a href="https://www.python-httpx.org/quickstart/#sending-data">Official HTTPX documentation explaining the difference between 'data' and 'content' parameters</a></p>
+</li>
+<li>
+<p>Starlette TestClient Documentation - <a href="https://www.starlette.io/testclient/">Official Starlette documentation for the TestClient</a></p>
+</li>
+<li>
+<p>FastAPI Testing Documentation - <a href="https://fastapi.tiangolo.com/tutorial/testing/">Official FastAPI documentation on testing applications</a></p>
+</li>
+<li>
+<p>bump-testclient Migration Tool - <a href="https://pypi.org/project/bump-testclient/">Automated tool to help migrate TestClient code from requests to httpx API</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

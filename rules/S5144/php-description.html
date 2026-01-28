@@ -1,0 +1,345 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Server-Side Request Forgery (SSRF) occurs when attackers can coerce a server to
+perform arbitrary requests on their behalf.<br></p>
+</div>
+<div class="paragraph">
+<p>An SSRF vulnerability can either be basic or blind, depending on whether the
+server&#8217;s fetched data is directly returned in the web application&#8217;s response.<br>
+The absence of the corresponding response for the coerced request on the
+application is not a barrier to exploitation and thus must be treated in the
+same way as basic SSRF.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>SSRF usually results in unauthorized actions or data disclosure in the
+vulnerable application or on a different system it can reach. Conditional to
+what is reachable, remote command execution can be achieved, although it often
+requires chaining with further exploitations.</p>
+</div>
+<div class="paragraph">
+<p>Information disclosure is SSRF&#8217;s core outcome. Depending on the extracted data,
+an attacker can perform a variety of different actions that can range from low
+to critical severity.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_local_file_read_to_host_takeover">Local file read to host takeover</h4>
+<div class="paragraph">
+<p>An attacker manipulates an application into performing a local request for a
+sensitive file, such as <code>~/.ssh/id_rsa</code>, by using the File URI scheme
+<code>file://</code>.<br>
+Once in possession of the SSH keys, the attacker establishes a remote
+connection to the system hosting the web application.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_internal_network_reconnaissance">Internal Network Reconnaissance</h4>
+<div class="paragraph">
+<p>An attacker enumerates internal accessible ports from the affected server or
+others to which the server can communicate by iterating over the port field in
+the URL <code>http://127.0.0.1:{port}</code>.<br>
+Taking advantage of other supported URL schemas (dependent on the affected
+system), for example, <code>gopher://127.0.0.1:3306</code>, an attacker would be able to
+connect to a database service and perform queries on it.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_core_php">How to fix it in Core PHP</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to SSRF as it opens a URL defined by untrusted data.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">$host = $_GET['host'];
+$url = "https://$host/.well-known/openid-configuration";
+
+$ch = curl_init($url); // Noncompliant
+curl_exec($ch);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">$allowedHosts = ["trusted1" =&gt; "trusted1.example.com", "trusted2" =&gt; "trusted2.example.com"];
+$host = $allowedHosts[$_GET['host']];
+$url = "https://$host/.well-known/openid-configuration";
+
+$ch = curl_init($url);
+curl_exec($ch);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_pre_approved_urls">Pre-Approved URLs</h4>
+<div class="paragraph">
+<p>Create a list of authorized and secure URLs that you want the application
+to be able to request.<br>
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must do validation on the server side. Not on
+client-side front-ends.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_blacklisting">Blacklisting</h4>
+<div class="paragraph">
+<p>While whitelisting URLs is the preferred approach to ensure only safe URLs are accessible, there are scenarios where blacklisting may be necessary.</p>
+</div>
+<div class="paragraph">
+<p>If whitelisting is not feasible, blacklisting can serve as a partial defense against SSRF attacks, particularly when the objective is to block access to internal resources or specific known malicious URLs.</p>
+</div>
+<div class="paragraph">
+<p>When implementing blacklisting, it is crucial to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Comprehensively Check URLs: Ensure that the URL scheme, domain, and path are all scrutinized. This prevents attackers from circumventing the blacklist by altering schemes or paths.</p>
+</li>
+<li>
+<p>Understand Limitations: Recognize that blacklisting is not a foolproof solution. It should be part of a multi-layered security strategy to effectively mitigate SSRF risks.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>By adhering to these guidelines, blacklisting can be a useful, albeit secondary, measure in protecting against SSRF attacks.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_the_trap_of_startswith_and_equivalents">The trap of 'startsWith' and equivalents</h4>
+<div class="paragraph">
+<p>When validating untrusted URLs by checking if they start with a trusted scheme
+and authority pair <code>scheme://authority</code>, <strong>ensure that the validation string
+contains a path separator <code>/</code> as the last character</strong>.<br></p>
+</div>
+<div class="paragraph">
+<p>If the validation string does not contain a terminating path separator, the
+SSRF vulnerability remains; only the exploitation technique changes.</p>
+</div>
+<div class="paragraph">
+<p>Thus, a validation like <code>startsWith("https://example.com")</code> or an equivalent
+with the regex <code>^https://example\.com.*</code> can be exploited with the following
+URL <code><a href="https://example.com.malicous.example.com" class="bare">https://example.com.malicous.example.com</a></code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_blacklist_toctou">Blacklist TOCTOU</h4>
+<div class="paragraph">
+<p>When employing a blacklist to mitigate SSRF attacks, it is essential to guard against Time-Of-Check Time-Of-Use (TOCTOU) vulnerabilities in the validation logic.</p>
+</div>
+<div class="paragraph">
+<p>A common example of a TOCTOU vulnerability occurs when the domain name is resolved to an IP address for blacklist validation, but the hostname is resolved again later by the request library to make the actual request. An attacker could exploit DNS rebinding to change the IP address between these two resolutions and bypass the blacklist.</p>
+</div>
+<div class="paragraph">
+<p>To prevent this, ensure that the domain name is resolved to an IP address only once, and this IP address is used consistently throughout the validation and request process.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_guzzle">How to fix it in Guzzle</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to SSRF as it performs an HTTP request to a
+URL defined by untrusted data.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">use GuzzleHttp\Client;
+
+$client = new Client();
+
+$host = $_GET['host'];
+$url = "https://$host/.well-known/openid-configuration";
+
+$client-&gt;request('GET', $url); // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">use GuzzleHttp\Client;
+
+$client = new Client();
+
+$allowedHosts = ["trusted1" =&gt; "trusted1.example.com", "trusted2" =&gt; "trusted2.example.com"];
+$host = $allowedHosts[$_GET['host']];
+$url = "https://$host/.well-known/openid-configuration";
+
+$client-&gt;request('GET', $url);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="sect3">
+<h4 id="_pre_approved_urls_2">Pre-Approved URLs</h4>
+<div class="paragraph">
+<p>Create a list of authorized and secure URLs that you want the application
+to be able to request.<br>
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must do validation on the server side. Not on
+client-side front-ends.</p>
+</div>
+<div class="paragraph">
+<p>The compliant code example uses such an approach.
+The <code>requests</code> library implicitly validates the scheme as it only allows <code>http</code> and <code>https</code> by default.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_blacklisting_2">Blacklisting</h4>
+<div class="paragraph">
+<p>While whitelisting URLs is the preferred approach to ensure only safe URLs are accessible, there are scenarios where blacklisting may be necessary.</p>
+</div>
+<div class="paragraph">
+<p>If whitelisting is not feasible, blacklisting can serve as a partial defense against SSRF attacks, particularly when the objective is to block access to internal resources or specific known malicious URLs.</p>
+</div>
+<div class="paragraph">
+<p>When implementing blacklisting, it is crucial to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Comprehensively Check URLs: Ensure that the URL scheme, domain, and path are all scrutinized. This prevents attackers from circumventing the blacklist by altering schemes or paths.</p>
+</li>
+<li>
+<p>Understand Limitations: Recognize that blacklisting is not a foolproof solution. It should be part of a multi-layered security strategy to effectively mitigate SSRF risks.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>By adhering to these guidelines, blacklisting can be a useful, albeit secondary, measure in protecting against SSRF attacks.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls_2">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_the_trap_of_startswith_and_equivalents_2">The trap of 'startsWith' and equivalents</h4>
+<div class="paragraph">
+<p>When validating untrusted URLs by checking if they start with a trusted scheme
+and authority pair <code>scheme://authority</code>, <strong>ensure that the validation string
+contains a path separator <code>/</code> as the last character</strong>.<br></p>
+</div>
+<div class="paragraph">
+<p>If the validation string does not contain a terminating path separator, the
+SSRF vulnerability remains; only the exploitation technique changes.</p>
+</div>
+<div class="paragraph">
+<p>Thus, a validation like <code>startsWith("https://example.com")</code> or an equivalent
+with the regex <code>^https://example\.com.*</code> can be exploited with the following
+URL <code><a href="https://example.com.malicous.example.com" class="bare">https://example.com.malicous.example.com</a></code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_blacklist_toctou_2">Blacklist TOCTOU</h4>
+<div class="paragraph">
+<p>When employing a blacklist to mitigate SSRF attacks, it is essential to guard against Time-Of-Check Time-Of-Use (TOCTOU) vulnerabilities in the validation logic.</p>
+</div>
+<div class="paragraph">
+<p>A common example of a TOCTOU vulnerability occurs when the domain name is resolved to an IP address for blacklist validation, but the hostname is resolved again later by the request library to make the actual request. An attacker could exploit DNS rebinding to change the IP address between these two resolutions and bypass the blacklist.</p>
+</div>
+<div class="paragraph">
+<p>To prevent this, ensure that the domain name is resolved to an IP address only once, and this IP address is used consistently throughout the validation and request process.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/">Top 10 2021 Category A10 - Server-Side Request Forgery (SSRF)</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control">Top 10 2017 Category A5 - Broken Access Control</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/918">CWE-918 - Server-Side Request Forgery (SSRF)</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct the request from user-controlled data.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>"[varname]" is tainted (assignments and parameters)</p>
+</div>
+<div class="paragraph">
+<p>this argument is tainted (method invocations)</p>
+</div>
+<div class="paragraph">
+<p>the returned value is tainted (returns &amp; method invocations results)</p>
+</div>
+<hr>
+</div>
+</div>
+</div>

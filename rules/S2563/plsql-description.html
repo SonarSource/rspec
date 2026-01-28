@@ -1,0 +1,123 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>FETCH ... INTO</code> statement is inefficient when used in a loop (where many records are expected). It leads to many context-switches between the SQL and PL/SQL engines. Instead, the <code>FETCH ... BULK COLLECT INTO</code> statement will issue the SQL requests in bulk, minimizing context switches.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET SERVEROUTPUT ON
+
+CREATE TABLE largeTable AS SELECT ROWNUM AS id FROM all_objects;
+
+SET TIMING ON
+DECLARE
+  x PLS_INTEGER;
+  CURSOR largeCursor IS SELECT ROWNUM FROM largeTable;
+  largeTableRowId BINARY_INTEGER;
+BEGIN
+  OPEN largeCursor;
+
+  x := 0;
+  LOOP
+    FETCH largeCursor INTO largeTableRowId; -- Noncompliant
+    EXIT WHEN largeCursor%NOTFOUND;
+
+    x := x + largeTableRowId;
+  END LOOP;
+
+  DBMS_OUTPUT.PUT_LINE('Sum of rownums using alternative 1: ' || x);
+
+  CLOSE largeCursor;
+END;
+/
+SET TIMING OFF
+
+DECLARE
+  r largeTable%ROWTYPE;
+  CURSOR myCursor IS SELECT * FROM largeTable;
+BEGIN
+  OPEN myCursor;
+  FETCH myCursor INTO r; -- Compliant, outside of a loop
+  CLOSE myCursor;
+END;
+/
+
+DROP TABLE largeTable;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-sql" data-lang="sql">SET SERVEROUTPUT ON
+
+CREATE TABLE largeTable AS SELECT ROWNUM AS id FROM all_objects;
+
+SET TIMING ON
+DECLARE
+  x PLS_INTEGER;
+  CURSOR largeCursor IS SELECT * FROM largeTable;
+  TYPE largeTableRowIdArrayType IS TABLE OF BINARY_INTEGER INDEX BY BINARY_INTEGER;
+  largeTableRowIdArray largeTableRowIdArrayType;
+BEGIN
+  OPEN largeCursor;
+
+  x := 0;
+  LOOP
+    FETCH largeCursor BULK COLLECT INTO largeTableRowIdArray LIMIT 1000; -- Compliant
+
+    FOR i IN largeTableRowIdArray.FIRST .. largeTableRowIdArray.LAST LOOP
+      x := x + largeTableRowIdArray(i);
+    END LOOP;
+
+    EXIT WHEN largeCursor%NOTFOUND;
+  END LOOP;
+
+  DBMS_OUTPUT.PUT_LINE('Sum of rownums using alternative 2: ' || x);
+
+  CLOSE largeCursor;
+END;
+/
+SET TIMING OFF
+
+DECLARE
+  r largeTable%ROWTYPE;
+  CURSOR myCursor IS SELECT * FROM largeTable;
+BEGIN
+  OPEN myCursor;
+  FETCH myCursor INTO r; -- Compliant, outside of a loop
+  CLOSE myCursor;
+END;
+/
+
+DROP TABLE largeTable;</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Replace this use of "FETCH &#8230;&#8203; INTO" with "FETCH &#8230;&#8203; BULK COLLECT INTO".</p>
+</div>
+</div>
+</div>
+</div>

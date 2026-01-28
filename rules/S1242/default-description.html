@@ -1,0 +1,212 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>An inherited member function can be hidden in a derived class and that creates a class that behaves differently depending on which interface is used to manipulate it.</p>
+</div>
+<div class="paragraph">
+<p>Overriding happens when the inherited method is virtual and a method declared in the derived class uses the same identifier as well as the same signature (the return types can be different, as long as they are <a href="https://en.wikipedia.org/wiki/Covariance_and_contravariance_(computer_science)">covariant</a>). However, if the inherited method is non-virtual or if the two declarations of the method do not share the same signature, the method of the base class will be hidden.</p>
+</div>
+<div class="paragraph">
+<p>Such a class increases the inheritance complexity and confuses consumers with its non-polymorphic behavior, which can lead to errors.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Base {
+public:
+  void shutdown();
+  virtual void log(int a);
+};
+
+class Derived : public Base {
+public:
+  void shutdown(); //Noncompliant
+  void log(float a); //Noncompliant
+};
+
+void stopServer(Base *obj, Derived *obj2) {
+  obj-&gt;shutdown(); // always calls Base::shutdown even if the given object's type is Derived
+  obj-&gt;log(2); // calls Base::log(int) even if the given object's type is Derived
+  obj2-&gt;shutdown(); // calls Derived::shutdown
+  obj2-&gt;log(2); // calls Derived::log(float), even if this requires a conversion int-&gt;float.
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Base {
+public:
+  void shutdown();
+  virtual void log(int a);
+};
+
+class Derived : public Base {
+public:
+  void shutdownAndUpdate(); // Define a method with a different name
+  void log(int a) override; // Or make the method a proper override
+};
+
+void stopServer(Base *obj) {
+  obj-&gt;shutdown(); // calls Base::shutdown and there is no confusion
+  obj-&gt;log(2); // calls Derived::log(int) if the given object's type is Derived
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The first step is to determine what is the expected behavior. Let us see two common situations.</p>
+</div>
+<div class="sect2">
+<h3 id="_function_that_should_have_been_virtual">Function that should have been virtual</h3>
+<div class="paragraph">
+<p>In the following example, the intent for the <code>draw</code> function was to be virtual, but the keyword was forgotten.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Shape {
+  void draw();
+}
+
+class Rectangle : public Shape {
+  void draw(); // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As a consequence, the following code will not behave as expected:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">Rectangle r;
+Shape &amp;s = r;
+s.draw(); // Calls Shape::draw, not Rectangle::draw</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This code can be rewritten:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Shape {
+  virtual void draw(); // Should probably be virtual void draw() = 0
+}
+
+class Rectangle : public Shape {
+  void draw() override;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_creating_an_overload_set">Creating an overload set</h3>
+<div class="paragraph">
+<p>For the following example, the intent is to add an overload to a nonvirtual function in the derived class:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Vehicle {
+  void drive(double targetSpeed);
+};
+
+class MedicalVehicle {
+  void drive(double targetSpeed, double maxAcceleration);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Here, the goal is that a user of the derived class should be able to choose between two overloads for <code>drive</code>. However, this is not how it works: <code>MedicalVehicle::drive</code> hides the base class function <code>Vehicle::drive</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">MedicalVehicle mv;
+mv.drive(50); // Compiler error</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The best way to build the right overload set in this case is to import the base class' functions through a using declaration:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Vehicle {
+  void drive(double targetSpeed);
+};
+
+class MedicalVehicle {
+  using Vehicle::drive;
+  void drive(double targetSpeed, double maxAcceleration);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Now, the call <code>mv.drive(50)</code> compiles and calls <code>Vehicle::drive</code>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c138-create-an-overload-set-for-a-derived-class-and-its-bases-with-using">C.138: Create an overload set for a derived class and its bases with <code>using</code></a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Rename this member function so that it doesn&#8217;t hide an inherited non-virtual function, or make it virtual in the base class "XXX".</p>
+</div>
+<div class="paragraph">
+<p>"XXX" hides overloaded virtual functions</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Function name</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_2_may_2016_163204_ann_campbell_wrote">on 2 May 2016, 16:32:04 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>I&#8217;ve made some small edits [~alban.auzeill], but basically this looks good.</p>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,535 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>JSON injections occur when an application builds a JSON-formatted string from
+user input without prior validation or sanitation. In such a case, a tainted
+user-controlled value can tamper with the JSON string content. Especially,
+unexpected arbitrary elements can be inserted in the corresponding JSON object.
+Those modifications can include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Adding additional keys to a JSON dictionary.</p>
+</li>
+<li>
+<p>Changing values types.</p>
+</li>
+<li>
+<p>Adding elements in an array.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A malicious user-supplied value can perform other modifications depending on
+where and how the constructed data is later used.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The consequences of a JSON injection attack into an application vary greatly
+depending on the application&#8217;s logic. It can affect the application itself or
+another element if the JSON string is used for cross-component data exchange.
+For this reason, the actual impact can range from benign information disclosure
+to critical remote code execution.</p>
+</div>
+<div class="sect3">
+<h4 id="_information_disclosure">Information disclosure</h4>
+<div class="paragraph">
+<p>An attacker can forge an attack payload that will modify the JSON string so that
+it will become syntactically incorrect. In that case, when the data is later
+used, the parsing component will raise a technical error. If displayed back to
+the attacker or made available through log files, this technical error may
+disclose sensitive business or technical information.</p>
+</div>
+<div class="paragraph">
+<p>This scenario, while in general the less severe one, is the most frequently
+encountered. It can combine with any other logic-dependant threat.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_privilege_escalation">Privilege escalation</h4>
+<div class="paragraph">
+<p>An application that would rely on JSON to store or propagate users'
+authentication levels and roles would be under threat of privilege escalations.
+Indeed, an attacker could tamper with the permissions storage object to insert
+arbitrary roles or privileges.</p>
+</div>
+<div class="paragraph">
+<p>While highly specific, similar issues can be faced in the following situations:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An application builds JSON payloads for HTTP requests.</p>
+</li>
+<li>
+<p>An application builds JWT from user input.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_code_execution">Code execution</h4>
+<div class="paragraph">
+<p>An application might build objects based on a JSON serialization string. In that
+case, an attacker that would exploit a JSON injection could be able to alter the
+serialization string to modify the corresponding object&#8217;s properties.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the deserialization process, this might allow instantiating
+arbitrary objects or objects with sensitive properties altered. This can lead to
+arbitrary code being executed in the same way as a deserialization injection
+vulnerability.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_a_servlet">How to fix it in a Servlet</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to a JSON injection vulnerability because it
+builds a JSON string from user input without prior sanitation or validation.
+Therefore, an attacker can submit a tainted value that will tamper with the
+corresponding JSON object structure.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">import org.json.JSONObject;
+
+//[...]
+fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+  try {
+    val tainted = request.getParameter("value")
+    val json = "{\"key\":\"$tainted\"}"
+    val obj = JSONObject(json) // Noncompliant
+  } catch (e: JsonException) {
+    response.sendError(400)
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">import org.json.JSONObject;
+
+//[...]
+fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+  val obj = JSONObject()
+  obj.put("key", request.getParameter("value"))
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>In most cases, it is discouraged to build JSON strings with a direct
+concatenation of user input. While not always possible, a strong pattern-based
+validation can help sanitize tainted inputs. Likewise, converting to a harmless
+type can sometimes be a solution.</p>
+</div>
+<div class="paragraph">
+<p>However, avoiding handling objects' properties as strings by directly
+constructing Java objects should be the preferred way.</p>
+</div>
+<div class="sect3">
+<h4 id="_programmatic_object_building">Programmatic object building</h4>
+<div class="paragraph">
+<p>In most cases, an application can directly create objects from user input
+without having to build and parse a JSON string. Doing so prevents injection
+vulnerabilities as JSON object construction libraries and functions will
+properly escape and check the type of input values.</p>
+</div>
+<div class="paragraph">
+<p>Sometimes, the application might need to include the user input in an object
+built from a trusted JSON string. In that case, the recommended solution is to
+parse the trusted string first and then programmatically modify the resulting
+object.</p>
+</div>
+<div class="paragraph">
+<p>The example compliant code uses the <code>org.json</code> libraries capabilities to
+dynamically build a JSON object without string parsing.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_converting_to_a_harmless_type">Converting to a harmless type</h4>
+<div class="paragraph">
+<p>When the application allows it, converting user-submitted data to a harmless
+type can help prevent JSON injection vulnerabilities. In particular, converting
+user inputs to numeric types is an efficient sanitation mechanism.</p>
+</div>
+<div class="paragraph">
+<p>This mechanism can be extended to other types, including more complex ones.
+However, care should be taken when dealing with them, as manually validating or
+sanitizing complex types can represent a challenge.</p>
+</div>
+<div class="paragraph">
+<p>Note that choosing this solution can be error-prone: every user input
+has to be validated or sanitized without oversight.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_gson">How to fix it in Gson</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to a JSON injection vulnerability because it
+builds a JSON string from user input without prior sanitation or validation.
+Therefore, an attacker can submit a tainted value that will tamper with the
+corresponding JSON object structure.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">import com.google.gson.Gson;
+
+//[...]
+fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+  val tainted = request.getParameter("value")
+  val json = "{\"key\":\"$tainted\"}"
+  val obj = Gson()
+  obj.fromJson(json, Any::class.java) // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+
+//[...]
+fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+  try {
+    val json: JsonObject = JsonObject()
+    json.addProperty("key", request.getParameter("value"))
+    val obj = Gson()
+    obj.fromJson(json, Any::class.java)
+  } catch (e: JsonSyntaxException) {
+    response.sendError(400)
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>In most cases, it is discouraged to build JSON strings with a direct
+concatenation of user input. While not always possible, a strong pattern-based
+validation can help sanitize tainted inputs. Likewise, converting to a harmless
+type can sometimes be a solution.</p>
+</div>
+<div class="paragraph">
+<p>However, avoiding handling objects' properties as strings by directly
+constructing Java objects should be the preferred way.</p>
+</div>
+<div class="sect3">
+<h4 id="_programmatic_object_building_2">Programmatic object building</h4>
+<div class="paragraph">
+<p>In most cases, an application can directly create objects from user input
+without having to build and parse a JSON string. Doing so prevents injection
+vulnerabilities as JSON object construction libraries and functions will
+properly escape and check the type of input values.</p>
+</div>
+<div class="paragraph">
+<p>Sometimes, the application might need to include the user input in an object
+built from a trusted JSON string. In that case, the recommended solution is to
+parse the trusted string first and then programmatically modify the resulting
+object.</p>
+</div>
+<div class="paragraph">
+<p>The example compliant code uses the <code>JsonObject</code> class from the Gson library
+to directly build an object from the user input.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_converting_to_a_harmless_type_2">Converting to a harmless type</h4>
+<div class="paragraph">
+<p>When the application allows it, converting user-submitted data to a harmless
+type can help prevent JSON injection vulnerabilities. In particular, converting
+user inputs to numeric types is an efficient sanitation mechanism.</p>
+</div>
+<div class="paragraph">
+<p>This mechanism can be extended to other types, including more complex ones.
+However, care should be taken when dealing with them, as manually validating or
+sanitizing complex types can represent a challenge.</p>
+</div>
+<div class="paragraph">
+<p>Note that choosing this solution can be error-prone: every user input
+has to be validated or sanitized without oversight.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_fasterxml">How to fix it in FasterXML</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to a JSON injection vulnerability because it
+builds a JSON string from user input without prior sanitation or validation.
+Therefore, an attacker can submit a tainted value that will tamper with the
+corresponding JSON object structure.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">import com.fasterxml.jackson.databind.ObjectMapper
+
+//[...]
+fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+  val tainted = request.getParameter("value")
+  val json = "{\"key\":\"$tainted\"}"
+  val obj = ObjectMapper()
+  try {
+    obj.readValue(json, Any::class.java) // Noncompliant
+  } catch (e: JsonProcessingException) {
+    response.sendError(400)
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+//[...]
+fun doGet(request: HttpServletRequest, response: HttpServletResponse) {
+  val obj = ObjectMapper()
+  val myObject = obj.createObjectNode()
+  myObject.put("key", request.getParameter("value"))
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_3">How does this work?</h3>
+<div class="paragraph">
+<p>In most cases, it is discouraged to build JSON strings with a direct
+concatenation of user input. While not always possible, a strong pattern-based
+validation can help sanitize tainted inputs. Likewise, converting to a harmless
+type can sometimes be a solution.</p>
+</div>
+<div class="paragraph">
+<p>However, avoiding handling objects' properties as strings by directly
+constructing Java objects should be the preferred way.</p>
+</div>
+<div class="sect3">
+<h4 id="_programmatic_object_building_3">Programmatic object building</h4>
+<div class="paragraph">
+<p>In most cases, an application can directly create objects from user input
+without having to build and parse a JSON string. Doing so prevents injection
+vulnerabilities as JSON object construction libraries and functions will
+properly escape and check the type of input values.</p>
+</div>
+<div class="paragraph">
+<p>Sometimes, the application might need to include the user input in an object
+built from a trusted JSON string. In that case, the recommended solution is to
+parse the trusted string first and then programmatically modify the resulting
+object.</p>
+</div>
+<div class="paragraph">
+<p>The example compliant code uses the <code>ObjectNode</code> class from the Jackson
+library to directly build a JSON object from the user input.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_converting_to_a_harmless_type_3">Converting to a harmless type</h4>
+<div class="paragraph">
+<p>When the application allows it, converting user-submitted data to a harmless
+type can help prevent JSON injection vulnerabilities. In particular, converting
+user inputs to numeric types is an efficient sanitation mechanism.</p>
+</div>
+<div class="paragraph">
+<p>This mechanism can be extended to other types, including more complex ones.
+However, care should be taken when dealing with them, as manually validating or
+sanitizing complex types can represent a challenge.</p>
+</div>
+<div class="paragraph">
+<p>Note that choosing this solution can be error-prone: every user input
+has to be validated or sanitized without oversight.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_spring">How to fix it in Spring</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_4">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to a JSON injection vulnerability because it
+builds a JSON string from user input without prior sanitation or validation.
+Therefore, an attacker can submit a tainted value that will tamper with the
+corresponding JSON object structure.</p>
+</div>
+<div class="paragraph">
+<p>In this example a json string is parsed using the <code>BasicJsonParser</code> class from the <code>org.springframework.boot.json</code> package. This class is used to parse JSON strings into a <code>Map</code> object. Since the attacker can control the json string they can control the keys and values of the <code>Map</code> object.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">import org.springframework.boot.json.BasicJsonParser;
+
+//[...]
+@GetMapping("/example")
+fun example(@RequestParam input: String): Map&lt;String, Any&gt; {
+  val parser = BasicJsonParser()
+  val json = "{\"key\":\"$input\"}"
+  return parser.parseMap(json) // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-kotlin" data-lang="kotlin">@GetMapping("/example")
+fun example(@RequestParam input: String): Map&lt;String, Any&gt; {
+  return mapOf("key" to input)
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_4">How does this work?</h3>
+<div class="paragraph">
+<p>In most cases, it is discouraged to build JSON strings with a direct
+concatenation of user input. While not always possible, a strong pattern-based
+validation can help sanitize tainted inputs. Likewise, converting to a harmless
+type can sometimes be a solution.</p>
+</div>
+<div class="paragraph">
+<p>However, avoiding handling objects' properties as strings by directly
+constructing Java objects should be the preferred way.</p>
+</div>
+<div class="sect3">
+<h4 id="_programmatic_object_building_4">Programmatic object building</h4>
+<div class="paragraph">
+<p>In most cases, an application can directly create objects from user input
+without having to build and parse a JSON string. Doing so prevents injection
+vulnerabilities as JSON object construction libraries and functions will
+properly escape and check the type of input values.</p>
+</div>
+<div class="paragraph">
+<p>Sometimes, the application might need to include the user input in an object
+built from a trusted JSON string. In that case, the recommended solution is to
+parse the trusted string first and then programmatically modify the resulting
+object.</p>
+</div>
+<div class="paragraph">
+<p>The example compliant code skips the use of a JSON parser and directly adds the user controlled data into a <code>Map</code> object. This way the attacker cannot control the keys and values of the <code>Map</code> object.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_converting_to_a_harmless_type_4">Converting to a harmless type</h4>
+<div class="paragraph">
+<p>When the application allows it, converting user-submitted data to a harmless
+type can help prevent JSON injection vulnerabilities. In particular, converting
+user inputs to numeric types is an efficient sanitation mechanism.</p>
+</div>
+<div class="paragraph">
+<p>This mechanism can be extended to other types, including more complex ones.
+However, care should be taken when dealing with them, as manually validating or
+sanitizing complex types can represent a challenge.</p>
+</div>
+<div class="paragraph">
+<p>Note that choosing this solution can be error-prone: every user input
+has to be validated or sanitized without oversight.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.talosintelligence.com/vulnerability_reports/TALOS-2018-0556">CVE-2018-3879 - An exploitable JSON injection vulnerability</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/76">CWE-76 - Improper Neutralization of Equivalent Special Elements</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct JSON documents directly from user-controlled data.</p>
+</div>
+</div>
+</div>
+</div>

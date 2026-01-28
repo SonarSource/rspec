@@ -1,0 +1,130 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>torch.save()</code> is used within PyTorch Lightning modules or training code instead of Lightning&#8217;s built-in checkpointing mechanisms.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>PyTorch Lightning provides sophisticated checkpointing capabilities that go beyond simple model state saving. When you use <code>torch.save()</code> directly, you miss out on several important features and can encounter problems in distributed training scenarios.</p>
+</div>
+<div class="paragraph">
+<p>Lightning&#8217;s checkpointing system handles the complete training state, including optimizer states, learning rate schedulers, epoch counters, and random number generator states. This ensures that training can be resumed exactly where it left off. In distributed training setups, especially with strategies like FSDP (Fully Sharded Data Parallel), manual checkpointing with <code>torch.save()</code> can fail to capture the distributed state correctly, leading to training inconsistencies or failures when resuming.</p>
+</div>
+<div class="paragraph">
+<p>The built-in checkpointing also provides advanced features like automatic saving based on metrics (save the best model based on validation loss), keeping only the top-k checkpoints to save disk space, and configurable saving intervals. These features help manage storage efficiently and ensure you always have access to your best-performing models.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, Lightning&#8217;s checkpointing integrates seamlessly with the training loop and callbacks, making it easier to implement complex checkpointing strategies without interfering with the training process.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using manual checkpointing can lead to incomplete state saving, making it impossible to properly resume training. In distributed training scenarios, this can cause training failures or inconsistent model states across processes. You may also lose important training metadata like optimizer states and learning rate schedules, forcing you to restart training from scratch rather than resuming from a checkpoint.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_fix_in_pytorch_lightning">How to fix in PyTorch Lightning?</h3>
+<div class="paragraph">
+<p>Replace manual <code>torch.save()</code> calls with Lightning&#8217;s <code>trainer.save_checkpoint()</code> method. This ensures proper handling of the complete training state including distributed training scenarios.</p>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pytorch_lightning as pl
+import torch
+
+class MyModel(pl.LightningModule):
+    def training_step(self, batch, batch_idx):
+        loss = self.compute_loss(batch)
+        # Manual checkpoint saving
+        if batch_idx % 100 == 0:
+            torch.save(self.state_dict(), 'checkpoint.pth')  # Noncompliant
+        return loss</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pytorch_lightning as pl
+
+class MyModel(pl.LightningModule):
+    def training_step(self, batch, batch_idx):
+        loss = self.compute_loss(batch)
+        # Lightning handles checkpointing automatically
+        return loss
+
+# Use trainer's checkpointing method when needed
+trainer = pl.Trainer()
+trainer.fit(model)
+trainer.save_checkpoint("path/to/checkpoint/file")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use the ModelCheckpoint callback for automatic checkpoint management. This provides advanced features like metric-based saving, top-k checkpoint retention, and configurable saving intervals.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_non_compliant_code_example_2">Non-compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pytorch_lightning as pl
+import torch
+
+# Manual checkpoint saving outside training loop
+torch.save(model.state_dict(), "checkpoint.pth")  # Noncompliant
+
+trainer = pl.Trainer(max_epochs=100)
+trainer.fit(model)</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_code_example_2">Compliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
+
+# Configure automatic checkpointing
+checkpoint_callback = ModelCheckpoint(
+    monitor='val_loss',
+    save_top_k=3,
+    mode='min',
+    filename='model-{epoch:02d}-{val_loss:.2f}'
+)
+
+trainer = pl.Trainer(
+    max_epochs=100,
+    callbacks=[checkpoint_callback]
+)
+trainer.fit(model)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>PyTorch Lightning Checkpointing Guide - <a href="https://lightning.ai/docs/pytorch/stable/common/checkpointing.html">Comprehensive guide on Lightning&#8217;s checkpointing capabilities and best practices</a></p>
+</li>
+<li>
+<p>ModelCheckpoint Callback API - <a href="https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.ModelCheckpoint.html">API documentation for the ModelCheckpoint callback with configuration options</a></p>
+</li>
+<li>
+<p>FSDP Checkpointing - <a href="https://lightning.ai/docs/pytorch/stable/advanced/model_parallel/fsdp.html#save-a-checkpoint">Specific guidance on checkpointing with Fully Sharded Data Parallel training</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

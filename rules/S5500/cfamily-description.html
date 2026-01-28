@@ -1,0 +1,362 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Rvalue reference arguments allow the efficient transfer of the ownership of objects.
+Therefore, it is expected that rvalue arguments or their subobjects are, conditionally or not, moved into their destination variables.</p>
+</div>
+<div class="paragraph">
+<p>The ownership is unclear when an rvalue argument, including its subobject or elements, is never moved.
+This might lead to bugs and performance issues.</p>
+</div>
+<div class="paragraph">
+<p>This rule does not apply when the argument is a forwarding reference.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>For the C&#43;&#43;23 or later standard, this rule does not raise issues if the function returns the rvalue reference parameter.
+In such cases, the parameter is implicitly moved, and an explicit call to <code>std::move</code> is not required:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">Shape updateShape(Shape&amp;&amp; shape) {
+  /* ... */
+  return shape; // Compliant: implicitly moves shape
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When returning a parameter or variable of rvalue reference type, an implicit move
+was introduced in C&#43;&#43;20 and retroactively applied to previous standards.
+As a consequence, the behavior of such return statements is not consistent across compilers
+and standard versions.</p>
+</div>
+<div class="paragraph">
+<p>Furthermore, with the C&#43;&#43;20 rules, the implicit move is not triggered if the function
+returns a reference:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">Shape&amp;&amp; updateShape(Shape&amp;&amp; shape) {
+  /* ... */
+  // C++23: Implicit move, equivalent to `std::move(shape)`
+  // C++20: No move and ill-formed as Shape&amp;&amp; reference cannot bound to Shape&amp;
+  return shape;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Due to all of the above, this rule does not treat <code>return p</code> as an exception in C&#43;&#43; standard before C&#43;&#43;23,
+and requires the explicit move <code>return std::move(p)</code>.</p>
+</div>
+<div class="paragraph">
+<p>In contrast to returning local (stack) variables, named return value optimization (NRVO)
+does not apply to function parameters, so an explicit <code>std::move</code> call has no impact on optimizations.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This issue can be resolved in multiple ways:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Generally, <code>std::move</code> can be used to move such arguments;</p>
+</li>
+<li>
+<p>For containers, C&#43;&#43;20 <code>std::ranges::move</code> or C&#43;&#43;23 <code>std::views::as_rvalue</code> can be used to move their elements;</p>
+</li>
+<li>
+<p>It is also possible to use a range-based for loop to move elements.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We illustrate these solutions in the examples below based on the following definitions.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Shape {
+public:
+  Shape(Shape const&amp; shape); // Copy constructor
+  Shape(Shape&amp;&amp; shape);      // Move constructor
+  // More code...
+
+  bool isVisible() const;
+};
+
+class DrawingStore {
+  std::vector&lt;Shape&gt; store;
+
+public:
+  void insertVisibleShape(Shape&amp;&amp; shape);
+  void insertAllShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes);
+  void insertAllVisibleShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes);
+};</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_move_an_rvalue_parameter">How to move an rvalue parameter</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>When the parameter represents a single object you want to move, it is not sufficient to use <code>&amp;&amp;</code> after its type in the parameter list.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertVisibleShape(Shape&amp;&amp; shape) {
+  if (shape.isVisible()) {
+    store.emplace_back(shape); // Noncompliant, call to std::move is expected.
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With the above implementation, the <code>Shape</code> object appended in <code>store</code> is created using <code>Shape</code>'s <em>copy</em> constructor.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>To ensure the object&#8217;s content is moved, you have to call <code>std::move()</code> like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertVisibleShape(Shape&amp;&amp; shape) {
+  if (shape.isVisible()) {
+    store.emplace_back(std::move(shape)); // Compliant
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With this fix, the <em>move</em> constructor of <code>Shape</code> is used and the content of the parameter <code>shape</code> can be transferred to the newly created object in <code>store</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_move_elements_of_a_container_using_for_loops">How to move elements of a container using for-loops</h3>
+<div class="paragraph">
+<p>When you want to transfer the content of multiple objects into another container, it also makes sense to define the parameter as rvalue with <code>&amp;&amp;</code>.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>While the following code looks fine and compiles, it does actually <em>copy</em> the elements. In fact, <code>shapes</code> is left unchanged.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertAllShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes) {
+  for (Shape&amp; s : shapes) {
+    if (s.isVisible()) {
+      store.emplace_back(s); // Noncompliant, call to std::move is expected.
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>As in the previous example, a call to <code>std::move</code> is required to fix the implementation:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertAllVisibleShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes) {
+  for (Shape&amp; s : shapes) {
+    if (s.isVisible()) {
+      store.emplace_back(std::move(s)); // Compliant
+    }
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Writing <code>for (Shape&amp; s : std::move(shapes))</code> would not fix the issue because this call to <code>std::move</code> has no effect here.
+The call to <code>std::move</code> has to be on <code>s</code>, not <code>shapes</code>.</p>
+</div>
+<div class="paragraph">
+<p>Notice that in this solution, the for-loop variable <code>s</code> remains an lvalue reference with a single <code>&amp;</code>.
+In C&#43;&#43;23, it is possible to make it a rvalue too, with <code>std::ranges::views::as_rvalue</code>, making the intent of the code clearer.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertAllVisibleShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes) {
+  for (Shape&amp;&amp; s : shapes | std::ranges::views::as_rvalue) {
+    if (s.isVisible()) {
+      store.emplace_back(std::move(s)); // Compliant
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_move_elements_of_a_container_using_algorithms">How to move elements of a container using algorithms</h3>
+<div class="paragraph">
+<p>Algorithms, especially with C&#43;&#43;20 ranges, are often better alternatives to manual for-loops since they abstract away a lot of implementation details.
+However, not all of them abstract away the move semantics and attention is required to use them correctly.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="paragraph">
+<p>For example, <code>std::ranges::copy</code> performs copies by default:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertAllShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes) {
+  // Noncompliant: the elements of shapes are not moved.
+  std::ranges::copy(shapes, std::back_inserter(store));
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="paragraph">
+<p>Here, the solution is fairly simple: <code>std::ranges::copy</code> can be replaced with <code>std::ranges::move</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertAllShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes) {
+  // Compliant: uses "move" instead of "copy".
+  std::ranges::move(shapes, std::back_inserter(store));
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="paragraph">
+<p>However, sometimes <code>std::ranges::move</code> cannot be used, for example when not all elements should be moved.
+In this case, <code>std::ranges::copy_if</code> looks appropriate but falls short:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertAllVisibleShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes) {
+  // Noncompliant: the elements of shapes are not moved.
+  std::ranges::copy_if(
+    shapes,
+    std::back_inserter(store),
+    &amp;Shape::isVisible
+  );
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Again, the elements are copied instead of being moved.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="paragraph">
+<p>While a solution based on <code>std::make_move_iterator</code> exists before C&#43;&#43;23, it is fairly verbose and error-prone.
+This time again, C&#43;&#43;23 <code>std::ranges::views::as_rvalue</code> helps writing regular code:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void DrawingStore::insertAllVisibleShapes(std::vector&lt;Shape&gt;&amp;&amp; shapes) {
+  // Compliant: use as_rvalue to ensure elements are moved.
+  std::ranges::copy_if(
+    shapes | std::ranges::views::as_rvalue,
+    std::back_inserter(store),
+    &amp;Shape::isVisible
+  );
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This solution can be applied to any move-compatible algorithm.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/move"><code>std::move</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/ranges/move"><code>std::ranges::move</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/ranges/as_rvalue_view"><code>std::ranges::views::as_rvalue</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/copy_elision">Copy elision</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f18-for-will-move-from-parameters-pass-by-x-and-stdmove-the-parameter">F.18: For "will-move-from" parameters, pass by <code>X&&</code> and <code>std::move</code> the parameter</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6352" class="rspec-auto-link">S6352</a> - The return value of "std::move" should be used in a function</p>
+</li>
+<li>
+<p><a data-rspec-id="S5417" class="rspec-auto-link">S5417</a> - "std::move" and "std::forward" should not be confused</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>"std::move" is never called on this rvalue reference argument.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5272">relates to: <a data-rspec-id="S5272" class="rspec-auto-link">S5272</a></h3>
+
+</div>
+</div>
+</div>

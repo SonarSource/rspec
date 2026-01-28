@@ -1,0 +1,254 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>GitHub Actions workflows support special workflow commands that allow workflows to interact with the runner.
+These commands can be invoked by printing specially crafted messages to the standard output.
+For example, <code>::set-mask</code> can be used to mask sensitive values in the workflow logs and <code>::error</code> to terminate execution with a useful error message.</p>
+</div>
+<div class="paragraph">
+<p>Two of such commands, <code>::set-env</code> and <code>::add-path</code>, allow setting arbitrary environment variables and modifying the system PATH for the subsequent workflow steps.
+In 2020, these commands were deprecated and disabled by default due to security concerns.
+However, <code>ACTIONS_ALLOW_UNSECURE_COMMANDS</code> environment variable can still be used to re-enable them.</p>
+</div>
+<div class="paragraph">
+<p>If this environment variable is set, the runner will process <code>::set-env</code> and <code>::add-path</code> commands printed to the standard output.
+If an adversary can influence the content printed to the standard output (e.g., by injecting something into the build logs), they could use these commands to manipulate the runtime environment.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When user-supplied values are used to manipulate environment variables, an attacker can supply carefully chosen values that cause the system to behave unexpectedly.
+This can be used to execute arbitrary commands as well as affect the behavior of other tools and scripts executed after the injection point.
+In most cases, this leads to arbitrary code execution on the system.</p>
+</div>
+<div class="paragraph">
+<p>It is important to note, that these commands are triggered by printing to standard output.
+Therefore, this issue can be exploited if an attacker can influence the output of any command executed during the workflow.</p>
+</div>
+<div class="paragraph">
+<p>The consequences of a successful attack can be severe and far-reaching:</p>
+</div>
+<div class="sect3">
+<h4 id="_information_disclosure">Information disclosure</h4>
+<div class="paragraph">
+<p>Attackers can extract sensitive information from the runner environment, including:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Repository secrets and environment variables</p>
+</li>
+<li>
+<p>Authentication tokens and API keys</p>
+</li>
+<li>
+<p>Build artifacts and deployment credentials</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_system_compromise">System compromise</h4>
+<div class="paragraph">
+<p>Successful command injection allows attackers to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Execute arbitrary commands on the runner</p>
+</li>
+<li>
+<p>Install malware or backdoors</p>
+</li>
+<li>
+<p>Access other resources available to the runner</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_supply_chain_attacks">Supply chain attacks</h4>
+<div class="paragraph">
+<p>Compromised workflows can be used to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Inject malicious code into build artifacts</p>
+</li>
+<li>
+<p>Modify dependencies or packages being published</p>
+</li>
+<li>
+<p>Compromise downstream systems that consume the artifacts</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_repository_manipulation">Repository manipulation</h4>
+<div class="paragraph">
+<p>Attackers may be able to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Modify repository contents or history</p>
+</li>
+<li>
+<p>Create unauthorized releases or tags</p>
+</li>
+<li>
+<p>Access or modify other repositories the workflow has access to</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The impact is particularly severe because GitHub Actions runners often have elevated privileges and access to sensitive resources, making them attractive targets for attackers.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To fix this issue, remove setting of the <code>ACTIONS_ALLOW_UNSECURE_COMMANDS</code> environment variable, and replace the use of <code>::set-env</code> and <code>::add-path</code> with their safe alternatives:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>To set environment variables, echo to the <code>$GITHUB_ENV</code> environment variable. For example, to make a an environment variable named <code>VARIABLE</code> to <code>value</code> for the subsequent workflows steps, you can do the following:</p>
+<div class="literalblock">
+<div class="content">
+<pre># This is equivalent to `export VARIABLE=value` across stpes
+echo "VARIABLE=value" &gt;&gt; $GITHUB_ENV</pre>
+</div>
+</div>
+</li>
+<li>
+<p>To prepend a new entry to the system PATH, echo to the <code>$GITHUB_PATH</code> environment variable. For example, to add <code>/new/path</code> to the PATH for the subsequent workflow steps, you can do the following:</p>
+<div class="literalblock">
+<div class="content">
+<pre># This is equivalent to `export PATH=/new/path:$PATH` across steps
+echo "/new/path" &gt;&gt; $GITHUB_PATH</pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: "Example"
+
+jobs:
+  set_env:
+    runs-on: ubuntu-latest
+    env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true  # Noncompliant
+    steps:
+      - run: |
+          echo "::set-env name=MESSAGE::hello"
+      - run: |
+          echo "Message: $MESSAGE"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: "Example"
+
+jobs:
+  set_env:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "MESSAGE::hello" &gt;&gt; $GITHUB_ENV
+      - run: |
+          echo "Message: $MESSAGE"</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Docs - <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable">Workflow commands for GitHub Actions: Setting an environment variable</a></p>
+</li>
+<li>
+<p>GitHub Docs - <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-system-path">Workflow commands for GitHub Actions: Adding a system path</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Blog - <a href="https://github.blog/changelog/2020-10-01-github-actions-deprecating-set-env-and-add-path-commands/">GitHub Actions: Deprecating set-env and add-path commands</a></p>
+</li>
+<li>
+<p>GitHub Advisory Database - <a href="https://github.com/actions/toolkit/security/advisories/GHSA-mfwh-5m23-j46w"><code>add-path</code> and <code>set-env</code> Runner commands are processed via stdout</a></p>
+</li>
+<li>
+<p>Google Project Zero - <a href="https://project-zero.issues.chromium.org/issues/42451175">Github: Widespread injection vulnerabilities in Actions</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/454">CWE-454 - External Initialization of Trusted Variables or Data Stores</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6547" class="rspec-auto-link">S6547</a> Environment variables should not be defined from untrusted input</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

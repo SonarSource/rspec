@@ -1,0 +1,137 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>chrono</code> library, introduced in C&#43;&#43;20, provides support for calendars, time zones, and i/o formatting and parsing operations on time-related objects.</p>
+</div>
+<div class="paragraph">
+<p><code>chrono</code> is a better alternative to the C/POSIX functions that operate on <code>time_t</code>, <code>tm</code>, or <code>timespec</code> types. In comparison to C facilities, it provides better integration with other components of the C&#43;&#43; standard library (<code>iostreams</code> and <code>format</code>). Also, it supports compile-time computation and it is thread-safe.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue C/POSIX functions that can be replaced with one of the <code>std::chrono</code> components:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>querying for current time (<code>time</code>, <code>timespec_get</code>, <code>clock_gettime</code>)</p>
+</li>
+<li>
+<p>date to time-point conversion (<code>mktime</code>, <code>gmtime</code>, <code>localtime</code>)</p>
+</li>
+<li>
+<p>time serialization (<code>ctime</code>, <code>asctime</code>, <code>strftime</code>)</p>
+</li>
+<li>
+<p>time parsing (<code>strptime</code>)</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int currentMonth() {
+  std::time_t tp;
+  std::time(&amp;tp);
+  std::tm* date = std::gmtime(&amp;tp);
+  return date-&gt;tm_mon + 1;
+}
+
+std::chrono::system_clock::time_point makeSomeDay() {
+  // Creates time_point corresponding to 2020-09-04
+  std::tm date{};
+  date.tm_year = 120;
+  date.tm_mon = 8;
+  date.tm_mday = 4;
+  std::time_t t = std::mktime(&amp;date); // Noncompliant
+  return std::chrono::system_clock::from_time_t(t);
+}
+
+std::optional&lt;int&gt; yearOfTimePoint(std::chrono::system_clock::time_point tp) {
+  std::time_t t = std::chrono::system_clock::to_time_t(tp);
+  std::tm* date = std::gmtime(&amp;t); // Noncompliant
+  if (!date)
+    return std::nullopt;
+  return date-&gt;tm_year + 1900;
+}
+
+std::string toString(std::chrono::system_clock::time_point tp) {
+  std::time_t t = std::chrono::system_clock::to_time_t(tp);
+  std::tm* date = std::gmtime(&amp;t);  // Noncompliant
+  if (!date)
+    throw InvalidDate();
+
+  std::string buffer(100, ' ');
+  std::size_t written = std::strftime(&amp;buffer[0], buffer.size(), "%A %c", date);
+  buffer.resize(written);
+  return buffer;
+}
+
+std::string toFrenchString(std::chrono::system_clock::time_point tp) {
+  auto oldLocale = std::locale::global(std::locale("fr_FR.UTF-8"));
+  std::string result = toString(tp);
+  std::locale::global(oldLocale);
+  return result;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::chrono::month currentMonth() {
+  using namespace std::chrono;
+  auto dp = floor&lt;days&gt;(system_clock::now());
+  return year_month_day(dp).month();
+}
+
+std::chrono::system_clock::time_point makeSomeDay() {
+  using namespace std::chrono;
+  return sys_days(2020y/September/4);
+}
+
+std::optional&lt;std::chrono::year&gt; yearOfTimePoint(std::chrono::system_clock::time_point tp) {
+  using namespace std::chrono;
+  year_month_day date(floor&lt;days&gt;(tp));
+  if (!date.ok())
+    return std::nullopt;
+  return date.year();
+}
+
+std::string toString(std::chrono::system_clock::time_point tp) {
+  return std::format("{:%A %c}", tp); // Or "{:L%A %c}" if you want to use the global locale
+}
+
+std::string toFrenchString(std::chrono::system_clock::time_point tp) {
+  return std::format(std::locale("fr_FR.UTF-8"), "{:L%A %c}", tp);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/chrono">Date and time utilities</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/chrono/system_clock/formatter#Format_specification">Formatting <code>std::chrono::sys_time</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

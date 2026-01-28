@@ -1,0 +1,289 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Pointers marked as "nonnull" may not be set to null, since they are typically not null-checked before use.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A function&#8217;s return value and parameters may be decorated with attributes to convey additional information to the compiler and/or other developers.</p>
+</div>
+<div class="paragraph">
+<p>A commonly used attribute is <code>nonnull</code> which can be used to mark a function&#8217;s return value and parameters as shown in the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+
+__attribute__((returns_nonnull)) int *
+make_array_copy(int *src, size_t len) __attribute__((nonnull(1)));
+
+int *make_array_copy(int *src, size_t len) {
+  int *dst = (int *)malloc(len * sizeof(int));
+  if (dst == NULL) {
+    perror("malloc failed");
+    exit(1);
+  }
+  memcpy(dst, src, len);
+  return dst;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>nonnull</code> attribute is meant for other developers and as a hint for compilers.
+Values marked as <code>nonnull</code> are assumed to have non-null values.</p>
+</div>
+<div class="paragraph">
+<p>However, developers may accidentally break the <code>nonnull</code> attribute as shown in the following code snippet:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">__attribute__((returns_nonnull))
+int *foo(__attribute__((nonnull)) int *x) {
+  x = 0; // This is compliant but might be surprising, use with caution
+  foo(0); // Noncompliant: null is passed as an argument marked as "nonnull"
+  return 0; // Noncompliant: return value is marked "nonnull" but null is returned
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Failing to adhere to the attribute may introduce serious program errors.
+In particular, the compiler does not enforce that values marked as <code>nonnull</code> are indeed non-null at runtime; it is the developers' responsibility to adhere to the attribute.
+These values are typically <em>not</em> null-checked before use.
+Passing null (i.e., <code>NULL</code>, <code>0</code> or <code>nullptr</code>) as an argument to a parameter that is marked as <code>nonnull</code>
+or returning null from a function marked as <code>returns_nonnull</code> is, hence, likely to cause a null-pointer dereference.
+Compilers may even apply optimizations based on this attribute and might, for instance, <em>remove</em> an explicit null-check if the parameter is declared as <code>nonnull</code>&#8201;&#8212;&#8201;even in code outside of the function with the attribute.</p>
+</div>
+<div class="paragraph">
+<p>Note that the <code>nonnull</code> attribute is a GNU extension (see <a href="https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-nonnull-function-attribute">nonnull</a> and <a href="https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-returns_005fnonnull-function-attribute">returns_nonnull</a>) which many compiler vendors have implemented.</p>
+</div>
+<div class="paragraph">
+<p>Note that it is allowed to <em>assign</em> null to a parameter marked as <code>nonnull</code>.
+This attribute is only concerned with the function call contract
+and does not control the evolution of the parameter variable.
+For example, a linked-list search could be implemented as follows:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct List {
+  int value;
+  List *next; // nullptr for a tail node.
+};
+
+
+List *findElement(List *l, int elem) __attribute__((nonnull(1)));
+
+List *findElement(List *l, int elem) {
+  while(l &amp;&amp; l-&gt;value != elem)
+    l = l-&gt;next;
+  return l;
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In case a program dereferences a null pointer, it&#8217;s behavior is undefined.
+For programs that exercise undefined behavior the compiler no longer needs to adhere to the language standard and the program has no meaning assigned to it.</p>
+</div>
+<div class="paragraph">
+<p>In practice, dereferencing a null pointer may lead to program crashes, or the application may appear to execute correctly while losing data or producing incorrect results.</p>
+</div>
+<div class="paragraph">
+<p>Besides affecting the application&#8217;s availability, null-pointer dereferences may lead to malicious code execution, in rare circumstances.
+If null is equivalent to the 0x0 memory address that can be accessed by privileged code, writing, and reading memory is possible, which compromises the integrity and confidentiality of the application.</p>
+</div>
+<div class="paragraph">
+<p>Because compilers may apply optimizations based on the <code>nonnull</code> attribute, not respecting <code>nonnull</code> can also introduce more complex bugs such as resource leaks or infinite recursion as indicated in the following code snippet:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct List {
+  int value;
+  List *next; // nullptr for a tail node.
+};
+
+size_t len(List *n) __attribute__((nonnull));
+size_t len(List *l) {
+  if (!l) return 0; // Impossible branch according to the attribute
+  return 1 + len(l-&gt;next);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ensure not to pass null values when <code>nonnull</code> arguments are expected and not to return a null value when a function is marked as <code>returns_nonnull</code>.
+This especially holds for library functions, which frequently require <code>nonnull</code> pointer parameters.</p>
+</div>
+<div class="paragraph">
+<p>On other occasions, it might be more appropriate to remove the attribute.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int *foo(int *x) __attribute__((nonnull));
+int *foo(int *x) {
+  *x = 42;
+  return x;
+}
+
+void bar() {
+  int *p = nullptr;
+  int *q = foo(p); // Noncompliant: null value is passed as an argument marked "nonnull"
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int *foo(int *x) __attribute__((nonnull));
+int *foo(int *x) {
+  *x = 42;
+  return x;
+}
+
+void bar() {
+  int i = 0;
+  int *p = &amp;i;
+  int *q = foo(p); // Compliant: `p` points to a valid memory location
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">__attribute__((returns_nonnull))
+int *foo() {
+  return nullptr; // Noncompliant: function may not return a null pointer
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">__attribute__((returns_nonnull))
+int *foo() {
+  int *p = new int(0);
+  return p; // Compliant: `p` points to a valid memory location
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>In C&#43;&#43;, it is preferred to use reference parameters (<code>Type const&amp;</code> or <code>Type&amp;</code>), or pass objects by value (<code>Type</code>), instead of a pointer (<code>Type const*</code> or <code>Type*</code>), if the argument is expected to never be null.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Precondition: graph != null
+bool isDAG(Graph const* graph);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The preferred signature would be:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool isDAG(Graph const&amp; graph);</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/QdcxBQ">EXP34-C. Do not dereference null pointers</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/java/EXP01-J.+Do+not+use+a+null+in+a+case+where+an+object+is+required">EXP01-J. Do not use a null in a case where an object is required</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/476">CWE-476 NULL Pointer Dereference</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f16-for-in-parameters-pass-cheaply-copied-types-by-value-and-others-by-reference-to-const">F.16: For "in" parameters, pass cheaply-copied types by value and others by reference to <code>const</code></a></p>
+</li>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f17-for-in-out-parameters-pass-by-reference-to-non-const">F.17: For "in-out" parameters, pass by reference to non-<code>const</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2259" class="rspec-auto-link">S2259</a> detects null-pointer dereferences</p>
+</li>
+<li>
+<p><a data-rspec-id="S3807" class="rspec-auto-link">S3807</a> detects calls to C library functions that require valid, non-null pointers with null pointer arguments</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>"xxx" is marked "@yyy" but is set to null.</p>
+</li>
+<li>
+<p>Parameter n to this call is marked "@yyy" but null could be passed.</p>
+</li>
+<li>
+<p>"xxx" is marked "@yyy" but is not initialized in this constructor</p>
+</li>
+<li>
+<p>This method&#8217;s return value is marked "@yyy" but null is returned.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

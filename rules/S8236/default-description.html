@@ -1,0 +1,154 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when an io.Reader implementation writes to the buffer parameter and then reads from it again, or stores references to it for later use, without copying the data first.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>io.Reader</code> interface contract does not guarantee exclusive ownership of the buffer parameter passed to the <code>Read()</code> method. The buffer may be shared between multiple goroutines or reused by the caller for different purposes.</p>
+</div>
+<div class="paragraph">
+<p>When an implementation assumes it owns the buffer and performs operations like:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Writing to the buffer and then reading from it again</p>
+</li>
+<li>
+<p>Storing references to the buffer for later use</p>
+</li>
+<li>
+<p>Passing the buffer to other functions that may access it concurrently</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This creates data races. Multiple goroutines might simultaneously access the same memory location, leading to unpredictable behavior, corrupted data, or program crashes.</p>
+</div>
+<div class="paragraph">
+<p>The Go standard library itself has encountered this issue. For example, <code>ioutil.Discard</code> originally had a race condition because it reused a global buffer, causing problems when multiple goroutines used it simultaneously with readers that assumed buffer ownership.</p>
+</div>
+<div class="paragraph">
+<p>This type of bug is particularly difficult to debug because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It may only manifest under specific timing conditions</p>
+</li>
+<li>
+<p>Race detectors might not always catch it</p>
+</li>
+<li>
+<p>The symptoms can be subtle data corruption rather than obvious crashes</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Data races can lead to unpredictable program behavior, including data corruption, incorrect calculations, and program crashes. In concurrent applications, this can cause intermittent failures that are difficult to reproduce and debug. The impact is especially severe in applications that process sensitive data or perform critical calculations, where data integrity is essential.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Copy data from the shared buffer to a private buffer before using it for additional operations. This ensures your implementation doesn&#8217;t rely on exclusive ownership of the parameter buffer.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">type trackDigestReader struct {
+    r io.Reader
+    h hash.Hash
+}
+
+func (t *trackDigestReader) Read(p []byte) (n int, err error) {
+    if t.h == nil {
+        t.h = sha1.New()
+    }
+    n, err = t.r.Read(p)    // Noncompliant
+    t.h.Write(p[:n])      // Noncompliant: using shared buffer
+    return
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">type trackDigestReader struct {
+    r io.Reader
+    h hash.Hash
+}
+
+func (t *trackDigestReader) Read(p []byte) (n int, err error) {
+    if t.h == nil {
+        t.h = sha1.New()
+    }
+    n, err = t.r.Read(p)
+    if n &gt; 0 {
+        // Copy to avoid data race on shared buffer
+        buf := make([]byte, n)
+        copy(buf, p[:n])
+        t.h.Write(buf)
+    }
+    return
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go io.Reader documentation - <a href="https://pkg.go.dev/io#Reader">Official documentation for the io.Reader interface</a></p>
+</li>
+<li>
+<p>Go Memory Model - <a href="https://go.dev/ref/mem">Official Go memory model documentation explaining data races and synchronization</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - <a href="https://cwe.mitre.org/data/definitions/362.html">Race conditions and improper synchronization in concurrent programs</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2886" class="rspec-auto-link">RSPEC-2886</a> - <a href="https://rules.sonarsource.com/go/RSPEC-2886/">Getters and setters should be synchronized in pairs</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

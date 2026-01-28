@@ -1,0 +1,191 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when FastAPI route handler parameters use <code>Depends()</code>, <code>Query()</code>, <code>Path()</code>, <code>Body()</code>, or similar dependency injection functions as default parameter values instead of within <code>Annotated</code> type hints.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>FastAPI originally allowed declaring dependencies by using them as default parameter values. While this approach still works, it has several drawbacks that make code harder to maintain and understand.</p>
+</div>
+<div class="paragraph">
+<p>When dependencies are declared as default values, the actual type of the parameter becomes ambiguous. For example, <code>db = Depends(get_db)</code> doesn&#8217;t clearly indicate what type <code>db</code> will be at runtime. This makes the code harder to read and reduces the effectiveness of IDE autocompletion and type checking tools.</p>
+</div>
+<div class="paragraph">
+<p>The modern <code>Annotated</code> syntax separates the type information from the dependency declaration, making both aspects explicit. This approach provides better clarity about what the parameter actually is, while still specifying how it should be injected.</p>
+</div>
+<div class="paragraph">
+<p>Using <code>Annotated</code> consistently across your codebase also aligns with FastAPI&#8217;s current recommendations and ensures your code follows modern Python typing conventions introduced in Python 3.9.</p>
+</div>
+<div class="paragraph">
+<p>The old syntax mixes concerns by using the default value mechanism for dependency injection, which is semantically confusing since the "default" isn&#8217;t really a default value in the traditional sense.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using the deprecated syntax makes code less maintainable in several ways:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Type checkers and IDEs cannot accurately infer the actual runtime type of parameters, reducing the effectiveness of static analysis and autocompletion</p>
+</li>
+<li>
+<p>Developers reading the code must mentally separate the dependency injection mechanism from the actual parameter type</p>
+</li>
+<li>
+<p>Mixing old and new syntax across a codebase creates inconsistency that increases cognitive load</p>
+</li>
+<li>
+<p>Future FastAPI versions may deprecate or remove support for the old syntax, requiring migration work</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_fastapi">How to fix it in FastAPI</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace dependency declarations in default values with <code>Annotated</code> type hints. Import <code>Annotated</code> from the <code>typing</code> module (Python 3.9+) or <code>typing_extensions</code> (Python 3.8 and earlier). The first argument to <code>Annotated</code> is the actual type of the parameter, and the second argument is the dependency injection specification.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+def get_db():
+    return "database_connection"
+
+@app.get("/items/")
+def read_items(db = Depends(get_db)):  # Noncompliant
+    return {"db": db}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from typing import Annotated
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+def get_db():
+    return "database_connection"
+
+@app.get("/items/")
+def read_items(db: Annotated[str, Depends(get_db)]):
+    return {"db": db}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The same pattern applies to query parameters, path parameters, and request body parameters. Use <code>Annotated</code> to combine the type with the parameter specification.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from fastapi import FastAPI, Query
+
+app = FastAPI()
+
+@app.get("/search/")
+def search_items(
+    q: str = Query(None, max_length=50)  # Noncompliant
+):
+    return {"query": q}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from typing import Annotated
+from fastapi import FastAPI, Query
+
+app = FastAPI()
+
+@app.get("/search/")
+def search_items(
+    q: Annotated[str | None, Query(max_length=50)] = None
+):
+    return {"query": q}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For complex dependencies that return specific types, specify the return type explicitly in the <code>Annotated</code> declaration to improve type safety.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+async def common_parameters(q: str | None = None, skip: int = 0):
+    return {"q": q, "skip": skip}
+
+@app.get("/items/")
+async def read_items(commons: dict = Depends(common_parameters)):  # Noncompliant
+    return commons</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from typing import Annotated
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+async def common_parameters(q: str | None = None, skip: int = 0):
+    return {"q": q, "skip": skip}
+
+@app.get("/items/")
+async def read_items(commons: Annotated[dict, Depends(common_parameters)]):
+    return commons</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>FastAPI Documentation - Dependencies - <a href="https://fastapi.tiangolo.com/tutorial/dependencies/">Official FastAPI documentation on dependency injection</a></p>
+</li>
+<li>
+<p>FastAPI Documentation - Annotated Dependencies - <a href="https://fastapi.tiangolo.com/tutorial/dependencies/#use-annotated-in-fastapi">FastAPI guide on using Annotated for dependencies</a></p>
+</li>
+<li>
+<p>Python typing.Annotated - <a href="https://docs.python.org/3/library/typing.html#typing.Annotated">Python documentation for the Annotated type hint</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,456 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When constructing an object of a derived class, the sub-object of the base class is constructed first, and only then is the derived class&#8217;s constructor called.
+This process remains the same when there are multiple levels of inheritance, from the most base class to the most derived class.
+During construction, the object&#8217;s dynamic type evolves to become the type of the sub-object under construction.
+The destruction of the object follows the same process in reverse order.</p>
+</div>
+<div class="paragraph">
+<p>These rules for C&#43;&#43; mean that invoking a virtual function from a constructor (or a destructor) selects the override that matches the level under construction (or destruction).
+This is not necessarily the override from the most derived type, contrary to what developers familiar with other programming languages might expect.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, the behavior is undefined when the selected override is a pure virtual function.</p>
+</div>
+<div class="paragraph">
+<p>We illustrate C&#43;&#43;'s behavior in the following example.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Base {
+  virtual std::string getPrefix() { return "Default"; }
+  virtual std::string getClassName() { return "Base"; }
+};
+
+struct Derived : Base {
+  std::string getClassName() override { return "Derived"; }
+
+  Derived() {
+    std::cout &lt;&lt; getPrefix() &lt;&lt; " - " &lt;&lt; getClassName() &lt;&lt; '\n';
+  }
+};
+
+struct Subderived : Derived {
+  std::string getPrefix() override { return "Custom"; }
+  std::string getClassName() final { return "Subderived"; }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Constructing an object of type <code>Subderived</code> prints <em>Default - Derived</em>.
+In detail, the following occurs:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The sub-object of type <code>Base</code> is constructed using the compiler-generated constructor.</p>
+</li>
+<li>
+<p>The sub-object of type <code>Derived</code> is constructed using the user-provided constructor.</p>
+<div class="olist loweralpha">
+<ol class="loweralpha" type="a">
+<li>
+<p>This constructor considers <code>*this</code> as being of type <code>Derived</code>.</p>
+</li>
+<li>
+<p>The function <code>Base::getPrefix()</code> is called.</p>
+</li>
+<li>
+<p>The function <code>Derived::getClassName()</code> is called.</p>
+</li>
+</ol>
+</div>
+</li>
+<li>
+<p>Finally, the object of type <code>Subderived</code> is constructed.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>The fact that <code>Subderived</code>'s methods are declared with the <code>override</code> and <code>final</code> keywords does not play any role.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when a non-final virtual function is called from a constructor or a destructor.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In the best-case scenario, the selected override is the desired one.
+However, this may not be obvious to everyone reading the code and can cause needless confusion.
+Secondly, this reduces the software&#8217;s adaptability: changing the class hierarchy may break the current assumption and lead to bugs if the wrong override is selected.</p>
+</div>
+<div class="paragraph">
+<p>Another likely scenario is that the wrong overload is selected.
+Since the difference between the program&#8217;s expected and actual behavior can be very small, you may spend a significant amount of time identifying and fixing the problem.
+The problem is even more challenging to identify when virtual functions are called indirectly through another function.</p>
+</div>
+<div class="paragraph">
+<p>Finally, since the behavior is undefined if the chosen override is a pure virtual function, the program might crash or produce obvious incorrect results.
+Or it might seem to work fine on the surface, yet lead to bigger problems down the line that are not identified by tests.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are essentially three scenarios:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>If subclasses can exist and may customize the program&#8217;s behavior, there is a bug.<br>
+You should refactor the code to remove reliance on virtual function calls from constructors and destructors.</p>
+</li>
+<li>
+<p>If subclasses don&#8217;t exist or shouldn&#8217;t customize the behavior, the intent is unclear.<br>
+You should redesign the class hierarchy and let the compiler enforce these constraints.</p>
+</li>
+<li>
+<p>If subclasses can exist but the current behavior is deemed correct, the intent remains unclear.<br>
+You should explicitly reflect your intention in the code.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>We will explore solutions for these cases below with a couple of examples.
+Please keep in mind that these examples focus on the problem of virtual dispatch and nothing else.
+For simplicity, they are not perfect: for example, they lack proper virtual destructors (<a data-rspec-id="S1235" class="rspec-auto-link">S1235</a>), they do not take into account encapsulation, etc&#8230;&#8203;</p>
+</div>
+<div class="sect2">
+<h3 id="_defer_virtual_function_calls">Defer virtual function calls</h3>
+<div class="paragraph">
+<p>If you want to perform virtual calls during the object construction process that consider the actual type of the object, you should defer those calls after the object constructor has finished with a factory function.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Let&#8217;s take a simple example that does not perform the expected action:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Base {
+  virtual std::string getClassName() { return "Base"; }
+
+  void printInfo() {
+    std::cout &lt;&lt; getClassName() &lt;&lt; "\n";
+  }
+
+  Base() {
+    printInfo(); // Noncompliant: Base::getClassName() is always selected.
+  }
+};
+
+struct Derived : Base {
+  virtual std::string getClassName() { return "Derived"; }
+};
+
+std::unique_ptr&lt;Base&gt; factory() {
+  auto ptr = std::make_unique&lt;Derived&gt;();
+  return ptr;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>Derived</code> object created in <code>factory()</code> prints <em>Base</em> instead of <em>Derived</em> because <code>printInfo()</code> only considers <code>Base</code>'s override of <code>getClassName</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>The following solution prints <em>Derived</em> by moving the virtual dispatch after the constructor of <code>Base</code> and <code>Derived</code> have finished.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Base {
+  virtual std::string getClassName() { return "Base"; }
+
+  void printInfo() {
+    std::cout &lt;&lt; getClassName() &lt;&lt; "\n";
+  }
+
+  Base() {
+    // No direct &amp; indirect calls to virtual functions.
+  }
+};
+
+struct Derived : Base {
+  virtual std::string getClassName() { return "Derived"; }
+};
+
+std::unique_ptr&lt;Base&gt; factory() {
+  auto ptr = std::make_unique&lt;Derived&gt;();
+  ptr-&gt;printInfo(); // Virtual function calls happen after the constructor.
+  return ptr;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_pitfalls">Pitfalls</h4>
+<div class="paragraph">
+<p>For this solution to properly work, you have to ensure every <code>Derived</code> object in your program is created via <code>factory()</code> to guarantee that <code>printInfo()</code> is systematically called when a new object is created.</p>
+</div>
+<div class="paragraph">
+<p>There are multiple ways to enforce this.
+For example, you can declare <code>factory()</code> as a static member function of <code>Derived</code> and mark the relevant constructors as <code>protected</code>.
+However, you will have to deal with <code>std::make_unique</code> inability to access the protected constructor.
+<a href="https://seanmiddleditch.github.io/enabling-make-unique-with-private-constructors/">The passkey idiom</a> is usually a good solution for this.</p>
+</div>
+<div class="paragraph">
+<p>When done rigorously, the compiler will emit a compilation error if you attempt to construct an object without relying on <code>factory()</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_dealing_with_destructors">Dealing with destructors</h4>
+<div class="paragraph">
+<p>A similar solution can be applied to deal with this issue in destructors:
+Instead of calling the virtual functions inside the destructors, you can call them before them.
+This also requires to be careful and ensure each object is consistently destroyed.</p>
+</div>
+<div class="paragraph">
+<p>For example, with the <code>factory()</code> function from above, you could use a custom deleter for <code>std::unique_ptr</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_mark_functions_or_classes_as_final">Mark functions or classes as final</h3>
+<div class="paragraph">
+<p>Assuming you know that subclasses don&#8217;t exist or shouldn&#8217;t customize the behavior, you can use C&#43;&#43;11 <code>final</code> specifier to ask the compiler to enforce this design decision.</p>
+</div>
+<div class="paragraph">
+<p>This solution is applicable for virtual calls from constructors and destructors.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Consider this example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Widget {
+  virtual void addChild(Widget* child) = 0;
+};
+
+struct Text : Widget {
+  // ...
+};
+
+struct Button : Widget {
+  void addChild(Widget* child) override;
+
+  Button(std::string text) {
+    addChild(new Text(text)); // Noncompliant: Button::addChild is always selected.
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>In your design, if it does not make sense for <code>Button</code> to have subclasses, you can mark it as <code>final</code>.
+Or you can allow subclasses as long as they do not override <code>addChild</code> by marking this function as <code>final</code>.
+You can also combine both to be explicit about each individual design decision.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Widget {
+  virtual void addChild(Widget* child) = 0;
+};
+
+struct Text : Widget {
+  // ...
+};
+
+struct Button final : Widget {
+  void addChild(Widget* child) final;
+
+  Button(std::string text) {
+    addChild(new Text(text)); // Compliant: the intent is clear.
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_qualify_function_calls">Qualify function calls</h3>
+<div class="paragraph">
+<p>On some occasions, you may decide to keep the current class hierarchy without prohibiting the existence of subclasses or further overrides.
+Therefore, the <code>final</code> specifier is not appropriate.
+However, it is still possible to make the intent clear.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Consider this example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct FileStream {
+  virtual void sync();
+};
+
+struct BufferedFileStream : FileStream {
+  void sync() override;
+
+  ~BufferedFileStream() {
+    sync(); // Noncompliant: BufferedFileStream::sync() is always selected.
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="paragraph">
+<p>If you designed your classes to not rely on subclass override of <code>sync</code>, you can make the intention explicit by <a href="https://en.cppreference.com/w/cpp/language/qualified_lookup">qualifying the call</a>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct FileStream {
+  virtual void sync();
+};
+
+struct BufferedFileStream : FileStream {
+  void sync() override;
+
+  ~BufferedFileStream() {
+    BufferedFileStream::sync(); // Compliant: the intent is clear.
+  }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>While this solution clarifies the intent, it is often brittle since introducing a new class in the hierarchy may silently break the assumption made in the implementation.
+When creating a new class or modifying an existing one, you have to know the details of other classes to be sure not to break their behavior.
+In other words, this solution tends to break the encapsulation of your classes.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>When facing the problem covered by this rule, you may realize inheritance as used is not the right solution for your design.
+Although they usually require larger changes, you can consider alternatives such as preferring composition over inheritance, using the decorator pattern, etc.
+A good rule of thumb is to keep the "depth" of class hierarchies small and many design patterns allow you to do that.
+Selecting the right one highly depends on your application.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/qualified_lookup">Qualified name lookup</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/final"><code>final</code> specifier</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/6ns-BQ">OOP50-CPP. Do not invoke virtual functions from constructors or destructors</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c50-use-a-factory-function-if-you-need-virtual-behavior-during-initialization">C.50: Use a factory function if you need "virtual behavior" during initialization</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove this call from a constructor to the overridable "XXXX" method.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_23_jun_2015_074721_tamas_vajk_wrote">on 23 Jun 2015, 07:47:21 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] Other then changing the code sample and removing the "by contract" from the first bullet point, I&#8217;ve added this rule to the SonarQube Way profile. I think this is a really useful rule, which should be enabled by default.</p>
+</div>
+<div class="paragraph">
+<p>The main difference between C# and Java in this case is that you need to opt in for overridable methods. So you explicitly need to say that <code>DoSomething</code> is <code>virtual</code>. So in case of Java you might have just forget to add the <code>final</code> to the method, but in C# you explicitly stated that you are calling and overridable method from the constructor.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_23_jun_2015_115147_ann_campbell_wrote">on 23 Jun 2015, 11:51:47 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>looks good to me [~tamas.vajk]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_mar_2016_114940_alban_auzeill_wrote">on 15 Mar 2016, 11:49:40 Alban Auzeill wrote:</h3>
+<div class="paragraph">
+<p>Add C&#43;&#43; Language-Specification</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_jun_2023_111500_cristian_ambrosini_wrote">on 8 Jun 2023, 11:15:00 Cristian Ambrosini wrote:</h3>
+<div class="paragraph">
+<p>During a LaYC sprint, I removed dummy implementations for the following language:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>php</p>
+</li>
+<li>
+<p>python</p>
+</li>
+<li>
+<p>vbnet</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is not implemented in the corresponding analyzer and there currently are no tickets open in order to do so.</p>
+</div>
+</div>
+</div>
+</div>

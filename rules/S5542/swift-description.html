@@ -1,0 +1,571 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This vulnerability exposes encrypted data to a number of
+attacks whose goal is to recover the plaintext.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Encryption algorithms are essential for protecting sensitive information and
+ensuring secure communications in a variety of domains. They are used for
+several important reasons:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Confidentiality, privacy, and intellectual property protection</p>
+</li>
+<li>
+<p>Security during transmission or on storage devices</p>
+</li>
+<li>
+<p>Data integrity, general trust, and authentication</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When selecting encryption algorithms, tools, or combinations, you should also
+consider two things:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>No encryption is unbreakable.</p>
+</li>
+<li>
+<p>The strength of an encryption algorithm is usually measured by the effort
+required to crack it within a reasonable time frame.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>For these reasons, as soon as cryptography is included in a project, it is
+important to choose encryption algorithms that are considered strong and secure
+by the cryptography community.</p>
+</div>
+<div class="paragraph">
+<p>For AES, the weakest mode is ECB (Electronic Codebook). Repeated blocks of data
+are encrypted to the same value, making them easy to identify and reducing the
+difficulty of recovering the original cleartext.</p>
+</div>
+<div class="paragraph">
+<p>Unauthenticated modes such as CBC (Cipher Block Chaining) may be used but are
+prone to attacks that manipulate the ciphertext. They must be used with caution.</p>
+</div>
+<div class="paragraph">
+<p>For RSA, the weakest algorithms are either using it without padding or
+using the PKCS1v1.5 padding scheme.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The cleartext of an encrypted message might be recoverable. Additionally, it
+might be possible to modify the cleartext of an encrypted message.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate possible impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_theft_of_sensitive_data">Theft of sensitive data</h4>
+<div class="paragraph">
+<p>The encrypted message might contain data that is considered sensitive and should
+not be known to third parties.</p>
+</div>
+<div class="paragraph">
+<p>By using a weak algorithm the likelihood that an attacker might be able to
+recover the cleartext drastically increases.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_additional_attack_surface">Additional attack surface</h4>
+<div class="paragraph">
+<p>By modifying the cleartext of the encrypted message it might be possible for an
+attacker to trigger other vulnerabilities in the code. Encrypted values are
+often considered trusted, since under normal circumstances it would not be
+possible for a third party to modify them.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_commoncrypto">How to fix it in CommonCrypto</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Example with a symmetric cipher, AES:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import CommonCrypto
+
+func encrypt(key: Data, iv: Data, plaintext: Data) -&gt; Data? {
+    var ciphertext = Data(count: plaintext.count + kCCBlockSizeAES128)
+    var bytesEncrypted = 0
+
+    let status = ciphertext.withUnsafeMutableBytes { out_buf in
+        plaintext.withUnsafeBytes { in_buf in
+            iv.withUnsafeBytes { iv_buf in
+                key.withUnsafeBytes { key_buf in
+                    CCCrypt(CCOperation(kCCEncrypt),
+                        CCAlgorithm(kCCAlgorithmAES),
+                        CCOptions(kCCOptionECBMode),  // Noncompliant
+                        key_buf.baseAddress, key.count, iv_buf.baseAddress,
+                        in_buf.baseAddress, plaintext.count,
+                        out_buf.baseAddress, ciphertext.count,
+                        &amp;bytesEncrypted)
+                }
+            }
+        }
+    }
+
+    if status == kCCSuccess {
+        ciphertext.count = bytesEncrypted
+        return ciphertext
+    }
+    return nil
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>The recommended AES mode, AES-GCM, is not supported by CommonCrypto. It is recommended to use <a href="https://developer.apple.com/documentation/cryptokit">CryptoKit</a> instead.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>As a rule of thumb, use the cryptographic algorithms and mechanisms that are
+considered strong by the cryptographic community.</p>
+</div>
+<div class="paragraph">
+<p>Appropriate choices are currently the following.</p>
+</div>
+<div class="sect3">
+<h4 id="_for_aes_use_authenticated_encryption_modes">For AES: use authenticated encryption modes</h4>
+<div class="paragraph">
+<p>The best-known authenticated encryption mode for AES is Galois/Counter mode
+(GCM).</p>
+</div>
+<div class="paragraph">
+<p>GCM mode combines encryption with authentication and integrity checks using a
+cryptographic hash function and provides both confidentiality and authenticity
+of data.</p>
+</div>
+<div class="paragraph">
+<p>Other similar modes are:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>CCM: <code>Counter with CBC-MAC</code></p>
+</li>
+<li>
+<p>CWC: <code>Cipher Block Chaining with Message Authentication Code</code></p>
+</li>
+<li>
+<p>EAX: <code>Encrypt-and-Authenticate</code></p>
+</li>
+<li>
+<p>IAPM: <code>Integer Authenticated Parallelizable Mode</code></p>
+</li>
+<li>
+<p>OCB: <code>Offset Codebook Mode</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is also possible to use AES-CBC with HMAC for integrity checks. However, it
+is considered more straightforward to use AES-GCM directly instead.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_for_rsa_use_the_oaep_scheme">For RSA: use the OAEP scheme</h4>
+<div class="paragraph">
+<p>The Optimal Asymmetric Encryption Padding scheme (OAEP) adds randomness and a
+secure hash function that strengthens the regular inner workings of RSA.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_cryptoswift">How to fix it in CryptoSwift</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Example with a symmetric cipher, AES:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import CryptoSwift
+
+func encrypt(key: [UInt8], iv: [UInt8], plaintext: [UInt8]) -&gt; [UInt8]? {
+    do {
+        let aes = try AES(key: key, blockMode: CBC(iv: iv), padding: .pkcs7)  // Noncompliant
+        let ciphertext = try aes.encrypt(plaintext)
+    } catch {
+        // ...
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Example with an asymmetric cipher, RSA:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import CryptoSwift
+
+func encryptRsa(key: [UInt8], plaintext: [UInt8]) -&gt; [UInt8]? {
+    do {
+        let rsa = try RSA(keySize: 2048)
+        let encrypted = try rsa.encrypt(plaintext, padding: .pkcs1)  // Noncompliant
+    } catch {
+        // ...
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>For the AES symmetric cipher, use the GCM mode:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import CryptoSwift
+
+func encrypt(key: [UInt8], iv: [UInt8], plaintext: [UInt8]) -&gt; [UInt8]? {
+    do {
+        let aes = try AES(key: key, blockMode: GCM(iv: iv), padding: .noPadding)
+        let ciphertext = try aes.encrypt(plaintext)
+    } catch {
+        // ...
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The recommended RSA mode, RSA-OAEP, is not supported by CryptoSwift. It is recommended to use Apple&#8217;s <a href="https://developer.apple.com/documentation/security/seckeycreateencrypteddata(<em>:</em>:_:_:)">Security Framework</a> instead.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>As a rule of thumb, use the cryptographic algorithms and mechanisms that are
+considered strong by the cryptographic community.</p>
+</div>
+<div class="paragraph">
+<p>Appropriate choices are currently the following.</p>
+</div>
+<div class="sect3">
+<h4 id="_for_aes_use_authenticated_encryption_modes_2">For AES: use authenticated encryption modes</h4>
+<div class="paragraph">
+<p>The best-known authenticated encryption mode for AES is Galois/Counter mode
+(GCM).</p>
+</div>
+<div class="paragraph">
+<p>GCM mode combines encryption with authentication and integrity checks using a
+cryptographic hash function and provides both confidentiality and authenticity
+of data.</p>
+</div>
+<div class="paragraph">
+<p>Other similar modes are:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>CCM: <code>Counter with CBC-MAC</code></p>
+</li>
+<li>
+<p>CWC: <code>Cipher Block Chaining with Message Authentication Code</code></p>
+</li>
+<li>
+<p>EAX: <code>Encrypt-and-Authenticate</code></p>
+</li>
+<li>
+<p>IAPM: <code>Integer Authenticated Parallelizable Mode</code></p>
+</li>
+<li>
+<p>OCB: <code>Offset Codebook Mode</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is also possible to use AES-CBC with HMAC for integrity checks. However, it
+is considered more straightforward to use AES-GCM directly instead.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_for_rsa_use_the_oaep_scheme_2">For RSA: use the OAEP scheme</h4>
+<div class="paragraph">
+<p>The Optimal Asymmetric Encryption Padding scheme (OAEP) adds randomness and a
+secure hash function that strengthens the regular inner workings of RSA.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_security_framework">How to fix it in Security Framework</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="paragraph">
+<p>Example with an asymmetric cipher, RSA:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import Security
+
+func rsaEncrypt(publicKey: SecKey, data: Data) -&gt; Data? {
+    let algorithm: SecKeyAlgorithm = .rsaEncryptionRaw // Noncompliant
+    var error: Unmanaged&lt;CFError&gt;?
+    guard SecKeyIsAlgorithmSupported(publicKey, .encrypt, algorithm) else {
+        // ...
+        return nil
+    }
+    guard let ciphertext = SecKeyCreateEncryptedData(publicKey, algorithm, data as CFData, &amp;error) as Data? else {
+        // ...
+        return nil
+    }
+    return ciphertext
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="paragraph">
+<p>For the RSA asymmetric cipher, use the Optimal Asymmetric Encryption Padding (OAEP):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-swift" data-lang="swift">import Security
+
+func rsaEncrypt(publicKey: SecKey, data: Data) -&gt; Data? {
+    let algorithm: SecKeyAlgorithm = .rsaEncryptionOAEPSHA256
+    var error: Unmanaged&lt;CFError&gt;?
+    guard SecKeyIsAlgorithmSupported(publicKey, .encrypt, algorithm) else {
+        // ...
+        return nil
+    }
+    guard let ciphertext = SecKeyCreateEncryptedData(publicKey, algorithm, data as CFData, &amp;error) as Data? else {
+        // ...
+        return nil
+    }
+    return ciphertext
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_3">How does this work?</h3>
+<div class="paragraph">
+<p>As a rule of thumb, use the cryptographic algorithms and mechanisms that are
+considered strong by the cryptographic community.</p>
+</div>
+<div class="paragraph">
+<p>Appropriate choices are currently the following.</p>
+</div>
+<div class="sect3">
+<h4 id="_for_aes_use_authenticated_encryption_modes_3">For AES: use authenticated encryption modes</h4>
+<div class="paragraph">
+<p>The best-known authenticated encryption mode for AES is Galois/Counter mode
+(GCM).</p>
+</div>
+<div class="paragraph">
+<p>GCM mode combines encryption with authentication and integrity checks using a
+cryptographic hash function and provides both confidentiality and authenticity
+of data.</p>
+</div>
+<div class="paragraph">
+<p>Other similar modes are:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>CCM: <code>Counter with CBC-MAC</code></p>
+</li>
+<li>
+<p>CWC: <code>Cipher Block Chaining with Message Authentication Code</code></p>
+</li>
+<li>
+<p>EAX: <code>Encrypt-and-Authenticate</code></p>
+</li>
+<li>
+<p>IAPM: <code>Integer Authenticated Parallelizable Mode</code></p>
+</li>
+<li>
+<p>OCB: <code>Offset Codebook Mode</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is also possible to use AES-CBC with HMAC for integrity checks. However, it
+is considered more straightforward to use AES-GCM directly instead.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_for_rsa_use_the_oaep_scheme_3">For RSA: use the OAEP scheme</h4>
+<div class="paragraph">
+<p>The Optimal Asymmetric Encryption Padding scheme (OAEP) adds randomness and a
+secure hash function that strengthens the regular inner workings of RSA.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/standard/security/vulnerabilities-cbc-mode">Microsoft, Timing vulnerabilities with CBC-mode symmetric decryption using padding</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Padding_oracle_attack">Wikipedia, Padding Oracle Attack</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Chosen-ciphertext_attack">Wikipedia, Chosen-Ciphertext Attack</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Chosen-plaintext_attack">Wikipedia, Chosen-Plaintext Attack</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Semantic_security">Wikipedia, Semantically Secure Cryptosystems</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Optimal_asymmetric_encryption_padding">Wikipedia, OAEP</a></p>
+</li>
+<li>
+<p><a href="https://en.wikipedia.org/wiki/Galois/Counter_Mode">Wikipedia, Galois/Counter Mode</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/">Top 10 2021 Category A2 - Cryptographic Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://mas.owasp.org/checklists/MASVS-CRYPTO/">Mobile AppSec Verification Standard - Cryptography Requirements</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2016-risks/m5-insufficient-cryptography">Mobile Top 10 2016 Category M5 - Insufficient Cryptography</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2023-risks/m10-insufficient-cryptography">Mobile Top 10 2024 Category M10 - Insufficient Cryptography</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/327">CWE-327 - Use of a Broken or Risky Cryptographic Algorithm</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/780">CWE-780 - Use of RSA Algorithm without OAEP</a></p>
+</li>
+<li>
+<p><a href="https://wiki.sei.cmu.edu/confluence/x/hDdGBQ">CERT, MSC61-J.</a> - Do not use insecure or weak cryptographic algorithms</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="sect3">
+<h4 id="_ecb">ECB</h4>
+<div class="paragraph">
+<p>Use a secure cipher mode.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_cbc">CBC</h4>
+<div class="paragraph">
+<p>Use another cipher mode or disable padding.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_rsa">RSA</h4>
+<div class="paragraph">
+<p>Use a secure padding scheme.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>javax.crypto.Cipher#Cipher.getInstance</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4585">deprecates: <a data-rspec-id="S4585" class="rspec-auto-link">S4585</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4729">deprecates: <a data-rspec-id="S4729" class="rspec-auto-link">S4729</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4432">deprecates: <a data-rspec-id="S4432" class="rspec-auto-link">S4432</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s4787">deprecates: <a data-rspec-id="S4787" class="rspec-auto-link">S4787</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_supercedes_s2277">supercedes: <a data-rspec-id="S2277" class="rspec-auto-link">S2277</a></h3>
+
+</div>
+</div>
+</div>

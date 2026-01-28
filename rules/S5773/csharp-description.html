@@ -1,0 +1,256 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Deserialization is the process of converting serialized data (such as objects or data structures) back into their original form. Types allowed to be unserialized should be strictly controlled.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>During the deserialization process, the state of an object will be reconstructed from the serialized data stream. By allowing unrestricted deserialization of types, the application makes it possible for attackers to use types with dangerous or otherwise sensitive behavior during the deserialization process.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When an application deserializes untrusted data without proper restrictions, an attacker can craft malicious serialized objects. Depending on the affected objects and properties, the consequences can vary.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_remote_code_execution">Remote Code Execution</h3>
+<div class="paragraph">
+<p>If attackers can craft malicious serialized objects that contain executable code, this code will run within the application&#8217;s context, potentially gaining full control over the system. This can lead to unauthorized access, data breaches, or even complete system compromise.</p>
+</div>
+<div class="paragraph">
+<p>For example, a well-known attack vector consists in serializing an object of type <code><a href="https://docs.microsoft.com/en-us/dotnet/api/system.codedom.compiler.tempfilecollection.-ctor?view=netframework-4.8#System_CodeDom_Compiler_TempFileCollection__ctor">TempFileCollection</a></code> with arbitrary files (defined by an attacker) which will be deleted on the application deserializing this object (when the <a href="https://docs.microsoft.com/en-us/dotnet/api/system.codedom.compiler.tempfilecollection.finalize?view=netframework-4.8">finalize()</a> method of the TempFileCollection object is called). These kinds of specially crafted serialized objects are called "<a href="https://github.com/pwntester/ysoserial.net">gadgets</a>".</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_privilege_escalation">Privilege escalation</h3>
+<div class="paragraph">
+<p>Unrestricted deserialization can also enable attackers to escalate their privileges within the application. By manipulating the serialized data, an attacker can modify object properties or bypass security checks, granting them elevated privileges that they should not have. This can result in unauthorized access to sensitive data, unauthorized actions, or even administrative control over the application.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_denial_of_service">Denial of Service</h3>
+<div class="paragraph">
+<p>In some cases, an attacker can abuse the deserialization process to cause a denial of service (DoS) condition. By providing specially crafted serialized data, the attacker can trigger excessive resource consumption, leading to system instability or unresponsiveness. This can disrupt the availability of the application, impacting its functionality and causing inconvenience to users.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>With <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter"><code>BinaryFormatter</code></a>, <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer"><code>NetDataContractSerializer</code></a> or <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter"><code>SoapFormatter</code></a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">var myBinaryFormatter = new BinaryFormatter();
+myBinaryFormatter.Deserialize(stream); // Noncompliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With <a href="https://learn.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer"><code>JavaScriptSerializer</code></a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">JavaScriptSerializer serializer1 = new JavaScriptSerializer(new SimpleTypeResolver()); // Noncompliant
+serializer1.Deserialize&lt;ExpectedType&gt;(json);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>With <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter"><code>BinaryFormatter</code></a>, <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer"><code>NetDataContractSerializer</code></a> or <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter"><code>SoapFormatter</code></a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">sealed class CustomBinder : SerializationBinder
+{
+   public override Type BindToType(string assemblyName, string typeName)
+   {
+       if (!(typeName == "type1" || typeName == "type2" || typeName == "type3"))
+       {
+          throw new SerializationException("Only type1, type2 and type3 are allowed");
+       }
+       return Assembly.Load(assemblyName).GetType(typeName);
+   }
+}
+
+var myBinaryFormatter = new BinaryFormatter();
+myBinaryFormatter.Binder = new CustomBinder();
+myBinaryFormatter.Deserialize(stream);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With <a href="https://learn.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer"><code>JavaScriptSerializer</code></a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public class CustomSafeTypeResolver : JavaScriptTypeResolver
+{
+   public override Type ResolveType(string id)
+   {
+      if(id != "ExpectedType") {
+         throw new ArgumentNullException("Only ExpectedType is allowed during deserialization");
+      }
+      return Type.GetType(id);
+   }
+}
+
+JavaScriptSerializer serializer = new JavaScriptSerializer(new CustomSafeTypeResolver());
+serializer.Deserialize&lt;ExpectedType&gt;(json);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>Instead of using <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter"><code>BinaryFormatter</code></a> and similar serializers, it is recommended to use safer alternatives in most of the cases, such as <a href="https://learn.microsoft.com/en-us/dotnet/api/system.xml.serialization.xmlserializer"><code>XmlSerializer</code></a> or <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.datacontractserializer"><code>DataContractSerializer</code></a>.</p>
+</div>
+<div class="paragraph">
+<p>If it&#8217;s not possible then try to mitigate the risk by restricting the types allowed to be deserialized:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>by implementing an "allow-list" of types, but keep in mind that novel dangerous types are regularly discovered and this protection could be insufficient over time.</p>
+</li>
+<li>
+<p>or/and implementing a tamper protection, such as <a href="https://en.wikipedia.org/wiki/HMAC">message authentication codes</a> (MAC). This way only objects serialized with the correct MAC hash will be deserialized.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter">BinaryFormatter Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.netdatacontractserializer">NetDataContractSerializer Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.soap.soapformatter">SoapFormatter Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.web.script.serialization.javascriptserializer">JavaScriptSerializer Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.xml.serialization.xmlserializer">XmlSerializer Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.datacontractserializer">DataContractSerializer Class</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://docs.microsoft.com/en-us/dotnet/standard/serialization/binaryformatter-security-guide?s=03">Deserialization risks in use of BinaryFormatter and related types</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://github.com/OWASP/CheatSheetSeries/blob/master/cheatsheets/Deserialization_Cheat_Sheet.md">Deserialization Cheat Sheet</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/HMAC">Message Authentication Codes (MAC)</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/">Top 10 2021 Category A8 - Software and Data Integrity Failures</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A8_2017-Insecure_Deserialization">Top 10 2017 Category A8 - Insecure Deserialization</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/502">CWE-502 - Deserialization of Untrusted Data</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Restrict types of objects allowed to be deserialized.|Serialized data signature (MAC) should be verified.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary: See the code examples</p>
+</div>
+<div class="paragraph">
+<p>Secondary:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>On the <code>BindToType</code> method, when a custom <code>SerializationBinder</code> is used with <code>BinaryFormatter</code>, <code>NetDataContractSerializer</code>, or <code>SoapFormatter</code>.</p>
+</li>
+<li>
+<p>On the <code>ResolveType</code> method wWhen a <code>JavaScriptTypeResolver</code> is used with <code>JavaScriptSerializer</code>.</p>
+</li>
+<li>
+<p>Message: "This method allows all types."</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_15_apr_2020_192154_andrei_epure_wrote">on 15 Apr 2020, 19:21:54 Andrei Epure wrote:</h3>
+<div class="paragraph">
+<p>\[~eric.therond] when a C# dev will read the rule description, he/she will see the references to PHP and Java - does that have to be in this common description?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_16_apr_2020_092029_eric_therond_wrote">on 16 Apr 2020, 09:20:29 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>I overloaded the C # description, indeed it is clearer.</p>
+</div>
+</div>
+</div>
+</div>

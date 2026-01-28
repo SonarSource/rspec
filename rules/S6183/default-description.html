@@ -1,0 +1,284 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Functions from the <code>std::cmp_*</code> family should be used to compare signed and unsigned values.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Comparisons between <code>signed</code> and <code>unsigned</code> integers are dangerous because they produce counterintuitive results outside their shared value range.</p>
+</div>
+<div class="paragraph">
+<p>When a signed integer is compared to an unsigned one, the former might be converted to unsigned.
+The conversion preserves the two&#8217;s-complement bit pattern of the signed value that often corresponds to a large unsigned result.
+The expression <code>2U &lt; -1</code> evaluates to <code>true</code>, for instance.</p>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;20 introduced a remedy to this common pitfall: a family of <code>std::cmp_*</code> functions defined in the <code>&lt;utility&gt;</code> header:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>std::cmp_equal</code></p>
+</li>
+<li>
+<p><code>std::cmp_not_equal</code></p>
+</li>
+<li>
+<p><code>std::cmp_less</code></p>
+</li>
+<li>
+<p><code>std::cmp_greater</code></p>
+</li>
+<li>
+<p><code>std::cmp_less_equal</code></p>
+</li>
+<li>
+<p><code>std::cmp_greater_equal</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>These functions correctly handle negative numbers and are safe against lossy integer conversion.
+For example, the comparison of <code>2U</code> and <code>-1</code> using <code>std::cmp_less(2U, -1)</code> evaluates to <code>false</code> and matches common intuition.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Comparisons between <code>signed</code> and <code>unsigned</code> integer types produce counterintuitive results.</p>
+</div>
+<div class="paragraph">
+<p>Failing to understand integer conversion rules can lead to tricky bugs and security vulnerabilities.
+The major integer conversion risks include narrowing types, converting from unsigned to signed and from negative to unsigned.</p>
+</div>
+<div class="paragraph">
+<p>The following program shall demonstrate the subtlety of the kind of vulnerabilities that integer conversions may introduce.
+The program is vulnerable to buffer overflows due to signed/unsigned integer conversion.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(int argc, char **argv) {
+  if (argc != 3) {
+    printf("usage: &lt;prog&gt; &lt;string length - int&gt; &lt;string - const char *&gt;\n");
+    return 1;
+  }
+  const int buf_size = 16;
+  char buf[buf_size];
+  int user_input = atoi(argv[1]);
+  if (user_input &gt;= buf_size) {
+    return 1;
+  }
+  // Because `sizeof(*)` returns an unsigned integer, both operands are first
+  // converted to unsigned integers, the multiplication is performed and the
+  // result is of type unsigned integer.
+  memcpy(buf, argv[2], user_input * sizeof(char));
+  if (user_input == 0xBEEF) {
+    printf("Whoopsie daisy, ...\n");
+    // A malicious user can craft input arguments such that the flow of control
+    // passes through this call to `execl`, which opens a new shell with this
+    // program's (possibly elevated) permissions.
+    execl("/bin/bash", "bash", (char *)NULL);
+  } else {
+    printf("Not so fast!\n");
+  }
+  return 0;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The program takes a string and its size as arguments and uses these arguments to copy the string argument into an internal buffer.
+Before copying the string into its internal buffer, it checks whether the user-provided string fits into the buffer.
+The program also comprises a call to <code>execl</code> that opens a shell with the program&#8217;s possibly elevated permissions&#8201;&#8212;&#8201;a potentially dangerous endeavor.
+Even though the call to <code>execl</code> seems unreachable at first glance, it can actually be reached due to signed/unsigned integer conversion.</p>
+</div>
+<div class="paragraph">
+<p>The check for the buffer size only validates that the provided string length (<code>user_input</code>) is smaller or equal to the buffer&#8217;s size.
+Since the <code>atoi</code> function returns a signed integer, a user may provide a negative number to withstand that check.
+On the other hand, the result of <code>sizeof(*)</code> returns an unsigned integer which causes the expression <code>user_input * sizeof(char)</code> to be evaluated by</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>converting both operands to unsigned integers,</p>
+</li>
+<li>
+<p>performing the multiplication, and</p>
+</li>
+<li>
+<p>returning the result as an unsigned integer type.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Hence, a malicious user can provide carefully crafted negative integer and string to bypass the size check while still arriving at the appropriate size argument to not crash <code>memcpy</code>.
+In turn, this enables the malicious user to overflow the buffer variable <code>buf</code> to override the <code>user_input</code> variable, which allows the second <code>if</code> statement to be evaluated to true, eventually opening a new shell with the target program&#8217;s possibly elevated permissions.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use the appropriate function from the <code>std::cmp_*</code> family to compare signed and unsigned integer types.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool foo(unsigned x, int y) {
+  return x &lt; y; // Noncompliant: y might be negative
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool foo(unsigned x, int y) {
+  return std::cmp_less(x, y); // Compliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool fun(int x, std::vector&lt;int&gt; const&amp; v) {
+  return x &lt; v.size(); // Noncompliant: x might be negative
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool fun(int x, std::vector&lt;int&gt; const&amp; v) {
+  return std::cmp_less(x, v.size()); // Compliant
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_interactions_with_associated_rule_s6214">Interactions with associated rule <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a></h3>
+<div class="paragraph">
+<p>Note that this rule (<a data-rspec-id="S6183" class="rspec-auto-link">S6183</a>) deliberately avoids intersection with <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a>.</p>
+</div>
+<div class="paragraph">
+<p>While <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a> raises an issue if the signed value can be proven to be negative (in which case it is definitely a bug), <a data-rspec-id="S6183" class="rspec-auto-link">S6183</a> will flag all <strong>other</strong> comparisons between signed and unsigned integers.
+Therefore, if this rule is enabled, <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a> should be enabled too.</p>
+</div>
+<div class="paragraph">
+<p>The following code snippet is compliant with <a data-rspec-id="S6183" class="rspec-auto-link">S6183</a> but noncompliant with <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a>, which will raise an issue on this definite bug.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+
+void foo() {
+  if (2U &lt; -1) { // Compliant: the comparison is incorrect but S6214 raises an issue instead of S6183
+    std::cout &lt;&lt; "2 is less than -1\n";
+  } else {
+    std::cout &lt;&lt; "2 is not less than -1\n";
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The fixed version of the code shown in the following is compliant with both rules, <a data-rspec-id="S6183" class="rspec-auto-link">S6183</a> and <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+
+void foo() {
+  if (std::cmp_less(2U, -1)) { // Compliant: for this rule (S6183) and associated rule S6214
+    std::cout &lt;&lt; "2 is less than -1\n";
+  } else {
+    std::cout &lt;&lt; "2 is not less than -1\n";
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/intcmp">intcmp</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/c/INT02-C.+Understand+integer+conversion+rules">INT02-C. Understand integer conversion rules</a></p>
+</li>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/c/INT31-C.+Ensure+that+integer+conversions+do+not+result+in+lost+or+misinterpreted+data">INT31-C. Ensure that integer conversions do not result in lost or misinterpreted data</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/195">CWE-195 Signed to Unsigned Conversion Error</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222612">Application Security and Development: V-222612</a> - The application must not be vulnerable to overflow attacks.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S845" class="rspec-auto-link">S845</a> ensures that signed and unsigned types are not mixed in expressions</p>
+</li>
+<li>
+<p><a data-rspec-id="S6214" class="rspec-auto-link">S6214</a> constitutes a version of this rule that only triggers when it detects the involvement of negative values. If <a data-rspec-id="S6183" class="rspec-auto-link">S6183</a> is enabled, <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a> should be enabled, too.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s845">relates to: <a data-rspec-id="S845" class="rspec-auto-link">S845</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s6214">is related to: <a data-rspec-id="S6214" class="rspec-auto-link">S6214</a></h3>
+
+</div>
+</div>
+</div>

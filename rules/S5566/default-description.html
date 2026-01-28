@@ -1,0 +1,235 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>for</code>-loops are a very powerful and versatile tool that can be used for many purposes. This flexibility comes with drawbacks:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It is very easy to make a small mistake when writing them,</p>
+</li>
+<li>
+<p>They are relatively verbose to write,</p>
+</li>
+<li>
+<p>They do not express the intent of the code, the reader has to look at loop details to understand what the loop does.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There are algorithms that encapsulate a <code>for</code>-loop and give it some meaning (<code>std::all_of</code>, <code>std::count_if</code>, <code>std::remove_if</code>&#8230;&#8203;). These algorithms are well tested, efficient, and explicit and therefore should be your first choice.</p>
+</div>
+<div class="paragraph">
+<p>This rule detects loops that go through all consecutive elements of a sequence (eg: containers, objects with begin() and end() member functions), and deal only with the current element without side-effects on the rest of the sequence.</p>
+</div>
+<div class="paragraph">
+<p>This rule suggests using one of the supported STL algorithm patterns corresponding to your C&#43;&#43; standard when a loop matches it.</p>
+</div>
+<div class="paragraph">
+<p>Currently, this rule supports:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>std::all_of</code> (since C&#43;&#43;11) and <code>std::ranges::all_of</code> (since C&#43;&#43;20): returns <code>true</code> if all elements in the given range are matching the given predicate, <code>false</code> otherwise</p>
+</li>
+<li>
+<p><code>std::none_of</code> (since C&#43;&#43;11) and <code>std::ranges::none_of</code> (since C&#43;&#43;20): returns <code>true</code> if no elements in the given range are matching the given predicate, <code>false</code> otherwise</p>
+</li>
+<li>
+<p><code>std::any_of</code> (since C&#43;&#43;11) and <code>std::ranges::any_of</code> (since C&#43;&#43;20): returns <code>true</code> if at least one element in the given range is matching the given predicate, <code>false</code> otherwise</p>
+</li>
+<li>
+<p><code>std::ranges::contains</code> (since C&#43;&#43;23): returns <code>true</code> if at least one element in the given range is equal to the given value, <code>false</code> otherwise</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule suggests two options below when the loop doesn&#8217;t match any of the supported STL algorithm patterns and you just want to iterate over all elements of a sequence:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Range-based <code>for</code>-loops, which were introduced in C&#43;&#43;11 and will run through all elements of a sequence</p>
+</li>
+<li>
+<p><code>std::for_each</code>, an algorithm that performs the same operation between two iterators (allowing more flexibility, for instance by using <code>reverse_iterator</code>s, or with a variant that can loop in parallel on several elements at a time).</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;vector&gt;
+#include &lt;iostream&gt;
+
+using namespace std;
+
+bool asDesired(const int v);
+
+bool areAllDesired(std::vector&lt;int&gt; values) {
+  for (int val : values) { // Noncompliant, replace it by a call to std::all_of
+    if (!asDesired(val)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool containsDesired(std::vector&lt;int&gt; values, int desired) {
+  for (int val : values) { // Noncompliant
+    if (val == desired) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int f(vector&lt;int&gt; &amp;v) {
+
+  for (auto it = v.begin(); it != v.end(); ++it) { // Noncompliant
+    if (*it &gt; 0) {
+      cout &lt;&lt; "Positive number : " &lt;&lt; *it &lt;&lt; endl;
+    } else {
+      cout &lt;&lt; "Negative number : " &lt;&lt; *it &lt;&lt; endl;
+    }
+  }
+
+  auto sum = 0;
+  for (auto it = v.begin(); it != v.end(); ++it) { // Noncompliant
+    sum += *it;
+  }
+  return sum;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;vector&gt;
+#include &lt;iostream&gt;
+#include &lt;algorithm&gt;
+
+using namespace std;
+
+bool asDesired(const int v);
+
+bool areAllDesired(std::vector&lt;int&gt; values) {
+  return std::ranges::all_of(values, asDesired);
+  // Or, before C++20:
+  return std::all_of(std::begin(values), std::end(values), asDesired);
+}
+
+bool containsDesiredCpp23(std::vector&lt;int&gt; values, int desired) {
+  return std::ranges::contains(values, desired);
+  // Or, before C++23:
+  return std::any_of(std::begin(values), std::end(values), [desired](int val) { return val == desired; });
+}
+
+void displayNumber(int i) {
+  if (i &gt; 0) {
+    cout &lt;&lt; "Positive number : " &lt;&lt; i &lt;&lt; endl;
+  } else {
+    cout &lt;&lt; "Negative number : " &lt;&lt; i &lt;&lt; endl;
+  }
+}
+
+void f(vector&lt;int&gt; &amp;v) {
+
+  std::ranges::for_each(v, displayNumber);
+  // Or, before C++20:
+  std::for_each(v.begin(), v.end(), displayNumber);
+
+  auto sum = 0;
+  for (auto elt : v) {
+    sum += elt;
+  }
+  return sum;
+  // An even better way to write this would be:
+  // return std::accumulate(v.begin(), v.end(), 0);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/ranges/contains"><code>std::ranges::contains</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/ranges/all_any_none_of"><code>std::ranges::all_of</code>, <code>std::ranges::any_of</code>, <code>std::ranges::none_of</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/ranges/for_each"><code>std::ranges::for_each</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/all_any_none_of"><code>std::all_of</code>, <code>std::any_of</code>, <code>std::none_of</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/for_each"><code>std::for_each</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#es71-prefer-a-range-for-statement-to-a-for-statement-when-there-is-a-choice">ES.71: Prefer a range-<code>for</code>-statement to a <code>for</code>-statement when there is a choice</a></p>
+</li>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#p3-express-intent">P.3: Express intent</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Convert this loop into a range-based for loop</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_5_nov_2019_183054_loïc_joly_wrote">on 5 Nov 2019, 18:30:54 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~amelie.renard]: Can you please review my changes?</p>
+</div>
+</div>
+</div>
+</div>

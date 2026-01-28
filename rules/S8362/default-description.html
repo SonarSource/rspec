@@ -1,0 +1,108 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when closure-based operations like <code>each</code>, <code>findAll</code>, <code>collect</code>, <code>sort</code>, or <code>eachLine</code> are used in Jenkins pipeline scripts, as these operations are incompatible with CPS transformation and lead to unexpected behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Jenkins uses Continuation Passing Style (CPS) transformation to make pipeline scripts resumable after interruptions. However, this transformation causes closure-based operations to behave incorrectly.</p>
+</div>
+<div class="paragraph">
+<p>When CPS encounters closure-based iteration methods like <code>each</code> or <code>collect</code>, the closure is executed only once instead of for each element in the collection. This happens because the CPS transformation interrupts the iteration loop prematurely, causing:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Early termination where only the first iteration is processed</p>
+</li>
+<li>
+<p>Silent failures that produce unexpected results</p>
+</li>
+<li>
+<p>Runtime exceptions with confusing error messages</p>
+</li>
+<li>
+<p>Methods returning wrong data types (e.g., a String instead of a List)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Sorting operations with custom comparators face similar issues. The CPS transformation cannot properly handle the closure-based comparison logic, leading to assertion failures or incorrect sorting results.</p>
+</div>
+<div class="paragraph">
+<p>Asynchronous operations within closures compound these problems. When a closure contains pipeline steps like <code>sh</code> or <code>readFile</code>, the CPS transformation throws a <code>CpsCallableInvocation</code> exception that breaks out of the iteration loop, causing the method to return the result of only the first operation instead of processing the entire collection.</p>
+</div>
+<div class="paragraph">
+<p>These issues are particularly problematic because they often fail silently, making debugging difficult. The code appears to run without errors but produces incorrect results, which can lead to subtle bugs in build processes.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Silent failures in data processing operations can lead to incomplete build steps, incorrect file processing, or missing deployment targets. Runtime exceptions can cause pipeline failures with unclear error messages, making debugging time-consuming. Incorrect sorting results may affect deployment order or configuration processing.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace closure-based iteration with C-style loops to avoid CPS transformation issues.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">node {
+  [1, 2, 3].each { println it } // Noncompliant
+  def file = readFile('file.txt')
+  file.eachLine { line -&gt; println line } // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-groovy" data-lang="groovy">node {
+  def items = [1, 2, 3]
+  for(int i = 0; i &lt; items.size(); i++) {
+    println items[i]
+  }
+  def lines = readFile('file.txt').split('\n')
+  for(int i = 0; i &lt; lines.size(); i++) {
+    println lines[i]
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Jenkins Pipeline CPS Limitations - <a href="https://www.jenkins.io/doc/book/pipeline/cps-method-mismatches/">Official Jenkins documentation explaining CPS transformation limitations and workarounds</a></p>
+</li>
+<li>
+<p>Pipeline Best Practices - <a href="https://www.jenkins.io/doc/book/pipeline/pipeline-best-practices/">Jenkins pipeline best practices including guidance on avoiding CPS issues</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

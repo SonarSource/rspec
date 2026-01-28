@@ -1,0 +1,118 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when a <code>before_destroy</code> callback adds validation errors but fails to properly halt the destruction process.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Rails applications, <code>before_destroy</code> callbacks are commonly used to validate whether a record can be safely deleted. However, simply adding errors to the model does not automatically prevent destruction.</p>
+</div>
+<div class="paragraph">
+<p>In Rails versions prior to 5.0, returning <code>false</code> from a callback would halt the callback chain and prevent the destruction. However, this behavior changed in Rails 5.0 for consistency with other callback types.</p>
+</div>
+<div class="paragraph">
+<p>Starting with Rails 5.0, callbacks must explicitly use <code>throw :abort</code> to halt execution. The <code>return false</code> approach silently fails, allowing records to be destroyed despite validation errors.</p>
+</div>
+<div class="paragraph">
+<p>When callbacks add errors but fail to halt execution, the destruction proceeds normally. This creates a misleading situation where the model appears to have validation errors, but the record is still deleted from the database. This can lead to data integrity issues, orphaned records, and broken business logic.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Records may be destroyed despite validation failures, leading to data integrity issues and broken business logic. Users may receive error messages but still see their data deleted, creating confusion and potential data loss.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Rails &lt;5, use <code>return false</code> to halt the destruction process when validation errors are added.
+In Rails 5+, use <code>throw :abort</code> to properly halt the destruction process when validation errors are added.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Administratorship &lt; ActiveRecord::Base
+  before_destroy :validate_destruction
+
+  private
+
+  def validate_destruction
+    unless can_be_destroyed?
+      errors.add(:base, "Cannot destroy this record")
+      # Missing halt mechanism - destruction will proceed despite errors // Noncompliant
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Administratorship &lt; ActiveRecord::Base
+  before_destroy :validate_destruction
+
+  private
+
+  def validate_destruction
+    unless can_be_destroyed?
+      errors.add(:base, "Cannot destroy this record")
+      throw :abort # Properly halts destruction in Rails 5+
+    end
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Administratorship &lt; ActiveRecord::Base
+  before_destroy :validate_destruction
+
+  private
+
+  def validate_destruction
+    unless can_be_destroyed?
+      errors.add(:base, "Cannot destroy this record")
+      return false # Properly halts destruction in Rails &lt; 5.0
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Active Record Callbacks Guide - <a href="https://guides.rubyonrails.org/active_record_callbacks.html#halting-execution">Official Rails documentation on callback execution and halting mechanisms</a></p>
+</li>
+<li>
+<p>Rails 5.0 Release Notes - Callback Changes - <a href="https://guides.rubyonrails.org/5_0_release_notes.html#active-record-deprecations">Documentation of the Rails 5.0 callback behavior changes</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

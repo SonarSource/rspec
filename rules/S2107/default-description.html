@@ -1,0 +1,418 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Partially initialized objects are surprising to the <code>class</code> users
+and might lead to hard-to-catch bugs.
+<code>class</code>es with constructors are expected to have all members initialized after their constructor finishes.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when some members are left uninitialized after a constructor finishes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In the following example, <code>PartInit::x</code> is left uninitialized after the constructor finishes.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct AutomaticallyInitialized {
+  int x;
+  AutomaticallyInitialized() : x(0) {}
+};
+
+struct PartInit {
+  AutomaticallyInitialized ai;
+  int x;
+  int y;
+  PartInit(int n) :y(n) {
+    // this-&gt;ai is initialized
+    // this-&gt;y is initialized
+    // Noncompliant: this-&gt;x is left uninitialized
+  }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This leads to undefined behavior in benign-looking code, like in the example below.
+In this particular case, garbage value may be printed,
+or a compiler may optimize away the print statement completely.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">PartInit pi(1);
+std::cout &lt;&lt; pi.y; // Undefined behavior</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For this reason, constructors should always initialize all data members of a class.</p>
+</div>
+<div class="paragraph">
+<p>While in some cases, data members are initialized by their default constructor,
+in others, they are left with garbage.</p>
+</div>
+<div class="paragraph">
+<p>Types with a <code>default</code>ed or implicit trivial default constructor follow the aggregate initialization syntax:
+if you omit them from the initialization list, they will not be initialized.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Trivial {
+  int x;
+  int y;
+};
+struct Container {
+  Trivial t;
+  int arr[2];
+  Container() {
+    // Noncompliant
+    // this-&gt;t is not initialized
+    // this-&gt;t.x and this-&gt;t.y contain garbage
+    // this-&gt;arr contains garbage
+  }
+  Container(int) :t{}, arr{} {
+    // Compliant
+    // this-&gt;t.x and this-&gt;t.y are initialized to 0
+    // this-&gt;arr is initialized to {0, 0}
+  }
+  Container(int, int) :t{1}, arr{1} {
+    // Compliant
+    // this-&gt;t.x is 1
+    // this-&gt;t.y is 0
+    // this-&gt;arr is initialized to {1, 0}
+  }
+};
+struct DefaultedContainer {
+  Trivial t;
+  int arr[2];
+  DefaultedContainer() = default; // Noncompliant
+  // this-&gt;t and this-&gt;arr are not initialized
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The same is true for a <code>default</code>ed default constructor.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Defaulted {
+  int x;
+  Defaulted() = default;
+};
+struct ContainerDefaulted {
+  Defaulted d;
+  ContainerDefaulted() {
+    // Noncompliant this-&gt;d.x is not initialized
+  }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Even if some of the members have class initializers,
+the other members are still not initialized by default.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Partial {
+  int x;
+  int y = 1;
+  int z;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Noncompliant
+    // this-&gt;p.x is not initialized
+    // this-&gt;p.y is initialized to 1
+    // this-&gt;p.z is not initialized
+  }
+  ContainrePartial(bool) :p{3} {
+    // Compliant
+    // this-&gt;p.x is initialized to 3
+    // this-&gt;p.y is initialized to 1
+    // this-&gt;p.z is initialized to 0
+  }
+};</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>It is a common expectation that an object is in a fully-initialized state after its construction.
+A partially initialized object breaks this assumption.</p>
+</div>
+<div class="paragraph">
+<p>This comes with all the risks associated with uninitialized variables,
+and these risks propagate to all the classes using the faulty class as a type
+as a base class or a data member.
+This is all the more surprising
+that most programmers expect a constructor to correctly initialize the members of its class.</p>
+</div>
+<div class="paragraph">
+<p>Using garbage values will cause the program to behave
+nondeterministically at runtime.
+The program may produce a different output or crash depending on the run.</p>
+</div>
+<div class="paragraph">
+<p>In some situations, loading a variable may expose sensitive data,
+such as a password that was previously stored in the same location,
+leading to a vulnerability that uses such a defect
+as a gadget for extracting information from the instance
+of the program.</p>
+</div>
+<div class="paragraph">
+<p>Finally, in C&#43;&#43;, outside of a few exceptions related to the uses of <code>unsigned char</code> or <code>std::byte</code>,
+loading data from an uninitialized variable causes undefined behavior.
+This means that the compiler is not bound by the language standard anymore,
+and the program has no meaning assigned to it.
+As a consequence,
+the impact of such a defect is not limited to the use of garbage values.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>Aggregate classes do not initialize most of their data members
+(unless you explicitly value initialize them with <code>x{}</code> or <code>x()</code>)
+but allow their users to use nice and flexible initialization syntax.
+This rule ignores them.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To avoid partially-initialized objects,
+all non <code>class</code>-type fields should always be initialized (in order of preference):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>With an in-class initializer</p>
+</li>
+<li>
+<p>In the initialization list of a constructor</p>
+</li>
+<li>
+<p>In the constructor body</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>See rule <a data-rspec-id="S3230" class="rspec-auto-link">S3230</a> for more details about this order.</p>
+</div>
+<div class="paragraph">
+<p>If none of the above places is a good fit for a data member,
+ask yourself whether it belongs to this class.
+Instead of a data member, it might be more appropriate to keep the value</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>as part of the class of a data member
+(delegating initialization to the constructor of the member type),</p>
+</li>
+<li>
+<p>in a derived class (delegating initialization to the derived class),</p>
+</li>
+<li>
+<p>in a (potentially <code>static</code>) local variable of a member function, or</p>
+</li>
+<li>
+<p>in a parameter of a member function.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class C {
+  int val = 42;
+};
+
+class S {
+public:
+  C c;
+  int i;
+  int j;
+
+  S() : i(0) {} // Noncompliant: this-&gt;j is left uninitialized
+  S(bool) : i(0), j(0) {}
+};
+
+class T {
+public:
+  S s;
+
+  T() : s() {} // Noncompliant: s.j is left uninitialized
+  T(bool b) : s(b) {}
+};
+
+class U {
+public:
+  T t;
+
+  U() : t() {} // Noncompliant: t.s.j is left uninitialized
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class C {
+  int val = 42;
+};
+
+class S_fixed {
+public:
+  C c;
+  int i;
+  int j;
+
+  S_fixed() : i(0), j(0) {} // Compliant
+  S_fixed(bool) : i(0), j(0) {}
+};
+
+class T_fixed {
+public:
+  S_fixed s;
+
+  T_fixed() : s() {}  // Compliant
+  T_fixed(bool b) : s(b) {}
+};
+
+class U {
+public:
+  T t;
+
+  U() : t() { t.s.j = 0; }  // Compliant
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Partial {
+  int x;
+  int y = 1;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Noncompliant: this-&gt;p.x is not initialized
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct Partial {
+  int x = 0;
+  int y = 1;
+};
+struct ContainerPartial {
+  Partial p;
+  ContainrePartial() {
+    // Compliant
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c41-a-constructor-should-create-a-fully-initialized-object">C.41: A constructor should create a fully initialized object</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S836" class="rspec-auto-link">S836</a> detects the uses of uninitialized variables.</p>
+</li>
+<li>
+<p><a data-rspec-id="S3230" class="rspec-auto-link">S3230</a> describes the preferred place for initializing class data members.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/aggregate_initialization">Aggregate initialization</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/direct_initialization">Direct initialization</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/value_initialization">Value initialization</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>This field has no default and is not initialized in any constructors.</p>
+</li>
+<li>
+<p>This field has no default and is not initialized in n constructors.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s1258">relates to: <a data-rspec-id="S1258" class="rspec-auto-link">S1258</a></h3>
+
+</div>
+</div>
+</div>

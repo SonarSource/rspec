@@ -1,0 +1,302 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A cross-site request forgery (CSRF) attack occurs when a trusted user of a web application can be forced, by an attacker, to perform sensitive actions that he didn&#8217;t intend, such as updating his profile or sending a message, more generally anything that can change the state of the application.</p>
+</div>
+<div class="paragraph">
+<p>The attacker can trick the user/victim to click on a link, corresponding to the privileged action, or to visit a malicious web site that embeds a hidden web request and as web browsers automatically include cookies, the actions can be authenticated and sensitive.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>The web application uses cookies to authenticate users.</p>
+</li>
+<li>
+<p>There exist sensitive operations in the web application that can be performed when the user is authenticated.</p>
+</li>
+<li>
+<p>The state / resources of the web application can be modified by doing HTTP POST or HTTP DELETE requests for example.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Protection against CSRF attacks is strongly recommended:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>to be activated by default for all <a href="https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol#Safe_methods">unsafe HTTP methods</a>.</p>
+</li>
+<li>
+<p>implemented, for example, with an unguessable CSRF token</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Of course all sensitive operations should not be performed with <a href="https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol#Safe_methods">safe HTTP</a> methods like <code>GET</code> which are designed to be used only for information retrieval.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For a <a href="https://docs.djangoproject.com/fr/3.0/ref/csrf/">Django</a> application, the code is sensitive when,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>django.middleware.csrf.CsrfViewMiddleware</code> is not used in the <a href="https://docs.djangoproject.com/en/3.0/topics/settings/">Django settings</a>:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+] # Sensitive: django.middleware.csrf.CsrfViewMiddleware is missing</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the CSRF protection is disabled on a view:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>@csrf_exempt # Sensitive
+def example(request):
+    return HttpResponse("default")</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For a <a href="https://flask-wtf.readthedocs.io/en/latest/csrf.html">Flask</a> application, the code is sensitive when,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the <code>WTF_CSRF_ENABLED</code> setting is set to <code>false</code>:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>app = Flask(__name__)
+app.config['WTF_CSRF_ENABLED'] = False # Sensitive</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the  application doesn&#8217;t use the <code>CSRFProtect</code> module:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>app = Flask(__name__) # Sensitive: CSRFProtect is missing
+
+@app.route('/')
+def hello_world():
+    return 'Hello, World!'</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the CSRF protection is disabled on a view:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>app = Flask(__name__)
+csrf = CSRFProtect()
+csrf.init_app(app)
+
+@app.route('/example/', methods=['POST'])
+@csrf.exempt # Sensitive
+def example():
+    return 'example '</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the CSRF protection is disabled on a form:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>class unprotectedForm(FlaskForm):
+    class Meta:
+        csrf = False # Sensitive
+
+    name = TextField('name')
+    submit = SubmitField('submit')</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For a <a href="https://docs.djangoproject.com/fr/3.0/ref/csrf/">Django</a> application,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>it is recommended to protect all the views with <code>django.middleware.csrf.CsrfViewMiddleware</code>:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware', # Compliant
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>and to not disable the CSRF protection on specific views:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def example(request): # Compliant
+    return HttpResponse("default")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For a <a href="https://flask-wtf.readthedocs.io/en/latest/csrf.html">Flask</a> application,</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>the <code>CSRFProtect</code> module should be used (and not disabled further with <code>WTF_CSRF_ENABLED</code> set to <code>false</code>):</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">app = Flask(__name__)
+csrf = CSRFProtect()
+csrf.init_app(app) # Compliant</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>and it is recommended to not disable the CSRF protection on specific views or forms:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.route('/example/', methods=['POST']) # Compliant
+def example():
+    return 'example '
+
+class unprotectedForm(FlaskForm):
+    class Meta:
+        csrf = True # Compliant
+
+    name = TextField('name')
+    submit = SubmitField('submit')</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/352">CWE-352 - Cross-Site Request Forgery (CSRF)</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-community/attacks/csrf">Cross-Site Request Forgery</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222603">Application Security and Development: V-222603</a> - The application must protect from Cross-Site Request Forgery (CSRF) vulnerabilities.</p>
+</li>
+<li>
+<p>PortSwigger - <a href="https://portswigger.net/research/web-storage-the-lesser-evil-for-session-tokens">Web storage: the lesser evil for session tokens</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure disabling CSRF protection is safe here.|Make sure not using CSRF protection is safe here.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_14_mar_2018_165417_alexandre_gigleux_wrote">on 14 Mar 2018, 16:54:17 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>HttpSecurity = org.springframework.security.config.annotation.web.builders.HttpSecurity</p>
+</div>
+</div>
+</div>
+</div>

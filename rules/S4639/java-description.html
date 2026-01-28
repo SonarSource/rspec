@@ -1,0 +1,136 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Libraries used to unarchive a file (zip, bzip2, tar, &#8230;&#8203;) do what they were made for: they extract the content of the archive blindly, creating on the filesystem directories and files corresponding exactly to the content of the archive. Using a specially crafted archive containing some path traversal filenames, it is possible to create directories/files outside of the dir where the archive is extracted. This can lead to overwriting an executable or a configuration file with a file containing malicious code and transform a simple archive into a way to execute arbitrary code.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">Enumeration&lt;? extends ZipEntry&gt; entries = zipFile.entries();
+while (entries.hasMoreElements()) {
+  ZipEntry entry = entries.nextElement();
+  File extractedFile = new File(toDir, entry.getName());
+
+  FileOutputStream fos = new FileOutputStream(extractedFile); // Noncompliant; entry.getName() that was used to created "extractedFile" may be tainted with "../../../../../../../../tmp/evil.sh"
+  InputStream input = zipFile.getInputStream(entry);
+  IOUtils.copy(input, fos);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">Enumeration&lt;? extends ZipEntry&gt; entries = zipFile.entries();
+while (entries.hasMoreElements()) {
+  ZipEntry zipEntry = entries.nextElement();
+  String fileName = zipEntry.getName();
+  File extractedFile = new File(toDir, fileName);
+
+  String canonicalDirPath = toDir.getCanonicalPath();
+  String canonicalDestPath = extractedFile.getCanonicalPath();
+
+  sanitizeAgainstZipFlipVulnerability(fileName, canonicalDestPath, canonicalDirPath); // Compliant
+
+  FileOutputStream fos = new FileOutputStream(extractedFile);
+  InputStream input = zipFile.getInputStream(entry);
+  IOUtils.copy(input, fos);
+}
+
+public static void sanitizeAgainstZipFlipVulnerability(String fileName, String canonicalDestPath, String canonicalDirPath) throws ArchiverException {
+    if (fileName.indexOf("..") != -1 &amp;&amp; !canonicalDestPath.startsWith(canonicalDirPath + File.separator)) { // Sanitizer
+      throw new ArchiverException("The file " + fileName + " is trying to leave the target output directory.");
+    }
+  }</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control">Top 10 2017 Category A5 - Broken Access Control</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/22">CWE-22 - Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')</a></p>
+</li>
+<li>
+<p><a href="https://wiki.sei.cmu.edu/confluence/display/java/IDS04-J.+Safely+extract+files+from+ZipInputStream">CERT, IDS04-J.</a> - Safely extract files from ZipInputStream</p>
+</li>
+<li>
+<p>Snyk Research Team: <a href="https://snyk.io/research/zip-slip-vulnerability">Zip Slip Vulnerability</a></p>
+</li>
+<li>
+<p><a href="https://nvd.nist.gov/vuln/detail/CVE-2016-0709" class="bare">https://nvd.nist.gov/vuln/detail/CVE-2016-0709</a></p>
+</li>
+<li>
+<p><a href="https://nvd.nist.gov/vuln/detail/CVE-2017-5946" class="bare">https://nvd.nist.gov/vuln/detail/CVE-2017-5946</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Refactor this code to not construct the extracted file/dir from tainted, user-controlled data.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_24_may_2018_135137_alexandre_gigleux_wrote">on 24 May 2018, 13:51:37 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>Related and not fully linked to this RSPEC</p>
+</div>
+<div class="paragraph">
+<p>Using <a href="https://commons.apache.org/proper/commons-compress/">Apache Common Compress</a> 1.17 and it&#8217;s new <code>InputStreamStatistics</code> can help to detect abnormally high compression ratios that may indicate a ZIP bomb during decompression as described in <a href="https://wiki.sei.cmu.edu/confluence/display/java/IDS04-J.+Safely+extract+files+from+ZipInputStream">CERT, IDS04-J.</a></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_26_nov_2018_174821_michael_gumowski_wrote">on 26 Nov 2018, 17:48:21 Michael Gumowski wrote:</h3>
+<div class="paragraph">
+<p>Dropping the rule from SonarWay, as 1st implementation is not reaching sufficient quality when looking at results.</p>
+</div>
+</div>
+</div>
+</div>

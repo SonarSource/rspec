@@ -1,0 +1,134 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when time or date methods like <code>Date.today</code>, <code>Time.now</code>, or their derivatives are used directly in class-level contexts such as validations, default values, or other declarations where the value should be computed dynamically.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When Ruby evaluates time and date expressions in class-level contexts, they are computed only once when the class is first loaded, not each time they are needed. This creates a subtle but significant bug where the cached value becomes stale over time.</p>
+</div>
+<div class="paragraph">
+<p>For example, if a validation uses <code>Date.today.year</code> to check that a year field doesn&#8217;t exceed the current year, this validation will use the year from when the server started, not the actual current year. This means that after New Year&#8217;s Eve, the validation would still think it&#8217;s the previous year until the server is restarted.</p>
+</div>
+<div class="paragraph">
+<p>This problem is particularly common in long-running applications like web servers, where classes are loaded once at startup and then reused for many requests over days, weeks, or months.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, using Ruby&#8217;s standard time methods (<code>Time.now</code>, <code>Date.today</code>) instead of Rails' timezone-aware equivalents (<code>Time.current</code>, <code>Date.current</code>) can lead to timezone-related bugs, especially in applications that serve users across different time zones.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Applications may exhibit incorrect behavior related to time and date validation or processing. Users might be unable to submit valid data (like current year values) or conversely, invalid data might be accepted. In time-sensitive applications, this could lead to business logic errors, incorrect reporting, or compliance issues.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In instance methods, prefer timezone-aware methods when available, or ensure time methods are called at runtime rather than cached.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class ReportGenerator
+  # This caches the time when the class is loaded
+  REPORT_DATE = Date.today  # Noncompliant
+
+  def generate_report
+    puts "Report generated on #{REPORT_DATE}"
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class ReportGenerator
+  def generate_report
+    # This gets the current date each time the method is called
+    report_date = Date.current
+    puts "Report generated on #{report_date}"
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use lambdas or procs to defer evaluation until runtime, and prefer Rails' timezone-aware methods over Ruby&#8217;s standard time methods.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Brewery &lt; ActiveRecord::Base
+  # Static evaluation - calculated only once at class load time
+  validates :year, numericality: {
+    only_integer: true,
+    less_than_or_equal_to: Date.today.year  # Noncompliant
+  }
+
+  # Static default value
+  attribute :created_year, :integer, default: Time.now.year  # Noncompliant
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Brewery &lt; ActiveRecord::Base
+  # Use lambda for dynamic evaluation
+  validates :year, numericality: {
+    only_integer: true,
+    less_than_or_equal_to: -&gt;(_brewery) { Date.current.year }
+  }
+
+  # Use proc for default values
+  attribute :created_year, :integer, default: -&gt; { Date.current.year }
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Time and Date Helpers - <a href="https://guides.rubyonrails.org/active_support_core_extensions.html#time">Official Rails documentation on timezone-aware time and date methods</a></p>
+</li>
+<li>
+<p>Ruby Time Class Documentation - <a href="https://ruby-doc.org/core/Time.html">Ruby&#8217;s standard Time class documentation</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,300 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Blocking functions should not be called inside critical sections</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Concurrent accesses to shared resources are guarded by synchronization
+primitives such as mutexes to prevent data races. The section of code
+where a mutex is held is called the critical section. Critical sections
+are generally designed to be as small as possible, allowing concurrent
+threads to progress.</p>
+</div>
+<div class="paragraph">
+<p>It&#8217;s usually unintentional to perform blocking operations inside a
+critical section because the operation might block for long or even
+indefinitely, degrading performance or causing a deadlock.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;cstdio&gt;    // printf()
+#include &lt;cstdlib&gt;   // atoi()
+#include &lt;mutex&gt;
+#include &lt;unistd.h&gt;  // sleep()
+
+std::mutex m;
+int load_shared_resource(); // Guarded by mutex 'm'
+
+// Some time-intensive computation.
+void do_expensive_work(int value, FILE *fd) {
+  char buf[4] = "";
+  std::fgets(buf, sizeof(buf), fd);
+  int sum = value + std::atoi(buf);
+  std::printf("value + line: %d\n", sum);
+}
+
+void worker_thread(FILE *fd) {
+  std::scoped_lock guard(m);
+  int value = load_shared_resource();
+  // Mutex 'm' could have been released here.
+  do_expensive_work(value, fd);
+} // Mutex 'm' only released here, after 'do_expensive_work' is returned.</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Usually, blocking operations involve I/O operations, such as reading or
+writing a file or socket or sleeping for some specified time.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Doing time-intensive operations while holding one or multiple locks will
+prevent concurrent threads from making progress updating the shared resource.
+This can lead to "bottlenecks" and the under-utilization of the hardware
+capabilities.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Usually, one can move blocking or expensive computations from critical sections.
+This leads to smaller and cleaner critical sections in general,</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;unistd.h&gt;  // sleep()
+#include &lt;mutex&gt;
+#include &lt;algorithm&gt;
+
+int magic_number;
+std::mutex m;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed &lt; 100; ++items_processed) {
+    std::scoped_lock guard(m);
+    current = magic_number;
+
+    sleep(std::clamp(current, 0, 10)); // Noncompliant: 'sleep' blocks while holding mutext 'm'
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;unistd.h&gt;  // sleep()
+#include &lt;pthread.h&gt; // pthread_mutex_*()
+
+int magic_number;
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed &lt; 100; ++items_processed) {
+    pthread_mutex_lock(&amp;m);
+    current = magic_number;
+    // Could have 'unlocked' mutex 'm' here.
+    sleep(current); // Noncompliant: 'sleep' blocks while holding mutex 'm'
+    pthread_mutex_unlock(&amp;m);
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;unistd.h&gt;  // sleep()
+#include &lt;mutex&gt;
+#include &lt;algorithm&gt;
+
+int magic_number;
+std::mutex m;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed &lt; 100; ++items_processed) {
+    {
+      std::scoped_lock guard(m);
+      current = magic_number;
+    }
+
+    sleep(std::clamp(current, 0, 10)); // Ok, blocking without holding any mutexes.
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;unistd.h&gt;  // sleep()
+#include &lt;pthread.h&gt; // pthread_mutex_*()
+
+int magic_number;
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+void consumer_thread() {
+  int current;
+  for (int items_processed = 0; items_processed &lt; 100; ++items_processed) {
+    pthread_mutex_lock(&amp;m);
+    current = magic_number;
+    pthread_mutex_unlock(&amp;m);
+    sleep(current); // Ok, blocking without holding any mutexes.
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>It&#8217;s important to note that not all operations can be moved out from the
+critical section without redesigning the algorithm.
+It&#8217;s tempting to read, compute and commit back the result to some shared
+resource, but that coding pattern is vulnerable to
+Time-Of-Check-To-Time-Of-Use (TOCTOU) bugs.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;unistd.h&gt;  // sleep()
+#include &lt;mutex&gt;
+
+int input;
+std::mutex input_mutex;
+
+int output;
+std::mutex output_mutex;
+
+int expensive_computation(int in);
+
+void worker_thread() {
+  int previous_input = -1;
+  int previous_result = -1;
+
+  for (int items_processed = 0; items_processed &lt; 100; ++items_processed) {
+    int current;
+    {
+      // Read an input.
+      std::scoped_lock guard(input_mutex);
+      current = input;
+    }
+
+    // Potentially perform an expensive computation.
+    // The 'input' might have changed during the computation,
+    // in which case, we just drop the result without committing it.
+    if (current != previous_input) {
+      previous_input = current;
+      previous_result = expensive_computation(current);
+
+      // Verify that the 'input' didn't change, and we can commit our result.
+      std::scoped_lock in_guard(input_mutex);
+      if (input == previous_input) {
+        std::scoped_lock out_guard(output_mutex);
+        output = previous_result; // Commit the result.
+      }
+    }
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It might not always be correct to commit the result even if the <code>input</code>
+didn&#8217;t change since we last checked. It could be that it was changed
+but restored, as we are rechecking it. This is commonly known as
+the ABA problem, where <code>A</code> and <code>B</code> refers to the values of the resource.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567">Application Security and Development: V-222567</a> - The application must not be vulnerable to race conditions.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#cp43-minimize-time-spent-in-a-critical-section">CP.43: Minimize time spent in a critical section</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5184" class="rspec-auto-link">S5184</a> enforces that guard objects are not temporary.</p>
+</li>
+<li>
+<p><a data-rspec-id="S5506" class="rspec-auto-link">S5506</a> detects direct calls to <code>lock</code> and <code>unlock</code> on mutexes.</p>
+</li>
+<li>
+<p><a data-rspec-id="S5524" class="rspec-auto-link">S5524</a> detects individually locked mutexes.</p>
+</li>
+<li>
+<p><a data-rspec-id="S5997" class="rspec-auto-link">S5997</a> advocates for using <code>std::scoped_lock</code> over <code>std::lock_guard</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/thread/mutex"><code>std::mutex</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/thread/scoped_lock"><code>std::scoped_lock</code></a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/367">CWE-367 - Time-of-check Time-of-use (TOCTOU) Race Condition</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/ABA_problem">ABA problem</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Call to blocking function 'sleep' inside of critical section</p>
+</div>
+</div>
+</div>
+</div>

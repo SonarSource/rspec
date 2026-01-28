@@ -1,0 +1,265 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Running containers as a privileged user weakens their runtime security,
+allowing any user whose code runs on the container to perform administrative
+actions.<br>
+In Linux containers, the privileged user is usually named <code>root</code>. In Windows
+containers, the equivalent is <code>ContainerAdministrator</code>.</p>
+</div>
+<div class="paragraph">
+<p>A malicious user can run code on a system either thanks to actions that could
+be deemed legitimate - depending on internal business logic or operational
+management shells - or thanks to malicious actions. For example, with arbitrary
+code execution after exploiting a service that the container hosts.</p>
+</div>
+<div class="paragraph">
+<p>Suppose the container is not hardened to prevent using a shell, interpreter, or
+<a href="https://man7.org/linux/man-pages/man7/capabilities.7.html">Linux capabilities</a>.
+In this case, the malicious user can read and exfiltrate any file (including
+Docker volumes), open new network connections, install malicious software, or,
+worse, break out of the container&#8217;s isolation context by exploiting other
+components.</p>
+</div>
+<div class="paragraph">
+<p>This means giving the possibility to attackers to steal important
+infrastructure files, intellectual property, or personal data.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the infrastructure&#8217;s resilience, attackers may then extend their
+attack to other services, such as Kubernetes clusters or cloud providers, in
+order to maximize their reach.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This container:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Serves services accessible from the Internet.</p>
+</li>
+<li>
+<p>Does not require a privileged user to run.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In the Dockerfile:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a new default user and use it with the <code>USER</code> statement.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Some container maintainers create a specific user to be used without explicitly setting it as default, such as <code>postgresql</code> or <code>zookeeper</code>. It is recommended to use these users instead of root.</p>
+</li>
+<li>
+<p>On Windows containers, the <code>ContainerUser</code> is available for this purpose.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Or, at launch time:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Use the <code>user</code> argument when calling Docker or in the docker-compose file.</p>
+</li>
+<li>
+<p>Add fine-grained Linux capabilities to perform specific actions that require root privileges.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If this image is already explicitly set to launch with a non-privileged user, you can
+add it to the safe images list rule property of your SonarQube instance, without the tag.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For any image that does not provide a user by default, regardless of their
+underlying operating system:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker"># Sensitive
+FROM alpine
+
+ENTRYPOINT ["id"]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For multi-stage builds, the last stage is non-compliant if it does not contain
+the <code>USER</code> instruction with a non-root user:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM alpine AS builder
+COPY Makefile ./src /
+RUN make build
+USER nonroot
+
+# Sensitive, previous user settings are dropped
+FROM alpine AS runtime
+COPY --from=builder bin/production /app
+ENTRYPOINT ["/app/production"]</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For Linux-based images and scratch-based images that untar a Linux
+distribution:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM alpine
+
+RUN addgroup -S nonroot \
+    &amp;&amp; adduser -S nonroot -G nonroot
+
+USER nonroot
+
+ENTRYPOINT ["id"]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For Windows-based images, you can use <code>ContainerUser</code> or create a new user:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM mcr.microsoft.com/windows/servercore:ltsc2019
+
+RUN net user /add nonroot
+
+USER nonroot</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For multi-stage builds, the non-root user should be on the last stage:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM alpine as builder
+COPY Makefile ./src /
+RUN make build
+
+FROM alpine as runtime
+RUN addgroup -S nonroot \
+    &amp;&amp; adduser -S nonroot -G nonroot
+COPY --from=builder bin/production /app
+USER nonroot
+ENTRYPOINT ["/app/production"]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For images that use <code>scratch</code> as their base, it is not possible to add non-privileged
+users by default. To do this, add an additional build stage to add the group
+and user, and later copy <code>/etc/passwd</code>.</p>
+</div>
+<div class="paragraph">
+<p>Here is an example that uses <code>adduser</code> in the first stage to generate a user and add it to the <code>/etc/passwd</code> file. In the next stage, this user is added by copying that file over from the previous stage:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-docker" data-lang="docker">FROM alpine:latest as security_provider
+RUN addgroup -S nonroot \
+    &amp;&amp; adduser -S nonroot -G nonroot
+
+FROM scratch as production
+COPY --from=security_provider /etc/passwd /etc/passwd
+USER nonroot
+COPY production_binary /app
+ENTRYPOINT ["/app/production_binary"]</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/284">CWE-284 - Improper Access Control</a></p>
+</li>
+<li>
+<p><a href="https://hub.docker.com/r/nginxinc/nginx-unprivileged">nginxinc/nginx-unprivileged: Example of a non-root container by default</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/container-security#when-to-use-containeradmin-and-containeruser-user-accounts">Microsoft docs, When to use ContainerAdmin and ContainerUser user accounts</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Noncompliant scratch images: "Scratch images run as root by default. Make sure it is safe here."</p>
+</li>
+<li>
+<p>Official noncompliant image: "The <code>image</code> image runs with root as the default user. Make sure it is safe here."</p>
+</li>
+<li>
+<p>Microsoft non-compliant images: "This image runs with root or containerAdministrator as the default user. Make sure it is safe here."</p>
+</li>
+<li>
+<p>Unofficial noncompliant image: "This image might run with root as the default user. Make sure it is safe here."</p>
+</li>
+<li>
+<p>The last USER is root or containerAdministrator: "Setting the default user as root might unnecessarily make the application unsafe. Make sure it is safe here."</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Unsafe FROM: "FROM name" instruction</p>
+</li>
+<li>
+<p>Last USER is root or containerAdministrator: "USER name" instruction</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

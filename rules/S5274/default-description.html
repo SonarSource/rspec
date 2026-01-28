@@ -1,0 +1,336 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule reports an issue when the use of <code>std::move</code> prevents the copy elision optimizations from happening.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Usually, when copying an object, the source object is unchanged,
+meaning all resources owned by the source objects must be duplicated during the copy operation.
+If the source object is no longer used, this duplication is inefficient.
+Since C&#43;&#43;11, a move semantic mechanism has been added to detect such cases and replace the expensive copy with a much cheaper move operation that will transfer resources.</p>
+</div>
+<div class="paragraph">
+<p>The cornerstone of move semantics is detecting during a "copy" whether the source object will be reused or not.
+This can be done explicitly by the user, by invoking <code>std::move</code> (or different casts to rvalue) on the object.
+In such case the user promises to the compiler that they won&#8217;t care for the object&#8217;s current value any longer.
+In addition, the compiler will implicitly use a move operation or skip copying the object in some situations.</p>
+</div>
+<div class="paragraph">
+<p>One case of optimization is that the copy will be elided or automatically turned into a move operation
+when a temporary object of type <code>T</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>is used to initialize a parameter or variable of type <code>T</code> or <code>const T</code></p>
+</li>
+<li>
+<p>is returned from the function that declares <code>T</code> or <code>const T</code> as return type</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {/* ... */};
+A create();
+
+void asParam(A a);
+
+A returnedFromFunc() {
+  // For all examples below, the object will not be copied.
+  // Either no copy or move will be performed (as guaranteed optimization since C++17)
+  // or a move operation will be used.
+  A a = create();
+  asParam(createA());
+  return A();
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Calling <code>std::move</code> on such an object is not only unnecessary but will also prevent the compiler from performing copy elision,
+and the rule raises issues in that case.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {/* ... */};
+A create();
+
+void asParam(A a);
+
+A returnedFromFunc() {
+  // Move operations need to be performed, and cannot be elided.
+  A a = std::move(create());     // Noncompliant
+  asParam(std::move(createA())); // Noncompliant
+  return std::move(A());         // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Another case of optimization is that under certain conditions, the local variable or function parameter is implicitly moved
+if it is directly returned (<code>return x</code>) from the function.</p>
+</div>
+<div class="paragraph">
+<p>In particular, when a variable of type <code>T</code> is returned directly from the function that declares <code>T</code> or <code>const T</code>
+as a return type:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {/* ... */};
+
+A returnedLocalVar() {
+  A a = create();
+  // Variable a is automatically moved here
+  return a;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>These conditions overlap with the conditions under which copy elision optimization,
+referred to as Named Return Value Optimization (NRVO) can be performed by the compiler.
+When this optimization is applied the local variable is returned without any copy or move operation being performed.</p>
+</div>
+<div class="paragraph">
+<p>In this case, adding <code>std::move</code> to the return statement will inhibit this optimization,
+and the rule raises an issue.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {/* ... */};
+
+A returnedLocalVar() {
+  A a = create();
+  // Variable a is moved, but NRVO cannot be performed
+  return std::move(a); // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_why_is_the_issue_raised_if_my_class_does_not_have_a_move_constructor">Why is the issue raised if my class does not have a move constructor?</h3>
+<div class="paragraph">
+<p>A move itself is not performing any object operation, and casting a source to <code>rvalue</code>.
+This leads to the constructor and assignment operator that accepts rvalue reference as a parameter -
+also referred to as move constructor and move assignment - to be selected by the overload resolution.
+However, when the class does not provide such a constructor,
+a copy constructor/assignment will be invoked respectively.</p>
+</div>
+<div class="paragraph">
+<p>Such invocation of copy constructor may still be eliminated by copy elision optimizations,
+and thus redundant <code>std::move</code> calls, that inhibit such optimization, have a performance impact in such situations.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class OnlyCopyable {
+  OnlyCopyable(OnlyCopyable const&amp;);
+  /* No move constructor */
+};
+OnlyCopyable create();
+
+void test() {
+  // Forces a move operation, that invokes copy constructor
+  OnlyCopyable c1 = std::move(create()); // Noncompliant
+  // Copy elision eliminates invocation of the copy constructor
+  OnlyCopyable c2 = create(); // Compliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_why_is_an_issue_raised_when_passing_an_argument_to_a_reference_parameter">Why is an issue raised when passing an argument to a reference parameter?</h3>
+<div class="paragraph">
+<p>The copy elision optimization happens only if a new value is produced from the source,
+not if the parameter is a reference to the same type:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void process(A&amp;&amp; sink);
+
+void passArgument() {
+  // No move operation is triggered, as the parameter is a reference to A
+  process(std::move(create())); // Noncompliant
+  process(create());            // Compliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Such redundant calls to <code>std::move</code> are not inhibiting optimization at this point.
+However, when the <code>process</code> function is modified to accept <code>A</code> by value,
+it will prevent the compiler from eliminating the move operation altogether.
+To fully benefit from the performance impact of this change,
+the maintainers would need to review and update all call sites and process functions,
+reducing the maintainability of the code.</p>
+</div>
+<div class="paragraph">
+<p>Moreover, if the parameter is a reference to a type to which the argument is converted,
+then copy elision may still happen when calling the converting constructor.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class B {
+  // Converting constructor takes object B by value
+  B(A a);
+};
+void processB(B&amp;&amp; sink);
+
+void passArgument() {
+  processB(create());            // Compliant
+  processB(std::move(create())); // Noncompliant, inhibits copy elision when initializing constructor parameter
+  // This call is equivalent to:
+  processB(B(std::move(create()))); // Noncompliant, inhibits copy elision when initializing constructor parameter
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_why_issues_are_not_raised_for_all_redundant_moves">Why issues are not raised for all redundant moves?</h3>
+<div class="paragraph">
+<p>The requirements from performing an implicit move were relaxed in C&#43;&#43;20 and C&#43;&#43;23 standards,
+with some of them being applied retroactively.
+As a consequence depending on the standard and compiler versions,
+a call to <code>std::move</code> may or may not be redundant in the return statement,
+and thus required for the code to be portable accross compilers.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Remove the call to <code>std::move</code> flagged by the rule.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {};
+A getA();
+
+A f() {
+  A a = std::move(getA()); // Noncompliant, prevents copy elision
+  return std::move(a); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {};
+A getA();
+
+A f() {
+  A a = getA(); // Compliant
+  return a; // Compliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {};
+A getA();
+
+void f() {
+  std::vector&lt;A&gt; v;
+  v.push_back(std::move(getA())); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {};
+A getA();
+
+void f() {
+  std::vector&lt;A&gt; v;
+  v.push_back(getA()); // Compliant
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/copy_elision">Copy elision</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/utility/move">std::move</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#f48-dont-return-stdmovelocal">F.48: Don&#8217;t <code>return std::move(local)</code></a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Moving a temporary object prevents copy elision.</p>
+</div>
+<div class="paragraph">
+<p>Moving a temporary object is useless.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_duplicated_by_s5412">is duplicated by: <a data-rspec-id="S5412" class="rspec-auto-link">S5412</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5415">is related to: <a data-rspec-id="S5415" class="rspec-auto-link">S5415</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_3_sep_2019_180127_loïc_joly_wrote">on 3 Sep 2019, 18:01:27 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~geoffray.adde]: Could you please review the changed I made to this RSPEC?</p>
+</div>
+</div>
+</div>
+</div>

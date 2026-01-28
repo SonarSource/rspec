@@ -1,0 +1,251 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when a FastAPI path operation function accepts an <code>UploadFile</code> parameter but does not explicitly close the file handle after processing. The underlying <code>SpooledTemporaryFile</code> remains open, leading to resource leaks that can exhaust available file handles in production environments.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>FastAPI&#8217;s <code>UploadFile</code> class wraps a <code>SpooledTemporaryFile</code> object that manages file handles at the operating system level. Unlike regular Python file objects used in <code>with</code> statements, <code>UploadFile</code> instances are not automatically closed when the request completes.</p>
+</div>
+<div class="paragraph">
+<p>When file handles are not explicitly closed, they remain allocated in the operating system until the Python garbage collector runs. In high-traffic applications, this can lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Resource exhaustion</strong>: The operating system has a limited number of file handles available. Unclosed files consume these handles, eventually preventing the application from opening new files or accepting new connections.</p>
+</li>
+<li>
+<p><strong>Memory leaks</strong>: <code>SpooledTemporaryFile</code> may keep file contents in memory or on disk until explicitly closed, increasing memory pressure.</p>
+</li>
+<li>
+<p><strong>Unpredictable behavior</strong>: When file handle limits are reached, the application may fail with cryptic errors like "Too many open files" that are difficult to diagnose.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The issue is particularly severe in production environments where:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Multiple concurrent requests process file uploads</p>
+</li>
+<li>
+<p>The application runs for extended periods without restarts</p>
+</li>
+<li>
+<p>System file handle limits are reached before garbage collection occurs</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>While FastAPI may handle cleanup automatically in some scenarios, relying on this behavior is risky because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The cleanup timing is unpredictable and depends on garbage collection</p>
+</li>
+<li>
+<p>Custom error handlers or middleware may interrupt the normal cleanup flow</p>
+</li>
+<li>
+<p>Different deployment configurations (ASGI servers, worker processes) may behave differently</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p><strong>Resource Exhaustion and Service Degradation</strong></p>
+</div>
+<div class="paragraph">
+<p>In production environments, unclosed file handles accumulate over time, leading to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Application crashes when the operating system file handle limit is reached</p>
+</li>
+<li>
+<p>Degraded performance as the system struggles with resource constraints</p>
+</li>
+<li>
+<p>Cascading failures affecting other services on the same host</p>
+</li>
+<li>
+<p>Difficult-to-diagnose intermittent errors that only appear under load</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Security and Reliability Concerns</strong></p>
+</div>
+<div class="paragraph">
+<p>Resource leaks can be exploited for denial-of-service attacks:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Attackers can deliberately upload files to exhaust file handles</p>
+</li>
+<li>
+<p>The application becomes unavailable to legitimate users</p>
+</li>
+<li>
+<p>Recovery requires manual intervention (process restart)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Operational Complexity</strong></p>
+</div>
+<div class="paragraph">
+<p>Without proper cleanup:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Monitoring and alerting become more complex</p>
+</li>
+<li>
+<p>Root cause analysis is harder when issues only manifest under specific load patterns</p>
+</li>
+<li>
+<p>Deployment rollbacks may be necessary when resource leaks are discovered in production</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_fastapi">How to fix it in FastAPI</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use a <code>try/finally</code> block to ensure the file is closed even if an exception occurs during processing. For async path operations, use <code>await file.close()</code>. For sync operations, use <code>file.file.close()</code> to access the underlying <code>SpooledTemporaryFile</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    contents = await file.read()  # Noncompliant
+    with open(file.filename, 'wb') as f:
+        f.write(contents)
+    return {"message": "File uploaded"}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        with open(file.filename, 'wb') as f:
+            f.write(contents)
+    finally:
+        await file.close()
+    return {"message": "File uploaded"}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For synchronous path operations, access the underlying file object via <code>file.file</code> and close it explicitly in a <code>finally</code> block.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.post("/upload")
+def upload_file(file: UploadFile = File(...)):
+    contents = file.file.read()  # Noncompliant
+    # Process contents
+    return {"message": "Processed"}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.post("/upload")
+def upload_file(file: UploadFile = File(...)):
+    try:
+        contents = file.file.read()
+        # Process contents
+    finally:
+        file.file.close()
+    return {"message": "Processed"}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When handling multiple file uploads, ensure each file is closed individually. Use a loop with try/finally for each file, or collect files and close them all in a single finally block.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.post("/upload-multiple")
+async def upload_multiple(files: List[UploadFile] = File(...)):
+    for file in files:  # Noncompliant
+        contents = await file.read()
+        # Process each file
+    return {"message": "Files uploaded"}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.post("/upload-multiple")
+async def upload_multiple(files: List[UploadFile] = File(...)):
+    try:
+        for file in files:
+            contents = await file.read()
+            # Process each file
+    finally:
+        for file in files:
+            await file.close()
+    return {"message": "Files uploaded"}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>FastAPI Request Files Documentation - <a href="https://fastapi.tiangolo.com/tutorial/request-files/">Official FastAPI documentation on handling file uploads with UploadFile</a></p>
+</li>
+<li>
+<p>Starlette UploadFile API Reference - <a href="https://www.starlette.io/requests/#request-files">Starlette documentation for UploadFile, which FastAPI uses internally</a></p>
+</li>
+<li>
+<p>Python SpooledTemporaryFile Documentation - <a href="https://docs.python.org/3/library/tempfile.html#tempfile.SpooledTemporaryFile">Documentation for the underlying SpooledTemporaryFile class used by UploadFile</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

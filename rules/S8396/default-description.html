@@ -1,0 +1,116 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when a Pydantic model field uses <code>Optional[Type]</code> or <code>Type | None</code> type hints without providing an explicit default value, or when using <code>Field(&#8230;&#8203;)</code> with the ellipsis operator.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Pydantic models, there is a common misconception about what <code>Optional[Type]</code> means. Many developers assume that marking a field as <code>Optional[Type]</code> makes it optional during validation, but this is not the case.</p>
+</div>
+<div class="paragraph">
+<p>The <code>Optional[Type]</code> type hint only indicates that a field can accept either a value of <code>Type</code> or <code>None</code>. It does not affect whether the field is required during validation. Without an explicit default value, Pydantic will still raise a validation error if the field is missing from the input data.</p>
+</div>
+<div class="paragraph">
+<p>To make a field truly optional (meaning it doesn&#8217;t need to be provided during validation), you must assign a default value. This is typically <code>None</code> for optional fields, but can be any appropriate default value.</p>
+</div>
+<div class="paragraph">
+<p>A particularly problematic pattern is using <code>Field(&#8230;&#8203;)</code> with <code>Optional[Type]</code>. The ellipsis (<code>&#8230;&#8203;</code>) is Pydantic&#8217;s way of explicitly marking a field as required. This creates a direct contradiction: the type hint says the field can be <code>None</code>, but the <code>Field(&#8230;&#8203;)</code> says it must be provided. In this case, Pydantic prioritizes the ellipsis, making the field required despite the <code>Optional</code> annotation.</p>
+</div>
+<div class="paragraph">
+<p>This mismatch between developer intent and actual behavior leads to unexpected validation errors in production, confusing API consumers who receive "field required" errors for fields they reasonably expected to be optional based on the type hints.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When optional fields lack explicit default values, the application will reject valid requests where users omit fields they believe to be optional. This leads to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Poor user experience with confusing "field required" validation errors</p>
+</li>
+<li>
+<p>API contract violations where the schema suggests fields are optional but validation requires them</p>
+</li>
+<li>
+<p>Increased support burden as users struggle to understand why optional fields are being rejected</p>
+</li>
+<li>
+<p>Potential data quality issues if developers work around the problem by sending placeholder values instead of omitting fields</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add an explicit default value (typically <code>None</code>) to fields with <code>Optional</code> type hints. This makes the field truly optional during validation while maintaining the type safety that allows <code>None</code> values.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from typing import Optional
+from pydantic import BaseModel
+
+class TwitterAccount(BaseModel):
+    username: str
+    followers: int
+
+class UserRead(BaseModel):
+    name: str
+    twitter_account: Optional[TwitterAccount]  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from typing import Optional
+from pydantic import BaseModel
+
+class TwitterAccount(BaseModel):
+    username: str
+    followers: int
+
+class UserRead(BaseModel):
+    name: str
+    twitter_account: Optional[TwitterAccount] = None</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Pydantic - Required fields - <a href="https://docs.pydantic.dev/latest/concepts/models/#required-fields">Official Pydantic documentation explaining required vs optional fields</a></p>
+</li>
+<li>
+<p>Pydantic - Field function - <a href="https://docs.pydantic.dev/latest/concepts/fields/">Documentation on using the Field() function for field customization</a></p>
+</li>
+<li>
+<p>Python typing - Optional - <a href="https://docs.python.org/3/library/typing.html#typing.Optional">Python&#8217;s typing module documentation for Optional type hints</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

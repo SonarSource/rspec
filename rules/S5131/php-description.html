@@ -1,0 +1,809 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This vulnerability makes it possible to temporarily execute JavaScript code in the context of the application, granting access to the session of the victim. This is possible because user-provided data, such as URL parameters, are copied into the HTML body of the HTTP response that is sent back to the user.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Reflected cross-site scripting (XSS) occurs in a web application when the application retrieves data like parameters or headers from an incoming HTTP request and inserts it into its HTTP response without first sanitizing it. The most common cause is the insertion of GET parameters.</p>
+</div>
+<div class="paragraph">
+<p>When well-intentioned users open a link to a page that is vulnerable to reflected XSS, they are exposed to attacks that target their own browser.</p>
+</div>
+<div class="paragraph">
+<p>A user with malicious intent carefully crafts the link beforehand.</p>
+</div>
+<div class="paragraph">
+<p>After creating this link, the attacker must use phishing techniques to ensure that his target users click on the link.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>A well-intentioned user opens a malicious link that injects data into the web
+application. This data can be text, but it can also be arbitrary code that can
+be interpreted by the target user&#8217;s browser, such as HTML, CSS, or JavaScript.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_vandalism_on_the_front_end_website">Vandalism on the front-end website</h4>
+<div class="paragraph">
+<p>The malicious link defaces the target web application from the perspective of
+the user who is the victim. This may result in loss of integrity and theft of
+the benevolent user&#8217;s data.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_identity_spoofing">Identity spoofing</h4>
+<div class="paragraph">
+<p>The forged link injects malicious code into the web application.
+The code enables identity spoofing thanks to cookie theft.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_record_user_activity">Record user activity</h4>
+<div class="paragraph">
+<p>The forged link injects malicious code into the web application. To leak
+confidential information, attackers can inject code that records keyboard
+activity (keylogger) and even requests access to other devices, such as the
+camera or microphone.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_chaining_xss_with_other_vulnerabilities">Chaining XSS with other vulnerabilities</h4>
+<div class="paragraph">
+<p>In many cases, bug hunters and attackers chain cross-site scripting
+vulnerabilities with other vulnerabilities to maximize their impact.<br>
+For example, an XSS can be used as the first step to exploit more dangerous
+vulnerabilities or features that require higher privileges, such as a code
+injection vulnerability in the admin control panel of a web application.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_core_php">How to fix it in Core PHP</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to cross-site scripting because it returns an HTML response that contains user input.</p>
+</div>
+<div class="paragraph">
+<p>User input embedded in HTML code should be HTML-encoded to prevent the injection of additional code.
+PHP provides the built-in function <code>htmlspecialchars</code> to do this.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">echo '&lt;h1&gt;' . $input . '&lt;/h1&gt;';</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">echo '&lt;h1&gt;' . htmlspecialchars($input) . '&lt;/h1&gt;';</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you do not intend to send HTML code to clients, the vulnerability can be fixed by specifying the type of data returned in the response with the content-type header.</p>
+</div>
+<div class="paragraph">
+<p>For example, setting the content-type to <code>text/plain</code> using the built-in <code>header</code> function allows to safely reflect user input since browsers will not try to parse and execute the response.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">echo $input;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">header('Content-Type: text/plain');
+echo $input;</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_encode_data_according_to_the_html_context">Encode data according to the HTML context</h4>
+<div class="paragraph">
+<p>The best approach to protect against XSS is to systematically encode data that is written to HTML documents.
+The goal is to leave the data intact from the end user&#8217;s point of view but make it uninterpretable by web browsers.</p>
+</div>
+<div class="paragraph">
+<p>XSS exploitation techniques vary depending on the HTML context where malicious input is injected. For each HTML context, there is a specific encoding to prevent JavaScript code from being interpreted.
+The following table summarizes the encoding to apply for each HTML context.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Context</th>
+<th class="tableblock halign-left valign-top">Code example</th>
+<th class="tableblock halign-left valign-top">Exploit example</th>
+<th class="tableblock halign-left valign-top">Encoding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Inbetween tags</p>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;div&gt;
+  { data }
+&lt;/div&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;div&gt;
+  &lt;script&gt;
+    alert(1)
+  &lt;/script&gt;
+&lt;/div&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>HTML entity encoding: replace the following characters by HTML-safe sequences.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>&amp; &#8594; &amp;amp;</p>
+</li>
+<li>
+<p>&lt; &#8594; &amp;lt;</p>
+</li>
+<li>
+<p>&gt; &#8594; &amp;gt;</p>
+</li>
+<li>
+<p>" &#8594; &amp;quot;</p>
+</li>
+<li>
+<p>' &#8594; &amp;#x27;</p>
+</li>
+</ul>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>In an attribute surrounded with single or double quotes</p>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;div tag="{ data }"&gt;
+  ...
+&lt;/div&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;div tag=""
+     onmouseover="alert(1)"&gt;
+  ...
+&lt;/div&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>HTML entity encoding: replace the following characters with HTML-safe sequences.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>&amp; &#8594; &amp;amp;</p>
+</li>
+<li>
+<p>&lt; &#8594; &amp;lt;</p>
+</li>
+<li>
+<p>&gt; &#8594; &amp;gt;</p>
+</li>
+<li>
+<p>" &#8594; &amp;quot;</p>
+</li>
+<li>
+<p>' &#8594; &amp;#x27;</p>
+</li>
+</ul>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>In an unquoted attribute</p>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;div tag={ data }&gt;
+  ...
+&lt;/div&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;div tag=foo
+     onmouseover=alert(1)&gt;
+  ...
+&lt;/div&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p><strong>Dangerous context</strong>: HTML output encoding will not prevent XSS fully.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>In a URL attribute</p>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;a href="{ data }"&gt;
+  ...
+&lt;/a&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;a href="javascript:alert(1)"&gt;
+  ...
+&lt;/a&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Validate the URL by parsing the data. Make sure relative URLs start with a  <code>/</code> and that absolute URLs use <code>https</code> as a scheme.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>In a script block</p>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;script&gt;
+  { data }
+&lt;/script&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;script&gt;
+  alert(1)
+&lt;/script&gt;</code></pre>
+</div>
+</div></div></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p><strong>Dangerous context</strong>: HTML output encoding will not prevent XSS fully.
+To pass values to a JavaScript context, the recommended way is to use a data attribute:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-html" data-lang="html">&lt;!doctype html&gt;
+&lt;script data="{ data }"&gt;
+  ...
+&lt;/script&gt;</code></pre>
+</div>
+</div></div></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_content_types">Content-types</h4>
+<div class="paragraph">
+<p>Be aware that there are more content-types than <code>text/html</code> that allow to execute JavaScript code in a browser and thus are prone to cross-site scripting vulnerabilities.<br>
+The following content-types are known to be affected:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>application/mathml+xml</p>
+</li>
+<li>
+<p>application/rdf+xml</p>
+</li>
+<li>
+<p>application/vnd.wap.xhtml+xml</p>
+</li>
+<li>
+<p>application/xhtml+xml</p>
+</li>
+<li>
+<p>application/xml</p>
+</li>
+<li>
+<p>image/svg+xml</p>
+</li>
+<li>
+<p>multipart/x-mixed-replace</p>
+</li>
+<li>
+<p>text/html</p>
+</li>
+<li>
+<p>text/rdf</p>
+</li>
+<li>
+<p>text/xml</p>
+</li>
+<li>
+<p>text/xsl</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_single_quoted_variables_in_attributes">Single quoted variables in attributes</h4>
+<div class="paragraph">
+<p>By default, <code>htmlspecialchars</code> does not encode single quotes, so if <code>$input</code> is untrusted, JavaScript code can be injected.</p>
+</div>
+<div class="paragraph">
+<p>Make sure to set the option <code>ENT_QUOTES</code> to encode single quotes.</p>
+</div>
+<div class="sect4">
+<h5 id="_noncompliant_code_example_3">Noncompliant code example</h5>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">echo "&lt;img src='" . htmlspecialchars($input) . "'&gt;";</code></pre>
+</div>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_compliant_solution_3">Compliant solution</h5>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">echo "&lt;img src='" . htmlspecialchars($input, ENT_QUOTES) . "'&gt;";</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_headers_and_output">Headers and output</h4>
+<div class="paragraph">
+<p>If the HTTP body is sent before <code>header</code> is called, no headers will be sent to the client.</p>
+</div>
+<div class="paragraph">
+<p>To fix this issue, send the headers before any output.</p>
+</div>
+<div class="sect4">
+<h5 id="_noncompliant_code_example_4">Noncompliant code example</h5>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">echo 'No more headers at this point';
+header('Content-Type: text/plain');
+echo $input;</code></pre>
+</div>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_compliant_solution_4">Compliant solution</h5>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">header('Content-Type: text/plain');
+echo $input;</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="sect3">
+<h4 id="_content_security_policy_csp_header">Content Security Policy (CSP) Header</h4>
+<div class="paragraph">
+<p>With a defense-in-depth security approach, the <strong>CSP</strong> response header can be
+added to instruct client browsers to <strong>block</strong> loading data that does not meet the
+application&#8217;s security requirements. If configured correctly, this can prevent any attempt
+to exploit XSS in the application.<br>
+<a href="https://web.dev/csp-xss/">Learn more here.</a></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_laravel">How to fix it in Laravel</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to cross-site scripting because it returns an HTML response that contains user input.</p>
+</div>
+<div class="paragraph">
+<p>If you do not intend to send HTML code to clients, the vulnerability can be fixed by specifying the type of data returned in the response.
+For example, you can use the <code>json</code> method of the <code>Response</code> class to safely return JSON messages.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_5">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">$response = response(json_encode(['data' =&gt; $input]), 200);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_5">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">$response = response()-&gt;json(['data' =&gt; $input]);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It is also possible to set the content-type header manually using the <code>header</code> method of the <code>Response</code> class.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_6">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">$response = response($input, 200);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_6">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">$response = response($input, 200)-&gt;header('Content-Type', 'text/plain');</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_2">How does this work?</h3>
+<div class="paragraph">
+<p>If the HTTP response is HTML code, it is highly recommended to use a template engine like <a href="https://laravel.com/docs/9.x/blade">Blade</a> to generate it.
+This template engine separates the view from the business logic and automatically encodes the output of variables, drastically reducing the risk of cross-site scripting vulnerabilities.</p>
+</div>
+<div class="paragraph">
+<p>If you do not intend to send HTML code to clients, the vulnerability can be fixed by specifying the type of data returned in the response with the <code>content-type</code> HTTP header.
+This header tells the browser that the response does not contain HTML code and should not be parsed and interpreted as HTML.
+Thus, the response is not vulnerable to reflected cross-site scripting.</p>
+</div>
+<div class="paragraph">
+<p>For example, setting the content-type to <code>text/plain</code> allows to safely reflect user input since browsers will not try to parse and execute the response.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls_2">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_content_types_2">Content-types</h4>
+<div class="paragraph">
+<p>Be aware that there are more content-types than <code>text/html</code> that allow to execute JavaScript code in a browser and thus are prone to cross-site scripting vulnerabilities.<br>
+The following content-types are known to be affected:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>application/mathml+xml</p>
+</li>
+<li>
+<p>application/rdf+xml</p>
+</li>
+<li>
+<p>application/vnd.wap.xhtml+xml</p>
+</li>
+<li>
+<p>application/xhtml+xml</p>
+</li>
+<li>
+<p>application/xml</p>
+</li>
+<li>
+<p>image/svg+xml</p>
+</li>
+<li>
+<p>multipart/x-mixed-replace</p>
+</li>
+<li>
+<p>text/html</p>
+</li>
+<li>
+<p>text/rdf</p>
+</li>
+<li>
+<p>text/xml</p>
+</li>
+<li>
+<p>text/xsl</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile_2">Going the extra mile</h3>
+<div class="sect3">
+<h4 id="_content_security_policy_csp_header_2">Content Security Policy (CSP) Header</h4>
+<div class="paragraph">
+<p>With a defense-in-depth security approach, the <strong>CSP</strong> response header can be
+added to instruct client browsers to <strong>block</strong> loading data that does not meet the
+application&#8217;s security requirements. If configured correctly, this can prevent any attempt
+to exploit XSS in the application.<br>
+<a href="https://web.dev/csp-xss/">Learn more here.</a></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_symfony">How to fix it in Symfony</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to cross-site scripting because it returns an HTML response that contains user input.</p>
+</div>
+<div class="paragraph">
+<p>If you do not intend to send HTML code to clients, the vulnerability can be fixed by specifying the type of data returned in the response.
+For example, you can use the class <code>JsonResponse</code> to return JSON messages safely.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_7">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">use Symfony\Component\HttpFoundation\Response;
+
+$response = new Response();
+$response-&gt;setContent(json_encode(['data' =&gt; $input]));</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_7">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">use Symfony\Component\HttpFoundation\JsonResponse;
+
+$response = new JsonResponse(['data' =&gt; $input]);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It is also possible to set the content-type manually using the <code>headers</code> attribute.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_8">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">use Symfony\Component\HttpFoundation\Response;
+
+$response = new Response();
+$response-&gt;setContent($input);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_8">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-php" data-lang="php">use Symfony\Component\HttpFoundation\Response;
+
+$response = new Response();
+$response-&gt;headers-&gt;set('Content-Type', 'text/plain');
+$response-&gt;setContent($input);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work_3">How does this work?</h3>
+<div class="paragraph">
+<p>If the HTTP response is HTML code, it is highly recommended to use a template engine like <a href="https://twig.symfony.com/">Twig</a> to generate it.
+This template engine separates the view from the business logic and automatically encodes the output of variables, drastically reducing the risk of cross-site scripting vulnerabilities.</p>
+</div>
+<div class="paragraph">
+<p>If you do not intend to send HTML code to clients, the vulnerability can be fixed by specifying the type of data returned in the response with the <code>content-type</code> HTTP header.
+This header tells the browser that the response does not contain HTML code and should not be parsed and interpreted as HTML.
+Thus, the response is not vulnerable to reflected cross-site scripting.</p>
+</div>
+<div class="paragraph">
+<p>For example, setting the content-type to <code>text/plain</code> allows to safely reflect user input since browsers will not try to parse and execute the response.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls_3">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_content_types_3">Content-types</h4>
+<div class="paragraph">
+<p>Be aware that there are more content-types than <code>text/html</code> that allow to execute JavaScript code in a browser and thus are prone to cross-site scripting vulnerabilities.<br>
+The following content-types are known to be affected:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>application/mathml+xml</p>
+</li>
+<li>
+<p>application/rdf+xml</p>
+</li>
+<li>
+<p>application/vnd.wap.xhtml+xml</p>
+</li>
+<li>
+<p>application/xhtml+xml</p>
+</li>
+<li>
+<p>application/xml</p>
+</li>
+<li>
+<p>image/svg+xml</p>
+</li>
+<li>
+<p>multipart/x-mixed-replace</p>
+</li>
+<li>
+<p>text/html</p>
+</li>
+<li>
+<p>text/rdf</p>
+</li>
+<li>
+<p>text/xml</p>
+</li>
+<li>
+<p>text/xsl</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile_3">Going the extra mile</h3>
+<div class="sect3">
+<h4 id="_content_security_policy_csp_header_3">Content Security Policy (CSP) Header</h4>
+<div class="paragraph">
+<p>With a defense-in-depth security approach, the <strong>CSP</strong> response header can be
+added to instruct client browsers to <strong>block</strong> loading data that does not meet the
+application&#8217;s security requirements. If configured correctly, this can prevent any attempt
+to exploit XSS in the application.<br>
+<a href="https://web.dev/csp-xss/">Learn more here.</a></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html">XSS Prevention Cheat Sheet</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>SonarSource - <a href="https://blog.sonarsource.com/wordpress-stored-xss-vulnerability">WordPress 5.8.2 Stored XSS Vulnerability</a></p>
+</li>
+<li>
+<p>SonarSource - <a href="https://blog.sonarsource.com/ghost-admin-takeover">Ghost CMS 4.3.2 - Cross-Origin Admin Takeover</a></p>
+</li>
+<li>
+<p>Samy Kamkar - <a href="https://samy.pl/myspace/">The MySpace Worm</a></p>
+</li>
+<li>
+<p>James Kettle, PortSwigger - <a href="https://portswigger.net/research/web-storage-the-lesser-evil-for-session-tokens">Web Storage: The Lesser Evil for Session Tokens</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_conference_presentations">Conference presentations</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.youtube.com/watch?v=ksq7e6UUDag">DEF CON Safe Mode Red Team Village, Ray Doyle, Weaponized XSS Moving Beyond Alert</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A7_2017-Cross-Site_Scripting_(XSS)">Top 10 2017 Category A7 - Cross-Site Scripting (XSS)</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/79">CWE-79 - Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222602">Application Security and Development: V-222602</a> - The application must protect from Cross-Site Scripting (XSS) vulnerabilities.</p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not reflect unsanitized user-controlled data.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>"[varname]" is tainted (assignments and parameters)</p>
+</div>
+<div class="paragraph">
+<p>this argument is tainted (method invocations)</p>
+</div>
+<div class="paragraph">
+<p>the returned value is tainted (returns &amp; method invocations results)</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_duplicated_by_s2576">is duplicated by: <a data-rspec-id="S2576" class="rspec-auto-link">S2576</a></h3>
+
+</div>
+</div>
+</div>

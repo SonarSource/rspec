@@ -1,0 +1,116 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when Apex triggers perform DML operations that could re-trigger the same trigger, potentially causing infinite loops, governor limit exceptions, or incomplete processing of bulk operations.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Trigger recursion occurs when a trigger performs operations that cause the same trigger to fire again, creating a loop. Without proper prevention mechanisms, this can lead to several serious problems.</p>
+</div>
+<div class="paragraph">
+<p>The most immediate risk is hitting Salesforce governor limits. Recursive triggers can quickly exhaust the 100 SOQL query limit or the 150 DML statement limit in synchronous contexts, causing transactions to fail with <code>System.LimitException</code> errors.</p>
+</div>
+<div class="paragraph">
+<p>Many developers attempt to solve this using static boolean variables as flags. While this approach works for simple scenarios, it has a critical flaw: it fails with bulk operations involving 200 or more records. Salesforce processes large data sets in chunks, and when processing exceeds the platform&#8217;s internal batching thresholds, the static boolean flag prevents subsequent chunks from being processed, leading to incomplete data updates.</p>
+</div>
+<div class="paragraph">
+<p>For example, if you update 300 records and use a simple boolean flag, only the first batch (typically around 200 records) will be processed, while the remaining 100 records will be skipped entirely. This creates data inconsistency and can cause business logic failures.</p>
+</div>
+<div class="paragraph">
+<p>The root cause is that static boolean variables maintain their state across all records in a transaction context, but they don&#8217;t account for Salesforce&#8217;s internal batching mechanisms that split large operations into smaller chunks.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Incomplete data processing in bulk operations can lead to data inconsistency and business logic failures. Governor limit exceptions can cause entire transactions to fail, potentially affecting multiple related records and processes. In production environments, this can result in data integrity issues and system reliability problems.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace simple boolean flags with static Sets that track processed record IDs. This approach works correctly with bulk operations because it tracks individual records rather than using a global flag.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">public class TriggerHandler {
+    public static Boolean isFirstTime = true;
+}
+
+trigger AccountTrigger on Account (after update) {
+    if(TriggerHandler.isFirstTime) {
+        TriggerHandler.isFirstTime = false;
+        // This fails with bulk operations (200+ records)
+        for(Account acc : Trigger.new) {
+            update acc; // Noncompliant
+        }
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">public class TriggerHandler {
+    public static Set&lt;Id&gt; processedRecords = new Set&lt;Id&gt;();
+}
+
+trigger AccountTrigger on Account (after update) {
+    List&lt;Account&gt; accountsToUpdate = new List&lt;Account&gt;();
+    for(Account acc : Trigger.new) {
+        if(!TriggerHandler.processedRecords.contains(acc.Id)) {
+            TriggerHandler.processedRecords.add(acc.Id);
+            accountsToUpdate.add(new Account(Id = acc.Id, Description = 'Updated'));
+        }
+    }
+    if(!accountsToUpdate.isEmpty()) {
+        update accountsToUpdate;
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Apex Triggers Best Practices - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_best_practices.htm">Official Salesforce documentation on trigger best practices including recursion handling</a></p>
+</li>
+<li>
+<p>Trigger and Order of Execution - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_triggers_order_of_execution.htm">Salesforce documentation explaining the order of execution and trigger behavior</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-674: Uncontrolled Recursion - <a href="https://cwe.mitre.org/data/definitions/674.html">Common weakness related to uncontrolled recursion that can lead to resource exhaustion</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

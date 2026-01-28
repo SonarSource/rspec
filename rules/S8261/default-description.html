@@ -1,0 +1,117 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when code checks for file existence and then creates a file in separate operations, creating a race condition vulnerability.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Checking if a file exists and then creating it in separate operations creates a Time-of-Check-Time-of-Use (TOCTOU) race condition. Between the existence check and the file creation, another process or thread might create or delete the file, leading to unexpected behavior.</p>
+</div>
+<div class="paragraph">
+<p>This race condition can cause several problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Security vulnerabilities</strong>: An attacker might create a symbolic link pointing to a sensitive file between the check and creation, causing your program to overwrite important system files.</p>
+</li>
+<li>
+<p><strong>Data corruption</strong>: If multiple processes try to create the same file simultaneously, they might interfere with each other&#8217;s operations.</p>
+</li>
+<li>
+<p><strong>Unpredictable behavior</strong>: Your program might fail unexpectedly when the file system state changes between operations.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The root cause is that file system operations are not atomic by default. The gap between checking and acting gives other processes an opportunity to modify the file system state.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Race conditions in file operations can lead to security vulnerabilities where attackers exploit the timing gap to redirect file operations to unintended locations. This can result in unauthorized file access, data corruption, or system compromise. In multi-threaded or multi-process environments, these issues can cause unpredictable application behavior and data integrity problems.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use <code>os.OpenFile</code> with the <code>O_CREATE|O_EXCL</code> flags to atomically create a file only if it doesn&#8217;t exist. This eliminates the race condition by combining the existence check and file creation into a single atomic operation.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">// Check if file exists first, then create - this creates a race condition
+if _, err := os.Stat(filename); os.IsNotExist(err) {
+    file, err := os.Create(filename) // Noncompliant
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    // write to file
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">// Atomically create file only if it doesn't exist
+file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+if err != nil {
+    if os.IsExist(err) {
+        // File already exists, handle accordingly
+        return fmt.Errorf("file already exists: %s", filename)
+    }
+    return err
+}
+defer file.Close()
+// write to file</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go os.OpenFile documentation - <a href="https://pkg.go.dev/os#OpenFile">Official documentation for os.OpenFile function and file creation flags</a></p>
+</li>
+<li>
+<p>Go file operations best practices - <a href="https://go.dev/doc/effective_go#files">Effective Go guide on proper file handling</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-367: Time-of-check Time-of-use (TOCTOU) Race Condition - <a href="https://cwe.mitre.org/data/definitions/367.html">Common weakness enumeration for TOCTOU race conditions</a></p>
+</li>
+<li>
+<p>OWASP Top 10:2021-A04-Insecure Design - <a href="https://owasp.org/Top10/A04_2021-Insecure_Design/">OWASP guidance on secure design patterns including race condition prevention</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

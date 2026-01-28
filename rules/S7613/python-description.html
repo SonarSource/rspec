@@ -1,0 +1,177 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when AWS Lambda handlers return values that are not JSON serializable.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For synchronous AWS Lambda invocations, like via API Gateway or direct SDK calls, the value returned by the handler is automatically serialized into a JSON string before being sent back in the response. If the return value contains objects that are not native JSON types like <code>datetime</code> objects, sets, or custom class instances, the serialization will fail, causing a <code>TypeError</code>. This will prevent the Lambda from returning a valid response to the client.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Convert non-JSON-serializable objects to their string representation or to JSON-serializable types before returning them:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For <code>datetime</code> objects: Convert to ISO format strings using <code>.isoformat()</code></p>
+</li>
+<li>
+<p>For sets: Convert to lists using <code>list(set_object)</code></p>
+</li>
+<li>
+<p>For custom objects: convert them to dictionaries using the <code>__dict__</code> field, <code>dataclasses.asdict(&#8230;&#8203;)</code> for dataclasses or a custom <code>todict()</code> method.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>See the following examples for more details on how to handle custom classes:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import json
+import dataclasses
+
+# A custom class representing a user
+@dataclasses.dataclass
+class User:
+    name: str
+    age: int
+
+    def to_dict(self) -&gt; dict:
+        return { "name": self.name, "age": self.age }
+
+user = User("Alice", 30)
+
+# Method 1: Using __dict__ field
+json.dumps(user.__dict__)
+
+# Method 2: Using dataclasses.asdict()
+json.dumps(dataclasses.asdict(user))
+
+# Method 3: Using custom to_dict() method
+json.dumps(user.to_dict())</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import datetime
+
+def lambda_handler(event, context):
+    return {
+        "message": "Request processed successfully",
+        "timestamp": datetime.datetime.now()  # Noncompliant: not JSON serializable
+    }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import datetime
+
+def lambda_handler(event, context):
+    return {
+        "message": "Request processed successfully",
+        "timestamp": datetime.datetime.now().isoformat()  # Compliant: converted to string
+    }</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>AWS Documentation - <a href="https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html#python-handler-return">Define Lambda function handler in Python
+</a></p>
+</li>
+<li>
+<p>Python Documentation - <a href="https://docs.python.org/3/library/json.html">json — JSON encoder and decoder</a></p>
+</li>
+<li>
+<p>Python Documentation - <a href="https://docs.python.org/3/reference/datamodel.html#object.<em>dict</em>">object.__dict__ field</a></p>
+</li>
+<li>
+<p>Python Documentation - <a href="https://docs.python.org/3/library/datetime.html#datetime.date.isoformat">datetime.date.isoformat()</a></p>
+</li>
+<li>
+<p>Python Documentation - <a href="https://docs.python.org/3/library/dataclasses.html#dataclasses.asdict">dateclasses.asdict()</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>visible only on this page</p>
+</div>
+<div class="paragraph">
+<p>The implementation should check for these common non-serializable types:
+* <code>datetime.datetime</code>, <code>datetime.date</code>, <code>datetime.time</code>
+* <code>set</code>, <code>frozenset</code>
+* <code>bytes</code>, <code>bytearray</code>
+* <code>complex</code> numbers
+* Custom class instances without proper serialization methods
+* <code>decimal.Decimal</code> objects
+* File objects
+* Functions and methods
+* Module objects
+* <code>re.Pattern</code> objects</p>
+</div>
+<div class="paragraph">
+<p>Since business logic and the handler should be separated, it is possible that the lambda handler as the last statement class a function and returns its result. If this is detect, it might be worth also checking the return type of the function.</p>
+</div>
+<div class="paragraph">
+<p>Furthermore, it is common that the lambda handler has early returns which return a different JSON in case an error occurs. In this case, the rule should also check the return type of the handler in all branches.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">def process_event(event):
+    if not event.get("valid"):
+        return {"error": "Invalid event"}
+
+    result = {"status": "success", "data": event["data"]}
+    return result
+
+def lambda_handler(event, context):
+    return process_event(event)</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Fix the return value to be JSON serializable.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>The non-serializable value or object in the return statement.</p>
+</div>
+</div>
+</div>
+</div>

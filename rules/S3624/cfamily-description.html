@@ -1,0 +1,347 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a class cannot follow the Rule of Zero, its special members should follow one of a few logical patterns.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Most classes should not directly handle resources, but instead, use member variables of a type that wraps individual resources and do resource handling for them:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For memory, it can be <code>std::unique_ptr</code>, <code>std::shared_ptr</code>, <code>std::vector</code>&#8230;&#8203;</p>
+</li>
+<li>
+<p>For files, it can be <code>std::ofstream</code>, <code>std::ifstream</code>&#8230;&#8203;</p>
+</li>
+<li>
+<p>&#8230;&#8203;</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Classes that avoid directly handling resources don&#8217;t need to define any of the special member functions required to properly handle resources: destructor, copy constructor, move constructor, copy assignment operator, and move assignment operator. That&#8217;s because the versions of those functions provided by the compiler do the right thing automatically, which is especially useful because writing these functions correctly is typically tricky and error-prone.</p>
+</div>
+<div class="paragraph">
+<p>Omitting all of these functions from a class is known as the Rule of Zero because no special function should be defined. This rule should apply to the vast majority of classes.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Compliant: vector and unique_ptr handle the resources for us
+//            we don't need to declare any special member function
+class RuleOfZero {
+public:
+  void useResource();
+  void addValue(Value const&amp; value);
+  Value getValueAtIndex(int index);
+private:
+  std::unique_ptr&lt;Resource&gt; resource = std::make_unique&lt;Resource&gt;();
+  std::vector&lt;Value&gt; values;
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The remaining classes that cannot use the Rule of Zero should be dedicated to managing a specific kind of resource and should follow a few logical rules:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Copy operations only make sense when the corresponding move operations are available. That is because move operations are optimized copy operations allowed to steal resources from the source (the source is an r-value). At worst, copying is a valid implementation of move operations.</p>
+</li>
+<li>
+<p>Copy and move assignment operators only make sense when the corresponding constructor is available.</p>
+</li>
+<li>
+<p>If you need to customize one of the special member functions, it means that you directly handle resources and the other special member functions probably have a role to play in this resource management. Using <code>= default</code> only performs memberwise operations.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>From these rules, we can describe three categories among which all classes should fall into.</p>
+</div>
+<div class="sect2">
+<h3 id="_copyable_classes">Copyable classes</h3>
+<div class="paragraph">
+<p>Like most simple classes, these classes can be copied and moved.</p>
+</div>
+<div class="sect3">
+<h4 id="_special_member_functions_for_copyable_classes">Special member functions for copyable classes</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Copy construction and move construction should both be available.</p>
+</li>
+<li>
+<p>Either copy assignment and move assignment are both available, or neither is.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_providing_custom_special_member_functions_for_copyable_classes">Providing custom special member functions for copyable classes</h4>
+<div class="paragraph">
+<p>If at least one special function needs to be customized, then:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>You need to provide a custom destructor and a custom copy constructor.</p>
+</li>
+<li>
+<p>The copy assignment needs to be either deleted or customized.</p>
+</li>
+<li>
+<p>If you can optimize the move construction, compared to the copy, you should provide a custom move constructor. Otherwise, you should just omit the move constructor.</p>
+</li>
+<li>
+<p>If the copy assignment is deleted, you need to delete the move assignment.</p>
+</li>
+<li>
+<p>If the copy assignment is customized, you need to provide a move assignment if you can optimize the move operation, compared to the copy. Otherwise, you should just omit the move assignment operator.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_examples_of_copyable_classes">Examples of copyable classes</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Compliant, no copy assignment operator. Move construction will call the copy constructor.
+class CountedCopyable {
+  inline static int count = 0;
+public:
+  CountedCopyable() { count++; }
+  ~CountedCopyable() { count--; }
+  CountedCopyable(CountedCopyable const&amp;) {count ++;}
+  CountedCopyable&amp; operator=(CountedCopyable const&amp;) = delete;
+};
+
+// Compliant, all members are declared
+class VerboseCopyable {
+public:
+  VerboseCopyable() { std::cout &lt;&lt; "Constructor called\n"; }
+  ~VerboseCopyable() { std::cout &lt;&lt; "Destructor called\n"; }
+  VerboseCopyable(VerboseCopyable const&amp;) { std::cout &lt;&lt; "Copy constructor called\n"; }
+  VerboseCopyable&amp; operator=(VerboseCopyable const&amp;)  { std::cout &lt;&lt; "Copy assignment operator called\n"; }
+  VerboseCopyable(VerboseCopyable &amp;&amp;) { std::cout &lt;&lt; "Move constructor called\n"; }
+  VerboseCopyable&amp; operator=(VerboseCopyable &amp;&amp;)  { std::cout &lt;&lt; "Move assignment operator called\n"; }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_move_only_classes">Move-only classes</h3>
+<div class="paragraph">
+<p>These are classes that cannot be copied but can be moved. For example, a class handling a resource that cannot be shared (<code>std::ofstream</code> manages an open file handle) or a class whose objects can be very costly to create.</p>
+</div>
+<div class="sect3">
+<h4 id="_special_member_functions_for_move_only_classes">Special member functions for move-only classes</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Move construction is available.</p>
+</li>
+<li>
+<p>Copy construction and copy assignment are not available.</p>
+</li>
+<li>
+<p>Move assignment may be available or not.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_providing_custom_special_member_functions_for_move_only_classes">Providing custom special member functions for move-only classes</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>You need to provide a custom destructor and a custom move constructor.</p>
+</li>
+<li>
+<p>The move assignment should be either deleted or customized.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_examples_of_move_only_classes">Examples of move-only classes</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Compliant, the move assignment operator is implicitly deleted.
+class MoveOnlyResourceHandler {
+  Resource resource;
+public:
+  MoveOnlyResourceHandler() { resource.open(); }
+  ~MoveOnlyResourceHandler() { resource.close(); }
+  MoveOnlyResourceHandler(MoveOnlyResourceHandler const&amp; other) { std::swap(other.resource, resource); }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_unmovable_classes">Unmovable classes</h3>
+<div class="paragraph">
+<p>These are classes that cannot be copied, nor moved. They cannot escape their current scope.</p>
+</div>
+<div class="sect3">
+<h4 id="_special_member_functions_for_unmovable_classes">Special member functions for unmovable classes</h4>
+<div class="paragraph">
+<p>All copy and move operations are deleted.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_examples_of_unmovable_classes">Examples of unmovable classes</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Compliant, deleting the move assignment operator implicitly deletes all implicit special member functions
+class UnmovableResource {
+  Resource resource;
+public:
+  UnmovableResource() { resource.open(); }
+  ~UnmovableResource() { resource.close(); }
+  UnmovableResource&amp; operator=(UnmovableResource&amp;&amp;) = delete;
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/raii">RAII</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>MISRA C&#43;&#43;23 15.0.1 - "Special member functions" shall be provided appropriately</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c20-if-you-can-avoid-defining-default-operations-do">C.20: If you can avoid defining default operations, do</a></p>
+</li>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c21-if-you-define-or-delete-any-copy-move-or-destructor-function-define-or-delete-them-all">C.21: If you define or <code>=delete</code> any copy</a></p>
+</li>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c22-make-default-operations-consistent">C.22: Make default operations consistent</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_duplicated_by_s1234">is duplicated by: <a data-rspec-id="S1234" class="rspec-auto-link">S1234</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s4963">relates to: <a data-rspec-id="S4963" class="rspec-auto-link">S4963</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_1_jun_2016_172931_ann_campbell_wrote">on 1 Jun 2016, 17:29:31 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~alban.auzeill], you mentioned in our discussion something about not raising false positives when the move constructor and move assignment operator are missing. I didn&#8217;t really get the details of that, so it&#8217;s not included here and we&#8217;ll probably need to add it. Feel free to stub the details in or add them in a comment.</p>
+</div>
+<div class="paragraph">
+<p>Also, I&#8217;ve changed the code samples from IntPointers to FooPointers &amp; added a second compliant solution, which you&#8217;ll probably want to take a look at.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_jun_2016_174006_ann_campbell_wrote">on 8 Jun 2016, 17:40:06 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>I&#8217;ve made some edits [~alban.auzeill]. Take a look, please.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_aug_2016_180528_ann_campbell_wrote">on 15 Aug 2016, 18:05:28 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~alban.auzeill] this description is extremely long, and I&#8217;d like to shorten it by removing some or all of the C&#43;&#43; 98 and C&#43;&#43; 11 history. Given that you&#8217;ll have final approval, do you mind if I go ahead?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_6_nov_2018_175754_ann_campbell_wrote">on 6 Nov 2018, 17:57:54 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~loic.joly] I find this contradictory</p>
+</div>
+<div class="paragraph">
+<p><em>__</em> &#8230;&#8203; If you cannot find a way to implement them more efficiently than the copy operations, you can just leave them out.</p>
+</div>
+<div class="paragraph">
+<p>Those operations work together, and letting the compiler automatically generate some of them, but not all, means that when one of those functions is called, the integrity of the resource will probably be compromised____</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_6_nov_2018_181353_loïc_joly_wrote">on 6 Nov 2018, 18:13:53 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] It&#8217;s not really contradictory, because as soon as a copy constructor is written by the user, it disables the automatic generation of the move constructor, so we&#8217;re not letting the compiler do anything. But I see your point, it&#8217;s confusing&#8230;&#8203;</p>
+</div>
+<div class="paragraph">
+<p>With that additional information, do you have a counter proposal that is not adding too much text to this already long description?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_nov_2018_151457_amélie_renard_wrote">on 22 Nov 2018, 15:14:57 Amélie Renard wrote:</h3>
+<div class="paragraph">
+<p>Cases which could need an explanation :</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Destructor is defined in order to check that the object can really be destroyed (use of assert())
+ex : https://peach.sonarsource.com/project/issues?id=c-family%3Aclang&amp;issues=AWczye3UUxytsEdVyqlH&amp;open=AWczye3UUxytsEdVyqlH</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>(bad example because the class has a reference attribute - but the idea is there)</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Copy constructor and copy assignment operator are defined to keep a counter (or something like that)</p>
+</li>
+<li>
+<p>An attribute is a unique_ptr. So the user defines the copy constructor and the copy assignment operator to copy what is inside the unique_ptr. But there is no need of a destructor as the unique_ptr takes care of it.
+ex : https://peach.sonarsource.com/project/issues?id=c-family%3Aclang&amp;issues=AWczyhmIUxytsEdVyqnR&amp;open=AWczyhmIUxytsEdVyqnR</p>
+</li>
+<li>
+<p>Class which defines the copy constructor and/or copy assignment operator when it does not need to. This class should apply the "Rule-of-Zero".</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

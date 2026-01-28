@@ -1,0 +1,134 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when creating unbuffered channels that multiple goroutines will send to, especially when not all sends are guaranteed to have immediate receivers.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Unbuffered channels require both a sender and receiver to be ready at the same time for communication to occur. When multiple goroutines send to an unbuffered channel without guaranteed receivers, some goroutines may block indefinitely on channel writes.</p>
+</div>
+<div class="paragraph">
+<p>This blocking prevents goroutines from completing their execution and being garbage collected. Since blocked goroutines hold references to the channel, the channel itself cannot be garbage collected either. Over time, this leads to goroutine leaks and memory consumption that grows without bounds.</p>
+</div>
+<div class="paragraph">
+<p>The problem is particularly common in patterns where:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Multiple goroutines are launched to perform work concurrently</p>
+</li>
+<li>
+<p>Results are sent back through a shared channel</p>
+</li>
+<li>
+<p>The main goroutine may return early (e.g., on first error) without reading all results</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In such scenarios, remaining goroutines will hang forever trying to send their results to a channel that no longer has receivers.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Goroutine leaks can cause serious memory issues in long-running applications. Each leaked goroutine consumes memory for its stack (typically 2KB initially, but can grow). In applications that repeatedly create such patterns, hundreds or thousands of goroutines may accumulate, leading to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Increased memory usage that never decreases</p>
+</li>
+<li>
+<p>Potential out-of-memory errors</p>
+</li>
+<li>
+<p>Degraded application performance</p>
+</li>
+<li>
+<p>Resource exhaustion in containerized environments</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Buffer the channel with capacity equal to the number of goroutines that will send to it. This ensures all sends can complete without blocking, allowing goroutines to finish and be garbage collected.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func Query(conns []Conn, query string) Result {
+    ch := make(chan Result) // Noncompliant
+    for _, conn := range conns {
+        go func(c Conn) {
+            ch &lt;- c.DoQuery(query) // may block if no receiver ready
+        }(conn)
+    }
+    return &lt;-ch
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func Query(conns []Conn, query string) Result {
+    ch := make(chan Result, len(conns)) // buffered channel
+    for _, conn := range conns {
+        go func(c Conn) {
+            ch &lt;- c.DoQuery(query) // won't block
+        }(conn)
+    }
+    return &lt;-ch
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go Blog: Concurrency Patterns - <a href="https://go.dev/blog/go-concurrency-patterns-timing-out-and">Official Go blog post explaining channel buffering patterns and goroutine management</a></p>
+</li>
+<li>
+<p>Effective Go: Channels - <a href="https://go.dev/doc/effective_go#channels">Official documentation on proper channel usage in Go</a></p>
+</li>
+<li>
+<p>Go Memory Model - <a href="https://go.dev/ref/mem">Specification of Go&#8217;s memory model and channel synchronization guarantees</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-401: Missing Release of Memory after Effective Lifetime - <a href="https://cwe.mitre.org/data/definitions/401.html">Covers memory leaks caused by unreleased resources, including goroutine leaks</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

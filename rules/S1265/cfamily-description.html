@@ -1,0 +1,264 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>operator new</code> allocates memory for objects, and the <code>operator delete</code> frees the memory allocated by the matching <code>operator new</code>. It is possible to customize these operations, either for a specific class (by overloading these operators in the class) or globally (by defining them in the global namespace, they will replace the default version).</p>
+</div>
+<div class="paragraph">
+<p>If the <code>operator delete</code> is not overloaded alongside the <code>operator new</code>, the program will call its default implementation, which may not be suitable for the custom memory allocation strategy used by the overloaded <code>operator new</code>.</p>
+</div>
+<div class="paragraph">
+<p>For instance, if the <code>operator new</code> draws memory from a preallocated buffer instead of allocating memory, the <code>operator delete</code> should not call the <code>free</code> function to release the memory. Reciprocally, if the <code>operator new</code> allocate memory with <code>malloc</code>, the <code>operator delete</code> must call <code>free</code>.</p>
+</div>
+<div class="paragraph">
+<p>On the other hand, if the <code>operator delete</code> is overloaded without overloading the <code>operator new</code>, it is suspicious because it may not correctly release the memory allocated by the default <code>operator new</code>.</p>
+</div>
+<div class="paragraph">
+<p>By defining the <code>operator delete</code> along with the <code>operator new</code>, the memory is deallocated in a way consistent with the custom allocation strategy used by the <code>operator new</code>.</p>
+</div>
+<div class="paragraph">
+<p>Up to this point, we mentioned <code>operator new</code> and <code>operator delete</code>, but it is a simplification. There are many different forms of <a href="https://en.cppreference.com/w/cpp/memory/new/operator_new"><code>operator new</code></a> and <a href="https://en.cppreference.com/w/cpp/memory/new/operator_delete"><code>operator delete</code></a> (for a single object or an array, with an extra alignment parameter&#8230;&#8203; see the links for a full list), and the consistency between new and delete should be enforced for each form.</p>
+</div>
+<div class="paragraph">
+<p>For instance, if <code>void * operator new[]( std::size_t count, std::align_val_t al );</code> is defined (for arrays, with extra alignment), then <code>void operator delete[]( void* ptr, std::align_val_t al ) noexcept;</code> should be defined too.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, it is possible to define a version of the delete operator with an additional size argument, alongside the unsized version of <code>operator delete</code>. When overloading these operators in a class, defining both a sized and an unsized version of operator delete is useless, since the unsized version will always be preferred. However, for free replacement (introduced in C&#43;&#43;14), it is necessary to specify both versions since the language does not specify which version will be called.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Overloading only one of the two operators may result in your program consuming more and more memory over time, eventually leading to a crash.</p>
+</div>
+<div class="paragraph">
+<p>Deallocating memory that was not allocated with the corresponding strategy results in undefined behavior.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Each overload of the <code>operator new</code> should have a matching overload <code>operator delete</code> and vice versa. Within a class, define only a sized or an unsized version of <code>operator delete</code>, but as a free function (availalble since C&#43;&#43;14), define both.</p>
+</div>
+<div class="sect2">
+<h3 id="_example_with_overloaded_operators_in_a_class">Example with overloaded operators in a class</h3>
+<div class="paragraph">
+<p>Imagine a custom allocator <code>MyAllocator</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class MyAllocator {
+public:
+    void* allocate(size_t size) {
+        void* p = malloc(size);
+        if (!p) {
+            throw std::bad_alloc();
+        }
+        return p;
+    }
+
+    void deallocate(void* p) {
+        free(p);
+    }
+};</code></pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class MyClass {
+public:
+    // Noncompliant: there is no matching overload of the delete operator
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+private:
+    static MyAllocator allocator;
+};
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call the default implementation of the operator delete
+    // which will not call the MyAllocator::deallocate function to correctly release the memory
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class MyClass {
+public:
+    void* operator new(size_t size) {
+        return allocator.allocate(size);
+    }
+
+    void operator delete(void* p) noexcept {
+        allocator.deallocate(p);
+    }
+
+private:
+    static MyAllocator allocator;
+};
+
+void f() {
+    MyClass* obj = new MyClass();
+    delete obj; // It will call MyClass::delete to correctly deallocate the memory
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_example_with_replacement_of_global_allocators">Example with replacement of global allocators</h3>
+<div class="paragraph">
+<p>In the following example, the intent is to replace allocation functions with system-specific variants.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Noncompliant: The sized version of delete is not replaced
+
+void* operator new(std::size_t count) {
+    return SystemSpecificNew(count);
+}
+
+void operator delete(void* ptr ) noexcept {
+    return SystemSpecificDelete(ptr);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void* operator new(std::size_t count) {
+    return SystemSpecificNew(count);
+}
+
+void operator delete(void* ptr) noexcept {
+    return SystemSpecificDelete(ptr);
+}
+
+// Compliant: Even if it does exactly the same as the unsized version, this sized
+// version of delete replaces the default-provided one that probably deallocates
+// memory in a different and incompatible way.
+void operator delete(void* ptr, std::size_t) noexcept {
+    return SystemSpecificDelete(ptr);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/new/operator_new"><code>operator new</code>, <code>operator new[]</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/memory/new/operator_delete"><code>operator delete</code>, <code>operator delete[]</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/x/KX0-BQ">DCL54-CPP. Overload allocation and deallocation functions as a pair in the same scope</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#r15-always-overload-matched-allocationdeallocation-pairs">R.15: Always overload matched allocation/deallocation pairs</a></p>
+</li>
+<li>
+<p>MISRA C&#43;&#43;:2023, 21.6.4 - If a project defines either a sized or unsized version of a global
+operator delete, then both shall be defined</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S1232" class="rspec-auto-link">S1232</a> - Appropriate memory de-allocation should be used</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Add an "operator delete" to this class.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_26_may_2015_182621_evgeny_mandrikov_wrote">on 26 May 2015, 18:26:21 Evgeny Mandrikov wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] word "class" looks strange for me after "operator delete" in description. Is it a typo or just bad knowledge of english by me?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_may_2015_140728_ann_campbell_wrote">on 27 May 2015, 14:07:28 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>It&#8217;s not your English [~evgeny.mandrikov], it&#8217;s mine. ;)</p>
+</div>
+<div class="paragraph">
+<p>Check it now.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_27_may_2015_144446_evgeny_mandrikov_wrote">on 27 May 2015, 14:44:46 Evgeny Mandrikov wrote:</h3>
+<div class="paragraph">
+<p>LGTM.</p>
+</div>
+</div>
+</div>
+</div>

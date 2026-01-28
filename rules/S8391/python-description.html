@@ -1,0 +1,219 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when a FastAPI application retrieves client IP addresses from proxy headers (such as <code>X-Forwarded-For</code> or <code>X-Real-IP</code>) without proper validation, especially when these IPs are used for security decisions like access control or rate limiting.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a FastAPI application runs behind a reverse proxy (like nginx, Apache, or a cloud load balancer), the direct client connection comes from the proxy server, not the end user. To identify the real client, proxies add headers like <code>X-Forwarded-For</code> or <code>X-Real-IP</code> containing the original client&#8217;s IP address.</p>
+</div>
+<div class="paragraph">
+<p>The problem is that HTTP headers can be easily manipulated by anyone making a request. If your application directly reads these headers without validation, an attacker can simply add their own <code>X-Forwarded-For</code> header with any IP address they choose.</p>
+</div>
+<div class="paragraph">
+<p>For example, an attacker could:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Bypass IP-based access controls by claiming to come from an allowed IP address</p>
+</li>
+<li>
+<p>Evade rate limiting by changing their apparent IP with each request</p>
+</li>
+<li>
+<p>Circumvent geographic restrictions by spoofing an IP from an allowed region</p>
+</li>
+<li>
+<p>Pollute audit logs and analytics with false IP information</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The solution requires two components:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>Proxy configuration</strong>: The proxy must be configured to set or overwrite forwarding headers, preventing clients from injecting their own values</p>
+</li>
+<li>
+<p><strong>Application configuration</strong>: The application must be configured to only trust forwarding headers from known, trusted proxy IP addresses</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Without both pieces in place, the application cannot distinguish between legitimate headers added by your proxy and malicious headers added by an attacker.</p>
+</div>
+<div class="paragraph">
+<p>It&#8217;s important to note that enabling proxy header processing when your application is <strong>not</strong> behind a proxy creates a security vulnerability, as it would trust headers that come directly from untrusted clients.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When proxy headers are not properly validated, attackers can completely bypass IP-based security controls:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Access control bypass</strong>: Attackers can impersonate allowed IP addresses to gain unauthorized access to restricted endpoints or administrative functions</p>
+</li>
+<li>
+<p><strong>Rate limiting evasion</strong>: By changing their apparent IP address with each request, attackers can bypass rate limits and perform denial-of-service attacks or brute-force attempts</p>
+</li>
+<li>
+<p><strong>Geographic restriction bypass</strong>: Applications that restrict access based on geographic location can be circumvented by spoofing IP addresses from allowed regions</p>
+</li>
+<li>
+<p><strong>Audit trail corruption</strong>: Security logs and analytics become unreliable when they contain spoofed IP addresses, making it difficult to investigate incidents or identify attack patterns</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_fastapi">How to fix it in FastAPI</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Configure uvicorn to validate proxy headers by using the <code>--proxy-headers</code> flag along with <code>--forwarded-allow-ips</code> to specify trusted proxy IP addresses. Then use <code>request.client.host</code> to access the validated client IP.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.post('/api/endpoint')
+async def endpoint(request: Request):
+    # Directly reading proxy headers without validation
+    x_forwarded_for = request.headers.get('x-forwarded-for')
+    client_ip = x_forwarded_for.split(',')[0] if x_forwarded_for else request.client.host  # Noncompliant
+
+    # Using unvalidated IP for security decisions
+    if client_ip in blocked_ips:
+        raise HTTPException(status_code=403)
+
+    return {'client_ip': client_ip}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python"># Start uvicorn with proper proxy header validation:
+# uvicorn main:app --proxy-headers --forwarded-allow-ips='10.0.0.1,10.0.0.2'
+# Or in production, allow your proxy subnet:
+# uvicorn main:app --proxy-headers --forwarded-allow-ips='10.0.0.0/24'
+
+@app.post('/api/endpoint')
+async def endpoint(request: Request):
+    # With --proxy-headers enabled, request.client.host contains
+    # the validated client IP from trusted proxy headers
+    client_ip = request.client.host
+
+    # Now safe to use for security decisions
+    if client_ip in blocked_ips:
+        raise HTTPException(status_code=403)
+
+    return {'client_ip': client_ip}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you need programmatic configuration instead of command-line flags, configure uvicorn in your Python code with the appropriate proxy settings.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import uvicorn
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+@app.get('/info')
+async def info(request: Request):
+    # Reading headers directly without proxy validation
+    forwarded = request.headers.get('x-forwarded-for', '')  # Noncompliant
+    client_ip = forwarded.split(',')[0] if forwarded else request.client.host
+    return {'ip': client_ip}
+
+if __name__ == '__main__':
+    # No proxy header configuration
+    uvicorn.run(app, host='0.0.0.0', port=8000)</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import uvicorn
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+@app.get('/info')
+async def info(request: Request):
+    # With proxy headers configured, this is validated
+    client_ip = request.client.host
+    return {'ip': client_ip}
+
+if __name__ == '__main__':
+    uvicorn.run(
+        app,
+        host='0.0.0.0',
+        port=8000,
+        proxy_headers=True,
+        forwarded_allow_ips='10.0.0.1,10.0.0.2'  # Your trusted proxy IPs
+    )</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Uvicorn - Deployment - Running behind a proxy - <a href="https://www.uvicorn.org/deployment/#running-behind-nginx">Official uvicorn documentation on configuring proxy headers and trusted proxy IPs</a></p>
+</li>
+<li>
+<p>FastAPI - Advanced User Guide - Behind a Proxy - <a href="https://fastapi.tiangolo.com/advanced/behind-a-proxy/">FastAPI documentation explaining how to handle applications behind proxies</a></p>
+</li>
+<li>
+<p>Starlette - Request documentation - <a href="https://www.starlette.io/requests/">Documentation for Starlette&#8217;s Request object, which FastAPI uses</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE 345 - <a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a></p>
+</li>
+<li>
+<p>CWE 807 - <a href="https://cwe.mitre.org/data/definitions/807.html">CWE-807: Reliance on Untrusted Inputs in a Security Decision</a></p>
+</li>
+<li>
+<p>OWASP Top 10 2021 A01 - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">A01:2021 - Broken Access Control</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

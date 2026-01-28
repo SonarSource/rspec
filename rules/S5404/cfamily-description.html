@@ -1,0 +1,134 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A <code>condition variable</code> is a synchronization primitive that can be used to block a thread, or multiple threads at the same time, until another thread both modifies a shared variable (the <em>condition</em>), and notifies the <code>condition variable</code>.</p>
+</div>
+<div class="paragraph">
+<p>Waiting for a <code>condition variable</code> without a <em>condition</em> can lead to spurious wake-ups or to wait forever.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+#include &lt;thread&gt;
+#include &lt;condition_variable&gt;
+
+std::mutex mutex;
+std::condition_variable condVar;
+
+void consumer() {
+  std::cout &lt;&lt; "Waiting for work" &lt;&lt; std::endl;
+  std::unique_lock&lt;std::mutex&gt; lck(mutex);
+  condVar.wait(lck); // noncompliant: can wait forever as the order between t1 and t2 is not guaranteed
+  std::cout &lt;&lt; "Doing some work" &lt;&lt; std::endl;
+}
+
+void producer() {
+  std::cout &lt;&lt; "Work submited" &lt;&lt; std::endl;
+  condVar.notify_one(); // this can be executed before or after the wait in consumer, no guarantee
+}
+
+int main() {
+  std::thread t1(consumer);
+  std::thread t2(producer);
+
+  t1.join();
+  t2.join();
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;iostream&gt;
+#include &lt;thread&gt;
+#include &lt;condition_variable&gt;
+
+std::mutex mutex;
+std::condition_variable condVar;
+
+bool pendingWork{false};
+
+void consumer() {
+  std::cout &lt;&lt; "Waiting for work" &lt;&lt; std::endl;
+  std::unique_lock&lt;std::mutex&gt; lck(mutex);
+  condVar.wait(lck, []{ return pendingWork; }); // compliant: if this is called after producer in t2, the call will not block thanks to the condition
+  std::cout &lt;&lt; "Doing some work" &lt;&lt; std::endl;
+}
+
+void producer() {
+  {
+    std::lock_guard&lt;std::mutex&gt; lck(mutex);
+    pendingWork = true;
+  }
+  std::cout &lt;&lt; "Work submitted" &lt;&lt; std::endl;
+  condVar.notify_one();
+}
+
+int main(){
+  std::thread t1(consumer);
+  std::thread t2(producer);
+
+  t1.join();
+  t2.join();
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.modernescpp.com/index.php/c-core-guidelines-be-aware-of-the-traps-of-condition-variables">The traps of condition variables</a></p>
+</li>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#cp42-dont-wait-without-a-condition">CP.42: Don&#8217;t <code>wait</code> without a condition</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Add a condition argument to this call to "wait".</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_21_oct_2019_194628_loïc_joly_wrote">on 21 Oct 2019, 19:46:28 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>The compliant example is not a modified version of the non-compliant one, but an unrelated one. Can you change it so that they match?</p>
+</div>
+</div>
+</div>
+</div>

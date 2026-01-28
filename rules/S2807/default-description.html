@@ -1,0 +1,616 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises issues for overloaded binary mathematical and relational operators that are not declared as hidden friends.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When overloading binary or relational operators, it is recommended that they be declared hidden friends of the class.</p>
+</div>
+<div class="sect2">
+<h3 id="_the_hidden_friend_pattern">The hidden friend pattern</h3>
+<div class="paragraph">
+<p>The hidden friend pattern consists of declaring and defining a function directly as a friend inside the class body. This reduces the function&#8217;s visibility to argument-dependent lookup only. Approximately, such a function is considered only when called on an object of the enclosing class.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct MyClass {
+  friend void function(MyClass const&amp; arg) { // This function is a hidden friend of MyClass
+    ...
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_benefits_of_hidden_friends">Benefits of hidden friends</h3>
+<div class="paragraph">
+<p>Using hidden friends provides the following benefits:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>in contrast to the member function, it allows conversion to be applied to both operands</p>
+</li>
+<li>
+<p>in contrast to free functions, it is considered only if one of the operands is an object of the given class</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rule raises issues for these overloaded binary operators:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>mathematical operators: <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code>, <code>^</code>, <code>&amp;</code>, <code>|</code>, <code>&lt;&lt;</code>, <code>&gt;&gt;</code></p>
+</li>
+<li>
+<p>until C&#43;&#43;20, all relational operators: <code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></p>
+</li>
+<li>
+<p>since C&#43;&#43;20, non-members key relational operators: <code>==</code>, <code>&lt;=&gt;</code></p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct MyClass {
+  MyClass operator+(const MyClass&amp; rhs) // Noncompliant
+  { /* ... */ }
+};
+
+bool operator==(const MyClass &amp;lhs, const MyClass&amp; rhs) // Noncompliant
+{ /* ... */ }</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_why_are_hidden_friends_preferred_over_free_functions">Why are hidden friends preferred over free functions?</h3>
+<div class="paragraph">
+<p>The overloaded operators that are declared as hidden friends are found only by argument-dependent lookup (ADL) for a given class.
+Roughly, this means that the hidden friend of class <code>C</code> is considered a candidate
+only if one of the arguments of the call is an object of type <code>C</code> or one derived from it.
+In contrast, a free function is considered for any class declared in the same namespace.</p>
+</div>
+<div class="paragraph">
+<p>For illustration, let&#8217;s consider the following example which defines <code>operator/</code> as a free function.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">namespace lib {
+  class Path {
+  public:
+    Path(char const*);
+    Path(std::string_view);
+    Path&amp; operator/=(Path const&amp;);
+  };
+
+  Path operator/(Path const&amp; lhs, Path const&amp; rhs) {
+    auto result = lhs;
+    result /= rhs;
+    return result;
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>operator/</code> will be considered as a candidate for any call <code>a / b</code>
+when either <code>a</code> or <code>b</code> are of a type declared in the namespace <code>lib</code>.
+This not only makes compilation slower but also lists the function as a candidate in case of a compilation error,
+making such a message less readable.</p>
+</div>
+<div class="paragraph">
+<p>Furthermore, when such an operator is visible via normal lookup, it may be invoked when both arguments are of the type that is convertible to <code>lib::Path</code>.
+This may happen for code in the <code>lib</code> namespace or after using <code>using namespace lib;</code>.
+However, such code will not compile or, even worse, select different overloads when placed in a different namespace.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">namespace lib {
+  void insideLib(std::string_view sv) {
+    sv / "dir"; // Compiles, converts both arg to lib::Path
+  }
+} // namespace lib
+
+namespace otherNS {
+  void withoutUsing(std::string_view sv) {
+    sv / "dir"; // Either does not compile or calls a different operator
+  }
+  void withUsing(std::string_view sv) {
+    using namespace lib;
+    sv / "dir"; // Compiles, converts both arg to lib::Path
+  }
+} // namespace otherNS</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Such conversion for both arguments will not be allowed when the operator is declared as a hidden friend,
+as none of the operands are of <code>lib::Path</code> type:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">namespace lib {
+  class Path {
+  public:
+    Path(char const*);
+    Path(std::string_view);
+    Path&amp; operator/=(Path const&amp;);
+
+    friend Path operator/(Path const&amp; lhs, Path const&amp; rhs) {
+      auto result = lhs;
+      result /= rhs;
+      return result;
+    }
+  };
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_why_are_hidden_friends_preferred_over_member_functions">Why are hidden friends preferred over member functions?</h3>
+<div class="paragraph">
+<p>When the overloaded operator is declared as a class member,
+it can be invoked only for objects of that class or classes derived from it.
+These restrictions also apply when operator syntax (<code>a op b</code>) is used
+and disallows implicit conversion for left operands while allowing them for right operands.</p>
+</div>
+<div class="paragraph">
+<p>For example, given the object <code>i</code> of class <code>Integer</code> that defines
+<code>operator+</code> as a member:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Integer {
+public:
+  Integer(long long int);
+  Integer&amp; operator+=(Integer const&amp; rhs);
+  Integer operator+(Integer const&amp; rhs) const { // Noncompliant
+    Integer res = *this;
+    res += rhs;
+    return res;
+  }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The call <code>i + 10</code> is well-formed and resolves to <code>i.operator+(10)</code>,
+which will convert <code>10</code> to an <code>Integer</code> object using the implicit converting constructor.
+However, <code>10 + i</code> is ill-formed.</p>
+</div>
+<div class="paragraph">
+<p>If hidden friend functions were used, the expressions <code>i + 10</code> and <code>10 + i</code>,
+would resolve to <code>operator+(i, 10)</code> and <code>operator+(10, i)</code> respectively,
+allowing conversion to be performed symmetrically on the integer literal.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Integer {
+public:
+  Integer(long long int);
+  Integer&amp; operator+=(Integer const&amp; rhs);
+  friend Integer operator+(Integer const&amp; lhs, Integer const&amp; rhs) { // Compliant
+    Integer res = lhs;
+    res += rhs;
+    return res;
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_why_relational_operators_are_treated_differently_since_c20">Why relational operators are treated differently since C&#43;&#43;20?</h3>
+<div class="paragraph">
+<p>C&#43;&#43;20 has introduced a three-way comparison operator <code>&lt;=&gt;</code> (also known as spaceship)
+in addition to the mechanism that considers additional functions when interpreting relational operations:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>a &lt; b</code> (also <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>) is also interpreted as <code>operator&lt;=&gt;(a, b) &lt; 0</code>, <code>a.operator&lt;=&gt;(b) &lt; 0</code>, or <code>0 &lt; operator&lt;=&gt;(b, a)</code>, <code>0 &lt; b.operator&lt;=&gt;(a)</code>,</p>
+</li>
+<li>
+<p><code>a != b</code> is also intepreted as <code>!operator==(a, b)</code>, <code>!a.operator==(b)</code>, or <code>!operator==(b, a)</code>, <code>!b.operator==(a)</code>,</p>
+</li>
+<li>
+<p><code>a == b</code> is also intepreted as <code>operator==(a, b)</code>, <code>a.operator==(b)</code>, or  <code>operator==(b, a)</code>, <code>b.operator==(a)</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The above mechanism makes overloads for <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> replacable with <code>&lt;=&gt;</code> and <code>==</code> (see <a data-rspec-id="S6187" class="rspec-auto-link">S6187</a>).
+As these overloads will usually be removed, we do not suggest replacing them with hidden friends.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, such rewrites consider calls of overloads with the order of argument as spelled (<code>a</code>, <code>b</code>), and reversed (<code>b</code>, <code>a</code>).
+This makes the behavior of expression consistent regardless of the order of operands.
+Given the following example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct MyString {
+  MyString(char const* cstr);
+  bool
+  operator==(MyString const&amp; other) const;  // Compliant since C++20: see below
+
+  std::strong_ordering
+  operator&lt;=&gt;(MyString const&amp; other) const; // Compliant: only available since C++20
+};
+
+const MySting ms;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The expression <code>ms == "Some string"</code> and <code>"SomeString" == ms</code> both compile,
+and the latter calls <code>operator==</code> with the argument reversed.
+This removes the drawbacks of declaring all combinations of such operators as members,
+and the issue is not raised for them for C&#43;&#43;20 and later.</p>
+</div>
+<div class="paragraph">
+<p>Note, that hidden friends are still preferred over free functions:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct MyString {
+  MyString(char const* cstr);
+};
+
+bool
+operator==(MyString const&amp; lhs, MyString const&amp; rhs)  // Noncompliant
+{ /* ... */ }
+
+std::strong_ordering
+operator&lt;=&gt;(MyString const&amp; lhs, MyString const&amp; rhs) // Noncompliant
+{ /* ... */ }</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The issue can be fixed by declaring the operator as a hidden friend,
+i.e., declaring it as a <code>friend</code> inside the class and inlining its function body.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct IntWrapper {
+  long i;
+  MyClass operator+(const MyClass&amp; rhs) const // Noncompliant
+  {
+    return MyClass{i + rhs.i}
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct IntWrapper {
+  long i;
+  friend MyClass operator+(const MyClass&amp; lhs, const MyClass&amp; rhs) // Compliant
+  {
+    return Myclass{lhs.i + rhs.i}
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct IntWrapper {
+  long i;
+};
+
+MyClass operator+(const MyClass&amp; lhs, const MyClass&amp; rhs) // Noncompliant
+{
+  return Myclass{lhs.i + rhs.i}
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct IntWrapper {
+  long i;
+  friend MyClass operator+(const MyClass&amp; lhs, const MyClass&amp; rhs) // Compliant
+  {
+    return Myclass{lhs.i + rhs.i}
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_handle_operator_with_definition_in_source_file">How to handle operator with definition in source file</h3>
+<div class="paragraph">
+<p>To define a hidden friend, the overloaded operator needs to be defined in class.
+If the operator is initially defined in the source file, it may be necessary to move its definition to the header file.
+In complex implementations, this may be undesired or impossible.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Header file
+class Integer {
+public:
+  Integer(long long int);
+  Integer operator+(Integer const&amp; rhs) const; // Noncompliant
+};
+
+// Source file
+Integer Integer::operator+(Integer const&amp; rhs) const
+{
+  /* Complex logic */
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="paragraph">
+<p>To properly resolve such an issue, you may define a helper member function,
+that will remain defined in the source file, and define the operator in terms of it.</p>
+</div>
+<div class="paragraph">
+<p>For mathematical operators, this is usually achieved by defining them in terms of the corresponding compound assignment operator.
+This has the additional benefit of reducing code duplication if both <code>operator+</code> and <code>operator+=</code> were already defined,
+or making the interface more consistent by providing compound assignment counterparts for each supported operator.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">// Header file
+class Integer {
+public:
+  Integer(long long int);
+  Integer&amp; operator+=(Integer const&amp; rhs);
+  friend Integer operator+(Integer const&amp; lhs, Integer const&amp; rhs) // Compliant
+  {
+    Integer result = lhs;
+    result += rhs;
+    return result;
+  }
+};
+
+// Source file
+Integer&amp; Integer::operator+=(Integer const&amp; rhs)
+{
+  /* Complex logic */
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_to_handle_operator_template">How to handle operator template</h3>
+<div class="paragraph">
+<p>When declaring a hidden friend for a class template, a separate friend function is instantiated for each instantiation of the enclosing class.
+When changing from a free overloaded operator template to a friend function, template parameters corresponding to the class should be removed.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template&lt;typename CharT&gt;
+class StringRef {
+public:
+  StringRef(CharT const* str);
+
+  int compare(StringRef other) const;
+};
+
+template&lt;typename CharT&gt;
+bool operator==(StringRef&lt;CharT&gt; lhs, StringRef&lt;CharT&gt; rhs) // Noncompliant
+{
+  return lhs.compare(rhs) == 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template&lt;typename CharT&gt;
+class StringRef {
+public:
+  StringRef(CharT const* str);
+
+  int compare(StringRef other) const;
+
+  friend bool operator==(StringRef lhs, StringRef rhs) // Compliant: separate overload for each instantiation of StringRef&lt;CharT&gt;
+  {
+    return lhs.compare(rhs) == 0;
+  }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Such a solution has the additional benefit of allowing the operands to be converted (as the operator is no longer a template).
+This means that for <code>StringRef&lt;char&gt; sr</code>, the expression <code>sr == "Some string"</code> will compile and use the implicit constructor from <code>CharT const*</code>,
+alleviating the need to declare additional overloads accepting <code>const CharT*</code>.</p>
+</div>
+<div class="paragraph">
+<p>In the case of heterogeneous operators that accept different specializations, only one set of template parameters should be removed:</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_5">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template&lt;typename T&gt;
+struct Optional {
+  bool has_value() const;
+  T const&amp; value() const;
+};
+
+template&lt;typename T&gt;
+  requires std::equality_comparable&lt;T&gt;
+bool operator==(Optional&lt;T&gt; const&amp; lhs, Optional&lt;T&gt; const&amp; rhs) // Noncompliant
+{
+  if (lhs.has_value() &amp;&amp; rhs.has_value()) {
+    return lhs.value() == rhs.value();
+  }
+  return lhs.has_value() == rhs.has_value();
+}
+
+template&lt;typename T, typename U&gt;
+  requires std::equality_comparable_with&lt;T, U&gt;
+bool operator==(Optional&lt;T&gt; const&amp; lhs, Optional&lt;U&gt; rhs) // Noncompliant
+{
+  if (lhs.has_value() &amp;&amp; rhs.has_value()) {
+    return lhs.value() == rhs.value();
+  }
+  return lhs.has_value() == rhs.has_value();
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_5">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">template&lt;typename T&gt;
+struct Optional {
+  bool has_value() const;
+  T const&amp; value() const;
+
+  friend bool operator==(Optional const&amp; lhs, Optional rhs) // Compliant: lhs and rhs are Optional&lt;T&gt;
+    requires std::equality_comparable&lt;T&gt;
+  {
+    if (lhs.has_value() &amp;&amp; rhs.has_value()) {
+      return lhs.value() == rhs.value();
+    }
+    return lhs.has_value() == rhs.has_value();
+  }
+
+  template&lt;typename U&gt;
+    requires std::equality_comparable_with&lt;T, U&gt;
+  friend bool operator==(Optional const&amp; lhs, Optional&lt;U&gt; rhs) // Compliant: lhs is Optional&lt;T&gt;
+  {
+    if (lhs.has_value() &amp;&amp; rhs.has_value()) {
+      return lhs.value() == rhs.value();
+    }
+    return lhs.has_value() == rhs.has_value();
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/lookup">Name lookup</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/adl">Argument-dependent lookup</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c161-use-non-member-functions-for-symmetric-operators">C.161: Use non-member functions for symmetric operators</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6187" class="rspec-auto-link">S6187</a> - Operator spaceship "&lt;&#8658;" should be used to define comparable types</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>"Make this member overloaded operator a hidden friend."</p>
+</li>
+<li>
+<p>"Make this overloaded operator a hidden friend of class "{}"."</p>
+</li>
+<li>
+<p>"Make this overloaded operator a hidden friend of class "{}" or "{}"."</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="paragraph">
+<p>Exception for member <code>operator&lt;&lt;</code> and <code>operator&gt;&gt;</code> that looks like streaming is omitted on purpose.
+I do not think any user will be confused about not having an issue there when they write a stream
+(this happens only for members).</p>
+</div>
+<div class="sect2">
+<h3 id="_on_17_nov_2015_090134_evgeny_mandrikov_wrote">on 17 Nov 2015, 09:01:34 Evgeny Mandrikov wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] could you please help me update this RSPEC - operators <code>=</code>, <code>[]</code> and <code>-&gt;</code> can&#8217;t be overloaded as friend functions.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_17_nov_2015_140138_ann_campbell_wrote">on 17 Nov 2015, 14:01:38 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>See what you think [~evgeny.mandrikov]</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_17_nov_2015_203854_evgeny_mandrikov_wrote">on 17 Nov 2015, 20:38:54 Evgeny Mandrikov wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] LGTM</p>
+</div>
+</div>
+</div>
+</div>

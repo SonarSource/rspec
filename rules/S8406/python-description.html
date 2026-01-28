@@ -1,0 +1,179 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is an issue when a Pydantic validator is used to apply default values or transformations, but lacks the <code>always=True</code> parameter or the model&#8217;s <code>Config</code> lacks <code>validate_assignment=True</code>. This causes validators to run inconsistently - only during initialization but not during field updates.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Pydantic validators are functions that validate and transform field values in data models. By default, they only run during model initialization, which can lead to unexpected behavior.</p>
+</div>
+<div class="paragraph">
+<p>There are two key settings that control when validators run:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>always=True</code> parameter: Controls whether the validator runs when no value is provided for a field</p>
+</li>
+<li>
+<p><code>validate_assignment=True</code> in Config: Controls whether validators run when fields are updated after model creation</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Without these settings, validators exhibit inconsistent behavior:</p>
+</div>
+<div class="paragraph">
+<p><strong>Default behavior (no special settings)</strong>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Validators run during initialization only when a value is explicitly provided</p>
+</li>
+<li>
+<p>Validators do NOT run when fields are updated after model creation</p>
+</li>
+<li>
+<p>Validators do NOT run when <code>None</code> is passed or no value is provided</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>With <code>always=True</code></strong>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Validators run during initialization even when no value is provided or <code>None</code> is passed</p>
+</li>
+<li>
+<p>Still do NOT run on field updates unless <code>validate_assignment=True</code> is also set</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>With <code>validate_assignment=True</code> in Config</strong>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Validators run on field updates after model creation</p>
+</li>
+<li>
+<p>Still follow the default behavior regarding <code>None</code> values unless <code>always=True</code> is also set</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This inconsistency is particularly problematic when validators are used to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Apply default values when <code>None</code> is provided</p>
+</li>
+<li>
+<p>Normalize or transform data (e.g., trimming strings, hashing passwords)</p>
+</li>
+<li>
+<p>Enforce business rules that should apply throughout the model&#8217;s lifetime</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When validators don&#8217;t run consistently, the same field can have different validation rules applied depending on whether it was set during initialization or updated later. This violates the principle of least surprise and can lead to bugs that are difficult to diagnose.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The inconsistent validation behavior can lead to data integrity issues. Fields may contain invalid or unexpected values when updated after initialization, bypassing important transformations or business rules. This can cause runtime errors, security vulnerabilities (e.g., unhashed passwords), or incorrect application behavior that only manifests under specific conditions.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add both <code>always=True</code> to the validator decorator and <code>validate_assignment=True</code> to the model&#8217;s Config class. This ensures the validator runs consistently during initialization (even with <code>None</code> values) and during field updates.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pydantic import BaseModel, validator
+from typing import Optional
+
+class User(BaseModel):
+    name: Optional[str] = ''
+
+    @validator('name')  # Noncompliant
+    def set_name(cls, name):
+        return name or 'default_name'
+
+user = User(name=None)
+print(user.name)  # 'default_name'
+user.name = None
+print(user.name)  # None - validator not applied!</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">from pydantic import BaseModel, validator
+from typing import Optional
+
+class User(BaseModel):
+    name: Optional[str] = ''
+
+    class Config:
+        validate_assignment = True
+
+    @validator('name', pre=True, always=True)
+    def set_name(cls, name):
+        return name or 'default_name'
+
+user = User(name=None)
+print(user.name)  # 'default_name'
+user.name = None
+print(user.name)  # 'default_name' - validator applied!</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Pydantic v1 - Validators - <a href="https://docs.pydantic.dev/1.10/usage/validators/">Official documentation for Pydantic v1 validators, including the <code>always</code> parameter</a></p>
+</li>
+<li>
+<p>Pydantic v1 - Model Config - <a href="https://docs.pydantic.dev/1.10/usage/model_config/">Documentation for Pydantic v1 model configuration options, including <code>validate_assignment</code></a></p>
+</li>
+<li>
+<p>Pydantic v2 - Field Validators - <a href="https://docs.pydantic.dev/latest/concepts/validators/">Official documentation for Pydantic v2 field validators</a></p>
+</li>
+<li>
+<p>Pydantic v2 - Model Config - <a href="https://docs.pydantic.dev/latest/api/config/">Documentation for Pydantic v2 ConfigDict, including <code>validate_assignment</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

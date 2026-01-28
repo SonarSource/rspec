@@ -1,0 +1,135 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when Apex REST service methods (annotated with <code>@HttpGet</code>, <code>@HttpPost</code>, <code>@HttpPut</code>, <code>@HttpDelete</code>, or <code>@HttpPatch</code>) do not implement proper exception handling with try-catch blocks and explicit HTTP response management.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Apex REST services without proper exception handling create several serious problems for your application and its users.</p>
+</div>
+<div class="paragraph">
+<p>When exceptions occur in REST methods without try-catch blocks, Salesforce automatically generates error responses that may expose sensitive system information. These default error messages can reveal internal implementation details, database schema information, or system configuration that attackers could exploit.</p>
+</div>
+<div class="paragraph">
+<p>Unhandled exceptions also result in generic HTTP 500 errors with unhelpful messages, making it difficult for API consumers to understand what went wrong or how to fix their requests. This leads to poor developer experience and increased support burden.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, without explicit response handling, your API cannot provide consistent, well-structured responses. Modern REST APIs should return appropriate HTTP status codes (200 for success, 400 for client errors, 500 for server errors) and structured JSON responses that help clients handle both success and error scenarios gracefully.</p>
+</div>
+<div class="paragraph">
+<p>Proper exception handling also enables better logging and monitoring, allowing you to track API usage patterns and identify issues before they impact users.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Unhandled exceptions in REST services can lead to information disclosure vulnerabilities where sensitive system details are exposed to external callers. This creates security risks and may violate data protection requirements.</p>
+</div>
+<div class="paragraph">
+<p>Poor error handling also degrades API reliability and user experience, potentially causing integration failures and increased support costs.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Wrap your REST method logic in try-catch blocks, set appropriate HTTP status codes, and return structured JSON responses. Use RestContext.response to control the HTTP response explicitly.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">@RestResource(urlMapping='/api/account/*')
+global class AccountRestService {
+    @HttpGet
+    global static Account getAccount() {
+        String accountId = RestContext.request.requestURI.substring(
+            RestContext.request.requestURI.lastIndexOf('/') + 1
+        );
+        return [SELECT Id, Name FROM Account WHERE Id = :accountId]; // Noncompliant
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-apex" data-lang="apex">@RestResource(urlMapping='/api/account/*')
+global class AccountRestService {
+    @HttpGet
+    global static void getAccount() {
+        try {
+            String accountId = RestContext.request.requestURI.substring(
+                RestContext.request.requestURI.lastIndexOf('/') + 1
+            );
+            Account acc = [SELECT Id, Name FROM Account WHERE Id = :accountId];
+            RestContext.response.statusCode = 200;
+            RestContext.response.responseBody = Blob.valueOf(JSON.serialize(acc));
+        } catch (Exception e) {
+            RestContext.response.statusCode = 500;
+            RestContext.response.responseBody = Blob.valueOf(JSON.serialize(new ErrorResponse('Internal server error')));
+        }
+    }
+
+    public class ErrorResponse {
+        public String error;
+        public ErrorResponse(String error) { this.error = error; }
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Apex REST Services - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_rest.htm">Official Salesforce documentation on creating REST services with Apex</a></p>
+</li>
+<li>
+<p>RestContext Class - <a href="https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_classes_restcontext.htm">Documentation for the RestContext class used to manage HTTP requests and responses</a></p>
+</li>
+<li>
+<p>HTTP Status Codes - <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status">Reference guide for HTTP status codes and their appropriate usage</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-209: Information Exposure Through Error Messages - <a href="https://cwe.mitre.org/data/definitions/209.html">Weakness related to exposing sensitive information through error messages</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6863" class="rspec-auto-link">RSPEC-6863</a> - Java rule for proper exception handling in REST services</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,288 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Variable shadowing happens when a variable declared in a specific scope has the same name as a variable in an outer scope.</p>
+</div>
+<div class="paragraph">
+<p>This can lead to three main problems:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Confusion:
+The same name can refer to different variables in different parts of the scope, making the code hard to read and understand.</p>
+</li>
+<li>
+<p>Unintended Behavior:
+You might accidentally use the wrong variable, leading to hard-to-detect bugs.</p>
+</li>
+<li>
+<p>Maintenance Issues:
+If the inner variable is removed or renamed, the code&#8217;s behavior might change unexpectedly because the outer variable is now being used.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>To avoid these problems, rename the shadowing, shadowed, or both variables to accurately represent their purpose with unique and meaningful names.</p>
+</div>
+<div class="paragraph">
+<p>The examples below show typical situations in which shadowing can occur.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Parameter shadowing</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f(int x, bool b) {
+  int y = 4;
+  if (b) {
+    int x = 7; // Noncompliant: the parameter "x" is shadowed.
+    int y = 9; // Noncompliant: the local variable "y" is shadowed.
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Member variable shadowing</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Foo {
+private:
+  int myField;
+
+public:
+  void doSomething() {
+    int myField = 0; // Noncompliant: Foo::myField is shadowed.
+    // ...
+  }
+};</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Global variable shadowing</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">namespace ns {
+  int state;
+
+  void bar() {
+    int state = 0; // Noncompliant: the namespace variable is shadowed.
+  }
+}</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>It is common practice to have constructor arguments shadowing the fields they initialize in the <em>member initializer list</em>.
+This pattern avoids the need to select new names for the constructor arguments and will not be reported by this rule.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Point {
+public:
+  Point(int x, int y)
+    : x(x) // Compliant by exception: the parameter "x" is used
+           // in the member initializer list.
+  {
+    y = y; // Noncompliant: the parameter is assigned to itself
+           // and the member "y" is not initialized.
+  }
+
+private:
+  int x;
+  int y;
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_caveats">Caveats</h3>
+<div class="sect3">
+<h4 id="_shadowing_in_if_else_if_and_else">Shadowing in <code>if</code>, <code>else if</code>, and <code>else</code></h4>
+<div class="paragraph">
+<p>Variables can be introduced in the condition of an <code>if</code> statement.
+Their scope includes the optional <code>else</code> statement, which may be surprising.
+Consequently, such variables can be shadowed in an <code>else if</code> statement.
+This can be even more confusing and result in unintended behavior, as illustrated in this example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">using ExpectedData = std::expected&lt;std::string, std::error_code&gt;;
+
+if (ExpectedData e = readData()) {
+  printMessage(e.value());
+} else if (ExpectedData e = readFallbackSource()) { // Noncompliant
+  printMessage(e.value());
+} else {
+  logError(
+    "Initial source failed with: ",
+    e.error() // Contrary to the intention, the second "e" is used.
+  );
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_shadowing_of_inaccessible_declarations">Shadowing of inaccessible declarations</h4>
+<div class="paragraph">
+<p>This rule also raises issues on some variables, although they do not shadow another variable according to a strict interpretation of the C&#43;&#43; language. There are mainly two reasons for this.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Primarily, the readability and maintainability of the code are impaired.
+Readers need an advanced understanding of the C&#43;&#43; language to understand the subtle differences.</p>
+</li>
+<li>
+<p>Secondly, a small change can lead to actual shadowing.
+This can lead to subtle bugs when updating the code.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Here is an example with nested classes:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {
+public:
+  int x;
+  class B;
+};
+
+class A::B {
+  void f(int x) { // Noncompliant: The parameter "x" shadows the field "A::x".
+    // ...
+  }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the above example, <code>A::x</code> cannot be used from <code>A::B</code> member functions because it is not a <code>static</code> field.
+This can lead to surprising effects when moving code around, particularly if the declaration of <code>A::x</code> was changed from <code>int x;</code> to <code>static int x;</code>.</p>
+</div>
+<div class="paragraph">
+<p>You should always avoid shadowing to avoid any confusion and increase the maintainability of your code.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>MISRA C:2004, 5.2 - Identifiers in an inner scope shall not use the same name as an identifier in an outer scope, and therefore hide that identifier</p>
+</li>
+<li>
+<p>MISRA C&#43;&#43;:2008, 2-10-2 - Identifiers declared in an inner scope shall not hide an identifier declared in an outer scope</p>
+</li>
+<li>
+<p>MISRA C:2012, 5.3 - An identifier declared in an inner scope shall not hide an identifier declared in an outer scope</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CERT - <a href="https://wiki.sei.cmu.edu/confluence/display/c/DCL01-C.+Do+not+reuse+variable+names+in+subscopes">DCL01-C. Do not reuse variable names in subscopes</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S2387" class="rspec-auto-link">S2387</a> - Child class fields should not shadow parent class fields</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_deprecates_s1524">deprecates: <a data-rspec-id="S1524" class="rspec-auto-link">S1524</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s801">relates to: <a data-rspec-id="S801" class="rspec-auto-link">S801</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_11_jul_2013_100430_dinesh_bolkensteyn_wrote">on 11 Jul 2013, 10:04:30 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>Ignore constructors</p>
+</div>
+<div class="paragraph">
+<p>Ignore setters, method which start with 'set'</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_jul_2013_135906_dinesh_bolkensteyn_wrote">on 15 Jul 2013, 13:59:06 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>Implemented by http://jira.codehaus.org/browse/SONARJAVA-211</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_31_oct_2013_163605_freddy_mallet_wrote">on 31 Oct 2013, 16:36:05 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>Is implemented by http://jira.codehaus.org/browse/SONARPLUGINS-3232 for Flex</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_23_feb_2014_224904_freddy_mallet_wrote">on 23 Feb 2014, 22:49:04 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>Is implemented by http://jira.codehaus.org/browse/SONARPLUGINS-3504 for PHP</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_12_mar_2019_164940_alexandre_gigleux_wrote">on 12 Mar 2019, 16:49:40 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>Decision was taken to deprecate in favor of <a data-rspec-id="S1117" class="rspec-auto-link">RSPEC-1117</a>. As a consequence the following maintenance tickets should be implemented:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>https://jira.sonarsource.com/browse/SONARPLSQL-722</p>
+</li>
+<li>
+<p>https://github.com/SonarSource/SonarTS/issues/838</p>
+</li>
+<li>
+<p>https://github.com/SonarSource/SonarJS/issues/1214</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

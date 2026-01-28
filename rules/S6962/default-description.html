@@ -1,0 +1,178 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In frequently used code paths, such as controller actions, you should avoid using the <a href="https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient">HttpClient</a> directly and opt for <a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory">one of the IHttpClientFactory-based mechanisms</a> instead. This way, you avoid wasting resources and creating performance overhead.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If a code path that creates and disposes of HttpClient objects is frequently used, then the following issues can occur:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Under heavy load, there&#8217;s the risk of <a href="https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines#pooled-connections">running out of available sockets</a>, leading to <a href="https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.socketexception">SocketException</a> errors. This is because each HttpClient instance uses a separate network connection, and there&#8217;s a limit to the number of connections that can be opened simultaneously. Note that even after you dispose of an HttpClient <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests#issues-with-the-original-httpclient-class-available-in-net">its sockets are not immediately freed up</a>.</p>
+</li>
+<li>
+<p>Each HttpClient has its own set of resources (like headers, base address, timeout, etc.) that must be managed. Creating a new HttpClient for every request means these resources are not being reused, leading to resource waste.</p>
+</li>
+<li>
+<p>You introduce a significant performance overhead when creating a new HttpClient for every HTTP request.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <a href="https://learn.microsoft.com/en-us/dotnet/api/system.net.http.ihttpclientfactory"><code>IHttpClientFactory</code></a> was introduced in ASP.NET Core 2.1 to solve these problems. It handles pooling HTTP connections to optimize performance and reliability.</p>
+</div>
+<div class="paragraph">
+<p>There are <a href="https://learn.microsoft.com/en-us/aspnet/core/fundamentals/http-requests#consumption-patterns">several ways</a> that you can use IHttpClientFactory in your application:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#basic-usage">Basic usage</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#named-clients">Named Clients</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#typed-clients">Typed Clients</a></p>
+</li>
+<li>
+<p><a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory#generated-clients">Generated Clients</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Alternatively, you may cache the HttpClient in a singleton or a static field. You should be aware that by default, the HttpClient doesn&#8217;t respect the DNS&#8217;s Time To Live (TTL) settings. If the IP address associated with a domain name changes, HttpClient might still use the old, cached IP address, leading to failed requests.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">[ApiController]
+[Route("controller")]
+public class FooController : Controller
+{
+    [HttpGet]
+    public async Task&lt;string&gt; Foo()
+    {
+        using var client = new HttpClient();  // Noncompliant
+        return await client.GetStringAsync(_url);
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">// File: Startup.cs
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddHttpClient();
+        // ...
+    }
+}
+
+[ApiController]
+[Route("controller")]
+public class FooController : Controller
+{
+    private readonly IHttpClientFactory _clientFactory;
+
+    public FooController(IHttpClientFactory clientFactory)
+    {
+        _clientFactory = clientFactory;
+    }
+
+    [HttpGet]
+    public async Task&lt;string&gt; Foo()
+    {
+        using var client = _clientFactory.CreateClient(); // Compliant (Basic usage)
+        return await client.GetStringAsync(_url);
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6420" class="rspec-auto-link">S6420</a> - Client instances should not be recreated on each Azure Function invocation</p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.net.http.ihttpclientfactory">IHttpClientFactory Interface</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient">HttpClient Class</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory">IHttpClientFactory with .NET</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests">Use IHttpClientFactory to implement resilient HTTP requests</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/aspnet/core/fundamentals/http-requests">Make HTTP requests using IHttpClientFactory in ASP.NET Core</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines">Guidelines for using HttpClient</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Reuse Httpclient instances rather than create new ones with each controller action invocation.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="paragraph">
+<p>Primary location: the HttpClient object initialization.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+</div>
+</div>

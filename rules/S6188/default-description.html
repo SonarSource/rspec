@@ -1,0 +1,163 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>C&#43;&#43;20 introduces <code>std::span</code>, a thin generic abstraction for sequences of elements contiguous in memory represented by the beginning and length. <code>std::span</code> can unify the interface for such sequences, e.g., for plain arrays, <code>std::array</code>, <code>std::vector</code>, or <code>std::string</code>.</p>
+</div>
+<div class="paragraph">
+<p><code>std::span&lt;T const* const&gt;</code> can be constructed of <code>std::vector&lt;T*&gt;</code> without copying it, which makes it well suited for const-correct interfaces.</p>
+</div>
+<div class="paragraph">
+<p><code>std::span</code> can have dynamic or static extent (length). The latter is useful for compilers to optimize the handling of arrays of size known at compile time.</p>
+</div>
+<div class="paragraph">
+<p>This rule reports:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>functions that accept a span by means of a plain array or a pointer to the beginning of a sequence and its length</p>
+</li>
+<li>
+<p>functions that accept <code>begin</code> and <code>end</code> iterators of a <code>std::array</code> or a <code>std::vector</code></p>
+</li>
+<li>
+<p>functions that accept <code>std::vector&lt;T const*&gt;</code> and are called with a temporary copy of <code>std::vector&lt;T*&gt;</code>  created just to satisfy the type signature of the argument.</p>
+</li>
+<li>
+<p>functions that accept <code>std::vector&lt;T*&gt;</code> and never modify the objects pointed to by its elements.</p>
+</li>
+<li>
+<p>const member functions that return a reference or a copy of a <code>std::vector&lt;T*&gt;</code> field.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void addOdd(int* arr, size_t size) { // Noncompliant: replace ptr+size with std::span
+  for (int i = 0; i*2 + 1 &lt; size; ++i) {
+    arr[i*2] += arr[i*2 + 1];
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void addOdd(std::vector&lt;int&gt;::iterator begin, std::vector&lt;int&gt;::iterator end) { // Noncompliant
+  for (auto iter = begin; iter != end &amp;&amp; iter + 1 != end; iter += 2) {
+    *iter += *(iter + 1);
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool oddAre0(const std::vector&lt;int*&gt;&amp; nums) { // Noncompliant: use std::span&lt;const int*&gt;
+  for (int i = 0; 2*i + 1 &lt; std::size(nums); ++i) {
+    if (0 != *nums[2*i + 1]) {
+      return false;
+    }
+  }
+  return true;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool oddAre0(const std::vector&lt;int const*&gt;&amp; nums) { // Noncompliant: use std::span&lt;int const*&gt;
+  for (int i = 0; 2*i + 1 &lt; std::size(nums); ++i) {
+    if (0 != *nums[2*i + 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+std::vector&lt;int*&gt; getNums();
+void caller() {
+  std::vector&lt;int*&gt; nums = getNums();
+  if (oddAre0(std::vector&lt;int const*&gt;{nums.begin(), nums.end()})) { // This copy is verbose and slow
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {
+  std::vector&lt;int*&gt; myNums;
+public:
+  const std::vector&lt;int*&gt;&amp; getMyNums1() const { // Noncompliant: caller can modify *a.myNums[1]
+    return myNums;
+  }
+  std::vector&lt;int const*&gt; getMyNums2() const {
+    return std::vector&lt;int const*&gt;{myNums.begin(), myNums.end()}; // Noncompliant: expensive copy
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void addOdd(std::span&lt;int&gt; span) { // Compliant
+  for (int i = 0; i*2 + 1 &lt; std::size(span); ++i) {
+    span[i*2] += span[i*2 + 1];
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">bool oddAre0(std::span&lt;int const* const&gt; nums) { // Compliant
+  for (int i = 0; 2*i + 1 &lt; std::size(nums); ++i) {
+    if (0 != *nums[2*i + 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+std::vector&lt;int*&gt; getNums();
+void caller() {
+  std::vector&lt;int*&gt; nums = getNums();
+  if (oddAre0(nums)) { // No copy
+    // ...
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class A {
+  std::vector&lt;int*&gt; myNums;
+public:
+  std::span&lt;int const* const&gt; getMyNums() const { // Compliant: const-correct
+    return myNums; // No copy
+  }
+};</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s6231">is related to: <a data-rspec-id="S6231" class="rspec-auto-link">S6231</a></h3>
+
+</div>
+</div>
+</div>

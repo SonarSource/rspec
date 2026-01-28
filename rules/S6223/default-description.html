@@ -1,0 +1,308 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Despite their names, the standard remove algorithms (<code>std::remove</code>, <code>std::remove_if</code>, <code>std::unique</code>) do not erase elements from a given range.
+Instead, they shift the preserved (not removed) elements to the beginning of the range and return an iterator after the last preserved element.
+The "removed" elements have unspecified values.</p>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;20 introduced functions in the <code>std::ranges</code> namespace with the same names.
+Aside from returning a subrange instead of an iterator, they exhibit the same behavior.</p>
+</div>
+<div class="paragraph">
+<p>Ignoring the result of any of these functions indicates a bug:
+It is impossible to distinguish removed elements in the container from the others.
+As a result, any further operations on the container may access elements with unspecified values.
+And this may lead to invalid program states, data corruption, or crashes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The rule raises an issue when the result of <code>remove</code>, <code>remove_if</code>, or <code>unique</code> from the <code>std</code> or <code>std::ranges</code> namespace is ignored.</p>
+</div>
+<div class="paragraph">
+<p>There are essentially three ways to fix this problem:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Use the returned iterator or subrange to consider only the relevant elements.<br>
+This solution can be sufficient.
+It is also efficient but non-trivial and error-prone, as explained in the first example below.</p>
+</li>
+<li>
+<p>Use the <em>erase-remove</em> idiom to drop elements from a container.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>It consists of calling the container&#8217;s <code>erase</code> member function using the produced iterator or subrange.<br></p>
+</li>
+<li>
+<p>Since C&#43;&#43;20, <code>std::erase</code> and <code>std::erase_if</code> provide a more concise alternative to the <em>erase-remove</em> idiom.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Use other algorithms:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>The member functions of <code>std::list</code> and <code>std::forward_list</code> of the same name <em>do</em> erase the desired elements from the container.<br>
+However, changing the type of containers should not be driven solely by the syntax to remove elements.
+Instead, this decision should factor in the runtime and memory complexities of the operation provided by the container and how it is typically used.</p>
+</li>
+<li>
+<p><code>std::remove_copy</code> and <code>std::remove_copy_if</code> (and their <code>std::ranges</code> siblings) avoid the problem by copying the relevant values to another container.<br>
+This solution requires more memory and usually requires more computation since elements are not moved but copied.
+This can be relevant when you want to avoid modifying the original container.</p>
+</li>
+<li>
+<p><code>std::views::filter</code> is also a good candidate when modifying the original container is not desired.
+This solution is particularly suited when iterating over the container only once.</p>
+</li>
+<li>
+<p>Consider using <code>std::partition</code> or <code>std::stable_partition</code> if preserving elements that don&#8217;t satisfy the predicate is actually desired.
+These functions (and their <code>std::ranges</code> siblings) reorder elements inside the same container without resulting in unspecified values.</p>
+</li>
+</ul>
+</div>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Which technique to use depends on the context, as we illustrate with the following examples.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>This first example takes a collection of names, filters out the invalid ones, and returns the longest.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char const* longestName(std::vector&lt;char const*&gt; names) {
+  // Noncompliant: some elements in "names" are left with an unspecified value.
+  std::remove(names.begin(), names.end(), nullptr);
+
+  if (names.empty()) { // Flaw: invalid names are still in the container.
+    // No valid names.
+    return nullptr;
+  }
+
+  auto longestNameIterator = std::max_element(
+    names.begin(), names.end(), // Flaw: unspecified values are iterated over.
+    [](auto f1, auto f2) {
+      // Undefined behavior:
+      // * accessing unspecified elements
+      // * potentially dereferencing null pointers
+      return std::strlen(f1) &lt; std::strlen(f2);
+    }
+  );
+  return *longestNameIterator;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As explained in the comments, this code is flawed and can result in a crash.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>To fix the flaws of the previous code snippet,
+we can use the value returned by <code>std::remove</code> to consider only the relevant elements.
+This solution is sufficient because the container <code>names</code> is getting destroyed at the end of the function.
+Therefore, there is no risk of accessing unspecified values in other parts of the software.
+Furthermore, this solution is relatively efficient as it does not perform unnecessary work on the container beyond the <code>std::remove</code> call.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char const* longestName(std::vector&lt;char const*&gt; names) {
+  // Compliant: the returned iterator is used to limit the subsequent search.
+  auto end = std::remove(names.begin(), names.end(), nullptr);
+
+  if (end == names.begin()) { // Correct: invalid names are not considered.
+    // No valid names.
+    return nullptr;
+  }
+
+  auto longestNameIterator = std::max_element(
+    names.begin(), end, // Correct: only valid names are iterated over.
+    [](auto f1, auto f2) {
+      return std::strlen(f1) &lt; std::strlen(f2);
+    }
+  );
+  return *longestNameIterator;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Another more modern approach is to use C&#43;&#43;20&#8217;s <code>std::views::filter</code> instead.
+Since this solution does not mutate the argument, it can be a const-reference or even a view.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char const* longestName(std::vector&lt;char const*&gt; const&amp; names) {
+  // Compliant: std::views::filter is used instead.
+  auto validNames = names | std::views::filter([](char const* e) { return e != nullptr; });
+
+  if (std::ranges::empty(validNames)) {
+    // No valid names.
+    return nullptr;
+  }
+
+  auto longestNameIterator = std::ranges::max_element(
+    validNames, // Correct: the following lambda is only called with valid names.
+    [](auto f1, auto f2) {
+      return std::strlen(f1) &lt; std::strlen(f2);
+    }
+  );
+  return *longestNameIterator;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following example looks like it removes even values from a given vector passed by reference.
+In fact, the vector <code>v</code> is left with the same number of elements.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void filterOutEvenNumbers(std::vector&lt;int&gt;&amp; v) {
+  // Noncompliant: some elements in "v" have an unspecified value.
+  std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; });
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="paragraph">
+<p>Here are two ways of fixing the bug in the previous snippet:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>With C&#43;&#43;20, <code>std::remove_if</code> can be replaced by <code>std::erase_if</code>:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void filterOutEvenNumbers(std::vector&lt;int&gt;&amp; v) {
+  // Compliant: elements are erased as expected.
+  std::erase_if(v, [](int x) { return x % 2 == 0; });
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This solution is sufficient, reliable, and more readable than the original code.</p>
+</div>
+</li>
+<li>
+<p>Before C&#43;&#43;20, we can apply the <em>erase-remove</em> idiom and use the <code>erase</code> member function of the container:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void filterOutEvenNumbers(std::vector&lt;int&gt;&amp; v) {
+  auto newEnd = std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; });
+  // Compliant: elements are erased as expected.
+  v.erase(newEnd, v.end());
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This solution is semantically identical to the C&#43;&#43;20 version but more verbose.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="paragraph">
+<p>This example shows an incorrect use of the <code>std::ranges::unique</code> function:
+<code>v</code> is left with indeterminate values.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void removeDuplicateValues(std::vector&lt;int&gt;&amp; v) {
+  std::ranges::sort(v);
+  // Noncompliant: some elements in "v" have an unspecified value.
+  std::ranges::unique(v);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="paragraph">
+<p>We apply the <em>remove-erase</em> idiom in this fixed version using the subrange returned by <code>std::ranges::unique</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void removeDuplicateValues(std::vector&lt;int&gt;&amp; v) {
+  std::ranges::sort(v);
+  // Compliant: the returned range is used to erase duplicated elements.
+  auto [duplicateBegin, duplicateEnd] = std::ranges::unique(v);
+  v.erase(duplicateBegin, duplicateEnd);
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Erase%E2%80%93remove_idiom">Erase-remove idiom</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/remove"><code>std::remove</code>, <code>std::remove_if</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/unique"><code>std::unique</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/ranges/filter_view"><code>std::views::filter</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/ranges/remove"><code>std::ranges::remove</code>, <code>std::ranges::remove_if</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/algorithm/ranges/unique"><code>std::ranges::unique</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/container/vector/erase2"><code>std::erase</code>, <code>std::erase_if</code> (for <code>std::vector</code>)</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6165" class="rspec-auto-link">S6165</a> for C&#43;&#43;20 helps replacing the <em>erase-remove</em> idiom with <code>std::erase</code>/<code>std::erase_if</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

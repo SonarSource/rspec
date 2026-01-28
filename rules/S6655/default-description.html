@@ -1,0 +1,290 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Accessing local objects outside of their scope (for example, via a pointer
+taken inside the scope) has undefined behavior. This rule flags such
+access for local variables and lifetime-extended temporaries.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Local variables in C&#43;&#43; are attached to the scope and destroyed when
+the end of the scope is reached. Any access to a variable outside
+of their scope has undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>Such access occurs, for example, when the address of a variable is
+stored in a pointer that is later dereferenced:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int func() {
+  int* ptr = nullptr;
+  {
+    int i = 10;
+    ptr = &amp;i;
+  } // variable i goes out of scope here
+  *ptr = 10; // Noncompliant: writing to out-of-scope-variable
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A similar defect can occur in code that does not have curly braces
+(also referred to as a compound statement), but contain control
+structures, like <code>if</code> or <code>for</code> that also introduce scope:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">int exampleWithIf() {
+  int* ptr;
+  if (int i = 10)
+    ptr = &amp;i;
+  else
+    ptr = nullptr;
+  // variable i declared in if condition statement goes out of scope here
+  if (ptr)
+    return *ptr; // Noncompliant: reading from out-of-scope variable
+  return 0;
+}
+void exampleWithFor() {
+  int* ptr = nullptr;
+  for (int i = 0; i &lt; 10; ++i)
+    ptr = &amp;i;
+  // variable i defined in for init-statement goes out of scope here
+  *ptr = 10; // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Accessing a dangling reference or pointer causes undefined behavior.
+This means the compiler is not bound by the language standard anymore and your program has no meaning assigned to it.</p>
+</div>
+<div class="paragraph">
+<p>Practically this has a wide range of effects.
+In many cases, the access works by accident and succeeds at writing or reading a value.
+However, it can start misbehaving at any time.
+If compilation flags, compiler, platform, or runtime environment change,
+the same code can crash the application, corrupt memory, or leak a secret.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_why_is_the_issue_raised_for_reference_variables">Why is the issue raised for reference variables?</h3>
+<div class="paragraph">
+<p>When a reference variable is directly initialized to a temporary object,
+such temporary is lifetime-extended by the variable, i.e., the temporary
+object is destroyed when the variable goes out of scope.
+Lifetime-extended temporaries have the same behavior as if they were
+declared as local variables and may lead to the same issues. For example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">Clazz create();
+void refExtension(Clazz const arg) {
+  Clazz const* aPtr;
+  Clazz const* tPtr;
+  {
+    Clazz const&amp; aRef = arg; // bounding reference to object arg
+    Clazz const&amp; tRef = create(); // temporary object is created here and bound to reference,
+                                  // behaves as Clazz const tRef = create();
+    aPtr = &amp;aRef;  // points to arg
+    tPtr = &amp;tRef;  // point to a temporary object that is lifetime extended
+  } // both aRef and tRef go out of scope here, because tRef was extending the lifetime of
+    // temporary variable, the object is destroyed
+  aPtr-&gt;foo(); // OK, a points to arg
+  tPtr-&gt;foo(); // Noncompliant: the pointers point to a dangling temporary
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Commonly, the use of an out-of-scope local object is an indication of a defect in code,
+where the local object was used by mistake, and in such case, replacing it with the
+desired variable or removing the use is sufficient.
+For other scenarios, two general approaches are possible:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Extending the scope of the referenced variable</p>
+</li>
+<li>
+<p>Capturing a copy of the object instead of a pointer to it</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Whenever possible, it is preferable to use or create a dedicated algorithm that
+encapsulates the uses of pointers to local objects.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;span&gt;
+#include &lt;optional&gt;
+std::optional&lt;int&gt; minimum(std::span&lt;int const&gt; s) {
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  int const* min = nullptr;
+  for (int i = 0; i &lt; s.size(); ++i) {
+    if ((min == nullptr) || (*min &lt; s[i]))
+      min = &amp;i;  // should be address of &amp;s[i]
+  }
+  return *min; // Noncompliant: dangling
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Fixing the typo, and taking the address of <code>&amp;s[i]</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;span&gt;
+#include &lt;optional&gt;
+std::optional&lt;int&gt; minimum(std::span&lt;int const&gt; s) {
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  int const* min = nullptr;
+  for (int i = 0; i &lt; s.size(); ++i) {
+    if ((min == nullptr) || (*min &lt; s[i]))
+      min = &amp;s[i];
+  }
+  return *min; // Compliant, points to an element of s
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Storing a copy instead of a pointer:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;span&gt;
+#include &lt;optional&gt;
+std::optional&lt;int&gt; minimum(span&lt;int const&gt; s) {
+   std::optional&lt;int&gt; min;
+   for (int i = 0; i &lt; s.size(); ++i) {
+      if (min.has_value() || (*min &lt; s[i]))
+        min = s[i];
+   }
+   return min; // Compliant, copy of the minimum element
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Using a dedicated algorithm that avoids the need to store the pointer:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;span&gt;
+#include &lt;optional&gt;
+#include &lt;algorithm&gt;
+std::optional&lt;int&gt; minimum(std::span&lt;int const&gt; s) {
+  auto it = std::min_element(s.begin(), s.end());
+  if (it == s.end())
+    return std::nullopt;
+  return *it;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="paragraph">
+<p>Reducing the number of nested scopes is not always the right solution to fix
+the issue because, for the variables that represent resources (using RAII idiom),
+the scope of the variables plays an important role in the correctness of the program.
+As an illustration, let&#8217;s consider the following example that uses <code>std::unique_lock</code>
+that represents a lock of a mutex:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::mutex dataMutex;
+Data data;
+void process() {
+  Element e;
+  { // scope A
+    std::unique_lock&lt;std::mutex&gt; l1(dataMutex); // mutex is locked in constructor
+    e = data.fetch();
+  } // l1 destructor is called here, and the lock is unlocked
+  // do processing of the element
+  if (e.finished())
+    return;
+  { // scope B
+    std::unique_lock&lt;std::mutex&gt; l2(dataMutex); // mutex is locked in constructor
+    data.append(std::move(e));
+  } // l2 destructor is called here, and the mutex is unlocked
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the above example, scopes <code>A</code> and <code>B</code> limit the number of operations performed
+in the critical section (when the mutex is acquired).
+Removing all nested scopes would lead to deadlock, where <code>l2</code> will try to lock
+<code>dataMutex</code>, already acquired in the same thread by the constructor of <code>l1</code>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/lifetime">Lifetime</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/language/raii">RAII</a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/thread/unique_lock">unique_lock</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Abseil - <a href="https://abseil.io/tips/107">Tip of the Week #107: Reference Lifetime Extension</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5553" class="rspec-auto-link">S5553</a> detects uses of reclaimed temporary variables that are not lifetime-extended.</p>
+</li>
+<li>
+<p><a data-rspec-id="S946" class="rspec-auto-link">S946</a> detects situation when address of reference to local variable is returned from function</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

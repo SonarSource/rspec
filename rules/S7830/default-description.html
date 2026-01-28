@@ -1,0 +1,120 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>Thread.new</code> is used to make HTTP requests while accessing shared mutable data structures without proper synchronization mechanisms.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using basic threading with <code>Thread.new</code> for HTTP requests without proper synchronization creates several serious problems:</p>
+</div>
+<div class="paragraph">
+<p><strong>Race Conditions</strong>: When multiple threads access and modify shared data structures simultaneously, race conditions occur. In the problematic pattern, threads check if all URLs have been processed using <code>urls.all?</code>, but this check can happen concurrently, leading to unpredictable results.</p>
+</div>
+<div class="paragraph">
+<p><strong>Shared Mutable State</strong>: Modifying hash elements like <code>u['content']</code> from multiple threads without synchronization can corrupt data or cause inconsistent program state.</p>
+</div>
+<div class="paragraph">
+<p><strong>Resource Management Issues</strong>: Naive threading doesn&#8217;t provide proper resource cleanup, connection pooling, or error handling. Each thread creates its own HTTP connection without coordination, potentially overwhelming the target server or exhausting system resources.</p>
+</div>
+<div class="paragraph">
+<p><strong>Unpredictable Program Termination</strong>: The pattern often includes calls to <code>exit</code> from within threads, which can terminate the program at unexpected times, potentially leaving resources in an inconsistent state.</p>
+</div>
+<div class="paragraph">
+<p><strong>No Error Handling</strong>: Basic threading doesn&#8217;t provide structured error handling for network failures, timeouts, or other HTTP-related issues that commonly occur in distributed systems.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>This pattern can lead to data corruption, unpredictable application behavior, resource exhaustion, and difficult-to-debug concurrency issues. In production environments, it may cause intermittent failures that are hard to reproduce and diagnose.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace naive threading with a proper async library like the <code>async</code> gem. This provides structured concurrency, proper resource management, and eliminates race conditions.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">require 'net/http'
+
+urls = [
+  {'link' =&gt; 'http://www.google.com/'},
+  {'link' =&gt; 'http://www.facebook.com/'}
+]
+
+urls.each do |u|
+  Thread.new do
+    u['content'] = Net::HTTP.get(URI.parse(u['link']))  # Noncompliant
+
+    if urls.all? {|u| u.has_key?("content") }  # Noncompliant
+      puts "Fetched all urls!"
+      exit  # Noncompliant
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">require 'async'
+require 'async/http/internet'
+
+urls = ['http://www.google.com/', 'http://www.facebook.com/']
+
+Async do
+  internet = Async::HTTP::Internet.new
+
+  tasks = urls.map do |url|
+    Async do
+      response = internet.get(url)
+      response.read
+    end
+  end
+
+  results = tasks.map(&amp;:wait)
+  puts "Fetched all urls!"
+ensure
+  internet&amp;.close
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Ruby Async Gem Documentation - <a href="https://github.com/socketry/async">Official documentation for the async gem providing structured concurrency</a></p>
+</li>
+<li>
+<p>Ruby Thread Synchronization - <a href="https://ruby-doc.org/core/Thread.html">Official Ruby documentation on thread synchronization primitives</a></p>
+</li>
+<li>
+<p>Concurrent Ruby - <a href="https://github.com/ruby-concurrency/concurrent-ruby">Modern concurrency tools for Ruby including thread pools and async utilities</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

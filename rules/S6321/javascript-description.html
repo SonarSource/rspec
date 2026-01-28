@@ -1,0 +1,281 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Cloud platforms such as AWS, Azure, or GCP support virtual firewalls that can be used to restrict access to services by controlling inbound and outbound traffic.<br>
+Any firewall rule allowing traffic from all IP addresses to standard network ports on which administration services traditionally listen, such as 22 for SSH, can expose these services to exploits and unauthorized access.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Like any other service, administration services can contain vulnerabilities.
+Administration services run with elevated privileges and thus a vulnerability
+could have a high impact on the system.</p>
+</div>
+<div class="paragraph">
+<p>Additionally, credentials might be leaked through phishing or similar techniques.
+Attackers who are able to reach the services could use the credentials to log
+in to the system.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>It is recommended to restrict access to remote administration services to only
+trusted IP addresses. In practice, trusted IP addresses are those held by system
+administrators or those of <a href="https://aws.amazon.com/quickstart/architecture/linux-bastion/?nc1=h_ls">bastion-like</a> servers.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.Instance.html">aws-cdk-lib.aws_ec2.Instance</a> and other constructs that support a <code>connections</code> attribute:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+const instance = new ec2.Instance(this, "default-own-security-group",{
+    instanceType: nanoT2,
+    machineImage: ec2.MachineImage.latestAmazonLinux(),
+    vpc: vpc,
+    instanceName: "test-instance"
+})
+
+instance.connections.allowFrom(
+    ec2.Peer.anyIpv4(), // Noncompliant
+    ec2.Port.tcp(22),
+    /*description*/ "Allows SSH from all IPv4"
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.SecurityGroup.html">aws-cdk-lib.aws_ec2.SecurityGroup</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+const securityGroup = new ec2.SecurityGroup(this, "custom-security-group", {
+    vpc: vpc
+})
+
+securityGroup.addIngressRule(
+    ec2.Peer.anyIpv4(), // Noncompliant
+    ec2.Port.tcpRange(1, 1024)
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.CfnSecurityGroup.html">aws-cdk-lib.aws_ec2.CfnSecurityGroup</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new ec2.CfnSecurityGroup(
+    this,
+    "cfn-based-security-group", {
+        groupDescription: "cfn based security group",
+        groupName: "cfn-based-security-group",
+        vpcId: vpc.vpcId,
+        securityGroupIngress: [
+            {
+                ipProtocol: "6",
+                cidrIp: "0.0.0.0/0", // Noncompliant
+                fromPort: 22,
+                toPort: 22
+            }
+        ]
+    }
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.CfnSecurityGroupIngress.html">aws-cdk-lib.aws_ec2.CfnSecurityGroupIngress</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new ec2.CfnSecurityGroupIngress( // Noncompliant
+    this,
+    "ingress-all-ip-tcp-ssh", {
+        ipProtocol: "tcp",
+        cidrIp: "0.0.0.0/0",
+        fromPort: 22,
+        toPort: 22,
+        groupId: securityGroup.attrGroupId
+})</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.Instance.html">aws-cdk-lib.aws_ec2.Instance</a> and other constructs that support a <code>connections</code> attribute:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+const instance = new ec2.Instance(this, "default-own-security-group",{
+    instanceType: nanoT2,
+    machineImage: ec2.MachineImage.latestAmazonLinux(),
+    vpc: vpc,
+    instanceName: "test-instance"
+})
+
+instance.connections.allowFrom(
+    ec2.Peer.ipv4("192.0.2.0/24"),
+    ec2.Port.tcp(22),
+    /*description*/ "Allows SSH from a trusted range"
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.SecurityGroup.html">aws-cdk-lib.aws_ec2.SecurityGroup</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+const securityGroup3 = new ec2.SecurityGroup(this, "custom-security-group", {
+    vpc: vpc
+})
+
+securityGroup3.addIngressRule(
+    ec2.Peer.anyIpv4(),
+    ec2.Port.tcpRange(1024, 1048)
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.CfnSecurityGroup.html">aws-cdk-lib.aws_ec2.CfnSecurityGroup</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">import {aws_ec2 as ec2} from 'aws-cdk-lib'
+
+new ec2.CfnSecurityGroup(
+    this,
+    "cfn-based-security-group", {
+        groupDescription: "cfn based security group",
+        groupName: "cfn-based-security-group",
+        vpcId: vpc.vpcId,
+        securityGroupIngress: [
+            {
+                ipProtocol: "6",
+                cidrIp: "192.0.2.0/24",
+                fromPort: 22,
+                toPort: 22
+            }
+        ]
+    }
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.CfnSecurityGroupIngress.html">aws-cdk-lib.aws_ec2.CfnSecurityGroupIngress</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-javascript" data-lang="javascript">new ec2.CfnSecurityGroupIngress(
+    this,
+    "ingress-all-ipv4-tcp-http", {
+        ipProtocol: "6",
+        cidrIp: "0.0.0.0/0",
+        fromPort: 80,
+        toPort: 80,
+        groupId: securityGroup.attrGroupId
+    }
+)</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html">AWS Documentation</a> - Security groups for your VPC</p>
+</li>
+<li>
+<p><a href="https://docs.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview">Azure Documentation</a> - Network security groups</p>
+</li>
+<li>
+<p><a href="https://cloud.google.com/vpc/docs/using-firewalls">GCP Documentation</a> - Firewalls</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/284">CWE-284 - Improper Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_message">Message</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a call to <code>allowFromAnyIpv4</code> or <code>allowDefaultPortFromAnyIpv4</code> is identified:
+* Change this method for <code>allowFrom</code> and set <code>other</code> to a subset of trusted IP addresses</p>
+</div>
+<div class="paragraph">
+<p>In any other case, when a dangerous peer definition is identified:
+* Change this IP range to a subset of trusted IP addresses.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_highlighting">Highlighting</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a call to <code>allowFromAnyIpv4</code> or <code>allowDefaultPortFromAnyIpv4</code> is identified:
+* Highlight the method name</p>
+</div>
+<div class="paragraph">
+<p>In any other case, when a dangerous peer definition is identified:
+* Highlight the peer definition attribute, e.g. <code>cidrIp</code> for <code>IngressProperty</code>, <code>peer</code> parameter for <code>addIngressRule</code> calls, <code>other</code> for <code>allowFrom</code> calls, etc.</p>
+</div>
+<hr>
+</div>
+</div>

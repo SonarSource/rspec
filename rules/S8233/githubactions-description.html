@@ -1,0 +1,175 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Granting sensitive write permissions at the workflow level applies those permissions to all jobs in the workflow by default. This violates the principle of least privilege, as jobs that don&#8217;t require sensitive permissions will still inherit them unnecessarily.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When sensitive permissions are granted at the workflow level, all jobs inherit these permissions regardless of whether they need them. This creates several security risks:</p>
+</div>
+<div class="sect3">
+<h4 id="_repository_manipulation">Repository manipulation</h4>
+<div class="paragraph">
+<p>If a job that only requires read access is compromised but has inherited <code>contents: write</code> permissions from the workflow level, an attacker could modify repository contents, create unauthorized releases, or manipulate the repository history.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_package_manipulation">Package manipulation</h4>
+<div class="paragraph">
+<p>Jobs with unnecessary <code>packages: write</code> permissions could be exploited to publish malicious packages or tamper with existing packages, potentially compromising downstream consumers of your packages.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_unauthorized_attestations_and_security_events">Unauthorized attestations and security events</h4>
+<div class="paragraph">
+<p>Jobs that inherit <code>attestations: write</code> or <code>security-events: write</code> permissions could create fraudulent security attestations or manipulate security event logs, undermining security monitoring and compliance efforts.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Move sensitive permissions from the workflow level to individual job levels. Only grant permissions at the job level to jobs that actually require them. This ensures that each job receives only the minimum permissions necessary for its function.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following workflow grants <code>contents: write</code> permission at the workflow level, which applies to all jobs:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write # Noncompliant
+
+jobs:
+  commit-change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create file via GitHub API
+        run: |
+          # Uses contents: write permission
+
+  checkout-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # Does not need contents: write permission
+        with:
+          ref: main</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Grant permissions only at the job level to jobs that require them:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  workflow_dispatch:
+
+jobs:
+  commit-change:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create file via GitHub API
+        run: |
+          # Uses contents: write permission
+
+  checkout-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # Does not need contents: write permission
+        with:
+          ref: main</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>The key difference lies in how GitHub Actions applies permissions at different levels:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Workflow-level permissions</strong>: When permissions are declared at the workflow level, they become the default permissions for all jobs in that workflow. Each job automatically inherits these permissions unless explicitly overridden at the job level.</p>
+</li>
+<li>
+<p><strong>Job-level permissions</strong>: When permissions are declared at the job level, they apply only to that specific job. If no permissions are declared at the workflow level, jobs without explicit permissions default to read-only access. If permissions are declared at both levels, the job-level permissions override the workflow-level permissions for that specific job.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>By placing permissions at the job level, you ensure that each job receives only the permissions it explicitly declares, preventing unnecessary permission inheritance and reducing the attack surface of your workflows.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Docs - <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions">Permissions</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control">Top 10 2017 Category A5 - Broken Access Control</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/266">CWE-266 - Incorrect Privilege Assignment</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222430">Application Security and Development: V-222430</a> - The application must execute without excessive account permissions</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S8264" class="rspec-auto-link">S8264</a> - Read permissions should be defined at the job level</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

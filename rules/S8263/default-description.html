@@ -1,0 +1,372 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a workflow invokes an action with untrusted input parameters, and that action forwards them unchecked to a shell interpreter, the interpreter may treat those inputs as shell commands causing a command injection vulnerability.</p>
+</div>
+<div class="paragraph">
+<p>Note, that actions implemented in other languages (such as JavaScript) are not directly vulnerable to this issue, as long as they do not evaluate the input as code.</p>
+</div>
+<div class="paragraph">
+<p>GitHub Actions workflows can access various sources of untrusted data through the GitHub context, such as:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Pull request titles, descriptions, and commit messages</p>
+</li>
+<li>
+<p>Issue titles and comments</p>
+</li>
+<li>
+<p>Branch names and tag names</p>
+</li>
+<li>
+<p>User-provided inputs</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If this untrusted data is given as a parameter to an invoked action, which directly interpolates it into shell commands using GitHub&#8217;s expression syntax (<code>${{ &#8230;&#8203; }}</code>), it can lead to script injection vulnerabilities.
+An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.</p>
+</div>
+<div class="paragraph">
+<p>For instance, if a pull request title contains shell metacharacters like <code>$(whoami)</code> or <code>; rm -rf /</code>, these can be executed as commands when the called workflow executes, potentially compromising the build environment or exposing sensitive information.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The consequences of successful parameter injection attacks in GitHub Actions can be severe and far-reaching:</p>
+</div>
+<div class="sect3">
+<h4 id="_information_disclosure">Information disclosure</h4>
+<div class="paragraph">
+<p>Attackers can extract sensitive information from the runner environment, including:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Repository secrets and environment variables</p>
+</li>
+<li>
+<p>Authentication tokens and API keys</p>
+</li>
+<li>
+<p>Build artifacts and deployment credentials</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_system_compromise">System compromise</h4>
+<div class="paragraph">
+<p>Successful command injection allows attackers to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Execute arbitrary commands on the runner</p>
+</li>
+<li>
+<p>Install malware or backdoors</p>
+</li>
+<li>
+<p>Access other resources available to the runner</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_supply_chain_attacks">Supply chain attacks</h4>
+<div class="paragraph">
+<p>Compromised workflows can be used to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Inject malicious code into build artifacts</p>
+</li>
+<li>
+<p>Modify dependencies or packages being published</p>
+</li>
+<li>
+<p>Compromise downstream systems that consume the artifacts</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_repository_manipulation">Repository manipulation</h4>
+<div class="paragraph">
+<p>Attackers may be able to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Modify repository contents or history</p>
+</li>
+<li>
+<p>Create unauthorized releases or tags</p>
+</li>
+<li>
+<p>Access or modify other repositories the workflow has access to</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The impact is particularly severe because GitHub Actions runners often have elevated privileges and access to sensitive resources, making them attractive targets for attackers.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To prevent potential command injection in called GitHub Actions workflows, avoid directly interpolating untrusted data passed into the invoked actions.
+Instead, use environment variables to safely pass untrusted data without risk of code execution even if the receiving action passes them as-is into a step executed by a shell interpreter.</p>
+</div>
+<div class="paragraph">
+<p>The recommended approach is to assign untrusted data to environment variables using the <code>env</code> key, then reference these variables using standard shell variable syntax (<code>$VARIABLE_NAME</code> or <code>${VARIABLE_NAME}</code>) rather than GitHub&#8217;s expression syntax (<code>${{ &#8230;&#8203; }}</code>).</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following workflow is vulnerable to command injection if the <code>helloaction</code> passes the <code>message</code> parameter directly to a shell interpreter.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: ${{ github.event.pull_request.title }}"  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: $PR_TITLE"
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>The key difference lies in when and how the untrusted data is processed:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Direct interpolation</strong>: When using <code>${{ github.event.pull_request.title }}</code> directly in a shell command, GitHub Actions first substitutes the expression with the actual PR title, then passes the resulting string to the shell. If the title contains shell metacharacters, they become part of the command syntax and get executed.</p>
+</li>
+<li>
+<p><strong>Environment variable approach</strong>: When the untrusted data is assigned to an environment variable, the shell receives it as a pre-existing variable value. The shell treats environment variable contents as literal data, not as executable code, regardless of what characters they contain.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This separation ensures that malicious shell syntax in the untrusted data cannot be interpreted as commands, effectively neutralizing injection attempts.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_fixing_vulnerabilities_only_in_the_main_branch">Fixing vulnerabilities only in the main branch</h4>
+<div class="paragraph">
+<p>It is important to note that fixing this vulnerability requires updating the workflow files in all existing branches of the repository. GitHub Actions workflows can be triggered from any branch, and an attacker could potentially target vulnerable workflows in older or feature branches. A comprehensive fix should include updating all branches that contain the vulnerable workflow patterns.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_accessing_environment_variables_through_github_expressions">Accessing environment variables through GitHub expressions</h4>
+<div class="paragraph">
+<p>While storing untrusted data in environment variables is the correct approach, it is important to reference them properly. Simply putting the data in an environment variable but then accessing it through GitHub&#8217;s expression syntax (<code>${{ env.VARIABLE_NAME }}</code>) will still result in command injection vulnerabilities.</p>
+</div>
+<div class="paragraph">
+<p>The following example demonstrates this common mistake:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example action call
+        uses: ./helloaction
+        with:
+          message: "PR title: ${{ env.PR_TITLE }}" # Noncompliant
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="sect3">
+<h4 id="_security_hardening">Security hardening</h4>
+<div class="paragraph">
+<p>Beyond fixing the immediate security issue, consider implementing additional security measures:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Minimal permissions</strong>: Configure workflows to use the minimum necessary permissions by explicitly setting <code>permissions</code> for the <code>GITHUB_TOKEN</code> and avoiding overly broad access.</p>
+</li>
+<li>
+<p><strong>Branch protection</strong>: Implement branch protection rules that require code review for changes to workflow files, preventing unauthorized modifications.</p>
+</li>
+<li>
+<p><strong>External contributor restrictions</strong>: Configure workflows to require approval for runs triggered by external contributors, reducing the risk of malicious workflow executions.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_advanced_input_validation">Advanced input validation</h4>
+<div class="paragraph">
+<p>For enhanced security, implement comprehensive input validation:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Allowlists</strong>: Instead of just avoiding dangerous characters, use allowlists to only accept inputs that match expected patterns (e.g., valid branch names, semantic version formats).</p>
+</li>
+<li>
+<p><strong>Custom validation actions</strong>: Create reusable composite actions that encapsulate input validation logic, making it easier to apply consistent security controls across workflows.</p>
+</li>
+<li>
+<p><strong>Input sanitization</strong>: When possible, sanitize inputs by removing or escaping potentially dangerous characters before processing them.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Docs - <a href="https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections">Understanding the risk of script injections</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/78">CWE-78 - Improper Neutralization of Special Elements used in an OS Command</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222604">Application Security and Development: V-222604</a> - The application must protect from command injection.</p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S7630" class="rspec-auto-link">S7630</a> GitHub Actions should not be vulnerable to script injections</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this action call to not use user-controlled data as a parameter</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary: On GitHub expression using tainted data in the action parameter</p>
+</li>
+<li>
+<p>In the pitfall example, secondary on the assignment of tainted data into an environment variable</p>
+</li>
+<li>
+<p>Message: "User-controlled data is stored in '&lt;variable_name&gt;'"</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

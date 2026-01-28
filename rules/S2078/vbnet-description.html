@@ -1,0 +1,314 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>LDAP injections occur in an application when the application retrieves
+untrusted data and inserts it into an LDAP query without sanitizing it first.</p>
+</div>
+<div class="paragraph">
+<p>An LDAP injection can either be basic or blind, depending on whether the
+server&#8217;s fetched data is directly returned in the web application&#8217;s response.<br>
+The absence of the corresponding response for the malicious request on the
+application is not a barrier to exploitation. Thus, it must be treated the same
+way as basic LDAP injections.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>In the context of a web application vulnerable to LDAP injection: after
+discovering the injection point, attackers insert data into the vulnerable
+field to execute malicious LDAP commands.</p>
+</div>
+<div class="paragraph">
+<p>The impact of this vulnerability depends on how vital LDAP servers are to the
+organization.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_data_leakage_or_corruption">Data leakage or corruption</h4>
+<div class="paragraph">
+<p>In typical scenarios where systems perform innocuous LDAP operations to find
+users or create inventories, an LDAP injection could result in data
+leakage or corruption.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_privilege_escalation">Privilege escalation</h4>
+<div class="paragraph">
+<p>A malicious LDAP query could allow an attacker to impersonate a low-privileged
+user or an administrator in scenarios where systems perform authorization
+checks or authentication.</p>
+</div>
+<div class="paragraph">
+<p>Attackers use this vulnerability to find multiple footholds on target
+organizations by gathering authentication bypasses.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_net">How to fix it in .NET</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following noncompliant code is vulnerable to LDAP injections because untrusted data is
+concatenated in an LDAP query without prior validation.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Public Class ExampleController
+    Inherits Controller
+
+    Public Function Authenticate(User As String, Pass As String) As IActionResult
+        Dim Directory As New DirectoryEntry("LDAP://ou=system")
+        Dim Search As New DirectorySearcher(Directory)
+
+        Search.Filter = "(&amp;(uid=" &amp; User &amp; ")(userPassword=" &amp; Pass &amp; "))"
+
+        Return Json(Search.FindOne() IsNot Nothing)
+    End Function
+End Class</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Public Class ExampleController
+    Inherits Controller
+
+    Public Function Authenticate(User As String, Pass As String) As IActionResult
+        ' restrict the username and password to letters only
+        If Not Regex.IsMatch(User, "^[a-zA-Z]+$") OrElse Not Regex.IsMatch(Pass, "^[a-zA-Z]+$") Then
+            Return BadRequest()
+        End If
+
+        Dim Directory As New DirectoryEntry("LDAP://ou=system")
+        Dim Search As New DirectorySearcher(Directory)
+
+        Search.Filter = "(&amp;(uid=" &amp; User &amp; ")(userPassword=" &amp; Pass &amp; "))"
+
+        Return Json(Search.FindOne() IsNot Nothing)
+    End Function
+End Class</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>As a rule of thumb, the best approach to protect against injections is to
+systematically ensure that untrusted data cannot break out of the initially intended logic.</p>
+</div>
+<div class="paragraph">
+<p>For LDAP injection, the cleanest way to do so is to use parameterized queries
+if it is available for your use case.</p>
+</div>
+<div class="paragraph">
+<p>Another approach is to sanitize the input before using it in an LDAP query.
+Input sanitization should be primarily done using native libraries.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, validation can be implemented using an allowlist approach by
+creating a list of authorized and secure strings you want the application to use in a
+query. If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must sanitize and validate on the
+server-side. Not on client-side front-ends.</p>
+</div>
+<div class="paragraph">
+<p>The most fundamental security mechanism is the restriction of LDAP
+metacharacters.</p>
+</div>
+<div class="paragraph">
+<p>For <strong>Distinguished Names</strong> (DN), special characters that need to be escaped
+include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>\</code></p>
+</li>
+<li>
+<p><code>#</code></p>
+</li>
+<li>
+<p><code>+</code></p>
+</li>
+<li>
+<p><code>&lt;</code></p>
+</li>
+<li>
+<p><code>&gt;</code></p>
+</li>
+<li>
+<p><code>,</code></p>
+</li>
+<li>
+<p><code>;</code></p>
+</li>
+<li>
+<p><code>"</code></p>
+</li>
+<li>
+<p><code>=</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For <strong>Search Filters</strong>, special characters that need to be escaped include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>*</code></p>
+</li>
+<li>
+<p><code>(</code></p>
+</li>
+<li>
+<p><code>)</code></p>
+</li>
+<li>
+<p><code>\</code></p>
+</li>
+<li>
+<p><code>null</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In the compliant solution example, a validation mechanism is applied to untrusted input to ensure
+it is strictly composed of alphabetic characters.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>IETF - <a href="https://www.ietf.org/rfc/rfc4514.txt">RFC 4514 - LDAP: String Representation of Distinguished Names</a></p>
+</li>
+<li>
+<p>IETF - <a href="https://www.ietf.org/rfc/rfc4515.txt">RFC 4515 - LDAP: String Representation of Search Filters</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/90">CWE-90 - Improper Neutralization of Special Elements used in an LDAP Query ('LDAP Injection')</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to not construct this LDAP name or filter from user-controlled data.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_2_oct_2014_134214_nicolas_peru_wrote">on 2 Oct 2014, 13:42:14 Nicolas Peru wrote:</h3>
+<div class="paragraph">
+<p>The relating find-sec-bug rule is :  http://h3xstream.github.io/find-sec-bugs/bugs.htm#LDAP_INJECTION</p>
+</div>
+<div class="paragraph">
+<p>it checks for classes with use of methods :</p>
+</div>
+<div class="paragraph">
+<p>"com/unboundid/ldap/sdk/LDAPConnection.search(String, SearchScope, String, String[])" or "javax/naming/directory/InitialDirContext.search(String, String, SearchControls)"</p>
+</div>
+<div class="paragraph">
+<p>And verify that methods <code>search</code> use constant string or string literal (between other "safe values") for parameters when they are called.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_4_dec_2014_164808_freddy_mallet_wrote">on 4 Dec 2014, 16:48:08 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>I need to validate if the use of <a href="http://docs.oracle.com/javase/8/docs/api/javax/naming/directory/DirContext.html#search-javax.naming.Name-java.lang.String-java.lang.Object:A-javax.naming.directory.SearchControls-">filter expression</a> allows to prevent LDAP injection</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_16_jan_2015_093617_sébastien_gioria_wrote">on 16 Jan 2015, 09:36:17 Sébastien Gioria wrote:</h3>
+<div class="paragraph">
+<p>\[~freddy.mallet]: at my lastest knowledge, it&#8217;s not prevent it. Only solution in LDAP is sanitize datas.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_9_may_2018_104303_dinesh_bolkensteyn_wrote">on 9 May 2018, 10:43:03 Dinesh Bolkensteyn wrote:</h3>
+<div class="paragraph">
+<p>For the record (and 3 years later), using placeholders in the filter expression will correctly handle escaping, else this method would be pretty useless - cc [~freddy.mallet] [~sebastien.gioria]</p>
+</div>
+<div class="paragraph">
+<p>So it is wrong to state that the JNDI LDAP API does not provide a functionally similar to SQL prepared statements.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>String user = "admin";
+String pass = "secret";
+
+// Setting this will not bypass authentificated
+// Instead it will literally look for such a user ID
+// However, if the filter expression is constructed from string concatenation (not the case here), authentifcation would be bypassed
+//user="*)(uid=*))(|(uid=*";
+
+NamingEnumeration&lt;SearchResult&gt; results = ctx.search("ou=system", "(&amp;(uid={0})(userPassword={1}))", new String[]{user, pass}, new SearchControls());
+if (results.hasMore()) {
+  System.out.println("auth'ed!");
+} else {
+  System.out.println("no such user");
+}</pre>
+</div>
+</div>
+</div>
+</div>
+</div>

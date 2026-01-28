@@ -1,0 +1,170 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when Flask applications access form data without proper validation, either through direct <code>request.form</code> access or by using form objects without calling their validation methods.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>User input validation is a fundamental security practice in web applications. When Flask applications process form data without validation, they become vulnerable to various security threats and data integrity issues.</p>
+</div>
+<div class="paragraph">
+<p>Direct access to form data through <code>request.form</code> bypasses all validation mechanisms. This means malicious or malformed data can be processed directly by the application, potentially leading to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Injection attacks</strong>: Unvalidated input can contain malicious code that gets executed</p>
+</li>
+<li>
+<p><strong>Data corruption</strong>: Invalid data formats can corrupt database records or application state</p>
+</li>
+<li>
+<p><strong>Application crashes</strong>: Unexpected data types or values can cause runtime errors</p>
+</li>
+<li>
+<p><strong>Business logic violations</strong>: Data that doesn&#8217;t meet business rules can create inconsistent application state</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Even when using form libraries like WTForms, simply creating a form object doesn&#8217;t provide protection. The validation must be explicitly triggered by calling methods like <code>validate()</code> or <code>validate_on_submit()</code>. Without these calls, the form&#8217;s validation rules are never executed.</p>
+</div>
+<div class="paragraph">
+<p>Dynamic fields obtained through <code>request.form.getlist()</code> present additional challenges, as they may not be covered by standard form schemas and require custom validation logic.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Processing unvalidated form data can lead to serious security vulnerabilities including injection attacks, data corruption, and application crashes. Attackers can exploit this to manipulate application behavior, access unauthorized data, or cause denial of service.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_flask">How to fix it in Flask</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Always validate form data before processing it. Use WTForms or similar libraries to define validation rules and call the validate() method before accessing form data.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.route('/submit', methods=['POST'])
+def submit_form():
+    # Direct access without validation
+    name = request.form['name']  # Noncompliant
+    phone_numbers = request.form.getlist('phone')  # Noncompliant
+    user = User(name)
+    for phone in phone_numbers:
+        save_phone(phone)
+    return redirect(url_for('success'))</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.route('/submit', methods=['POST'])
+def submit_form():
+    form = ContactForm(request.form)
+    if form.validate():
+        phone_numbers = request.form.getlist('phone')
+        for phone in phone_numbers:
+            if not validate_phone_format(phone):
+                flash('Invalid phone format')
+                return render_template('contact.html', form=form)
+            save_phone(phone)
+        user = User(form.name.data)
+        return redirect(url_for('success'))
+    return render_template('contact.html', form=form)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When using form objects, always call the validation method before processing the data. Never access form.field.data without first ensuring the form is valid.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.route('/register', methods=['POST'])
+def register():
+    form = RegistrationForm(request.form)
+    # Processing without validation
+    user = User(form.username.data, form.email.data)  # Noncompliant
+    db_session.add(user)
+    return redirect(url_for('login'))</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">@app.route('/register', methods=['POST'])
+def register():
+    form = RegistrationForm(request.form)
+    if form.validate():
+        user = User(form.username.data, form.email.data)
+        db_session.add(user)
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Flask Form Validation with WTForms - <a href="https://flask.palletsprojects.com/en/stable/patterns/wtforms/">Official Flask documentation on form validation patterns using WTForms</a></p>
+</li>
+<li>
+<p>WTForms Documentation - <a href="https://wtforms.readthedocs.io/en/stable/">Complete documentation for the WTForms validation library</a></p>
+</li>
+<li>
+<p>Flask-WTF Documentation - <a href="https://flask-wtf.readthedocs.io/en/stable/">Documentation for Flask-WTF extension that integrates WTForms with Flask</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP Top 10 2021 A3 - <a href="https://owasp.org/Top10/A03_2021-Injection/">Injection vulnerabilities occur when untrusted data is sent to an interpreter as part of a command or query</a></p>
+</li>
+<li>
+<p>CWE 20 - <a href="https://cwe.mitre.org/data/definitions/20.html">Improper Input Validation - The product does not validate or incorrectly validates input</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6967" class="rspec-auto-link">S6967</a> - ASP.NET Core controllers should validate model state</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

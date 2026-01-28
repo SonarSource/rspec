@@ -1,0 +1,212 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>By default, <code>actions/checkout</code> persists credentials to <code>.git/config</code>. When artifacts are uploaded using <code>actions/upload-artifact</code>, these persisted credentials can be exposed in artifacts.</p>
+</div>
+<div class="paragraph">
+<p>The vulnerability occurs when:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Upload-artifact version &lt; 3.2 or &gt;= 4.0 and &lt; 4.4</strong>: These versions upload hidden directories including <code>.git/config</code> by default if a broad path is given e.g. <code>.</code>, <code>*</code>. Note: version 3.2+ contains a backported fix that excludes hidden files by default.</p>
+</li>
+<li>
+<p><strong>Upload-artifact version &gt;= 4.4</strong>: This version is safe by default. Vulnerability is introduced if <code>include-hidden-files: true</code> is set and a broad path is given e.g. <code>.</code> or <code>*</code> without manually excluding the <code>.git</code> directory.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>If credentials persisted in the <code>.git</code> directory are uploaded, an attacker who gains access to the uploaded artifacts can:</p>
+</div>
+<div class="sect3">
+<h4 id="_credential_exposure">Credential Exposure</h4>
+<div class="paragraph">
+<p>The credentials are stored in plain text in the artifact, allowing unauthorized access to repository resources.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_unauthorized_access">Unauthorized Access</h4>
+<div class="paragraph">
+<p>An attacker with the extracted credentials can perform actions on behalf of the workflow, such as reading sensitive data, modifying code, creating releases, or accessing other repositories the credentials have permissions for.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_supply_chain_compromise">Supply Chain Compromise</h4>
+<div class="paragraph">
+<p>An attacker with the extracted credentials can modify workflows, inject malicious code, or publish malicious packages, potentially compromising the entire supply chain.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are two primary ways to fix this vulnerability:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Disable Credential Persistence</strong>:
+This is the most secure solution. It prevents <code>actions/checkout</code> from ever writing the credentials to the <code>.git/config</code> file.
+Set <code>persist-credentials: false</code> in <code>actions/checkout</code> step.</p>
+</li>
+<li>
+<p><strong>Exclude the .git Directory</strong>:
+When using both <code>persist-credentials: true</code> and <code>include-hidden-files: true</code>, add <code>!.git/</code> to the path input of the <code>actions/upload-artifact</code> step to explicitly exclude the sensitive <code>.git</code> directory.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4.1.1 # Noncompliant
+        with:
+          name: repo-artifact
+          path: .</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-artifact
+          path: |
+            .  # Noncompliant
+          include-hidden-files: true</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>If <code>actions/upload-artifact</code> version is vulnerable (&lt; 3.2 or &gt;= 4.0 and &lt; 4.4), upgrading to version 3.2+ or 4.4+ will fix this by automatically ignoring hidden files from being uploaded.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-artifact
+          path: .</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If <code>persist-credentials: true</code> &amp; <code>include-hidden-files: true</code> are used together, <code>!.git</code> must be explicitly included to prevent the <code>.git</code> directory from being uploaded:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-artifact
+          path: |
+            .
+            !.git
+          include-hidden-files: true</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>By default, <code>actions/checkout</code> persists the credentials to <code>.git/config</code> to enable Git operations.</p>
+</div>
+<div class="paragraph">
+<p>When artifacts are uploaded that include the <code>.git</code> directory (either explicitly or through patterns like <code>.</code> or <code>**/*</code>), the persisted credentials are included in the artifact. An attacker who gains access to the artifact can extract the credentials from <code>.git/config</code>.</p>
+</div>
+<div class="paragraph">
+<p>For <code>upload-artifact</code> version 3.2+ or 4.4+, when using <code>include-hidden-files: true</code>, explicitly excluding <code>!.git/</code> from the artifact path provides defense-in-depth protection.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Actions/upload-artifact - <a href="https://github.com/actions/upload-artifact">Actions/upload-artifact Repository</a></p>
+</li>
+<li>
+<p>Actions/checkout - <a href="https://github.com/actions/checkout">Actions/checkout Repository</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/">Top 10 2021 Category A5 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration">Top 10 2017 Category A6 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/312">CWE-312 - Cleartext Storage of Sensitive Information</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/200.html">CWE-200 - Exposure of Sensitive Information to an Unauthorized Actor</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

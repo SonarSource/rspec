@@ -1,0 +1,200 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Environment variable injection occurs in an application when the application receives
+data from a user or a third-party service and, without sanitizing it first, does the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Creates an environment variable based on the external data.</p>
+</li>
+<li>
+<p>Inserts the external data into certain sensitive environment variables, such as <code>PATH</code> or <code>LD_PRELOAD</code>.</p>
+<div class="literalblock">
+<div class="content">
+<pre>If an application uses environment variables that are vulnerable to injection, it is exposed
+to a variety of attacks that aim to exploit supposedly safe environment variables, such as `PATH`.</pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A user with malicious intent carefully performs actions aimed at modifying or adding environment variables to profit from it.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>When user-supplied values are used to manipulate environment variables,
+an attacker can supply carefully chosen values that cause the system to behave unexpectedly.<br>
+In some cases, the attacker can use this capability to execute arbitrary code on the server.</p>
+</div>
+<div class="paragraph">
+<p>Below are some real-world scenarios that illustrate some impacts of an attacker
+exploiting the vulnerability.</p>
+</div>
+<div class="sect3">
+<h4 id="_application_specific_attacks">Application-specific attacks</h4>
+<div class="paragraph">
+<p>In this scenario, the attacker manages to inject an environment variable
+that is recognized and used by the remote system. For example, this could
+be the secret of a particular cloud provider used in an environment variable, or <code>PATH</code>.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the application, the attacker can read or modify important
+data or perform unwanted actions.<br>
+For example, injecting data into the <code>HTTP_PROXY</code> variable could lead to data leakage.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_application_compromise">Application compromise</h4>
+<div class="paragraph">
+<p>In the worst case, an attacker manages to inject an important environment
+variable such as <code>LD_PRELOAD</code> and execute code by overriding trusted code.</p>
+</div>
+<div class="paragraph">
+<p>Depending on the attacker, code execution can be used with different
+intentions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Download the internal server&#8217;s data, most likely to sell it.</p>
+</li>
+<li>
+<p>Modify data, install malware, and for instance, malware that mines cryptocurrencies.</p>
+</li>
+<li>
+<p>Stop services or exhaust resources, for instance, with fork bombs.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This threat is particularly insidious if the attacked organization does not
+maintain a Disaster Recovery Plan (DRP).</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_net">How to fix it in .NET</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="paragraph">
+<p>The following code is vulnerable to environment variable manipulation as it
+constructs the variables from untrusted data.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Imports System.Diagnostics
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Sub Example(Name As String, Value As String)
+        Dim Proc As New Process()
+        Proc.StartInfo.FileName = "path/to/executable"
+        Proc.StartInfo.EnvironmentVariables.Add(Name, Value) ' Noncompliant
+        Proc.Start()
+    End Sub
+End Class</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-vbnet" data-lang="vbnet">Imports System.Diagnostics
+Imports System.Text.RegularExpressions
+
+Public Class ExampleController
+    Inherits Controller
+
+    Public Sub Example(Value As String)
+        Dim Proc As New Process()
+        Proc.StartInfo.FileName = "path/to/executable"
+        Dim Pattern As String = "^[a-zA-Z0-9]*$"
+        Dim M As Match = Regex.Match(Value, Pattern)
+        If M.Success Then Proc.StartInfo.EnvironmentVariables.Add("ENV_VAR", Value)
+        Proc.Start()
+    End Sub
+End Class</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="sect3">
+<h4 id="_pre_approved_commands">Pre-Approved commands</h4>
+<div class="paragraph">
+<p>Create a list of authorized and secure environment variables that you want the
+application to be able to use.<br>
+If a user input does not match an entry in this list, it should be rejected
+because it is considered unsafe.</p>
+</div>
+<div class="paragraph">
+<p><strong>Important note</strong>: The application must do validation on the server side. Not on
+client-side front-ends.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/454">CWE-454 - External Initialization of Trusted Variables or Data Stores</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this code to prevent users from defining arbitrary environment variables.</p>
+</div>
+<hr>
+<hr>
+</div>
+</div>
+</div>

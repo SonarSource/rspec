@@ -1,0 +1,195 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue on a non-transient and non-serializable field within a serializable class, if said class does not have <code>writeObject</code> and <code>readObject</code> methods defined.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>By contract, non-static fields in a <code>Serializable</code> class must themselves be either <code>Serializable</code> or <code>transient</code>.
+Even if the class is never explicitly serialized or deserialized, it is not safe to assume that this cannot happen.
+For instance, under load, most J2EE application frameworks flush objects to disk.</p>
+</div>
+<div class="paragraph">
+<p>An object that implements <code>Serializable</code> but contains non-transient, non-serializable data members (and thus violates the contract) could cause application crashes and open the door to attackers.
+In general, a <code>Serializable</code> class is expected to fulfil its contract and not exhibit unexpected behaviour when an instance is serialized.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue on:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Non-<code>Serializable</code> fields.</p>
+</li>
+<li>
+<p>When a field is assigned a non-<code>Serializable</code> type within the class.</p>
+</li>
+<li>
+<p>Collection fields when they are not <code>private</code>.
+Values that are not serializable could be added to these collections externally.
+Due to type erasure, it cannot be guaranteed that the collection will only contain serializable objects at runtime despite being declared as a collection of serializable types.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Consider the following scenario.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class Address {
+    ...
+}
+
+public class Person implements Serializable {
+  private static final long serialVersionUID = 1905122041950251207L;
+
+  private String name;
+  private Address address;  // Noncompliant, Address is not serializable
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>How to fix this issue depends on the application&#8217;s needs. If the field&#8217;s value should be preserved during serialization and deserialization, you may want to make the field&#8217;s value serializable.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class Address implements Serializable {
+  private static final long serialVersionUID = 2405172041950251807L;
+
+    ...
+}
+
+public class Person implements Serializable {
+  private static final long serialVersionUID = 1905122041950251207L;
+
+  private String name;
+  private Address address; // Compliant, Address is serializable
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If the field&#8217;s value does not need to be preserved during serialization and deserialization, mark it as <code>transient</code>. The field will be ignored when the object is serialized. After deserialization, the field will be set to the default value corresponding to its type (e.g., <code>null</code> for object references).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class Address {
+    ...
+}
+
+public class Person implements Serializable {
+  private static final long serialVersionUID = 1905122041950251207L;
+
+  private String name;
+  private transient Address address; // Compliant, the field is transient
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The alternative to making all members serializable or <code>transient</code> is to implement special methods which take on the responsibility of properly serializing and de-serializing the object <code>writeObject</code> and <code>readObject</code>. These methods can be used to properly (de-)serialize an object, even though it contains fields that are not transient or serializable. Hence, this rule does not raise issues on fields of classes which implement these methods.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class Address {
+    ...
+}
+
+public class Person implements Serializable {
+  private static final long serialVersionUID = 1905122041950251207L;
+
+  private String name;
+  private Address address; // Compliant, writeObject and readObject handle this field
+
+  private void writeObject(java.io.ObjectOutputStream out) throws IOException {
+    // Appropriate serialization logic here
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+    // Appropriate deserialization logic here
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Finally, static fields are out of scope for serialization, so making a field static prevents issues from being raised.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class Person implements Serializable {
+  private static final long serialVersionUID = 1905122041950251207L;
+
+  private String name;
+
+  private static Logger log = getLogger(); // Compliant, static fields are not serialized
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/594">CWE-594 - Saving Unserializable Objects to Disk</a></p>
+</li>
+<li>
+<p><a href="https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/io/Serializable.html">Interface Serializable - Java SE 11 API Documentation</a></p>
+</li>
+<li>
+<p><a href="https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/io/Serializable.html">Interface Serializable - Java SE 17 API Documentation</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make "xxx" transient or serializable.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_duplicated_by_s2058">is duplicated by: <a data-rspec-id="S2058" class="rspec-auto-link">S2058</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_21_dec_2016_141657_tibor_blenessy_wrote">on 21 Dec 2016, 14:16:57 Tibor Blenessy wrote:</h3>
+<div class="paragraph">
+<p>There is a limitation to the rule discussed in</p>
+</div>
+<div class="paragraph">
+<p><a href="https://groups.google.com/forum/?utm_medium=email&amp;utm_source=footer#!msg/sonarqube/ofykNf_8tso/mvwWvM6JBAAJ" class="bare">https://groups.google.com/forum/?utm_medium=email&amp;utm_source=footer#!msg/sonarqube/ofykNf_8tso/mvwWvM6JBAAJ</a></p>
+</div>
+<div class="paragraph">
+<p>The pattern of throwing NotSerializableException is described here http://www.oracle.com/technetwork/articles/java/javaserial-1536170.html</p>
+</div>
+</div>
+</div>
+</div>

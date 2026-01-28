@@ -1,0 +1,133 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a loop busy-waits for a variable to change without using proper synchronization mechanisms.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Busy waiting for a variable to change without proper synchronization can cause serious problems in concurrent Go programs.</p>
+</div>
+<div class="paragraph">
+<p>When a goroutine uses a simple loop like <code>for !done {}</code> to wait for another goroutine to change a variable, there are no guarantees about memory visibility. The Go Memory Model specifies that without synchronization events, there&#8217;s no "happens-before" relationship between goroutines.</p>
+</div>
+<div class="paragraph">
+<p>This means:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The waiting goroutine may never observe the write to the variable, causing an infinite loop</p>
+</li>
+<li>
+<p>Even if the variable change is observed, other related variable changes may not be visible</p>
+</li>
+<li>
+<p>The program behavior becomes unpredictable and may vary between different runs or compiler optimizations</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The root cause is the absence of synchronization primitives. Simple variable reads and writes are not atomic operations that establish memory ordering between goroutines. Without explicit synchronization, the CPU and compiler are free to reorder operations in ways that break the intended logic.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The program may hang indefinitely due to infinite loops, or exhibit unpredictable behavior due to data races. In production environments, this can lead to application freezes, resource exhaustion, and unreliable system behavior.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace busy waiting with channel communication to establish proper synchronization between goroutines.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">var a string
+var done bool
+
+func setup() {
+	a = "hello, world"
+	done = true
+}
+
+func main() {
+	go setup()
+	for !done { // Noncompliant
+	}
+	print(a)
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">var a string
+var ch = make(chan bool)
+
+func setup() {
+	a = "hello, world"
+	ch &lt;- true
+}
+
+func main() {
+	go setup()
+	&lt;-ch
+	print(a)
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go Memory Model - <a href="https://go.dev/ref/mem">Official Go memory model specification explaining synchronization requirements</a></p>
+</li>
+<li>
+<p>Effective Go - Concurrency - <a href="https://go.dev/doc/effective_go#concurrency">Best practices for concurrent programming in Go</a></p>
+</li>
+<li>
+<p>sync package - <a href="https://pkg.go.dev/sync">Go&#8217;s synchronization primitives including WaitGroup, Mutex, and Once</a></p>
+</li>
+<li>
+<p>sync/atomic package - <a href="https://pkg.go.dev/sync/atomic">Atomic memory operations for low-level synchronization</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - <a href="https://cwe.mitre.org/data/definitions/362.html">Race conditions caused by improper synchronization of shared resources</a></p>
+</li>
+<li>
+<p>CWE-835: Loop with Unreachable Exit Condition - <a href="https://cwe.mitre.org/data/definitions/835.html">Infinite loops that may never terminate due to unreachable exit conditions</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

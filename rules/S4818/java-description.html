@@ -1,0 +1,241 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using sockets is security-sensitive. It has led in the past to the following vulnerabilities:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2011-1785">CVE-2011-178</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2017-5645">CVE-2017-5645</a></p>
+</li>
+<li>
+<p><a href="https://www.cve.org/CVERecord?id=CVE-2018-6597">CVE-2018-6597</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Sockets are vulnerable in multiple ways:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>They enable a software to interact with the outside world. As this world is full of attackers it is necessary to check that they cannot receive sensitive information or inject dangerous input.</p>
+</li>
+<li>
+<p>The number of sockets is limited and can be exhausted. Which makes the application unresponsive to users who need additional sockets.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This rules flags code that creates sockets. It matches only the direct use of sockets, not use through frameworks or high-level APIs such as the use of  http connections.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>sockets are created without any limit every time a user performs an action.</p>
+</li>
+<li>
+<p>input received from sockets is used without being sanitized.</p>
+</li>
+<li>
+<p>sensitive data is sent via sockets without being encrypted.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of those questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>In many cases there is no need to open a socket yourself. Use instead libraries and existing protocols.</p>
+</li>
+<li>
+<p>Encrypt all data sent if it is sensitive. Usually it is better to encrypt it even if the data is not sensitive as it might change later.</p>
+</li>
+<li>
+<p><a href="https://www.owasp.org/index.php/Input_Validation_Cheat_Sheet">Sanitize</a> any input read from the socket.</p>
+</li>
+<li>
+<p>Limit the number of sockets a given user can create. Close the sockets as soon as possible.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>// === java.net ===
+import java.net.Socket;
+import java.net.InetAddress;
+import java.net.Proxy;
+import java.net.ServerSocket;
+import javax.net.SocketFactory;
+
+class A {
+    void foo(SocketFactory factory, String address, int port, InetAddress localAddr, int localPort, boolean stream,
+            String host, Proxy proxy, int backlog, InetAddress bindAddr)
+            throws Exception {
+        new Socket(); // Sensitive.
+        new Socket(address, port); // Sensitive.
+        new Socket(address, port, localAddr, localPort); // Sensitive.
+        new Socket(host, port, stream); // Sensitive.
+        new Socket(proxy); // Sensitive.
+        new Socket(host, port); // Sensitive.
+        new Socket(host, port, stream); // Sensitive.
+        new Socket(host, port, localAddr, localPort); // Sensitive.
+
+        new ServerSocket(); // Sensitive.
+        new ServerSocket(port); // Sensitive.
+        new ServerSocket(port, backlog); // Sensitive.
+        new ServerSocket(port, backlog, bindAddr); // Sensitive.
+
+        factory.createSocket(); // Sensitive
+    }
+}
+
+abstract class mySocketFactory extends SocketFactory { // Sensitive. Review how the sockets are created.
+    // ...
+}</pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// === java.nio.channels ===
+import java.net.SocketAddress;
+import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.ServerSocketChannel;
+
+class A {
+    void foo(AsynchronousChannelGroup group, SocketAddress remote) throws Exception {
+        AsynchronousServerSocketChannel.open(); // Sensitive.
+        AsynchronousServerSocketChannel.open(group); // Sensitive.
+        AsynchronousSocketChannel.open(); // Sensitive.
+        AsynchronousSocketChannel.open(group); // Sensitive.
+        SocketChannel.open(); // Sensitive.
+        SocketChannel.open(remote); // Sensitive.
+        ServerSocketChannel.open(); // Sensitive.
+    }
+}</pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>// === Netty ===
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.socket.ServerSocketChannel;
+import io.netty.channel.socket.SocketChannel;
+
+class CustomChannelInitializer extends ChannelInitializer&lt;ServerSocketChannel&gt; { // Sensitive. Review how the SocketChannel is used.
+    @Override
+    protected void initChannel(ServerSocketChannel ch) throws Exception {
+    }
+}
+
+class A {
+    void foo() {
+        new ChannelInitializer&lt;SocketChannel&gt;() {  // Sensitive
+            @Override
+            public void initChannel(SocketChannel ch) throws Exception {
+                // ...
+            }
+        };
+    }
+}</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/400">CWE-400 - Uncontrolled Resource Consumption ('Resource Exhaustion')</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/200">CWE-200 -  Exposure of Sensitive Information to an Unauthorized Actor</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure that sockets are used safely here.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2656">is related to: <a data-rspec-id="S2656" class="rspec-auto-link">S2656</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_30_aug_2018_194825_ann_campbell_wrote">on 30 Aug 2018, 19:48:25 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~nicolas.harraudeau] the verb 'handling' is slightly odd to me in this context. I would go either for "using" or "opening"/"creating" depending on the conditions under which issues will be raised.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_4_sep_2018_105441_alexandre_gigleux_wrote">on 4 Sep 2018, 10:54:41 Alexandre Gigleux wrote:</h3>
+<div class="paragraph">
+<p>\[~nicolas.harraudeau] Review</p>
+</div>
+<div class="paragraph">
+<p>Can you clarify what this rule is doing? Is this rule going to raise an issue each time there is a socket creation or only when something is written on it or both?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_3_jun_2020_100139_eric_therond_wrote">on 3 Jun 2020, 10:01:39 Eric Therond wrote:</h3>
+<div class="paragraph">
+<p>Deprecated because it overlaps with SonarSecurity</p>
+</div>
+<div class="paragraph">
+<p>New common sources should be added (when reading sockets)</p>
+</div>
+</div>
+</div>
+</div>

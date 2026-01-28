@@ -1,0 +1,344 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Failing to properly initialize or destroy a <code>pthread</code> mutex can lead to undefined behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><em>Mutexes</em> are synchronization primitives that allow managing concurrency.</p>
+</div>
+<div class="paragraph">
+<p>Their use requires following a well-defined life cycle:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><em>Mutexes</em> need to be initialized (using <code>pthread_mutex_init</code>) before being used. Once it is initialized, a <em>mutex</em> is in an <em>unlocked</em> state.</p>
+</li>
+<li>
+<p><em>Mutexes</em> need to be destroyed (using <code>pthread_mutex_destroy</code>) to free the associated internal resources. Only <em>unlocked</em> <em>mutexes</em> can be safely destroyed.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Before initialization and after destruction, a mutex is in an uninitialized state.</p>
+</div>
+<div class="paragraph">
+<p>During a <em>mutex</em>' life cycle,
+the following patterns should be avoided as they result in undefined behavior:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>trying to initialize an already initialized <em>mutex</em></p>
+</li>
+<li>
+<p>trying to destroy an initialized <em>mutex</em> that is in a <em>locked</em> state</p>
+</li>
+<li>
+<p>trying to destroy an uninitialized <em>mutex</em></p>
+</li>
+<li>
+<p>trying to lock an uninitialized <em>mutex</em></p>
+</li>
+<li>
+<p>trying to unlock an uninitialized <em>mutex</em></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In C&#43;&#43;11 and higher, <code>std::mutex</code> is less error-prone and is supported by more platforms.</p>
+</div>
+<div class="paragraph">
+<p>In C&#43;&#43;03, it is recommended to wrap mutex creation/destruction in an RAII class, as well as mutex lock/unlock. Those RAII classes will perform the right operations, even in the presence of exceptions.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Failing to properly initialize or destroy a POSIX Thread Mutex leads to <strong>undefined behavior</strong>.</p>
+</div>
+<div class="paragraph">
+<p>For programs that exercise undefined behavior, the compiler is no longer bound by the language specification.
+The application may crash or, even worse, the application may appear to execute correctly while losing data or producing incorrect results.
+In a multi-threaded context, additionally, the application may experience spurious deadlocks or data races.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ensure that all mutexes follow the well-defined life cycle.</p>
+</div>
+<div class="paragraph">
+<p>If C&#43;&#43;11 (or higher) is available, use <code>std::mutex</code> and <code>std::lock_guard</code>, instead, to avoid invalid usage patterns that lead to undefined behavior.
+Depending on the scenario, <code>std::atomic</code> may be used as an alternative if only small and primitive data shall be modified in a concurrent context and in a synchronized manner.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;pthread.h&gt;
+
+pthread_mutex_t mtx;
+
+void double_initialization(void)
+{
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL); // Initializes the mutex using an implementation-defined default attribute.
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL); // Noncompliant: initializing an already initialized mutex
+}
+
+void destroy_locked(void)
+{
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_lock(&amp;mtx);
+  pthread_mutex_destroy(&amp;mtx); // Noncompliant: destroying a locked mutex
+}
+
+void double_destruction(void)
+{
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&amp;mtx);
+  pthread_mutex_destroy(&amp;mtx); // Noncompliant: destroying an uninitialized mutex
+}
+
+void lock_destroyed(void)
+{
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&amp;mtx);
+  pthread_mutex_lock(&amp;mtx); // Noncompliant: locking an uninitialized mutex
+}
+
+void unlock_destroyed(void)
+{
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&amp;mtx);
+  pthread_mutex_unlock(&amp;mtx); // Noncompliant: unlocking an uninitialized mutex
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>C solution:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;pthread.h&gt;
+
+pthread_mutex_t mtx;
+
+void destroy_initialized(void)
+{
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_destroy(&amp;mtx);
+}
+
+void use_and_destroy_initialized(void)
+{
+  pthread_mutex_init(&amp;mtx, /*mutex attribute=*/NULL);
+  pthread_mutex_lock(&amp;mtx);
+  // Critical code that processes a shared resource (e.g. memory).
+  pthread_mutex_unlock(&amp;mtx);
+  pthread_mutex_destroy(&amp;mtx);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For static mutex variables:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-c" data-lang="c">#include &lt;pthread.h&gt;
+
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+
+void use_statically_initialized(void)
+{
+  pthread_mutex_lock(&amp;mtx); // Compliant: mutex is initialized statically
+  // Critical code that processes a shared resource (e.g. memory).
+  pthread_mutex_unlock(&amp;mtx);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;11 and higher solution:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;mutex&gt;
+#include &lt;stdexcept&gt;
+
+std::mutex mtx;
+
+void use_lock_guard(bool condition) {
+  std::lock_guard&lt;std::mutex&gt; lock(mtx);
+  // Critical code that processes a shared resource (e.g. memory).
+  if (condition) {
+    // Compliant: mutex will unlock automatically even in case of an exception
+    throw std::invalid_argument("Expected false");
+  }
+  // Compliant: mutex will unlock automatically at the end of the scope
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>C&#43;&#43;03 solution:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;pthread.h&gt;
+
+pthread_mutex_t mtx;
+
+class Mutex {
+public:
+  Mutex(pthread_mutex_t* mtx) : pmtx(mtx) {
+    pthread_mutex_init(pmtx, /*mutex attribute=*/NULL);
+  }
+  ~Mutex() {
+    pthread_mutex_destroy(pmtx);
+  }
+  pthread_mutex_t* pmtx;
+private:
+  // Disallow copy operations to avoid double-free issues.
+  Mutex(Mutex const&amp; other);
+  Mutex&amp; operator=(Mutex const&amp; other);
+};
+
+struct LockGuard {
+  LockGuard(Mutex &amp;m) : mtx(m) {
+    pthread_mutex_lock(mtx.pmtx);
+  }
+  ~LockGuard() {
+    pthread_mutex_unlock(mtx.pmtx);
+  }
+  Mutex &amp;mtx;
+};
+
+void destroy_initialized()
+{
+  Mutex m(&amp;mtx);
+  // Compliant: mtx will be properly initialized and destroyed
+}
+
+void use_and_destroy_initialized()
+{
+  Mutex m(&amp;mtx);
+  {
+    LockGuard lock(m);
+    // Critical code that processes a shared resource (e.g. memory).
+    // Compliant: mutex will unlock automatically at the end of the scope
+  }
+  // Compliant: mtx will be destroyed properly
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>The Open Group - <a href="https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_mutex_init.html"><code>pthread_mutex_init</code>, <code>pthread_mutex_destroy</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/atomic/atomic"><code>std::atomic</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/thread/lock_guard"><code>std::lock_guard</code></a></p>
+</li>
+<li>
+<p>C&#43;&#43; reference - <a href="https://en.cppreference.com/w/cpp/thread/mutex"><code>std::mutex</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_conference_presentations">Conference presentations</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CppCon 2020 - <a href="https://youtu.be/A7sVFJLJM-A?si=v76jhmv3XnHExZYU">An Introduction to Multithreading in C&#43;&#43;20</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567">Application Security and Development: V-222567</a> - The application must not be vulnerable to race conditions.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5486" class="rspec-auto-link">S5486</a> enforces the proper locking and unlocking of <code>pthread</code> mutexes.</p>
+</li>
+<li>
+<p><a data-rspec-id="S5489" class="rspec-auto-link">S5489</a> enforces unlocking multiple held <code>pthread</code> mutexes in reverse order.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_13_oct_2023_arseniy_zaostrovnykh_wrote">on 13 Oct 2023, Arseniy Zaostrovnykh wrote:</h3>
+<div class="paragraph">
+<p>(Tomek&#8217;s suggestion)As a further improvement possibility
+"Going the extra mile" could explain how the modern (C&#43;&#43;17, C&#43;&#43;20) std::locks are implemented so that people could reimplement them in C&#43;&#43;11 if necessary.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5486">relates to: <a data-rspec-id="S5486" class="rspec-auto-link">S5486</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_relates_to_s5489">relates to: <a data-rspec-id="S5489" class="rspec-auto-link">S5489</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5486">is related to: <a data-rspec-id="S5486" class="rspec-auto-link">S5486</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s5489">is related to: <a data-rspec-id="S5489" class="rspec-auto-link">S5489</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_6_nov_2019_233311_loïc_joly_wrote">on 6 Nov 2019, 23:33:11 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~geoffray.adde] Can you please review my changes?</p>
+</div>
+</div>
+</div>
+</div>

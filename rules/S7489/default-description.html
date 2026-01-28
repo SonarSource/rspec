@@ -1,0 +1,232 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when synchronous OS calls like <code>os.wait()</code> are used within asynchronous functions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using synchronous operating system calls like <code>os.wait()</code>, <code>os.waitpid()</code>, or similar functions in asynchronous code blocks the entire event loop. This undermines the primary advantage of asynchronous programming - the ability to perform concurrent operations without blocking execution.</p>
+</div>
+<div class="paragraph">
+<p>When an async function makes a synchronous OS call:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The event loop is completely blocked until the OS operation completes</p>
+</li>
+<li>
+<p>No other coroutines can run during this time, even if they&#8217;re ready to execute</p>
+</li>
+<li>
+<p>The responsiveness of the application is degraded</p>
+</li>
+<li>
+<p>In server applications, this can cause timeouts or failures for other concurrent requests</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Instead, async libraries provide mechanisms to run blocking operations in separate threads without blocking the event loop:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>asyncio.loop.run_in_executor()</code> for asyncio</p>
+</li>
+<li>
+<p><code>trio.to_thread.run_sync()</code> for Trio</p>
+</li>
+<li>
+<p><code>anyio.to_thread.run_sync()</code> for AnyIO</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Using these constructs allows other tasks to continue executing while waiting for the blocking OS call to complete.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_asyncio">How to fix it in Asyncio</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use <code>asyncio.loop.run_in_executor()</code> to run blocking OS calls in a separate thread pool.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import os
+
+async def wait_for_child_process(pid):
+    pid, status = os.waitpid(pid, 0)  # Noncompliant
+    return status</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import asyncio
+import os
+
+async def wait_for_child_process(pid):
+    loop = asyncio.get_running_loop()
+    pid, status = await loop.run_in_executor(
+        None,
+        os.waitpid, pid, 0
+    )
+    return status</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_trio">How to fix it in Trio</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use <code>trio.to_thread.run_sync()</code> to run blocking OS calls in a worker thread.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import os
+
+async def wait_for_child_process(pid):
+    pid, status = os.waitpid(pid, 0)  # Noncompliant
+    return status</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import trio
+import os
+
+async def wait_for_child_process(pid):
+    pid, status = await trio.to_thread.run_sync(
+        os.waitpid, pid, 0
+    )
+    return status</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_anyio">How to fix it in AnyIO</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use <code>anyio.to_thread.run_sync()</code> to run blocking OS calls in a worker thread.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_3">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import os
+
+async def wait_for_child_process(pid):
+    pid, status = os.waitpid(pid, 0)  # Noncompliant
+    return status</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import anyio
+import os
+
+async def wait_for_child_process(pid):
+    pid, status = await anyio.to_thread.run_sync(
+        os.waitpid, pid, 0
+    )
+    return status</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Python asyncio - <a href="https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.run_in_executor">run_in_executor() documentation</a></p>
+</li>
+<li>
+<p>Trio - <a href="https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync">to_thread.run_sync() documentation</a></p>
+</li>
+<li>
+<p>AnyIO - <a href="https://anyio.readthedocs.io/en/stable/threads.html">Thread handling</a></p>
+</li>
+<li>
+<p>Python OS - <a href="https://docs.python.org/3/library/os.html#os.waitpid">os.waitpid() documentation</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Python - <a href="https://realpython.com/python-concurrency/">Concurrency and Parallelism in Python</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use a thread executor to wrap blocking OS calls in this async function.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary locations: the blocking OS call within an async function</p>
+</li>
+<li>
+<p>Secondary locations: the enclosing async function <code>aync</code> keyword (message: "this is an asynchronous function")</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

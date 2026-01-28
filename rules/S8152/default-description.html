@@ -1,0 +1,100 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when C memory allocations (such as <code>C.CString</code>) are not freed with <code>C.free</code>, when <code>defer</code> is not used for cleanup, or when C function return values are ignored.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When using Cgo to interface with C code, Go&#8217;s garbage collector does not manage memory allocated by C functions. This creates two critical problems:</p>
+</div>
+<div class="paragraph">
+<p>First, C memory allocations like <code>C.CString</code> must be manually freed using <code>C.free</code>. Without proper cleanup, these allocations create memory leaks that accumulate over time. In long-running applications, this can lead to steadily increasing memory usage and eventual resource exhaustion.</p>
+</div>
+<div class="paragraph">
+<p>Second, C functions often return error codes or status values that indicate success or failure. Ignoring these return values means your application cannot detect when C operations fail, leading to unpredictable behavior and potential data corruption.</p>
+</div>
+<div class="paragraph">
+<p>The <code>defer</code> statement is particularly important in Cgo because it ensures cleanup happens even if the function exits early due to errors, panics, or early returns. Without <code>defer</code>, memory can be leaked when execution doesn&#8217;t reach the cleanup code.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Memory leaks from unfreed C allocations can cause applications to consume increasing amounts of memory over time, potentially leading to out-of-memory conditions and application crashes. Ignored C function errors can result in silent failures, data corruption, or unpredictable application behavior. In server applications, these issues can lead to service degradation or denial of service.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Always free C memory allocations using <code>C.free</code> and use <code>defer</code> to ensure cleanup happens even if the function exits early. Check return values from C functions and handle errors appropriately.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func Print(s string) {
+    cs := C.CString(s)
+    C.fputs(cs, (*C.FILE)(C.stdout))
+    // Noncompliant: cs is never freed
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">func Print(s string) {
+    cs := C.CString(s)
+    defer C.free(unsafe.Pointer(cs))
+    C.fputs(cs, (*C.FILE)(C.stdout))
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>The Go Blog - C? Go? Cgo! - <a href="https://go.dev/blog/cgo">Official Go blog post explaining Cgo basics and memory management</a></p>
+</li>
+<li>
+<p>Cgo Command Documentation - <a href="https://go.dev/cmd/cgo/">Official documentation for the cgo command and C pseudo-package</a></p>
+</li>
+<li>
+<p>Go unsafe Package - <a href="https://go.dev/pkg/unsafe/">Documentation for the unsafe package used in C memory operations</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-401: Missing Release of Memory after Effective Lifetime - <a href="https://cwe.mitre.org/data/definitions/401.html">Weakness related to memory leaks from unreleased allocated memory</a></p>
+</li>
+<li>
+<p>CWE-252: Unchecked Return Value - <a href="https://cwe.mitre.org/data/definitions/252.html">Weakness related to ignoring return values that indicate errors</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

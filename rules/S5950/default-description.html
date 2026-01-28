@@ -1,0 +1,154 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>make_unique</code> and <code>make_shared</code> are more concise than explicitly calling the constructor of <code>unique_ptr</code> and <code>shared_ptr</code> since they don&#8217;t require specifying the type multiple times and eliminate the need to use <code>new</code>.</p>
+</div>
+<div class="paragraph">
+<p><code>make_unique</code> and <code>make_shared</code> should also be preferred for exception-safety and performance reasons.</p>
+</div>
+<div class="paragraph">
+<p><strong>Exception-Safety</strong></p>
+</div>
+<div class="paragraph">
+<p>While <code>make_unique</code> and <code>make_shared</code> are exception-safe, complex constructions of <code>unique_ptr</code> and <code>shared_ptr</code> might not be because C&#43;&#43; allows arbitrary order of evaluation of subexpressions (until C&#43;&#43;17).</p>
+</div>
+<div class="paragraph">
+<p>Consider this example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>f(unique_ptr&lt;Lhs&gt;(new Lhs()), throwingFunction());</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The following scenario can happen:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Memory allocation for <code>Lhs</code></p>
+</li>
+<li>
+<p>Construction of the <code>Lhs</code> object</p>
+</li>
+<li>
+<p>Call to <code>throwingFunction</code> (before the <code>unique_ptr</code> construction)</p>
+</li>
+<li>
+<p><code>throwingFunction</code> throws an exception</p>
+</li>
+<li>
+<p>The constructed <code>Lhs</code> object is leaked since the <code>unique_ptr</code> isn&#8217;t constructed yet</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Note: This scenario can only happen before C&#43;&#43;17. Since C&#43;&#43;17, the standard states that even though the order of evaluation of each argument is still unspecified, interleaving the evaluation of different arguments is no longer allowed. This makes the direct construction of <code>unique_ptr</code> and <code>shared_ptr</code> exception-safe.</p>
+</div>
+<div class="paragraph">
+<p><strong>Performance</strong></p>
+</div>
+<div class="paragraph">
+<p>Using <code>make_unique()</code> doesn&#8217;t impact performance, but <code>make_shared()</code> improves it slightly.<br>
+Indeed, constructing explicitly a <code>shared_ptr()</code> requires two heap allocations: one for the managed object and the other for the control block that stores data about the ref-counts and the <code>shared_ptr()</code> deleter. <code>make_shared()</code> on the other hand, performs only one heap allocation.</p>
+</div>
+<div class="paragraph">
+<p>Note: Because <code>make_shared</code> performs only one allocation for both the object and the control block, the memory occupied by the object will be deallocated when no <code>shared_ptr</code> or <code>weak_ptr</code> points to it. If the object is large, a <code>weak_ptr</code> is used, and memory is a concern, explicitly calling the constructor of <code>shared_ptr</code> may be preferred. This way, the object&#8217;s memory will be deallocated when there are no more shared owners, independently of any <code>weak_ptr</code>s.</p>
+</div>
+<div class="sect2">
+<h3 id="_noncompliant_code_example">Noncompliant code example</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::unique_ptr&lt;MyClass&gt; uniqueP(new MyClass(42)); // Noncompliant
+std::shared_ptr&lt;MyClass&gt; sharedP(new MyClass(42)); // Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compliant_solution">Compliant solution</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">auto uniqueP = std::make_unique&lt;MyClass&gt;(42);
+auto sharedP = std::make_shared&lt;MyClass&gt;(42);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>This rule ignores code that uses features not supported by <code>make_shared</code> and <code>make_unique</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>custom deleters</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::unique_ptr&lt;std::FILE, std::function&lt;void(std::FILE*)&gt;&gt; file(
+  fopen("example.txt", "r"),
+  [](FILE* inFile) { fclose(inFile); }); // Compliant: custom deleter is specified</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>calling placement-new, i.e., version of <code>new</code> with arguments, like <code>new(std::nothrow)</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In addition, <code>make_shared</code> does not support the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>custom operator <code>new</code></p>
+</li>
+<li>
+<p>allocating arrays (before C&#43;&#43;20)</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c150-use-make_unique-to-construct-objects-owned-by-unique_ptrs">C.150: Use <code>make_unique()</code> to construct objects owned by `unique_ptr`s</a></p>
+</li>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c151-use-make_shared-to-construct-objects-owned-by-shared_ptrs">C.151: Use <code>make_shared()</code> to construct objects owned by `shared_ptr`s</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Use "(make_unique/make_shared)" instead.</p>
+</div>
+</div>
+</div>
+</div>

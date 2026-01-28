@@ -1,0 +1,201 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When using GitHub Actions, certain workflow triggers such as <code>pull_request_target</code> and <code>workflow_run</code> execute with the repository&#8217;s privileges.
+This creates a security risk when these workflows check out code from a forked repository and then use this untrusted code as input for subsequent steps.</p>
+</div>
+<div class="paragraph">
+<p>If code from the fork is used as an input inside the workflow, they could exploit this to extract sensitive information, manipulate the repository, or execute arbitrary commands with the permissions of the repository. Special considerations should be taken into account on organizations and repositories created before 2023 when <a href="https://github.blog/changelog/2023-02-02-github-actions-updating-the-default-github_token-permissions-to-read-only/">the default permissions of the <code>GITHUB_TOKEN</code> were changed to read-only</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Is the checked out code executed directly as part of some steps in the workflow?</p>
+</li>
+<li>
+<p>Can the checked out code <em>indirectly</em> affect the execution of the workflow? For example, does your workflow use configuration files to download packages from package repositories?</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of these questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If the flow does not require write access to the repository nor access to its secrets, the recommended approach is to avoid using triggers that cause execution using elevated privileges.</p>
+</div>
+<div class="paragraph">
+<p>If this is not feasible, the workflow can be split into two parts:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An unprivileged job that gets triggered by <code>pull_request</code> that performs checks that do not require elevated permissions, and</p>
+</li>
+<li>
+<p>A privileged job that is triggered by <code>workflow_run</code> on completion of the first job, that performs the actions requiring elevated permissions</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When doing this, it is important to make sure that the privileged workflow does not process input from the untrusted workflow.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The following workflow executes the <code>build.sh</code> script from the fork using the privileges of the repository:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request_target:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}  # Sensitive
+
+      - name: Build
+        run: |
+          ./build.sh</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If elevated permissions are not needed, the simplest way to fix this is to use <code>pull_request</code> as the trigger.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build
+        run: |
+          ./build.sh</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Security Lab - <a href="https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/">Keeping your GitHub Actions and workflows secure Part 1: Preventing pwn requests</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/">Top 10 2021 Category A1 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A5_2017-Broken_Access_Control">Top 10 2017 Category A5 - Broken Access Control</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure">Top 10 2017 Category A3 - Sensitive Data Exposure</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/732.html">CWE-732 - Incorrect Permission Assignment for Critical Resource</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/272.html">CWE-272 - Least Privilege Violation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/279.html">CWE-279 - Incorrect Execution-assigned Privileges</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222429">Application Security and Development: V-222429</a> - The application must prevent non-privileged users from executing privileged functions to include disabling, circumventing, or altering implemented security safeguards/countermeasures</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Blog - <a href="https://github.blog/changelog/2023-02-02-github-actions-updating-the-default-github_token-permissions-to-read-only/">GitHub Actions – Updating the default GITHUB_TOKEN permissions to read-only</a></p>
+</li>
+<li>
+<p>GitHub Security Lab - <a href="https://securitylab.github.com/advisories/GHSL-2024-268_Hibernate_ORM/">GHSL-2024-268: Poisoned Pipeline Execution (PPE) via execution of untrusted checked-out code in Hibernate ORM</a></p>
+</li>
+<li>
+<p>Open Source Security Foundation - <a href="https://openssf.org/blog/2024/08/12/mitigating-attack-vectors-in-github-workflows/">Mitigating Attack Vectors in GitHub Workflows</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Make sure that no untrusted code is executed from a fork</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary: on the detected code checkout (e.g., action/checkout or the git command)</p>
+</li>
+<li>
+<p>Secondary on the sensitive trigger (e.g., <code>pull_request_target</code>)</p>
+</li>
+<li>
+<p>Message: This trigger runs the workflow using the permissions of this repository</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>

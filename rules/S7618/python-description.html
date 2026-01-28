@@ -1,0 +1,234 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when network calls in AWS Lambda functions are made without explicit timeout parameters.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>AWS Lambda functions are ephemeral, event-driven compute services that frequently interact with external systems including other AWS services via boto3, external APIs through HTTP requests, databases, and message brokers. When these network calls are made without explicit timeout parameters, the Lambda function becomes vulnerable to indefinite hanging if the remote service becomes unresponsive due to network issues, service overload, or connectivity problems. Unlike traditional server environments where hanging requests might affect only a single user session, Lambda functions that hang continue to consume billable compute time until the function&#8217;s maximum execution timeout is reached, which can be up to 15 minutes. This creates a cascading effect where network reliability issues directly translate to increased operational costs and unpredictable system behavior.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Hanging executions lead to increased AWS costs due to wasted compute time while waiting for unresponsive services. The lack of explicit timeouts causes unpredictable failure behavior, making it difficult to distinguish between functional errors and network stalls, which complicates debugging and monitoring. When the Lambda function&#8217;s maximum timeout is reached, the execution is abruptly terminated, preventing graceful error handling, proper logging, and cleanup operations. In connection pooling scenarios, hanging requests can exhaust available connections, and the unpredictable delays can cause cascading failures in upstream services that depend on the Lambda function&#8217;s response.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_requests">How to fix it in Requests</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For HTTP requests using the requests library, always specify the timeout parameter. Use a tuple <code>(connect_timeout, read_timeout)</code> for granular control over connection establishment and data reading timeouts. Wrap the call in try-except blocks to handle timeout exceptions gracefully. Consider externalizing timeout values through environment variables for easier configuration management.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import requests
+
+def lambda_handler(event, context):
+    response = requests.get('https://api.example.com/data')  # Noncompliant
+    return response.json()</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import requests
+import os
+
+def lambda_handler(event, context):
+    try:
+        timeout = (float(os.environ.get('CONNECT_TIMEOUT', 3)),
+                  float(os.environ.get('READ_TIMEOUT', 10)))
+        response = requests.get('https://api.example.com/data', timeout=timeout)
+        return response.json()
+    except requests.exceptions.Timeout:
+        return {'error': 'Request timed out'}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_boto3">How to fix it in Boto3</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For AWS service calls using boto3, configure timeouts using botocore.config.Config when creating clients. Set both <code>connect_timeout</code> and <code>read_timeout</code> parameters to prevent hanging on connection establishment and data reading respectively. Handle botocore timeout exceptions appropriately in your error handling logic.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import boto3
+
+s3 = boto3.client('s3')  # Noncompliant
+
+def lambda_handler(event, context):
+    response = s3.get_object(Bucket='my-bucket', Key='my-key')
+    return response['Body'].read()</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import boto3
+from botocore.config import Config
+from botocore.exceptions import ReadTimeoutError, ConnectTimeoutError
+
+config = Config(connect_timeout=5, read_timeout=10)
+s3 = boto3.client('s3', config=config)
+
+def lambda_handler(event, context):
+    try:
+        response = s3.get_object(Bucket='my-bucket', Key='my-key')
+        return response['Body'].read()
+    except (ReadTimeoutError, ConnectTimeoutError):
+        return {'error': 'AWS service call timed out'}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>requests Documentation - <a href="https://requests.readthedocs.io/en/latest/user/advanced/#timeouts">Timeouts</a></p>
+</li>
+<li>
+<p>boto3 Documentation - <a href="https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html">Configuration</a></p>
+</li>
+<li>
+<p>AWS Documentation -  <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/">Timeouts, retries, and backoff with jitter</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="paragraph">
+<p>The rule should check if these network call functions are invoked without a timeout parameter or with a timeout set to None.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>requests:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>get()</code></p>
+</li>
+<li>
+<p><code>post()</code></p>
+</li>
+<li>
+<p><code>put()</code></p>
+</li>
+<li>
+<p><code>delete()</code></p>
+</li>
+<li>
+<p><code>head()</code></p>
+</li>
+<li>
+<p><code>options()</code></p>
+</li>
+<li>
+<p><code>patch()</code></p>
+</li>
+<li>
+<p><code>request()</code></p>
+</li>
+<li>
+<p><code>session().get()</code></p>
+</li>
+<li>
+<p><code>session().post()</code></p>
+</li>
+<li>
+<p><code>session().put()</code></p>
+</li>
+<li>
+<p><code>session().delete()</code></p>
+</li>
+<li>
+<p><code>session().head()</code></p>
+</li>
+<li>
+<p><code>session().options()</code></p>
+</li>
+<li>
+<p><code>session().patch()</code></p>
+</li>
+<li>
+<p><code>session().request()</code></p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>boto3:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>boto3.client()</code> - verify it includes Config with timeout parameters</p>
+</li>
+<li>
+<p><code>boto3.resource()</code> - verify it includes Config with timeout parameters</p>
+</li>
+<li>
+<p><code>Session().client()</code> - verify it includes Config with timeout parameters</p>
+</li>
+<li>
+<p><code>Session().resource()</code> - verify it includes Config with timeout parameters</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Set an explicit timeout for this network call to prevent hanging executions in Lambda functions.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary location: the network call expression without timeout parameter</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

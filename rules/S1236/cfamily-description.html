@@ -1,0 +1,260 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Copy assignment operators and move assignment operators can return anything, including <code>void</code>.</p>
+</div>
+<div class="paragraph">
+<p>However, if you decide to declare them yourself (don&#8217;t forget the "Rule-of-Zero" described in <a data-rspec-id="S3624" class="rspec-auto-link">S3624</a>),
+it is a recommended practice to return a non-const reference to the assigned object (left-operand).
+It allows the developer to chain the assignment operations, increasing consistency with what other types do and, in some cases, enabling the writing of concise code.</p>
+</div>
+<div class="paragraph">
+<p>This rule will raise for assignment operators that deviate from the above expectation.</p>
+</div>
+<div class="sect2">
+<h3 id="_using_an_unconventional_return_type">Using an unconventional return type</h3>
+<div class="paragraph">
+<p>This rule will raise an issue if the return type of the copy or move assignment operator,
+is different from mutable reference to the class type.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  const Clazz&amp; operator=(const Clazz&amp; other); // Noncompliant, returns const reference
+  Clazz operator=(Clazz&amp;&amp; other) noexcept;    // Noncompliant, returns by value
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  Clazz&amp; operator=(const Clazz&amp; other);      // Compliant
+  Clazz&amp; operator=(Clazz&amp;&amp; other) noexcept;  // Compliant
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_returning_an_object_different_from_this">Returning an object different from <code>*this</code></h3>
+<div class="paragraph">
+<p>An assignment operator should return a reference to the assigned object.
+Conventionally, such return is expressed as <code>return *this</code>, and the rule will mark any return statement as deviating from this convention.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  Clazz&amp; set(Clazz&amp; other);
+  Clazz&amp; operator=(Clazz const&amp; other) {
+    return set(other); // Noncompliant: depends on return of `set` member function
+  }
+
+  Clazz&amp;&amp; operator=(Clazz&amp;&amp; other) noexcept {
+    return other;      // Noncompliant, also return type is non-compliant
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  Clazz&amp; set(Clazz&amp; other);
+  Clazz&amp; operator=(Clazz const&amp; other) {
+    set(other);
+    return *this;      // Compliant
+  }
+
+  Clazz&amp; operator=(Clazz&amp;&amp; other) noexcept {
+    return *this;      // Compliant
+  }
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In C&#43;&#43;23, if the assignment operator is declared using an explicit object argument,
+the rule will mark any return statement that does not return the object parameter directly.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  Clazz&amp; set(Clazz&amp; other);
+  Clazz&amp; operator=(this Clazz&amp; self, Clazz const&amp; other) {
+    return self.set(other); // Noncompliant: depends on the return of `set` member function
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  Clazz&amp; set(Clazz&amp; other);
+  Clazz&amp; operator=(this Clazz&amp; self, Clazz const&amp; other) {
+    self.set(other);
+    return self;      // Compliant
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_declaring_assignment_operation_as_non_mutating">Declaring assignment operation as non-mutating</h3>
+<div class="paragraph">
+<p>The assignment operation is designed to change the value of the target object,
+to the same one as the source.
+Such operation is mutating and thus should not be declared with a <code>const</code> qualifier.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  Clazz&amp; operator=(Clazz const&amp; other) const { // Noncompliant: also leads to noncompliant return statement
+    return const_cast&lt;Clazz&amp;&gt;(*this);
+  }
+  Class&amp; operator=(Clazz&amp;&amp; other) const; // Noncompliant
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+public:
+  Clazz&amp; operator=(Clazz const&amp; other) { // Compliant
+    return *this;
+  }
+  Clazz&amp; operator=(Clazz&amp;&amp; other); // Compliant
+};</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When declaring an assignment operator with C&#43;&#43;23 explicit object argument,
+the object argument should not be passed:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>by const reference - this is equivalent to declaring the implicit object parameter method as <code>const</code>,
+as described above;</p>
+</li>
+<li>
+<p>by value - in this case a temporary object will be created, and modified by the assignment operator,
+instead of the left-hand side of the assignment operator</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_5">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+  int val;
+public:
+  Clazz&amp; operator=(this Clazz const&amp; self, Clazz const&amp; other) const { // Noncompliant: also leads to non-compliant return
+    return const_cast&lt;Clazz&amp;&gt;(self);
+  }
+  void operator=(this Clazz self, Clazz&amp;&amp; other) { // Noncompliant
+    self.val = other.val; // Modifies temporary object
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_5">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+  int val;
+public:
+  Clazz&amp; operator=(this Clazz&amp; self, Clazz const&amp; other) { // Compliant
+    self.val = other.val;
+    return self;
+  }
+  Clazz&amp; operator=(this Clazz&amp; self, Clazz&amp;&amp; other) { // Compliant
+    self.val = other.val; // Modifies referenced object
+    return self;
+  }
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_declaring_the_assignment_operator_as_volatile">Declaring the assignment operator as volatile</h3>
+<div class="paragraph">
+<p>Doing so impacts overload resolution and how <code>*this</code> is treated inside the function body. It is very uncommon and usually unnecessary.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="paragraph">
+<p>This rule will not raise an issue when the assignment operator&#8217;s return type is declared <code>void.</code>
+That syntax is commonly used when assignment operator chaining is not desired.
+The issue will still be raised if such an assignment operator is declared as non-mutating.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class Clazz {
+  int val;
+public:
+  void operator=(Clazz const&amp; other) { // Compliant
+    self.val = other.val;
+    return self;
+  }
+  void operator=(Clazz&amp;&amp; other) const; // Noncompliant: declared as const
+};</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c60-make-copy-assignment-non-virtual-take-the-parameter-by-const-and-return-by-non-const">C.60: Make copy assignment non-<code>virtual</code>, take the parameter by <code>const&</code>, and return by non-<code>const&</code></a></p>
+</li>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#c63-make-move-assignment-non-virtual-take-the-parameter-by&#8212;&#8203;and-return-by-non-const">C.63: Make move assignment non-<code>virtual</code>, take the parameter by <code>&&</code>, and return by non-<code>const&</code></a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>

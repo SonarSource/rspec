@@ -1,0 +1,126 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when a mutex <code>Lock()</code> or <code>RLock()</code> call is not immediately followed by a corresponding <code>defer</code> statement to unlock the mutex.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Go, mutexes are used to protect shared resources from concurrent access. When you acquire a mutex lock, you must ensure it gets released, or your program can deadlock.</p>
+</div>
+<div class="paragraph">
+<p>The problem with manual unlocking is that functions can exit in multiple ways:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Normal return statements</p>
+</li>
+<li>
+<p>Early returns due to error conditions</p>
+</li>
+<li>
+<p>Panic situations</p>
+</li>
+<li>
+<p>Multiple return paths in complex logic</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If any of these exit paths bypasses the manual <code>Unlock()</code> call, the mutex remains locked forever. This creates a deadlock - other goroutines waiting for the same mutex will block indefinitely.</p>
+</div>
+<div class="paragraph">
+<p>Go&#8217;s <code>defer</code> statement solves this problem elegantly. When you use <code>defer mutex.Unlock()</code> immediately after locking, Go guarantees the unlock will happen when the function exits, regardless of how it exits. This includes normal returns, early returns, and even panics.</p>
+</div>
+<div class="paragraph">
+<p>The <code>defer</code> mechanism uses a stack-based approach, so deferred functions execute in reverse order. This ensures proper cleanup even with nested locks or complex control flow.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Deadlocks can cause your application to hang indefinitely, requiring a restart. In production systems, this leads to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Service unavailability and downtime</p>
+</li>
+<li>
+<p>Resource exhaustion as blocked goroutines accumulate</p>
+</li>
+<li>
+<p>Difficult-to-debug issues that may only appear under specific timing conditions</p>
+</li>
+<li>
+<p>Potential data corruption if critical sections are left in inconsistent states</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add a <code>defer</code> statement immediately after acquiring the mutex lock. This ensures the mutex is unlocked when the function exits, regardless of how it exits.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">var mu sync.Mutex
+
+func updateCounter() {
+    mu.Lock()
+    counter++
+    // Missing mu.Unlock() - potential deadlock // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">var mu sync.Mutex
+
+func updateCounter() {
+    mu.Lock()
+    defer mu.Unlock()
+    counter++
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go Tour - Mutexes - <a href="https://go.dev/tour/concurrency/9">Official Go tutorial covering mutex usage and best practices</a></p>
+</li>
+<li>
+<p>Go Documentation - sync package - <a href="https://pkg.go.dev/sync">Complete documentation for Go&#8217;s synchronization primitives including Mutex and RWMutex</a></p>
+</li>
+<li>
+<p>Effective Go - Concurrency - <a href="https://go.dev/doc/effective_go#concurrency">Official Go guide covering concurrency patterns and mutex usage</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

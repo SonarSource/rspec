@@ -1,0 +1,165 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Slicing happens when an object from a derived type is cast to an object of one of its base classes.
+When this happens, the new object will not have the data member variables specific to the derived type.</p>
+</div>
+<div class="paragraph">
+<p>The following example illustrates the unintended loss of information.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">struct PartData {
+  int uuid;
+  std::string manufacturer;
+};
+
+// Use inheritance to share common data definitions.
+struct TireData : PartData {
+  Color color;
+  TireType type;
+};
+
+void orderBike(TireData tire, ...) {
+  std::vector&lt;PartData&gt; parts;
+
+  // Noncompliant: the vector does not store the tire color and type.
+  parts.push_back(tire);
+
+  // ...
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This code defect usually results from using values instead of references or pointers to pass polymorphic objects to functions.</p>
+</div>
+<div class="paragraph">
+<p>It is usually a good idea to design a base class so that slicing cannot happen: it can be abstract or non-copiable.
+The standard library follows this practice and prevents copying, for example, <code>std::ostream</code> objects.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>This example illustrates the problem with a <code>FileStream</code> concrete class and a derived buffered implementation, <code>BufferedFileStream</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class FileStream {
+  // ...
+
+public:
+  FileStream(std::string_view file_path);
+  virtual ~Stream() = default;
+  virtual void write(int x);
+};
+
+class BufferedFileStream : public FileStream {
+  std::array&lt;char, 1024&gt; buffer;
+  // ...
+
+public:
+  BufferedFileStream(std::string_view file_path);
+  ~BufferedFileStream() { flushBuffer(); }
+  void write(int x) {
+    // Write to the buffer; flush if it is full.
+    // ...
+  }
+};
+
+void writeAll(FileStream stream, std::vector&lt;int&gt; const&amp; ints);
+
+void application(int userId) {
+  BufferedFileStream stream;
+  stream.write(userId);
+
+  std::vector&lt;int&gt; data = getData();
+
+  writeAll(stream, data); // Noncompliant: stream is sliced, and its buffer may be lost or written out-of-sequence
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>To prevent slicing from happening, the base class can be made non-copyable.
+This implies passing a reference instead of a copy to <code>writeAll</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class FileStream {
+  // ...
+
+public:
+  FileStream(std::string_view file_path);
+  FileStream(FileStream const&amp;) = delete;
+  virtual ~Stream() = default;
+  virtual void write(int x);
+};
+
+class BufferedFileStream : public FileStream {
+  std::array&lt;char, 1024&gt; buffer;
+  // ...
+
+public:
+  BufferedFileStream(std::string_view file_path);
+  ~BufferedFileStream() { flushBuffer(); }
+  void write(int x) {
+    // Write to the buffer; flush if it is full.
+    // ...
+  }
+};
+
+void writeAll(FileStream&amp; stream, std::vector&lt;int&gt; const&amp; ints);
+
+void application(int userId) {
+  BufferedFileStream stream;
+  stream.write(userId);
+
+  std::vector&lt;int&gt; data = getData();
+
+  writeAll(stream, data); // Compliant, no slicing, no dataloss.
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="paragraph">
+<p>When slicing is actually required, it is best to make it explicit to avoid the element of surprise.
+You can create a dedicated member function for this purpose, with its own documentation.
+This goes well in hand with non-copyable classes.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_external_coding_guidelines">External coding guidelines</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>C++ Core Guidelines - <a href="https://github.com/isocpp/CppCoreGuidelines/blob/e49158a/CppCoreGuidelines.md#es63-dont-slice">ES.63: Don&#8217;t slice</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

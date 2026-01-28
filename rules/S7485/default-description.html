@@ -1,0 +1,171 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>By default, WebViews in Flutter allow users to navigate to any URL by clicking links or through JavaScript-initiated navigations. This behavior contrasts with native Android WebViews, which typically open new URLs in an external browser, thereby providing users with important context like a visible URL bar. As Webviews in Flutter deviate from this safer native default, arbitrary navigation is permitted unless explicitly configured otherwise. This means the WebView behaves more like an embedded browser without the usual security indicators.</p>
+</div>
+<div class="paragraph">
+<p>Permitting unrestricted navigation within an app&#8217;s WebView can lead to significant security vulnerabilities. For instance, an element within the page (e.g., an ad) could redirect the user to a convincing phishing site designed to steal credentials. Since the WebView is part of the trusted application and lacks standard browser interface elements, users are more susceptible to such deception. Furthermore, if a page with a Cross-Site Scripting (XSS) vulnerability is loaded, the ability to navigate freely can expand the attack&#8217;s scope or be used to further mislead the user. This loss of contextual security makes it difficult for users to identify and avoid malicious websites.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ask_yourself_whether">Ask Yourself Whether</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Your WebView loads content from arbitrary URLs or third-party sources (e.g., advertisements, external links)</p>
+</li>
+<li>
+<p>A malicious redirection within the WebView could lead to a phishing attack or credential theft</p>
+</li>
+<li>
+<p>The WebView displays sensitive information or interacts with features that could be compromised if the user is redirected to a malicious site</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There is a risk if you answered yes to any of these questions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_recommended_secure_coding_practices">Recommended Secure Coding Practices</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_restrict_navigation">Restrict Navigation</h3>
+<div class="paragraph">
+<p>To prevent navigation to arbitrary URLs, all navigation attempts within the WebView need to be intercepted and validated.</p>
+</div>
+<div class="paragraph">
+<p>For <code>webview_flutter</code>, this is done by providing a <code>NavigationDelegate</code> to the <code>WebViewController</code>. The <code>onNavigationRequest</code> callback in this delegate is called for every navigation attempt (e.g., when a user clicks a link or JavaScript tries to change the location). This callback allows the application to inspect the target URL and decide whether to allow the navigation by returning <code>NavigationDecision.navigate</code> or block it by returning <code>NavigationDecision.prevent</code>.<br><br>For <code>flutter_inappwebview</code>, the <code>shouldOverrideUrlLoading</code> callback on the <code>InAppWebView</code> widget serves a similar purpose. For this callback to be invoked, the <code>useShouldOverrideUrlLoading</code> option in <code>InAppWebViewSettings</code> must be set to <code>true</code>. When a navigation is attempted, this callback receives details about the navigation action. The application can then return <code>NavigationActionPolicy.ALLOW</code> to permit the navigation or <code>NavigationActionPolicy.CANCEL</code> to block it.</p>
+</div>
+<div class="paragraph">
+<p>By implementing a navigation delegate, developers can enforce a strict navigation policy, such as blocking all navigation (most secure for static content WebViews), allowing navigation only to a predefined set of trusted domains (allowlisting), or deciding to open certain links in an external browser application rather than within the WebView itself.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sensitive_code_example">Sensitive Code Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The default configurations for both <code>webview_flutter</code> and <code>flutter_inappwebview</code> allow arbitrary navigation.</p>
+</div>
+<div class="paragraph">
+<p>In <code>webview_flutter</code>, setting no <code>NavigationDelegate</code> or using the default one will allow the user to navigate to any URL.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">import 'package:webview_flutter/webview_flutter.dart';
+
+final WebViewController controller = WebViewController()  // Sensitive - all navigation is permitted by default
+  ..setJavaScriptMode(JavaScriptMode.unrestricted)
+  ..loadRequest(Uri.parse('https://example.com/'));</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In <code>flutter_inappwebview</code>, all navigation is permitted when <code>useShouldOverrideUrlLoading</code> is set to <code>false</code> or when no <code>shouldOverrideUrlLoading</code> callback is provided:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+InAppWebView(
+  initialUrlRequest: URLRequest(url: WebUri('https://example.com/')),
+  initialSettings: InAppWebViewSettings(  // Sensitive - all navigation is permitted by default
+    javaScriptEnabled: true,
+  ),
+);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In <code>webview_flutter</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">import 'package:webview_flutter/webview_flutter.dart';
+
+final WebViewController controller = WebViewController()
+  ..setJavaScriptMode(JavaScriptMode.unrestricted)
+  ..setNavigationDelegate(
+    NavigationDelegate(
+      onNavigationRequest: (NavigationRequest request) {
+        final Uri uri = Uri.parse(request.url);
+        if (uri.host == 'example.com') {
+          return NavigationDecision.navigate;
+        }
+
+        return NavigationDecision.prevent;
+      },
+    ),
+  )
+  ..loadRequest(Uri.parse('https://example.com/'));</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In <code>flutter_inappwebview</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-dart" data-lang="dart">import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+InAppWebView(
+  initialUrlRequest: URLRequest(url: WebUri('https://example.com/')),
+  initialSettings: InAppWebViewSettings(
+    javaScriptEnabled: true,
+    useShouldOverrideUrlLoading: true,
+  ),
+  shouldOverrideUrlLoading: (controller, navigationAction) async {
+    final uri = navigationAction.request.url;
+    if (uri != null &amp;&amp; uri.host == 'example.com') {
+      return NavigationActionPolicy.ALLOW;
+    }
+
+    return NavigationActionPolicy.CANCEL;
+  },
+);</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see">See</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-mobile-top-10/2023-risks/m8-security-misconfiguration.html">Mobile Top 10 2024 Category M8 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/">Top 10 2021 Category A5 - Security Misconfiguration</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/451">CWE-451 - User Interface (UI) Misrepresentation of Critical Information</a></p>
+</li>
+<li>
+<p><code>pub.dev</code> - <a href="https://pub.dev/documentation/webview_flutter_android/latest/webview_flutter_android/NavigationDelegate-class.html"><code>NavigationDelegate</code> API documentation</a></p>
+</li>
+<li>
+<p><code>inappwebview.dev</code> - <a href="https://inappwebview.dev/docs/main/webview/settings/"><code>InAppWebViewSettings</code> API documentation</a></p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S6362" class="rspec-auto-link">S6362</a> - Enabling JavaScript support for WebViews is security-sensitive</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

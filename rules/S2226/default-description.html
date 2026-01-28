@@ -1,0 +1,280 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>processHttpRequest</code> method and methods called from it can be executed by multiple threads within the same servlet instance, and state changes to the instance caused by these methods are, therefore, not threadsafe.</p>
+</div>
+<div class="paragraph">
+<p>This is due to the servlet container creating only one instance of each servlet (<code>javax.servlet.http.HttpServlet</code>) and attaching a dedicated thread to each incoming HTTP request.
+The same problem exists for <code>org.apache.struts.action.Action</code> but with different methods.</p>
+</div>
+<div class="paragraph">
+<p>To prevent unexpected behavior, avoiding mutable states in servlets is recommended.
+Mutable instance fields should either be refactored into local variables or made immutable by declaring them <code>final</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_exceptions">Exceptions</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Fields annotated with <code>@javax.inject.Inject</code>, <code>@javax.ejb.EJB</code>, <code>@org.springframework.beans.factory.annotation.Autowired</code>, <code>@javax.annotation.Resource</code></p>
+</li>
+<li>
+<p>Fields initialized in <code>init()</code> or <code>init(ServletConfig config)</code> methods</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>If the field is never modified, declare it <code>final</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+  String apiVersion = "0.9.1"; // Noncompliant, field changes are not thread-safe
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+  final String apiVersion = "0.9.1"; // Compliant, field cannot be changed
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="paragraph">
+<p>If a field is modified within instance methods, refactor it into a local variable.
+That variable can be passed as an argument to other functions if needed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+
+  String userName; // Noncompliant, field changes are not thread-safe
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    userName = req.getParameter("userName"); // Different threads may write concurrently to userName
+    resp.getOutputStream().print(getGreeting());
+  }
+
+  public String getGreeting() { // Unpredictable value in field userName
+    return "Hello "+userName+"!";
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    String userName = req.getParameter("userName"); // Compliant, local variable instead instance field
+    resp.getOutputStream().print(getGreeting(userName));
+  }
+
+  public String getGreeting(String userName) { // Compliant, method argument instead instance field
+    return "Hello "+userName+"!";
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_3">Noncompliant code example</h4>
+<div class="paragraph">
+<p>If you still prefer instance state over local variables, consider using <code>ThreadLocal</code> fields.
+These fields provide a separate instance of their value for each thread.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+
+  String userName; // Noncompliant, field changes are not thread-safe
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    userName = req.getParameter("userName"); // Different threads may write concurrently to userName
+    resp.getOutputStream().print(getGreeting());
+  }
+
+  public String getGreeting() { // Unpredictable value in field userName
+    return "Hello "+userName+"!";
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_3">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+
+  final ThreadLocal&lt;String&gt; userName = new ThreadLocal&lt;&gt;(); // Compliant, field itself does not change
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    userName.set(req.getParameter("userName")); // Compliant, own value provided for every thread
+    resp.getOutputStream().print(getGreeting());
+  }
+
+  public String getGreeting() {
+    return "Hello "+userName.get()+"!"; // Compliant, own value provided for every thread
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_4">Noncompliant code example</h4>
+<div class="paragraph">
+<p>If you have a use case that requires a shared instance state between threads, declare the corresponding fields as <code>static</code> to indicate your intention and
+awareness that there is only one instance of the servlet.
+However, the <code>static</code> modifier alone does not ensure thread safety.
+Make sure also to take countermeasures against possible race conditions.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+
+  public long timestampLastRequest; // Noncompliant, field changes are not thread-safe
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    timestampLastRequest = System.currentTimeMillis();
+    resp.getOutputStream().print(timestampLastRequest); // Race condition
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_4">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class MyServlet extends HttpServlet {
+
+  public static long timestampLastRequest; // Compliant, sharing state is our intention
+
+  @Override
+  public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    long timestamp;
+    synchronized (this) {
+      timestamp = timestampLastRequest; // No race condition, synchronized get &amp; set
+      timestampLastRequest = System.currentTimeMillis();
+    }
+    resp.getOutputStream().print(timestamp);
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_articles_blog_posts">Articles &amp; blog posts</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://www.devinline.com/2013/08/how-to-make-thread-safe-servlet.html">Nikhil Ranjan: How to make thread safe servlet ?</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222567">Application Security and Development: V-222567</a> - The application must not be vulnerable to race conditions.</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Remove this misleading mutable servlet instance fields or make it "static" and/or "final"</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2223">is related to: <a data-rspec-id="S2223" class="rspec-auto-link">S2223</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_25_nov_2014_110013_freddy_mallet_wrote">on 25 Nov 2014, 11:00:13 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] If you want I can take care to fully rewrite the rule in something like "Servlet should not have misleading non-static fields"</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_25_nov_2014_122816_ann_campbell_wrote">on 25 Nov 2014, 12:28:16 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~freddy.mallet] the original requester was specific that the rule shouldn&#8217;t be limited to just <code>Servlet</code> classes, but I&#8217;m happy to go along if you feel that would make a better rule.</p>
+</div>
+<div class="paragraph">
+<p>BTW, he&#8217;s also asking for an ignoreClasses parameter.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_7_mar_2019_232730_victor_matskiv_wrote">on 7 Mar 2019, 23:27:30 Victor Matskiv wrote:</h3>
+<div class="paragraph">
+<p>The issue is not aligned with servlet semantics. Specifically:</p>
+</div>
+<div class="paragraph">
+<p>A servlet can be legitimately initialized from ServletContext using <code>init(ServletContext)</code> method. This makes it impossible to qualify servlet fields as final.</p>
+</div>
+<div class="paragraph">
+<p>Another suggestion to make servlet fields static introduces rather misleading semantics and contradicts the referenced document: https://wiki.sei.cmu.edu/confluence/display/java/MSC11-J.+Do+not+let+session+information+leak+within+a+servlet</p>
+</div>
+</div>
+</div>
+</div>

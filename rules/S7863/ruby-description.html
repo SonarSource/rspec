@@ -1,0 +1,189 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when controllers contain business logic that should be encapsulated in models, violating the 'fat models, skinny controllers' principle.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In Rails applications, following the Model-View-Controller (MVC) architectural pattern is crucial for maintainable code. Controllers should be thin and focused on handling HTTP requests and responses, while models should contain the business logic and domain-specific operations.</p>
+</div>
+<div class="paragraph">
+<p>When business logic is placed in controllers, several problems arise:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Reduced testability</strong>: Business logic in controllers is harder to test in isolation, as it requires setting up HTTP request contexts and controller state.</p>
+</li>
+<li>
+<p><strong>Code duplication</strong>: The same business logic may need to be repeated across multiple controllers or actions, violating the DRY (Don&#8217;t Repeat Yourself) principle.</p>
+</li>
+<li>
+<p><strong>Poor separation of concerns</strong>: Controllers become bloated with responsibilities that don&#8217;t belong to them, making the codebase harder to understand and maintain.</p>
+</li>
+<li>
+<p><strong>Reduced reusability</strong>: Business logic trapped in controllers cannot be easily reused in other parts of the application, such as background jobs, rake tasks, or API endpoints.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Models are the appropriate place for business logic because they represent the domain entities and their behaviors. They provide a clean interface for encapsulating complex operations and can be easily tested, reused, and maintained.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Placing business logic in controllers leads to code that is harder to test, maintain, and reuse. It violates fundamental MVC principles and can result in duplicated code across the application. This makes the codebase more prone to bugs and increases development time for new features.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_ruby_on_rails">How to fix it in Ruby on Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Move business logic from controllers to appropriate model methods. Create descriptive method names that clearly express the business operation being performed.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class UsersController &lt; ApplicationController
+  def show
+    @user = User.find(params[:id])
+    @is_subscribed = @user.subscription_end_date &gt; Date.current # Noncompliant
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class User &lt; ApplicationRecord
+  def subscribed?
+    subscription_end_date &gt; Date.current
+  end
+end
+
+class UsersController &lt; ApplicationController
+  def show
+    @user = User.find(params[:id])
+    @is_subscribed = @user.subscribed?
+  end
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For more complex business logic involving multiple calculations or conditions, create dedicated model methods that encapsulate the entire operation.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class OrdersController &lt; ApplicationController
+  def create
+    @order = Order.new(order_params)
+    # Business logic in controller
+    @order.total = @order.items.sum(&amp;:price) # Noncompliant
+    @order.tax = @order.total * 0.08 # Noncompliant
+    @order.final_total = @order.total + @order.tax # Noncompliant
+
+    if @order.save
+      redirect_to @order
+    else
+      render :new
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Order &lt; ApplicationRecord
+  def calculate_totals
+    self.total = items.sum(&amp;:price)
+    self.tax = total * tax_rate
+    self.final_total = total + tax
+  end
+
+  private
+
+  def tax_rate
+    0.08
+  end
+end
+
+class OrdersController &lt; ApplicationController
+  def create
+    @order = Order.new(order_params)
+    @order.calculate_totals
+
+    if @order.save
+      redirect_to @order
+    else
+      render :new
+    end
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails Models Guide - <a href="https://guides.rubyonrails.org/active_record_basics.html">Official Rails guide explaining Active Record models and their responsibilities</a></p>
+</li>
+<li>
+<p>Rails Models Best Practices - <a href="https://avohq.io/glossary/models">Comprehensive guide on Rails models responsibilities and best practices</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>MVC Pattern - <a href="https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller">Model-View-Controller architectural pattern for separating concerns</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S5384" class="rspec-auto-link">RSPEC-5384</a> - <a href="https://rules.sonarsource.com/apex/RSPEC-5384">Similar rule for Apex: Business logic should not be implemented in controllers</a></p>
+</li>
+<li>
+<p><a data-rspec-id="S6960" class="rspec-auto-link">RSPEC-6960</a> - <a href="https://rules.sonarsource.com/csharp/RSPEC-6960">Similar rule for C#: Business logic should not be implemented in controllers</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

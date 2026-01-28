@@ -1,0 +1,161 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when code directly accesses <code>Thread.current</code> to store or retrieve values, which can lead to testing difficulties, memory leaks, and architectural problems.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Direct usage of <code>Thread.current</code> creates several problems in Ruby applications:</p>
+</div>
+<div class="paragraph">
+<p><strong>Testing Difficulties</strong></p>
+</div>
+<div class="paragraph">
+<p><code>Thread.current</code> creates hidden dependencies that make unit testing harder. Tests become unpredictable because they depend on thread-local state that may not be properly set up or cleaned up between test runs.</p>
+</div>
+<div class="paragraph">
+<p><strong>Memory Leak Risks</strong></p>
+</div>
+<div class="paragraph">
+<p>In web applications using thread pools (like Puma or Unicorn), threads are reused across requests. If thread-local variables are not properly cleaned up, they can persist between requests, causing memory leaks and potential security issues where one user&#8217;s data might leak to another user&#8217;s request.</p>
+</div>
+<div class="paragraph">
+<p><strong>Architectural Problems</strong></p>
+</div>
+<div class="paragraph">
+<p>Using <code>Thread.current</code> violates the Law of Demeter and breaks MVC patterns. It creates tight coupling between different layers of the application, making code harder to understand, maintain, and refactor. Models and services become dependent on global thread state instead of explicit dependencies.</p>
+</div>
+<div class="paragraph">
+<p><strong>Concurrency Issues</strong></p>
+</div>
+<div class="paragraph">
+<p>Thread-local storage can mask concurrency problems and make debugging more difficult. It&#8217;s harder to reason about code behavior when state is stored in thread-local variables rather than being passed explicitly.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using <code>Thread.current</code> can lead to memory leaks in production environments, unpredictable test behavior, security vulnerabilities where user data leaks between requests, and code that is difficult to maintain and debug. In severe cases, it can cause application instability and data corruption.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_ruby">How to fix it in Ruby</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use dependency injection to pass required data explicitly instead of storing it in thread-local variables. This makes dependencies clear and code easier to test.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class UserService
+  def process_data
+    current_user = Thread.current[:current_user] # Noncompliant
+    current_user.process_something
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class UserService
+  def initialize(current_user)
+    @current_user = current_user
+  end
+
+  def process_data
+    @current_user.process_something
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_rails">How to fix it in Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use Rails' <code>CurrentAttributes</code> (Rails 5+) which provides a safer way to manage request-scoped data with automatic cleanup.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class ApplicationController
+  before_action :set_current_user
+
+  private
+
+  def set_current_user
+    Thread.current[:current_user] = authenticate_user # Noncompliant
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby">class Current &lt; ActiveSupport::CurrentAttributes
+  attribute :user
+end
+
+class ApplicationController
+  before_action :set_current_user
+
+  private
+
+  def set_current_user
+    Current.user = authenticate_user
+  end
+end</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Rails CurrentAttributes Guide - <a href="https://api.rubyonrails.org/classes/ActiveSupport/CurrentAttributes.html">Official Rails documentation for CurrentAttributes, a safer alternative to Thread.current</a></p>
+</li>
+<li>
+<p>Ruby Thread Documentation - <a href="https://ruby-doc.org/core/Thread.html">Official Ruby documentation for Thread class and thread-local variables</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-200: Exposure of Sensitive Information to an Unauthorized Actor - <a href="https://cwe.mitre.org/data/definitions/200.html">Thread-local variables without proper cleanup can leak sensitive data between requests</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

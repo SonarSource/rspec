@@ -1,0 +1,146 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when ActiveRecord queries use <code>:joins</code> without an explicit <code>:select</code> clause or <code>:readonly &#8658; false</code> setting.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When ActiveRecord performs a join operation without an explicit <code>:select</code> clause, it automatically marks the returned records as read-only. This is a safety mechanism to prevent data inconsistencies that could occur when modifying records that span multiple joined tables.</p>
+</div>
+<div class="paragraph">
+<p>The problem arises when developers expect to modify these records later in their code. Any attempt to update, save, or modify a read-only record will raise an <code>ActiveRecord::ReadOnlyRecord</code> exception at runtime.</p>
+</div>
+<div class="paragraph">
+<p>This behavior can be particularly confusing because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The query executes successfully and returns what appears to be normal ActiveRecord objects</p>
+</li>
+<li>
+<p>The error only occurs when attempting to modify the records, which may happen much later in the code</p>
+</li>
+<li>
+<p>The connection between the join query and the read-only behavior is not immediately obvious</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This creates a debugging challenge where the root cause (the join query) is separated from the symptom (the modification error).</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Applications will crash with <code>ActiveRecord::ReadOnlyRecord</code> exceptions when attempting to modify records retrieved through joins. This can lead to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Runtime failures in production environments</p>
+</li>
+<li>
+<p>Difficult debugging sessions due to the separation between query and modification code</p>
+</li>
+<li>
+<p>Potential data loss if the error occurs during critical operations</p>
+</li>
+<li>
+<p>Poor user experience due to unexpected application crashes</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it_in_ruby_on_rails">How to fix it in Ruby on Rails</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add an explicit <code>:select</code> clause to specify which columns should be retrieved. This prevents ActiveRecord from marking records as read-only.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Join without select clause creates read-only records
+start_cards = DeckCard.find :all,
+  :joins =&gt; [:card],  # Noncompliant
+  :conditions =&gt; ["deck_cards.deck_id = ? and cards.start_card = ?", @game.deck.id, true]
+
+# Later modification will fail
+start_card = start_cards.pop
+start_card.draw_pile = false  # Raises ActiveRecord::ReadOnlyRecord</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Explicit select clause prevents read-only records
+start_cards = DeckCard.find :all,
+  :select =&gt; 'deck_cards.*',  # Specify columns to select
+  :joins =&gt; [:card],
+  :conditions =&gt; ["deck_cards.deck_id = ? and cards.start_card = ?", @game.deck.id, true]
+
+# Modification now works as expected
+start_card = start_cards.pop
+start_card.draw_pile = false</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Explicitly set <code>:readonly &#8658; false</code> to allow modifications on joined records. Use this approach when you need to modify the records and understand the implications.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_code_examples_2">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Join without readonly setting creates read-only records
+records = Model.find :all, :joins =&gt; [:association]  # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ruby" data-lang="ruby"># Explicitly disable read-only behavior
+records = Model.find :all,
+  :joins =&gt; [:association],
+  :readonly =&gt; false  # Allow modifications</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>ActiveRecord Query Interface - Joins - <a href="https://guides.rubyonrails.org/active_record_querying.html#joining-tables">Official Rails guide on joining tables and query interface</a></p>
+</li>
+<li>
+<p>ActiveRecord ReadOnlyRecord Exception - <a href="https://api.rubyonrails.org/classes/ActiveRecord/ReadOnlyRecord.html">Documentation for the ReadOnlyRecord exception</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

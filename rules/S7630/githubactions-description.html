@@ -1,0 +1,522 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>GitHub Actions workflows can access various sources of untrusted data through the GitHub context, such as:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Pull request titles, descriptions, and commit messages</p>
+</li>
+<li>
+<p>Issue titles and comments</p>
+</li>
+<li>
+<p>Branch names and tag names</p>
+</li>
+<li>
+<p>User-provided inputs</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When this untrusted data is directly interpolated into shell commands using GitHub&#8217;s expression syntax (<code>${{ &#8230;&#8203; }}</code>), it can lead to script injection vulnerabilities. An attacker who can control the content of these data sources (for example, by creating a pull request with a malicious title) can potentially execute arbitrary commands on the runner.</p>
+</div>
+<div class="sect2">
+<h3 id="_understanding_expression_expansion">Understanding expression expansion</h3>
+<div class="paragraph">
+<p>It&#8217;s important to understand that GitHub Actions expressions (<code>${{ &#8230;&#8203; }}</code>) are expanded <strong>before</strong> the shell script is executed. This expansion happens at the workflow processing stage, not within the shell itself. This means:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>GitHub Actions first evaluates the expression and replaces it with the actual value</p>
+</li>
+<li>
+<p>The resulting string (which may contain shell metacharacters) is then passed to the shell</p>
+</li>
+<li>
+<p>The shell receives and executes the already-expanded string as part of the script</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Even seemingly safe assignments like <code>pr_title="${{ github.event.pull_request.title }}"</code> are vulnerable because the expansion happens first. For example, if an attacker creates a pull request with a title containing <code>"; rm -rf / #</code>, the workflow will expand the expression to:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>pr_title=""; rm -rf / #"</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The shell will then interpret this as:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>An assignment: <code>pr_title=""</code> (assigns empty string)</p>
+</li>
+<li>
+<p>A command separator: <code>;</code></p>
+</li>
+<li>
+<p>An arbitrary command: <code>rm -rf /</code></p>
+</li>
+<li>
+<p>A comment: <code>#</code> (hides the remaining quote)</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>This demonstrates that <strong>any</strong> use of untrusted data in GitHub expressions within a <code>run</code> block is dangerous, regardless of whether it appears to be a simple assignment or a direct command.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>The consequences of successful script injection attacks in GitHub Actions can be severe and far-reaching:</p>
+</div>
+<div class="sect3">
+<h4 id="_information_disclosure">Information disclosure</h4>
+<div class="paragraph">
+<p>Attackers can extract sensitive information from the runner environment, including:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Repository secrets and environment variables</p>
+</li>
+<li>
+<p>Authentication tokens and API keys</p>
+</li>
+<li>
+<p>Build artifacts and deployment credentials</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_system_compromise">System compromise</h4>
+<div class="paragraph">
+<p>Successful command injection allows attackers to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Execute arbitrary commands on the runner</p>
+</li>
+<li>
+<p>Install malware or backdoors</p>
+</li>
+<li>
+<p>Access other resources available to the runner</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_supply_chain_attacks">Supply chain attacks</h4>
+<div class="paragraph">
+<p>Compromised workflows can be used to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Inject malicious code into build artifacts</p>
+</li>
+<li>
+<p>Modify dependencies or packages being published</p>
+</li>
+<li>
+<p>Compromise downstream systems that consume the artifacts</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_repository_manipulation">Repository manipulation</h4>
+<div class="paragraph">
+<p>Attackers may be able to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Modify repository contents or history</p>
+</li>
+<li>
+<p>Create unauthorized releases or tags</p>
+</li>
+<li>
+<p>Access or modify other repositories the workflow has access to</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The impact is particularly severe because GitHub Actions runners often have elevated privileges and access to sensitive resources, making them attractive targets for attackers.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To prevent command injection in GitHub Actions workflows, avoid directly interpolating untrusted data into shell commands. Instead, use environment variables to safely pass untrusted data without risk of code execution.</p>
+</div>
+<div class="paragraph">
+<p>The recommended approach is to assign untrusted data to environment variables using the <code>env</code> key, then reference these variables using standard shell variable syntax (<code>$VARIABLE_NAME</code> or <code>${VARIABLE_NAME}</code>) rather than GitHub&#8217;s expression syntax (<code>${{ &#8230;&#8203; }}</code>).</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="paragraph">
+<p>The following GitHub Action is vulnerable to command injections as it uses untrusted input directly in a run command:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example Step
+        run: |
+          pr_title="${{ github.event.pull_request.title }}" # Noncompliant: expansion happens before shell execution
+          echo "PR title: $pr_title"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If an attacker creates a pull request with a title containing <code>"; rm -rf / #</code>, the expression expansion will transform the assignment into <code>pr_title=""; rm -rf / #"</code>, which the shell will execute as multiple commands, not just an assignment.</p>
+</div>
+<div class="paragraph">
+<p>Workflow inputs of type <code>string</code> (which is the default type) are also vulnerable when expanded directly in shell commands:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package name to install'
+        required: true
+        type: string
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install package
+        run: |
+          apt-get install ${{ inputs.package_name }} # Noncompliant: string input expanded directly</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="paragraph">
+<p>Use environment variables to safely pass untrusted data:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example Step
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "PR title: $PR_TITLE"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To securely use workflow inputs, assign them to environment variables just like any other untrusted data.
+Alternatively, change the input type from <code>string</code> to <code>choice</code> with predefined options. This restricts user input to safe values controlled by the workflow author:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package name to install'
+        required: true
+        type: choice
+        options:
+          - nginx
+          - apache2
+          - postgresql
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install package
+        run: |
+          apt-get install ${{ inputs.package_name }}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_does_this_work">How does this work?</h3>
+<div class="paragraph">
+<p>The key difference lies in when and how the untrusted data is processed:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Direct interpolation (vulnerable)</strong>: When using <code>${{ github.event.pull_request.title }}</code> directly in a shell command, GitHub Actions processes the workflow file and expands the expression <strong>before</strong> the shell script runs. The expansion happens at the workflow processing stage:</p>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>GitHub Actions reads the workflow YAML file</p>
+</li>
+<li>
+<p>It evaluates <code>${{ github.event.pull_request.title }}</code> and replaces it with the actual PR title value</p>
+</li>
+<li>
+<p>The resulting string (which may contain shell metacharacters) is inserted into the script</p>
+</li>
+<li>
+<p>The shell then receives and executes the already-expanded script</p>
+</li>
+</ol>
+</div>
+</li>
+<li>
+<p><strong>Environment variable approach (safe)</strong>: When the untrusted data is assigned to an environment variable using the <code>env</code> key, GitHub Actions still expands the expression, but the expansion happens in a different context:</p>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>GitHub Actions expands <code>${{ github.event.pull_request.title }}</code> and assigns the value to an environment variable</p>
+</li>
+<li>
+<p>The shell script references this variable using standard shell syntax (<code>$PR_TITLE</code>)</p>
+</li>
+<li>
+<p>The shell treats the environment variable&#8217;s contents as literal data, not as executable code</p>
+</li>
+</ol>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>When the shell evaluates <code>$PR_TITLE</code>, it performs variable expansion (not expression expansion), which treats the value as a string literal. Even if the value contains shell metacharacters, they remain as literal characters and are not interpreted as commands.
+This separation ensures that malicious shell syntax in the untrusted data cannot be interpreted as commands, effectively neutralizing injection attempts.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Choice input type (safe when used directly)</strong>: Unlike <code>string</code> inputs, <code>choice</code> inputs restrict user input to a predefined list of options that are controlled by the workflow author. When a <code>choice</code> input is used directly in a GitHub expression within a <code>run</code> block, it is safe because:</p>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The workflow author defines all possible values in the <code>options</code> list</p>
+</li>
+<li>
+<p>Attackers cannot provide arbitrary values, since they are only allowed to select from the predefined options</p>
+</li>
+<li>
+<p>Since the workflow author controls the options, they can ensure none contain shell metacharacters or malicious content</p>
+</li>
+<li>
+<p>The expression expansion will only ever produce one of the predefined, safe values</p>
+</li>
+</ol>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pitfalls">Pitfalls</h3>
+<div class="sect3">
+<h4 id="_fixing_vulnerabilities_only_in_the_main_branch">Fixing vulnerabilities only in the main branch</h4>
+<div class="paragraph">
+<p>It is important to note that fixing this vulnerability requires updating the workflow files in all existing branches of the repository. GitHub Actions workflows can be triggered from any branch, and an attacker could potentially target vulnerable workflows in older or feature branches. A comprehensive fix should include updating all branches that contain the vulnerable workflow patterns.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_accessing_environment_variables_through_github_expressions">Accessing environment variables through GitHub expressions</h4>
+<div class="paragraph">
+<p>While storing untrusted data in environment variables is the correct approach, it is important to reference them properly. Simply putting the data in an environment variable but then accessing it through GitHub&#8217;s expression syntax (<code>${{ env.VARIABLE_NAME }}</code>) will still result in command injection vulnerabilities.</p>
+</div>
+<div class="paragraph">
+<p>The following example demonstrates this common mistake:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">name: Example
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Example
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "PR title: ${{ env.PR_TITLE }}" # Noncompliant</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_going_the_extra_mile">Going the extra mile</h3>
+<div class="sect3">
+<h4 id="_security_hardening">Security hardening</h4>
+<div class="paragraph">
+<p>Beyond fixing the immediate security issue, consider implementing additional security measures:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Minimal permissions</strong>: Configure workflows to use the minimum necessary permissions by explicitly setting <code>permissions</code> for the <code>GITHUB_TOKEN</code> and avoiding overly broad access.</p>
+</li>
+<li>
+<p><strong>Branch protection</strong>: Implement branch protection rules that require code review for changes to workflow files, preventing unauthorized modifications.</p>
+</li>
+<li>
+<p><strong>External contributor restrictions</strong>: Configure workflows to require approval for runs triggered by external contributors, reducing the risk of malicious workflow executions.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_advanced_input_validation">Advanced input validation</h4>
+<div class="paragraph">
+<p>For enhanced security, implement comprehensive input validation:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Allowlists</strong>: Instead of just avoiding dangerous characters, use allowlists to only accept inputs that match expected patterns (e.g., valid branch names, semantic version formats).</p>
+</li>
+<li>
+<p><strong>Custom validation actions</strong>: Create reusable composite actions that encapsulate input validation logic, making it easier to apply consistent security controls across workflows.</p>
+</li>
+<li>
+<p><strong>Input sanitization</strong>: When possible, sanitize inputs by removing or escaping potentially dangerous characters before processing them.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>GitHub Docs - <a href="https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections">Understanding the risk of script injections</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>OWASP - <a href="https://owasp.org/Top10/A03_2021-Injection/">Top 10 2021 Category A3 - Injection</a></p>
+</li>
+<li>
+<p>OWASP - <a href="https://owasp.org/www-project-top-ten/2017/A1_2017-Injection">Top 10 2017 Category A1 - Injection</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/20">CWE-20 - Improper Input Validation</a></p>
+</li>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/78">CWE-78 - Improper Neutralization of Special Elements used in an OS Command</a></p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222604">Application Security and Development: V-222604</a> - The application must protect from command injection.</p>
+</li>
+<li>
+<p>STIG Viewer - <a href="https://stigviewer.com/stigs/application_security_and_development/2024-12-06/finding/V-222609">Application Security and Development: V-222609</a> - The application must not be subject to input handling vulnerabilities.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S8263" class="rspec-auto-link">S8263</a> GitHub Action invocations should not be vulnerable to parameter injection attacks</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Change this workflow to not use user-controlled data directly in a run block</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_highlighting">Highlighting</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Primary: On GitHub expression using tainted data in a run block</p>
+</li>
+<li>
+<p>In the pitfall example, secondary on the assignment of tainted data into an environment variable</p>
+</li>
+<li>
+<p>Message: "User-controlled data is stored in '&lt;variable_name&gt;'"</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

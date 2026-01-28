@@ -1,0 +1,80 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Failing to release the state of a coroutine results in leaks of the coroutine frame, including its parameters, promise object, and, depending on the suspension point, a set of local variables that were preserved on the heap.</p>
+</div>
+<div class="paragraph">
+<p>On the one hand, the compiler automatically releases the coroutine state when <code>final_suspend()</code> completes without suspending the coroutine. In other words, the relevant objects are destroyed when the execution flows off the end of the "body" (as rewritten by the compiler) of the coroutine.</p>
+</div>
+<div class="paragraph">
+<p>On the other hand, the coroutine state is manually released when <code>destroy()</code> is invoked on its handle. Note that destroying a running coroutine or one that was already destroyed leads to undefined behavior.</p>
+</div>
+<div class="paragraph">
+<p>Therefore, the state of a coroutine is leaked when it is suspended via <code>final_suspend()</code> but <code>destroy()</code> isn&#8217;t called on its handle.</p>
+</div>
+<div class="paragraph">
+<p>This rule raises an issue when a coroutine state is leaked.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_noncompliant_code_example">Noncompliant Code Example</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class ComplexTask {
+public:
+  struct promise_type {
+    std::suspend_always final_suspend() const noexcept;
+    /* ... */
+  };
+private:
+  std::coroutine_handle&lt;&gt; handle;
+  ComplexTask(std::coroutine_handle&lt;&gt; handle) : handle(handle) { }
+};
+
+ComplexTask complexTask(Config data) {
+  // At this point, a copy of `data` is created and stored as part of the coroutine state.
+  co_return something(data);
+}
+
+void doSomeWork() {
+  auto task = complexTask(buildConfig());
+} // Noncompliant
+// The coroutine handle was not released and the copy of `data` is leaked.</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compliant_solution">Compliant Solution</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">class ComplexTask {
+public:
+  struct promise_type {
+    std::suspend_always final_suspend() const noexcept;
+    /* ... */
+  };
+private:
+  std::coroutine_handle&lt;&gt; handle;
+  ComplexTask(std::coroutine_handle&lt;&gt; handle) : handle(handle) { }
+  ComplexTask(ComplexTask&amp;&amp; other) : handle(std::exchange(other.handle, nullptr)) { }
+  ~ComplexTask() { if (handle) handle.destroy(); }
+};
+
+ComplexTask complexTask(Config data) {
+  // At this point, a copy of `data` is created and stored as part of the coroutine state.
+  co_return something(data);
+}
+
+void doSomeWork() {
+  auto task = complexTask(buildConfig());
+}
+// The copy of `data` is released via ~ComplexTask().</code></pre>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,183 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In C, and to some extend in C&#43;&#43;, strings are arrays of characters terminated by a null character that is used as a sentinel denoting the end of the string.  Therefore, it is common to pass to a function a pointer to the start of a string and expect it to iterate on the content until it reaches the final null character.</p>
+</div>
+<div class="paragraph">
+<p><code>std::string_view</code> takes another approach: It stores a pointer to the start of the string and the length of the string. This allows, in particular, to have a <code>string_view</code> that refers to a substring of a string. In such situations, the last character of the <code>string_view</code> will not be followed by a null character.</p>
+</div>
+<div class="paragraph">
+<p>This is usually not a problem when working with <code>string_view</code>, but can become one when a pointer to the start of the string is extracted from a <code>string_view</code> by calling <code>data()</code>. This pointer will usually not point to a string with a null character at the right place, and if passed to a function that expects a null-terminated string, this function will not be able to determine the end of the <code>string_view</code>.</p>
+</div>
+<div class="paragraph">
+<p>This kind of situation usually happens when partially modernizing code that used to work with C-style strings or <code>std::string</code> to use <code>std::string_view</code> instead (<a data-rspec-id="S7121" class="rspec-auto-link">S7121</a> and <a data-rspec-id="S7118" class="rspec-auto-link">S7118</a> detect similar issues linked to partial string modernization).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void v1(char *s) { // Initial, C-style code
+    doSomething(strlen(s));
+}
+
+void v2(std:::string const &amp;s) { // Modernized code, not optimal, but correct with minimal changes
+    doSomething(strlen(s.data()));
+}
+
+void v3(std::string_view s) { // Second modernization step, becomes incorrect
+    doSomething(strlen(s.data())); // Noncompliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This rules raises an issue when the result of calling <code>data()</code> on a <code>string_view</code> (or any specialization of <code>std::basic_string_view</code>) is passed to:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>a one-argument constructor of <code>std::string</code>, <code>std::string_view</code> (as well as wide or unicode variants of those classes),</p>
+</li>
+<li>
+<p>any function from the C standard library that expects a null-terminated string.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>If the <code>string_view</code> refers to a part of a larger string that is itself null-terminated, the function will read past the end of the view, until the end of the underlying string. This could yield stange results, and potentially leak sensitive information.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">std::string credentials = getCredentials(); // Expects a string "user:password"
+auto user = std::string_view(credentials.c_str(), credentials.find(':'));
+// This will print the user name, but will not stop at the end of the user name,
+// it will also print the password.
+printf("User: %s", user.data()); // Noncompliant</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The discrepancy between the <code>size()</code> function of a <code>string_view</code> and the number of characters read by a function considering the string to be null-terminated could also lead to buffer overflows.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">char *userBuffer = new char[user.size() + 1];
+strcpy(userBuffer, user.data()); // Noncompliant: buffer overflow</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the general case, if the <code>string_view</code> does not refer to (part of) a null-terminated string, any function that expects a null-terminated string will lead to a buffer overflow.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_when_working_with_c_types">When working with C&#43;&#43; types</h3>
+<div class="paragraph">
+<p>When constructing a <code>std::string</code> or another <code>std::string_view</code> from a <code>string_view</code>, you don&#8217;t have to call <code>data</code>, specific constructors already exist for this purpose.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f(std::string_view sv) {
+    std::string s(sv.data()); // Noncompliant
+    std::string_view sv2(sv.data()); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f(std::string_view sv) {
+    std::string s(sv); // Noncompliant
+    std::string_view sv2(sv); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_when_working_with_the_c_library">When working with the C library</h3>
+<div class="paragraph">
+<p>When calling a function from the C library that expect a C-style string argument, the best is usually to use a replacement for that function that directly works with <code>std::string_view</code>.</p>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f(std::string_view sv1, std::string_view sv2) {
+    auto l = strlen(sv1.data()); // Noncompliant
+    auto p = strstr(sv1.data(), sv2.data()); // Noncompliant
+    char *buffer = new char[sv1.size() + 1];
+    strcpy(buffer, sv1.data()); // Noncompliant
+    printf("Result: %s\n", sv1.data()); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f(std::string_view sv1, std::string_view sv2) {
+    auto l = sv1.size(); // Compliant
+    auto i = sv1.find(sv2); // Compliant
+    char *buffer = new char[sv1.size() + 1];
+    std::copy(sv1.begin(), sv1.end(), buffer);
+    // In C++23, previous versions could use std::format or a stream
+    std::println("Result: {}", sv1); // Compliant
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If there is no direct replacement for a specific call, it is always possible the create a temporary <code>string</code> from the <code>string_view</code> and pass the result of <code>c_str()</code> to the function, at the cost of an extra memory allocation and copy of the characters of the <code>string_view</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">void f(std::string_view sv1, std::string_view sv2) {
+    std::string s1 {sv1};
+    std::string s2 {sv2};
+    auto l = strlen(s1.c_str()); // Noncompliant
+    auto p = strstr(s1.c_str(), s2.c_str()); // Noncompliant
+    char *buffer = new char[s1.size() + 1];
+    strcpy(buffer, s1.c_str()); // Noncompliant
+    printf("Result: %s\n", s1.c_str()); // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="paragraph">
+<p>While calling <code>data()</code> (and <code>c_str()</code>) on a <code>std::string</code> is not as dangerous as on a <code>std::string_view</code>, because a <code>std::string</code> is always null-terminated, other rules focus on possible misuses of these functions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S7121" class="rspec-auto-link">S7121</a> triggers when the resulting character pointer is immediately converted back to a string, leading to bad performance.</p>
+</li>
+<li>
+<p><a data-rspec-id="S7118" class="rspec-auto-link">S7118</a> proposes direct alternatives to calling a C library function on the internal buffer of the string.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

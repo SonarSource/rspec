@@ -1,0 +1,238 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Using explicit loops for filtering, selecting, or aggregating elements can make code more verbose and harder to read. LINQ expressions provide a more concise and expressive way to perform these operations, improving code clarity and maintainability.</p>
+</div>
+<div class="sect2">
+<h3 id="_performance_considerations">Performance Considerations</h3>
+<div class="paragraph">
+<p>If the affected code is part of a performance-critical hot path and that the fix would negatively impact performance, you can self-declare the <code>PerformanceSensitiveAttribute</code> in your codebase, or use the one provided by <a href="https://www.nuget.org/packages/Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers">Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers</a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">[AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = true, Inherited = false)]
+public sealed class PerformanceSensitiveAttribute() : Attribute;
+
+[PerformanceSensitiveAttribute]
+List&lt;string&gt; Method(IEnumerable&lt;string&gt; collection, Predicate&lt;string&gt; condition)
+{
+  var result = new List&lt;string&gt;();
+  foreach (var element in collection)  // Without the attribute, this would raise an issue
+  {
+    if (condition(element))
+    {
+      result.Add(element);
+    }
+  }
+  return result;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The rule will respect the <a href="https://github.com/dotnet/roslyn-analyzers/blob/b924542a1b526322929725a1aaa9586c21b1b231/nuget/PerformanceSensitiveAnalyzers/PerformanceSensitiveAttribute.cs#L68-L72"><code>AllowGenericEnumeration</code></a> property:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">[PerformanceSensitive("Enumeration", AllowGenericEnumeration = true)]
+List&lt;string&gt; Method(IEnumerable&lt;string&gt; collection, Predicate&lt;string&gt; condition) { }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this case, the rule will not be disabled even if the method is marked with the <code>PerformanceSensitiveAttribute</code> attribute.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Replace explicit loops and conditional blocks with equivalent LINQ expressions.</p>
+</div>
+<div class="paragraph">
+<p>Use the <a href="https://www.nuget.org/packages/System.Linq.Async">System.Linq.Async</a> package to enable LINQ operations on <a href="https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iasyncenumerable-1">IAsyncEnumerable</a> prior to .NET 10.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">List&lt;string&gt; Method(IEnumerable&lt;string&gt; collection, Predicate&lt;string&gt; condition)
+{
+  var result = new List&lt;string&gt;();
+  foreach (var element in collection)  // Noncompliant
+  {
+    if (condition(element))
+    {
+      result.Add(element);
+    }
+  }
+  return result;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">List&lt;string&gt; Method(IEnumerable&lt;MyDto&gt; collection)
+{
+  var result = new List&lt;string&gt;();
+  foreach (var element in collection) // Noncompliant
+  {
+    var someValue = element.Property;
+    if (someValue != null)
+    {
+      result.Add(someValue);
+    }
+  }
+  return result;
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">public void Method(List&lt;string&gt; list)
+{
+  foreach (var element in list)
+  {
+    var someValue = element.Length;
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">async void Method(IAsyncEnumerable&lt;int&gt; collection)
+{
+  await foreach (var element in collection)
+  {
+    if (element is 42)
+    {
+      Console.WriteLine("The meaning of Life.");
+    }
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">List&lt;string&gt; Method(IEnumerable&lt;string&gt; collection, Predicate&lt;string&gt; condition) =&gt;
+  collection.Where(x =&gt; condition(x)).ToList();</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">List&lt;string&gt; Method(IEnumerable&lt;MyDto&gt; collection) =&gt;
+  collection.Select(x =&gt; x.Property).Where(y =&gt; y != null).ToList();</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">void Method(List&lt;int&gt; list)
+{
+  foreach (var length in list.Select(x =&gt; x.Length))
+  {
+    var someValue = length;
+  }
+}</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">async void Method(IAsyncEnumerable&lt;int&gt; collection)
+{
+  await foreach (var element in collection.Where(x =&gt; x is 42)))
+  {
+    Console.WriteLine("The meaning of Life.");
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/linq">Language Integrated Query (LINQ)</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iasyncenumerable-" class="bare">https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iasyncenumerable-</a>
+1[IAsyncEnumerable&lt;T&gt; Interface]</p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/core/compatibility/core-libraries/10.0/asyncenumerable">System.Linq.AsyncEnumerable in .NET 10</a></p>
+</li>
+<li>
+<p>NuGet - <a href="https://www.nuget.org/packages/System.Linq.Async">System.Linq.Async</a></p>
+</li>
+<li>
+<p>NuGet - <a href="https://www.nuget.org/packages/Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers">Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Use a LINQ expression in the loop declaration instead of this "xxx".</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_10_jul_2015_123019_ann_campbell_wrote">on 10 Jul 2015, 12:30:19 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~tamas.vajk] I tried to break the code samples into individual issues. Please help if I muffed it.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_20_jul_2015_113839_tamas_vajk_wrote">on 20 Jul 2015, 11:38:39 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I removed a "probably" from the description.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_20_jul_2015_143613_ann_campbell_wrote">on 20 Jul 2015, 14:36:13 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>thanks [~tamas.vajk]</p>
+</div>
+</div>
+</div>
+</div>

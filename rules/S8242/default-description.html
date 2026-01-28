@@ -1,0 +1,107 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when <code>context.Context</code> is declared as a field in a struct type.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Storing <code>context.Context</code> in struct fields goes against Go best practices and creates several problems.</p>
+</div>
+<div class="paragraph">
+<p>When you store context in a struct, you obscure its lifetime to callers. This makes it unclear when the context will be used and how long it will remain valid. Callers cannot understand the scope of the context just by looking at the API.</p>
+</div>
+<div class="paragraph">
+<p>Storing context in structs also prevents per-call customization. Each method call should be able to specify its own deadline, cancellation behavior, and metadata. When context is stored in a struct, all method calls share the same context, removing this flexibility.</p>
+</div>
+<div class="paragraph">
+<p>This design intermingles different scopes in unpredictable ways. The context&#8217;s lifetime becomes tied to the struct&#8217;s lifetime rather than individual operations. This can lead to contexts outliving their intended use or being cancelled unexpectedly.</p>
+</div>
+<div class="paragraph">
+<p>The Go documentation explicitly states: "Contexts should not be stored inside a struct type, but instead passed to each function that needs it." This guidance ensures contexts remain scoped to specific operations and maintain their intended purpose of carrying request-scoped values, deadlines, and cancellation signals.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Storing context in structs reduces the flexibility and clarity of your API. Callers lose the ability to set per-call deadlines, request cancellation for specific operations, or attach operation-specific metadata.</p>
+</div>
+<div class="paragraph">
+<p>This can lead to poor resource management, as contexts may outlive their intended scope or be shared inappropriately between operations. In production systems, this can result in requests that cannot be properly cancelled, potentially leading to resource leaks or degraded performance.</p>
+</div>
+<div class="paragraph">
+<p>The API becomes confusing for users who cannot easily understand when and how the stored context will be used, requiring additional documentation and potentially leading to misuse.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Remove the context field from the struct and pass context as the first parameter to methods that need it. This follows Go conventions and provides better control over context scope.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">type Worker struct {
+	ctx context.Context // Noncompliant
+}
+
+func New(ctx context.Context) *Worker {
+	return &amp;Worker{ctx: ctx}
+}
+
+func (w *Worker) Fetch() (*Work, error) {
+	// Using stored context
+	return fetchWork(w.ctx)
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">type Worker struct {
+	// Remove context field
+}
+
+func New() *Worker {
+	return &amp;Worker{}
+}
+
+func (w *Worker) Fetch(ctx context.Context) (*Work, error) {
+	// Context passed as parameter
+	return fetchWork(ctx)
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go Blog: Contexts and structs - <a href="https://go.dev/blog/context-and-structs">Official Go blog post explaining why contexts should not be stored in structs</a></p>
+</li>
+<li>
+<p>Go context package documentation - <a href="https://pkg.go.dev/context">Official documentation for the context package with usage guidelines</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,230 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The instance passed to the <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock"><code>lock</code> statement</a> should be a dedicated private field.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If the instance representing an exclusively acquired lock is publicly accessible, another thread in another part of the program could accidentally attempt to acquire the same lock. This increases the likelihood of <a href="https://en.wikipedia.org/wiki/Deadlock">deadlocks</a>.</p>
+</div>
+<div class="paragraph">
+<p>For example, a <code>string</code> should never be used for locking. When a <code>string</code> is <a href="https://en.wikipedia.org/wiki/Interning_(computer_science)">interned</a> by the runtime, it can be shared by multiple threads, breaking the locking mechanism.</p>
+</div>
+<div class="paragraph">
+<p>Instead, a dedicated private <a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.lock?view=net-9.0"><code>Lock</code></a> object instance (or <code>object</code> instance, for frameworks before .Net 9) should be used for locking. This minimizes access to the lock instance and therefore prevents accidential lock sharing.</p>
+</div>
+<div class="paragraph">
+<p>The following objects are considered potentially prone to accidental lock sharing:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>a reference to <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/this">this</a>: if the instance is publicly accessibly, the lock might be shared</p>
+</li>
+<li>
+<p>a <a href="https://learn.microsoft.com/en-us/dotnet/api/system.type">Type</a> object: if the type class is publicly accessibly, the lock might be shared</p>
+</li>
+<li>
+<p>a <a href="https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/strings/">string</a> literal or instance: if any other part of the program uses the same string, the lock is shared because of interning</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">void MyLockingMethod()
+{
+    lock (this) // Noncompliant
+    {
+        // ...
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-csharp" data-lang="csharp">#if NET9_0_OR_GREATER
+private readonly Lock lockObj = new();
+#else
+private readonly object lockObj = new();
+#endif
+
+void MyLockingMethod()
+{
+    lock (lockObj)
+    {
+        // ...
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Thread_(computing)">Thread</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Lock_(computer_science)">Locking</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Deadlock">Deadlock</a></p>
+</li>
+<li>
+<p>Wikipedia - <a href="https://en.wikipedia.org/wiki/Interning_(computer_science)">Interning</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/api/system.string.intern#remarks">String interning by the runtime</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://docs.microsoft.com/en-us/dotnet/standard/threading/managed-threading-best-practices">Managed Threading Best Practices</a></p>
+</li>
+<li>
+<p>Microsoft Learn - <a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock">The lock statement - ensure exclusive access to a shared resource</a></p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_implementation_specification">Implementation Specification</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_message">Message</h3>
+<div class="paragraph">
+<p>Lock on a dedicated object instance instead.</p>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_on_4_feb_2015_135818_ann_campbell_wrote">on 4 Feb 2015, 13:58:18 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Gendarme DoNotLockOnThisOrTypesRule</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_13_apr_2015_105021_freddy_mallet_wrote">on 13 Apr 2015, 10:50:21 Freddy Mallet wrote:</h3>
+<div class="paragraph">
+<p>@Tamas, does this rule makes sense to you ? Thanks</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_112042_tamas_vajk_wrote">on 22 May 2015, 11:20:42 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] Looks good, I&#8217;ve updated the wording around the <code>Type</code> object</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_22_may_2015_120856_ann_campbell_wrote">on 22 May 2015, 12:08:56 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Thanks [~tamas.vajk]. Looks good.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_jun_2015_124511_tamas_vajk_wrote">on 11 Jun 2015, 12:45:11 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2]: Could you rephrase it according to the following?</p>
+</div>
+<div class="paragraph">
+<p>\[~dinesh.bolkensteyn] made the following remark on this rule in GitHub: "&#8230;&#8203;IMO ideally we&#8217;ll want to show an instance of a real issue.</p>
+</div>
+<div class="paragraph">
+<p>my understanding of the current description is that, as soon as another thread will also lock "this" or the same type, then you will have a deadlock"</p>
+</div>
+<div class="paragraph">
+<p>The problem he raises is that we shouldn&#8217;t lock on <code>this</code> or an instance of <code>Type</code> because it <strong>increases</strong> the chance of running into a synchronization issue.</p>
+</div>
+<div class="paragraph">
+<p>I don&#8217;t thing that we should add a code sample which has a deadlock as the example would be too complex and long.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_jun_2015_152239_ann_campbell_wrote">on 11 Jun 2015, 15:22:39 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>wording massaged. See what you think.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_jun_2015_152333_ann_campbell_wrote">on 11 Jun 2015, 15:23:33 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>FYI [~nicolas.peru]. This was originally written for C# but I&#8217;ve just mapped it to a FB rule.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_11_jun_2015_152903_tamas_vajk_wrote">on 11 Jun 2015, 15:29:03 Tamas Vajk wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] Looks good</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_jun_2015_092406_nicolas_peru_wrote">on 15 Jun 2015, 09:24:06 Nicolas Peru wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] I have doubt about how this one actually maps to the findbugs rule mentionned. AFAIU this one is about synchronizing on <code>this</code> whereas the FB rule is about synchronizing on <code>this.getClass()</code> that should be avoided so I think this mapping is not correct.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_jun_2015_135921_ann_campbell_wrote">on 15 Jun 2015, 13:59:21 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>\[~nicolas.peru], C#'s <code>this.GetType()</code> is analogous to Java&#8217;s <code>this.getClass()</code>.</p>
+</div>
+<div class="paragraph">
+<p>Does that sway your opinion?</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_jun_2015_143247_nicolas_peru_wrote">on 15 Jun 2015, 14:32:47 Nicolas Peru wrote:</h3>
+<div class="paragraph">
+<p>\[~ann.campbell.2] Not really, as the fix for the findbugs rule suggest to use the static <code>.class</code> accessor instead of <code>this.getClass()</code> which is synchronized on a type, hence the spirit of the rule is not the same and then mapping is not suitable.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_15_jun_2015_150734_ann_campbell_wrote">on 15 Jun 2015, 15:07:34 Ann Campbell wrote:</h3>
+<div class="paragraph">
+<p>Okay [~nicolas.peru]. Mapping removed.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_on_8_jun_2023_110734_greg_paidis_wrote">on 8 Jun 2023, 11:07:34 Greg Paidis wrote:</h3>
+<div class="paragraph">
+<p>During a LAYC sprint, I removed java, since it is neither implemented nor are there any implementation tickets.</p>
+</div>
+</div>
+</div>
+</div>

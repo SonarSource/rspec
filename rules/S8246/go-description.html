@@ -1,0 +1,142 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This rule raises an issue when global or package-level variables are accessed concurrently from multiple goroutines without proper synchronization mechanisms.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Data races occur when multiple goroutines access the same memory location concurrently, and at least one of the accesses is a write operation. In Go, global and package-level variables are shared across all goroutines in a program, making them particularly vulnerable to race conditions.</p>
+</div>
+<div class="paragraph">
+<p>When goroutines access shared variables without synchronization, several problems can occur:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Data corruption</strong>: Partial writes from one goroutine can be interleaved with reads or writes from another, leading to inconsistent or invalid data states.</p>
+</li>
+<li>
+<p><strong>Unpredictable behavior</strong>: The program&#8217;s behavior becomes non-deterministic, making bugs difficult to reproduce and debug.</p>
+</li>
+<li>
+<p><strong>Memory safety violations</strong>: In some cases, concurrent access can lead to memory corruption or crashes.</p>
+</li>
+<li>
+<p><strong>Performance issues</strong>: The Go runtime&#8217;s race detector can slow down execution significantly when races are present.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Go&#8217;s memory model guarantees that programs with data races have undefined behavior. This means that even seemingly simple operations like reading or writing a single variable can produce unexpected results when performed concurrently without proper synchronization.</p>
+</div>
+<div class="paragraph">
+<p>The problem is particularly common with interface types like <code>io.Writer</code>, <code>http.Handler</code>, or custom interfaces, because developers often treat them as simple assignments without considering that the underlying implementations may not be thread-safe.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Data races can lead to data corruption, unpredictable program behavior, crashes, and security vulnerabilities. In production systems, this can result in incorrect business logic execution, data loss, or system instability. The non-deterministic nature of race conditions makes them extremely difficult to debug and can cause intermittent failures that are hard to reproduce.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use a mutex to synchronize access to the global variable. Use <code>sync.RWMutex</code> when you have many readers and few writers, or <code>sync.Mutex</code> for simpler cases.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">package main
+
+import "io"
+
+var globalWriter io.Writer
+
+func writeData(data []byte) {
+    globalWriter.Write(data) // Noncompliant
+}
+
+func setWriter(w io.Writer) {
+    globalWriter = w // Noncompliant
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-go" data-lang="go">package main
+
+import (
+    "io"
+    "sync"
+)
+
+var (
+    globalWriter io.Writer
+    writerMutex  sync.RWMutex
+)
+
+func writeData(data []byte) {
+    writerMutex.RLock()
+    defer writerMutex.RUnlock()
+    globalWriter.Write(data)
+}
+
+func setWriter(w io.Writer) {
+    writerMutex.Lock()
+    defer writerMutex.Unlock()
+    globalWriter = w
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Go Memory Model - <a href="https://go.dev/ref/mem">Official Go documentation explaining memory model and synchronization</a></p>
+</li>
+<li>
+<p>Effective Go - Concurrency - <a href="https://go.dev/doc/effective_go#concurrency">Best practices for concurrent programming in Go</a></p>
+</li>
+<li>
+<p>Go Race Detector - <a href="https://go.dev/doc/articles/race_detector">Tool for detecting race conditions during testing</a></p>
+</li>
+<li>
+<p>sync package - <a href="https://pkg.go.dev/sync">Go standard library package for synchronization primitives</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization - <a href="https://cwe.mitre.org/data/definitions/362.html">Race condition vulnerability classification</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>

@@ -1,0 +1,210 @@
+<div class="sect1">
+<h2 id="_description">Description</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Passing invalid arguments to standard C library functions for handling I/O streams results in undefined behavior.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_why_is_this_an_issue">Why is this an issue?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The standard C library includes a number of functions for handling I/O streams.
+These functions put certain constraints on the values of their parameters.
+The constraints include the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The value for the <code>FILE*</code>-typed parameter may <em>not</em> be <code>NULL</code></p>
+</li>
+<li>
+<p>The third argument of <code>fseek</code> must be either of <code>SEEK_SET</code>, <code>SEEK_END</code>, or <code>SEEK_CUR</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Failing to pass correctly constrained parameters renders them invalid and will result in undefined behavior.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+
+size_t get_file_size() {
+  FILE *f = fopen("example_file.txt", "r");
+  // `f` may be NULL if `fopen` fails.
+  fseek(f, 0L, SEEK_END); // Leads to undefined behavior, if `f` is NULL.
+  size_t size = ftell(f); // Leads to undefined behavior, if `f` is NULL.
+  fclose(f);
+  return size;
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_what_is_the_potential_impact">What is the potential impact?</h3>
+<div class="paragraph">
+<p>Using the standard C library&#8217;s functions for handling I/O streams with invalid arguments leads to <strong>undefined behavior</strong>.</p>
+</div>
+<div class="paragraph">
+<p>When a program comprises undefined behavior, the compiler no longer needs to adhere to the language standard, and the program has no meaning assigned to it.</p>
+</div>
+<div class="paragraph">
+<p>Due to the resulting NULL pointer dereferences in the C library functions, the application might just crash, but in the worst case, the application may appear to execute correctly, while losing data or producing incorrect results.</p>
+</div>
+<div class="paragraph">
+<p>Besides affecting the application&#8217;s availability, NULL pointer dereferences may lead to code execution, in rare circumstances.
+If NULL is equivalent to the 0x0 memory address that can be accessed by privileged code, writing and reading memory is possible, which compromises the integrity and confidentiality of the application.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_to_fix_it">How to fix it</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ensure that the <code>FILE*</code>-typed pointer parameters passed to the standard C library&#8217;s I/O stream handling functions are non-<code>NULL</code> and also any other parameters such as the third argument of <code>fseek</code> carry appropriate values, namely any of <code>SEEK_SET</code>, <code>SEEK_END</code>, or <code>SEEK_CUR</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_code_examples">Code examples</h3>
+<div class="sect3">
+<h4 id="_noncompliant_code_example">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int process_file(const char *fname) {
+  FILE *f = fopen(fname, "r");
+  fseek(f, 0L, SEEK_END);
+  size_t size = ftell(f);
+  rewind(f);
+  char *buf = (char *)malloc(size);
+  // Read file into buffer ...
+  fclose(f);
+  // Process buffer ...
+  free(buf);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int process_file(const char *fname) {
+  FILE *f = fopen(fname, "r");
+  if (!f) {
+    printf("Could not open file!\n");
+    return 1;
+  }
+  fseek(f, 0L, SEEK_END);
+  size_t size = ftell(f);
+  rewind(f);
+  char *buf = (char *)malloc(size);
+  // Read file into buffer ...
+  fclose(f);
+  // Process buffer ...
+  free(buf);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_noncompliant_code_example_2">Noncompliant code example</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+void process_tmp_file() {
+  FILE *f = tmpfile();
+  size_t pos_indicator = ftell(f); // Noncompliant: `f` could be NULL.
+  fseek(f, 0L, 3); // Noncompliant: 3rd argument should either be SEEK_SET, SEEK_CUR or SEEK_END.
+  // Further file processing ...
+  fclose(f);
+}</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_compliant_solution_2">Compliant solution</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-cpp" data-lang="cpp">#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int process_tmp_file() {
+  FILE *f = tmpfile();
+  if (!f) {
+    printf("Could not create temporary file!\n");
+    return 1;
+  }
+  size_t pos_indicator = ftell(f); // Compliant: `f` cannot be NULL here.
+  fseek(f, 0L, SEEK_END); // Compliant: 3rd argument is now a valid value.
+  // Further file processing ...
+  fclose(f);
+  return 0;
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">Resources</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_standards">Standards</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>CWE - <a href="https://cwe.mitre.org/data/definitions/476">CWE-476 NULL Pointer Dereference</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_related_rules">Related rules</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a data-rspec-id="S3807" class="rspec-auto-link">S3807</a> ensures that appropriate arguments are passed to C standard library functions</p>
+</li>
+<li>
+<p><a data-rspec-id="S5488" class="rspec-auto-link">S5488</a> ensures that appropriate arguments are passed to UNIX/POSIX functions</p>
+</li>
+</ul>
+</div>
+<hr>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_and_links">Comments And Links</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>(visible only on this page)</p>
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s2095">is related to: <a data-rspec-id="S2095" class="rspec-auto-link">S2095</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_is_related_to_s3588">is related to: <a data-rspec-id="S3588" class="rspec-auto-link">S3588</a></h3>
+
+</div>
+<div class="sect2">
+<h3 id="_on_22_oct_2019_162015_loïc_joly_wrote">on 22 Oct 2019, 16:20:15 Loïc Joly wrote:</h3>
+<div class="paragraph">
+<p>\[~amelie.renard] I heavily reworded this one, can you validate please?</p>
+</div>
+</div>
+</div>
+</div>
