@@ -1,0 +1,86 @@
+This is an issue when Flask applications handle form data using `request.form` directly without CSRF protection or proper validation.
+
+== Why is this an issue?
+
+Basic Flask form handling using `request.form` lacks essential security features that make web applications vulnerable to attacks.
+
+The most critical missing feature is CSRF (Cross-Site Request Forgery) protection. Without CSRF tokens, malicious websites can trick users into submitting forms on your application without their knowledge. For example, a malicious site could create a hidden form that transfers money or changes user settings when the user visits the page.
+
+Basic form handling also lacks:
+
+* Built-in input validation, making it easy to accept invalid or malicious data
+* Proper error handling and user feedback mechanisms  
+* Consistent form rendering and field management
+* Protection against common web vulnerabilities
+
+Flask-WTF addresses these issues by automatically generating and validating CSRF tokens, providing robust field validation, and offering a cleaner, more secure approach to form handling.
+
+=== What is the potential impact?
+
+Applications become vulnerable to CSRF attacks where malicious websites can submit forms on behalf of authenticated users. This can lead to unauthorized actions like data modification, account changes, or financial transactions. Additionally, lack of proper validation can result in data corruption, application errors, or injection attacks.
+
+== How to fix it
+
+Replace basic Flask form handling with Flask-WTF. Install Flask-WTF, create form classes with validation, and use CSRF protection.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from flask import Flask, request, render_template
+
+app = Flask(__name__)
+
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    if request.method == 'POST':
+        name = request.form['name']  # Noncompliant
+        email = request.form['email']  # Noncompliant
+        # No CSRF protection or validation
+        return f'Thank you {name}!'
+    return render_template('contact.html')
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from flask import Flask, render_template, flash, redirect, url_for
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField
+from wtforms.validators import DataRequired, Email
+
+app = Flask(__name__)
+app.secret_key = 'your-secret-key'
+
+class ContactForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    submit = SubmitField('Submit')
+
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    form = ContactForm()
+    if form.validate_on_submit():
+        flash(f'Thank you {form.name.data}!')
+        return redirect(url_for('contact'))
+    return render_template('contact.html', form=form)
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask-WTF Documentation - https://flask-wtf.readthedocs.io/[Official Flask-WTF documentation covering CSRF protection, form validation, and security features]
+
+ * WTForms Documentation - https://wtforms.readthedocs.io/[Documentation for WTForms library used by Flask-WTF for form field definitions and validation]
+
+ * Flask Security Best Practices - https://flask.palletsprojects.com/en/2.3.x/security/[Flask's official security guidelines including CSRF protection recommendations]
+
+=== Standards
+
+ * OWASP Top 10 2021 A1 - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Broken Access Control - includes CSRF vulnerabilities]
+
+ * CWE 352 - https://cwe.mitre.org/data/definitions/352.html[Cross-Site Request Forgery (CSRF)]
