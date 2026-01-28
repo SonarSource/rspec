@@ -1,0 +1,134 @@
+This is an issue when a path operation function accepts a JSON request body (using Pydantic models or `Body()` parameters) without explicitly validating that the `Content-Type` header is set to `application/json` or a compatible JSON media type.
+
+== Why is this an issue?
+
+When a FastAPI path operation accepts JSON request bodies without validating the `Content-Type` header, it becomes vulnerable to Cross-Site Request Forgery (CSRF) attacks.
+
+Browsers implement CORS (Cross-Origin Resource Sharing) protections that require a preflight OPTIONS request for certain types of cross-origin requests. However, requests with certain "simple" content types like `text/plain` are exempt from this preflight check.
+
+An attacker can exploit this by:
+
+1. Creating a malicious web page that sends a POST request with `Content-Type: text/plain`
+2. Including valid JSON data in the request body
+3. The browser sends this request without a CORS preflight check
+4. If the FastAPI application doesn't validate the Content-Type header, it will process the JSON data
+5. This bypasses CORS protections and allows the attacker to perform actions on behalf of an authenticated user
+
+This vulnerability is particularly dangerous because:
+
+* It can be exploited from any website the victim visits
+* It works even if the application has CORS configured correctly
+* It can lead to unauthorized state-changing operations
+* The victim's authentication credentials (cookies, etc.) are automatically included by the browser
+
+=== What is the potential impact?
+
+Without proper Content-Type validation, attackers can:
+
+* Perform unauthorized actions on behalf of authenticated users
+* Modify or delete user data
+* Execute privileged operations if the victim has elevated permissions
+* Bypass CORS security controls
+* Compromise the integrity and confidentiality of the application
+
+The severity is particularly high for endpoints that:
+
+* Perform state-changing operations (create, update, delete)
+* Handle sensitive data
+* Require authentication
+* Have elevated privileges
+
+== How to fix it in FastAPI
+
+Add explicit Content-Type header validation to ensure only requests with `application/json` (or compatible JSON media types) are processed. Use the `Header()` parameter to extract the Content-Type header and validate it before processing the request body.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+@app.post("/items/")
+async def create_item(item: Item):
+    # No Content-Type validation - vulnerable to CSRF
+    return item
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from fastapi import Header, HTTPException
+
+@app.post("/items/")
+async def create_item(
+    item: Item,
+    content_type: str = Header(...)
+):
+    if not content_type.startswith('application/json'):
+        raise HTTPException(
+            status_code=415,
+            detail="Content-Type must be application/json"
+        )
+    return item
+----
+
+For applications with multiple JSON endpoints, create a reusable dependency that validates the Content-Type header. This reduces code duplication and ensures consistent validation across all endpoints.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+@app.post("/users/")
+async def create_user(user: User):
+    return user
+
+@app.post("/products/")
+async def create_product(product: Product):
+    return product
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from fastapi import Depends, Header, HTTPException
+from typing import Annotated
+
+def validate_json_content_type(content_type: str = Header(...)):
+    if not content_type.startswith('application/json'):
+        raise HTTPException(
+            status_code=415,
+            detail="Content-Type must be application/json"
+        )
+
+JsonContentType = Annotated[None, Depends(validate_json_content_type)]
+
+@app.post("/users/")
+async def create_user(user: User, _: JsonContentType):
+    return user
+
+@app.post("/products/")
+async def create_product(product: Product, _: JsonContentType):
+    return product
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI Security Documentation - https://fastapi.tiangolo.com/tutorial/security/[Official FastAPI documentation on security best practices]
+
+ * FastAPI Header Parameters - https://fastapi.tiangolo.com/tutorial/header-params/[Documentation on how to use Header parameters in FastAPI]
+
+ * OWASP CSRF Prevention Cheat Sheet - https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html[Comprehensive guide on preventing CSRF attacks]
+
+=== Standards
+
+ * CWE 352 - https://cwe.mitre.org/data/definitions/352.html[CWE-352: Cross-Site Request Forgery (CSRF)]
+
+ * OWASP Top 10 2021 A01 - https://owasp.org/Top10/A01_2021-Broken_Access_Control/[Broken Access Control]
+
+=== Related rules
+
+ * S5122 - CORS policy should be restrictive
