@@ -1,0 +1,186 @@
+This is an issue when a Pydantic model is used as a FastAPI response model that returns ORM objects (like SQLAlchemy models) without enabling ORM mode, or when ORM mode is unnecessarily enabled on models used only for request validation.
+
+== Why is this an issue?
+
+FastAPI uses Pydantic models to validate and serialize data. By default, Pydantic expects data to be provided as dictionaries. However, Object-Relational Mapping (ORM) frameworks like SQLAlchemy return objects with attributes rather than dictionaries.
+
+When you use a Pydantic model as a `response_model` in FastAPI and return ORM objects from your endpoint, Pydantic attempts to validate these objects. Without proper configuration, Pydantic cannot read the ORM object's attributes and raises a validation error stating "value is not a valid dict".
+
+ORM mode is a Pydantic feature that tells the model to read data from object attributes (using `getattr`) instead of expecting dictionary keys. This allows seamless integration between FastAPI responses and ORM query results.
+
+The configuration syntax differs between Pydantic versions:
+
+* *Pydantic v1*: Set `orm_mode = True` in a nested `Config` class
+* *Pydantic v2*: Set `from_attributes=True` in the `model_config` dictionary using `ConfigDict`
+
+Conversely, enabling ORM mode on models used only for request body validation is unnecessary. Request data comes from JSON payloads (dictionaries), not ORM objects. Adding ORM mode to request models can cause unexpected validation behavior and violates the principle of using the simplest configuration necessary.
+
+The recommended pattern is to create separate models:
+
+* A base model without ORM mode for request validation
+* An extended model with ORM mode enabled for responses and database operations
+
+This separation ensures each model is optimized for its specific purpose.
+
+=== What is the potential impact?
+
+Without proper ORM mode configuration, your FastAPI application will fail at runtime with validation errors when trying to return ORM objects. Users will receive HTTP 500 Internal Server Error responses, and your application logs will show Pydantic `ValidationError` exceptions.
+
+This prevents your API endpoints from functioning correctly, blocking users from accessing data and potentially causing service outages. The errors occur during response serialization, after your business logic has executed, making them particularly frustrating to debug.
+
+Unnecessarily enabling ORM mode on request models can lead to unexpected validation behavior and HTTP 422 Unprocessable Entity errors, confusing both developers and API consumers.
+
+== How to fix it in FastAPI with Pydantic v1
+
+Enable ORM mode by adding a `Config` class with `orm_mode = True` to Pydantic models used as response models that return ORM objects.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from pydantic import BaseModel
+from fastapi import FastAPI
+from typing import List
+
+class UserAttribute(BaseModel):
+    name: str
+    value: str
+    user_id: str
+    id: str
+    # Missing ORM mode configuration
+
+@app.get("/attributes/", response_model=List[UserAttribute])
+def read_attributes(db: Session = Depends(get_db)):
+    return db.query(models.UserAttribute).all()  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from pydantic import BaseModel
+from fastapi import FastAPI
+from typing import List
+
+class UserAttribute(BaseModel):
+    name: str
+    value: str
+    user_id: str
+    id: str
+    
+    class Config:
+        orm_mode = True
+
+@app.get("/attributes/", response_model=List[UserAttribute])
+def read_attributes(db: Session = Depends(get_db)):
+    return db.query(models.UserAttribute).all()
+----
+
+Avoid enabling ORM mode on models used only for request validation. Create separate models: a base model for requests and an extended model with ORM mode for responses.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from pydantic import BaseModel
+from fastapi import FastAPI
+
+app = FastAPI()
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    
+    class Config:
+        orm_mode = True  # Noncompliant: unnecessary for request models
+
+@app.post('/users')
+async def create_user(user: UserCreate):
+    return user
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from pydantic import BaseModel
+from fastapi import FastAPI
+
+app = FastAPI()
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    # No orm_mode for request validation
+
+class User(UserCreate):
+    id: int
+    
+    class Config:
+        orm_mode = True  # Only for response/ORM models
+
+@app.post('/users', response_model=User)
+async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = models.User(**user.dict())
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+----
+
+== How to fix it in FastAPI with Pydantic v2
+
+Enable ORM mode by setting `from_attributes=True` in the `model_config` using `ConfigDict` for Pydantic models used as response models that return ORM objects.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+from pydantic import BaseModel, ConfigDict
+
+class UserAttribute(BaseModel):
+    name: str
+    value: str
+    user_id: str
+    id: str
+    # Missing from_attributes configuration
+
+@app.get("/attributes/", response_model=List[UserAttribute])
+def read_attributes(db: Session = Depends(get_db)):
+    return db.query(models.UserAttribute).all()  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from pydantic import BaseModel, ConfigDict
+
+class UserAttribute(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    name: str
+    value: str
+    user_id: str
+    id: str
+
+@app.get("/attributes/", response_model=List[UserAttribute])
+def read_attributes(db: Session = Depends(get_db)):
+    return db.query(models.UserAttribute).all()
+----
+
+== Resources
+
+=== Documentation
+
+ * Pydantic v1 - ORM Mode - https://docs.pydantic.dev/1.10/usage/models/#orm-mode-aka-arbitrary-class-instances[Official Pydantic v1 documentation explaining ORM mode configuration]
+
+ * Pydantic v2 - Models from attributes - https://docs.pydantic.dev/latest/concepts/models/#arbitrary-class-instances[Official Pydantic v2 documentation on the from_attributes configuration]
+
+ * FastAPI - SQL Databases - https://fastapi.tiangolo.com/tutorial/sql-databases/[FastAPI tutorial on integrating with SQL databases using SQLAlchemy and Pydantic]
+
+ * FastAPI - Response Model - https://fastapi.tiangolo.com/tutorial/response-model/[FastAPI documentation on using response models with Pydantic]
