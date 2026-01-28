@@ -1,0 +1,77 @@
+This is an issue when accessing form data using dictionary-style syntax (`request.form['field_name']`) for HTML form fields that can have multiple values with the same name.
+
+== Why is this an issue?
+
+HTML forms support multiple fields with the same name to create lists of values. This is commonly used for dynamic forms where users can add multiple phone numbers, addresses, or other repeated information.
+
+When a form contains multiple fields with the same name, the Flask `request.form` object behaves like a dictionary but only returns one value when accessed with bracket notation. This means `request.form['field_name']` will only return one of the submitted values, silently discarding the others.
+
+For example, if a user submits a form with three phone numbers, using `request.form['phone_number']` will only retrieve one phone number, losing the other two without any error or warning. This creates a poor user experience and can result in important data being lost.
+
+The `request.form.getlist()` method is specifically designed to handle this scenario by returning all values for a given field name as a list, ensuring no data is lost.
+
+=== What is the potential impact?
+
+Data loss occurs when users submit multiple values for the same field. This can lead to:
+
+* Lost user information that needs to be re-entered
+* Incomplete records in the application database
+* Poor user experience and frustration
+* Potential business impact if critical information is lost
+
+== How to fix it in Flask
+
+Use `request.form.getlist()` instead of dictionary-style access when the form field can have multiple values. This method returns a list containing all submitted values for the specified field name.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+# Only gets one phone number, loses others
+phone_number = request.form['phone_number']  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+# Gets all phone numbers as a list
+phone_numbers = request.form.getlist('phone_number')
+----
+
+When processing multiple related fields (like phone numbers and their types), use `getlist()` for both fields and process them together using `zip()`.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+# Only processes one phone number and type
+phone = request.form['phone_number']  # Noncompliant
+phone_type = request.form['phone_type']  # Noncompliant
+print(f'Phone: {phone} ({phone_type})')
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+# Processes all phone numbers and types
+for number, type_ in zip(
+    request.form.getlist('phone_number'),
+    request.form.getlist('phone_type')
+):
+    if number:
+        print(f'Phone: {number} ({type_})')
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask Request Documentation - https://flask.palletsprojects.com/en/2.3.x/api/#flask.Request.form[Official Flask documentation for the request.form object and its methods]
+
+ * Werkzeug MultiDict Documentation - https://werkzeug.palletsprojects.com/en/2.3.x/datastructures/#werkzeug.datastructures.MultiDict[Documentation for the MultiDict class that underlies request.form]
+
+ * Dynamic Forms with Flask - https://blog.miguelgrinberg.com/post/dynamic-forms-with-flask[Comprehensive guide on handling dynamic forms with multiple fields in Flask]
