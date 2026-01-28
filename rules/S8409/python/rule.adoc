@@ -1,0 +1,91 @@
+This is an issue when a FastAPI route decorator includes a `response_model` parameter that duplicates the function's return type annotation.
+
+== Why is this an issue?
+
+FastAPI automatically infers the response model from a function's return type annotation. When you specify the same type in both the return annotation and the `response_model` parameter, you create unnecessary duplication.
+
+This duplication has several drawbacks:
+
+* *Maintenance burden*: When the response type needs to change, you must update it in two places, increasing the risk of inconsistencies.
+* *Code verbosity*: The redundant parameter adds visual noise without providing additional value.
+* *Confusion*: Developers might wonder if the two specifications serve different purposes or if they should be kept in sync.
+
+FastAPI's automatic inference from return type annotations is the recommended approach. The `response_model` parameter exists for special cases where you need to override the default behavior, such as when returning a different model internally than what should be serialized in the response.
+
+=== What is the potential impact?
+
+This issue affects code maintainability and clarity. While it doesn't cause runtime errors or security vulnerabilities, it makes the codebase harder to maintain and understand. Developers may waste time keeping redundant specifications synchronized or debugging issues caused by mismatches between the two declarations.
+
+== How to fix it in FastAPI
+
+Remove the `response_model` parameter from the route decorator and rely solely on the function's return type annotation. FastAPI will automatically use the return type annotation to generate the response schema and validate the response.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+@app.post("/items/", response_model=Item)  # Noncompliant
+async def create_item(item: Item) -> Item:
+    return item
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+@app.post("/items/")
+async def create_item(item: Item) -> Item:
+    return item
+----
+
+For GET endpoints, the same principle applies. Remove the redundant `response_model` parameter and let FastAPI infer the response type from the return annotation.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+@app.get("/users/{user_id}", response_model=User)  # Noncompliant
+def get_user(user_id: int) -> User:
+    return fetch_user(user_id)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+@app.get("/users/{user_id}")
+def get_user(user_id: int) -> User:
+    return fetch_user(user_id)
+----
+
+When you need to return a different type internally than what should be serialized (a legitimate use case for `response_model`), keep the `response_model` parameter. This example shows when `response_model` is appropriate because the internal return type includes sensitive data that shouldn't be exposed.
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+@app.get("/users/{user_id}", response_model=UserPublic)
+def get_user(user_id: int) -> UserPublic:  # Noncompliant: types match
+    user = fetch_user_with_password(user_id)
+    return UserPublic(**user.dict())
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+@app.get("/users/{user_id}", response_model=UserPublic)
+def get_user(user_id: int) -> UserInternal:
+    # Returns UserInternal but serializes as UserPublic
+    return fetch_user_with_password(user_id)
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI Documentation - Response Model - https://fastapi.tiangolo.com/tutorial/response-model/[Official FastAPI documentation explaining response models and return type annotations]
+
+ * Ruff Rule FAST001 - https://docs.astral.sh/ruff/rules/fast-api-redundant-response-model/[Ruff linter rule documentation for detecting redundant response_model parameters]
