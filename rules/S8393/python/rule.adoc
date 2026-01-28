@@ -1,0 +1,93 @@
+This is an issue when a FastAPI path operation function (typically for POST, PUT, PATCH, or DELETE requests) declares a request body parameter that is not typed with a Pydantic `BaseModel` class. This includes parameters that are untyped, typed as `dict`, or typed as plain Python classes that don't inherit from `BaseModel`.
+
+== Why is this an issue?
+
+FastAPI relies on Pydantic models to handle request body parsing, validation, and serialization. When you declare a function parameter with a Pydantic `BaseModel` type, FastAPI automatically:
+
+* Reads the request body as JSON
+* Validates the data against the model's field definitions
+* Converts the data to the appropriate Python types
+* Generates OpenAPI documentation describing the expected request body structure
+
+Without a Pydantic model, FastAPI cannot determine how to parse the request body. The framework uses type hints to distinguish between different parameter types:
+
+* Path parameters are declared in the URL path template
+* Query parameters use singular types like `int`, `str`, `bool`
+* Request body parameters must use Pydantic `BaseModel` classes
+
+When you use an untyped parameter, a `dict` type, or a plain class, FastAPI doesn't recognize it as a request body parameter. This causes the framework to either:
+
+* Treat it as a query parameter (for singular types)
+* Fail to parse the request body at all (for untyped or `dict` parameters)
+* Return a 422 Unprocessable Entity error to the client
+
+Additionally, without Pydantic models, you lose:
+
+* **Automatic validation**: No checking of required fields, data types, or custom validators
+* **Type conversion**: Raw JSON values aren't converted to appropriate Python types
+* **Documentation**: The OpenAPI schema doesn't include request body structure
+* **Editor support**: No autocomplete or type checking for request body fields
+* **Data integrity**: Invalid data can reach your business logic, causing runtime errors
+
+=== What is the potential impact?
+
+Without proper Pydantic models for request bodies, your API will experience:
+
+* **Runtime failures**: Requests will fail with 422 errors, breaking client applications
+* **Security vulnerabilities**: Missing validation allows malformed or malicious data to reach your application logic
+* **Poor developer experience**: API consumers cannot understand the expected request format from documentation
+* **Maintenance burden**: Manual validation code is error-prone and harder to maintain than declarative Pydantic models
+* **Type safety issues**: Your code loses the benefits of Python's type system, making bugs more likely
+
+== How to fix it
+
+Define a Pydantic `BaseModel` class that describes the structure of your request body. Add type annotations for each field, and use this model as the type hint for your request body parameter. This enables FastAPI's automatic validation, parsing, and documentation generation.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from fastapi import FastAPI
+
+app = FastAPI()
+
+class Item:
+    def __init__(self, name, price):
+        self.name = name
+        self.price = price
+
+@app.put("/items/{item_id}")
+def update_item(item_id: int, item: Item):  # Noncompliant
+    return {"item_name": item.name}
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel):
+    name: str
+    price: float
+    is_offer: bool = None
+
+@app.put("/items/{item_id}")
+def update_item(item_id: int, item: Item):
+    return {"item_name": item.name}
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI Request Body Documentation - https://fastapi.tiangolo.com/tutorial/body/[Official FastAPI documentation on declaring request bodies using Pydantic models]
+
+ * Pydantic BaseModel Documentation - https://docs.pydantic.dev/latest/concepts/models/[Pydantic documentation explaining how to create and use BaseModel classes]
+
+ * FastAPI Body - Multiple Parameters - https://fastapi.tiangolo.com/tutorial/body-multiple-params/[Guide on using multiple body parameters and mixing them with path and query parameters]
