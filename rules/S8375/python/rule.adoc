@@ -1,0 +1,56 @@
+This rule raises an issue when Flask's `preprocess_request()` method is called without capturing or checking its return value.
+
+== Why is this an issue?
+
+Flask's `preprocess_request()` method runs all registered before-request handlers and may return a response object when one of these handlers wants to short-circuit the normal request processing flow.
+
+Before-request handlers commonly return responses for scenarios like:
+
+* Authentication failures that should redirect to a login page
+* Authorization checks that should return 403 Forbidden responses  
+* Rate limiting that should return 429 Too Many Requests
+* Maintenance mode that should return 503 Service Unavailable
+
+When you ignore the return value of `preprocess_request()`, these important early responses are lost. The application continues with normal request processing instead of returning the intended response, leading to incorrect behavior.
+
+For example, if a before-request handler detects an unauthenticated user and returns a redirect to the login page, ignoring this response means the user will see the protected content instead of being redirected to authenticate.
+
+=== What is the potential impact?
+
+Ignoring the return value can lead to security vulnerabilities where authentication and authorization checks are bypassed. It can also cause functional issues where important redirects, error responses, or maintenance messages are not delivered to users.
+
+== How to fix it
+
+Capture the return value of `preprocess_request()` and check if it contains a response object. If it does, return that response immediately to respect the before-request handler's decision.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+app.preprocess_request()  # Noncompliant
+# Continue with normal request processing
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+response = app.preprocess_request()
+if response is not None:
+    return response
+# Continue with normal request processing
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask preprocess_request documentation - https://flask.palletsprojects.com/en/stable/api/#flask.Flask.preprocess_request[Official documentation]
+
+ * Flask Request Hooks - https://flask.palletsprojects.com/en/stable/reqcontext/#request-hooks[Documentation about Flask's before-request and after-request hooks]
+
+=== Related rules
+
+ * S899 - Return values from functions without side effects should not be ignored (Java)
