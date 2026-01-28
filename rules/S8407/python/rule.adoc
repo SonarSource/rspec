@@ -1,0 +1,64 @@
+This is an issue when background threads, tasks, or any initialization code is placed after a call to `uvicorn.run()` in a FastAPI application.
+
+== Why is this an issue?
+
+In FastAPI applications, `uvicorn.run()` is a blocking call that starts the web server and runs indefinitely until the server is shut down. This means that any code placed after `uvicorn.run()` will not execute until the server stops.
+
+When developers place background thread initialization, task scheduling, or other setup code after `uvicorn.run()`, they expect these tasks to run alongside the web server. However, because `uvicorn.run()` blocks the execution flow, the code after it never gets a chance to run.
+
+This creates a silent failure scenario where:
+
+* The application appears to start successfully
+* The web server runs normally
+* Background tasks never start
+* No error messages are displayed
+
+This behavior is particularly problematic because the application may seem to work correctly during initial testing, but critical background functionality (like periodic data synchronization, cleanup tasks, or monitoring) will be completely absent.
+
+=== What is the potential impact?
+
+Background tasks that never start can lead to:
+
+* Data synchronization failures
+* Missed scheduled operations
+* Resource cleanup not occurring
+* Monitoring or health checks not running
+* Silent degradation of application functionality
+
+== How to fix it
+
+Move all background task initialization and startup code before the `uvicorn.run()` call. This ensures that threads and tasks are started before the blocking server call.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+if __name__ == '__main__':
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # This thread will never start because uvicorn.run() blocks
+    _worker_thread = Thread(target=start_worker, daemon=False)  # Noncompliant
+    _worker_thread.start()
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+if __name__ == '__main__':
+    # Start the background thread before uvicorn.run()
+    _worker_thread = Thread(target=start_worker, daemon=False)
+    _worker_thread.start()
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+----
+
+== Resources
+
+=== Documentation
+
+ * Uvicorn Documentation - Running Programmatically - https://www.uvicorn.org/#running-programmatically[Official documentation on how uvicorn.run() works]
+
+ * FastAPI Documentation - Background Tasks - https://fastapi.tiangolo.com/tutorial/background-tasks/[Guide on implementing background tasks in FastAPI]
+
+ * Python Threading Documentation - https://docs.python.org/3/library/threading.html[Official Python documentation on threading]
