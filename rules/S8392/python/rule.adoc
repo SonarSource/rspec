@@ -1,0 +1,89 @@
+This is an issue when a FastAPI application uses `uvicorn.run()` with `host="0.0.0.0"`, which binds the application to all available network interfaces on the host machine.
+
+== Why is this an issue?
+
+When you start a FastAPI application, you need to specify which network interface it should listen on. A network interface is a connection point between your computer and a network.
+
+The special IP address `0.0.0.0` tells the application to bind to *all* network interfaces on the machine. This means the application becomes accessible from:
+
+* The local machine (localhost)
+* The local network (LAN)
+* Any public-facing network interfaces
+* Virtual network interfaces
+
+This broad exposure violates the principle of least privilege, which states that a system should only have access to the resources it needs to function. By binding to all interfaces, you're making your application accessible from networks where it shouldn't be reachable.
+
+In development environments, this is particularly risky because:
+
+* Development servers often lack production security measures
+* Debug mode may be enabled, exposing sensitive information
+* Authentication and authorization might not be fully implemented
+* The application may contain test data or incomplete features
+
+Even in production environments, binding to `0.0.0.0` should be a deliberate choice made with proper security controls in place, such as:
+
+* Firewalls restricting access to specific IP addresses
+* Reverse proxies handling TLS/SSL termination
+* Network segmentation isolating the application
+* Container orchestration platforms managing network access
+
+When these controls are absent, binding to all interfaces creates an unnecessarily large attack surface.
+
+=== What is the potential impact?
+
+Binding to all network interfaces can lead to several security risks:
+
+* *Unauthorized access*: Attackers on the same network or the internet can reach your application, potentially exploiting vulnerabilities or accessing sensitive data.
+* *Information disclosure*: Debug endpoints, error messages, or development features may leak sensitive information about your application's structure, dependencies, or data.
+* *Lateral movement*: If an attacker compromises your network, an exposed development server can serve as an entry point to other systems.
+* *Data breaches*: Unprotected applications may expose user data, API keys, database credentials, or other confidential information.
+
+The severity depends on the environment and what security controls are in place, but the risk is highest in development environments where security measures are typically minimal.
+
+== How to fix it
+
+For development and local testing, bind to localhost (`127.0.0.1` or `localhost`) instead of all interfaces. This ensures the application is only accessible from your local machine.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI()
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI()
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI Documentation - Deployment Concepts - https://fastapi.tiangolo.com/deployment/concepts/[Official FastAPI documentation on deployment concepts, including network binding considerations]
+
+ * Uvicorn Documentation - Deployment - https://www.uvicorn.org/deployment/[Uvicorn server documentation on deployment and configuration options]
+
+ * FastAPI CLI Documentation - https://fastapi.tiangolo.com/fastapi-cli/[Documentation explaining the difference between development (127.0.0.1) and production (0.0.0.0) binding]
+
+=== Standards
+
+ * CWE 668 - https://cwe.mitre.org/data/definitions/668.html[Exposure of Resource to Wrong Sphere]
+
+ * CIS 6.6.1 - https://www.cisecurity.org/controls/[CIS Controls - Network Security]
