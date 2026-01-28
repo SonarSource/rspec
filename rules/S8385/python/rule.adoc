@@ -1,0 +1,101 @@
+This is an issue when `flask.send_file()` is called with a file-like object without providing either the `mimetype` or `attachment_filename` parameter.
+
+== Why is this an issue?
+
+Flask's `send_file()` function needs to determine the content type and filename for HTTP responses. When you pass a file path as a string, Flask can automatically detect these from the file system. However, when you pass a file-like object (such as an open file handle, `BytesIO`, or `StringIO`), Flask cannot determine this information automatically.
+
+Without the `mimetype` parameter, Flask doesn't know what `Content-Type` header to set for the response. Without `attachment_filename`, Flask cannot set the `Content-Disposition` header properly for downloads.
+
+When Flask encounters this situation, it raises a `ValueError` with a message indicating that it cannot determine the content type. This causes your application to crash with a 500 Internal Server Error, creating a poor user experience.
+
+=== What is the potential impact?
+
+The application will crash with a `ValueError` when the endpoint is accessed, resulting in a 500 Internal Server Error response. This breaks the file download functionality and creates a poor user experience.
+
+== How to fix it in Flask
+
+Add the `mimetype` parameter to specify the content type of the file being sent.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from flask import send_file
+
+def download_file():
+    file_obj = open('data.txt', 'rb')
+    return send_file(file_obj)  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from flask import send_file
+
+def download_file():
+    file_obj = open('data.txt', 'rb')
+    return send_file(file_obj, mimetype='text/plain')
+----
+
+Add the `attachment_filename` parameter to specify the filename for downloads. This is especially useful for in-memory file objects.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from flask import send_file
+from io import BytesIO
+
+def download_csv():
+    csv_data = BytesIO(b'name,age\nJohn,30')
+    return send_file(csv_data)  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from flask import send_file
+from io import BytesIO
+
+def download_csv():
+    csv_data = BytesIO(b'name,age\nJohn,30')
+    return send_file(csv_data, attachment_filename='data.csv', as_attachment=True)
+----
+
+You can provide both parameters for complete control over the response headers.
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+from flask import send_file
+from io import StringIO
+
+def download_log():
+    log_data = StringIO('INFO: Application started')
+    return send_file(log_data)  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from flask import send_file
+from io import StringIO
+
+def download_log():
+    log_data = StringIO('INFO: Application started')
+    return send_file(log_data, mimetype='text/plain', attachment_filename='app.log')
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask send_file documentation - https://flask.palletsprojects.com/en/2.3.x/api/#flask.send_file[Official Flask documentation for the send_file function]
+
+ * Flask file uploads and downloads guide - https://flask.palletsprojects.com/en/2.3.x/patterns/fileuploads/[Flask patterns for handling file uploads and downloads]
