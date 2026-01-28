@@ -1,0 +1,68 @@
+This rule raises an issue when reading HTTP headers using dictionary-style syntax in Flask applications, e.g. `request.headers['key']`, which throws a KeyError if the header is missing.
+
+== Why is this an issue?
+
+HTTP headers are optional by nature, and clients may not always send the headers your application expects. When you read from a header using dictionary-style access like `request.headers['Authorization']`, Flask raises a KeyError if the header is missing.
+
+This can cause your application to crash unexpectedly, especially when dealing with optional headers like authentication tokens, custom headers, or headers that vary between different clients and browsers.
+
+Even when the header presence appears to be validated by guards or preconditions, dictionary-style access introduces unnecessary risk due to potential refactoring.
+
+The `.get()` method provides a safer alternative by returning `None` (or a default value) when a header is missing, allowing your code to handle the absence gracefully instead of crashing. 
+Using `.get()` consistently throughout your codebase establishes a robust pattern that prevents runtime errors, improves code maintainability, and makes the optional nature of headers explicit in the code.
+
+=== What is the potential impact?
+
+A missing header will cause a KeyError exception, potentially crashing the request handler and returning a 500 Internal Server Error to the client. This creates a poor user experience and can make your application appear unreliable.
+
+In security-sensitive contexts, unexpected crashes might also expose error information that could be useful to attackers.
+
+== How to fix it
+
+Always use the `.get()` method instead of dictionary-style header access. This returns `None` for missing headers instead of raising an exception, and should be used consistently even when guards appear to protect the access. This consistent approach:
+
+* Prevents KeyError exceptions from missing headers
+* Makes the optional nature of headers explicit in the code
+* Reduces the risk of runtime errors during code evolution and refactoring
+
+Add appropriate checks to handle missing headers gracefully after retrieving them with `.get()`.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from flask import request
+
+@app.route('/api')
+def api_endpoint():
+    auth_header = request.headers['Authorization']  # Noncompliant
+    user_agent = request.headers['User-Agent']     # Noncompliant
+    return process_request(auth_header, user_agent)
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from flask import request
+
+@app.route('/api')
+def api_endpoint():
+    auth_header = request.headers.get('Authorization')
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+    
+    if not auth_header:
+        return 'Authorization required', 401
+    
+    return process_request(auth_header, user_agent)
+----
+
+== Resources
+
+=== Documentation
+
+ * Flask Request Headers Documentation - https://flask.palletsprojects.com/en/2.3.x/api/#flask.Request.headers[Official Flask documentation for accessing request headers]
+
+ * Werkzeug Headers Documentation - https://werkzeug.palletsprojects.com/en/2.3.x/datastructures/#werkzeug.datastructures.Headers[Documentation for the Headers class used by Flask's request.headers]
