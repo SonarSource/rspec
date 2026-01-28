@@ -1,0 +1,112 @@
+This is an issue when using Starlette or FastAPI's `TestClient` with httpx backend and calling HTTP methods like `get()`, `delete()`, `head()`, or `options()` with body-related parameters (`content`, `data`, `json`, or `files`).
+
+== Why is this an issue?
+
+When Starlette version 0.21.0 was released, the `TestClient` implementation changed from using the `requests` library to `httpx`. This change introduced API differences that can break existing test code.
+
+In httpx, certain HTTP methods have stricter parameter requirements that align better with HTTP specifications. Specifically, the methods `get()`, `delete()`, `head()`, and `options()` do not accept body-related parameters like `content`, `data`, `json`, or `files`. This is because these HTTP methods typically should not include request bodies according to HTTP semantics:
+
+* `GET` and `HEAD` are defined as safe methods that only retrieve data
+* `OPTIONS` is used for discovering allowed methods
+* While `DELETE` can technically have a body, it's uncommon and not supported by httpx's convenience method
+
+When you try to use these parameters with the affected methods, the code will fail at runtime with a `TypeError`, indicating that the method received unexpected keyword arguments. This breaks tests that previously worked with the `requests`-based implementation.
+
+The httpx library provides the generic `client.request()` method as an alternative when you need to send body data with these HTTP methods, giving you full control over the request parameters.
+
+=== What is the potential impact?
+
+Test code will fail at runtime with a `TypeError`, preventing your test suite from running successfully. This can block development and deployment pipelines until the issue is resolved.
+
+The error typically manifests as:
+
+[source,text]
+----
+TypeError: TestClient.get() got an unexpected keyword argument 'json'
+----
+
+This issue commonly appears when:
+
+* Upgrading Starlette or FastAPI to versions using httpx
+* Migrating existing test suites to newer framework versions
+* Running tests that worked with older versions of the framework
+
+== How to fix it in Starlette
+
+Replace the specific HTTP method call with the generic `request()` method. This method accepts all parameters and gives you full control over the HTTP request, including the ability to send body data with any HTTP method.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+# Using get() with json parameter
+response = client.get('/api/endpoint', json={'key': 'value'})  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from starlette.testclient import TestClient
+from starlette.applications import Starlette
+
+app = Starlette()
+client = TestClient(app)
+
+# Using request() method instead
+response = client.request('GET', '/api/endpoint', json={'key': 'value'})
+----
+
+== How to fix it in FastAPI
+
+When testing FastAPI endpoints, use `client.request()` instead of the specific method when you need to include body parameters with `GET`, `DELETE`, `HEAD`, or `OPTIONS` requests.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+app = FastAPI()
+client = TestClient(app)
+
+# Using delete() with data parameter
+response = client.delete('/api/resource/123', data='some data')  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+app = FastAPI()
+client = TestClient(app)
+
+# Using request() method for delete with data
+response = client.request('DELETE', '/api/resource/123', data='some data')
+----
+
+== Resources
+
+=== Documentation
+
+ * HTTPX Documentation - Request API - https://www.python-httpx.org/api/#request[Official httpx documentation for the request() method]
+
+ * Starlette TestClient Documentation - https://www.starlette.io/testclient/[Official documentation for Starlette's TestClient]
+
+ * FastAPI Testing Documentation - https://fastapi.tiangolo.com/tutorial/testing/[Official FastAPI guide for testing applications]
+
+ * bump-testclient Migration Tool - https://pypi.org/project/bump-testclient/[Automated tool to help migrate TestClient code from requests to httpx]
