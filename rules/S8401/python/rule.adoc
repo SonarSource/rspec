@@ -1,0 +1,139 @@
+This is an issue when you include an APIRouter in a FastAPI application before adding child routers to it. The child router's path operations will not be registered with the application.
+
+== Why is this an issue?
+
+FastAPI registers path operations at the moment you call `include_router()`. When you include a parent router in your FastAPI app, it captures only the path operations that exist in that router at that specific moment.
+
+If you later add a child router to the parent router using `router.include_router(child_router)`, those new path operations are added to the parent router object. However, the FastAPI app has already completed its registration process and won't automatically pick up these new routes.
+
+This creates a situation where:
+
+* The child router's endpoints exist in the parent router's internal structure
+* The FastAPI app doesn't know about these endpoints
+* Requests to these endpoints will return 404 errors
+* The endpoints won't appear in the automatic API documentation
+
+The issue is particularly subtle because no error or warning is raised. The code runs without complaints, but the endpoints simply don't work. This can lead to confusion during development and testing, as the routes appear to be properly defined in the code but are mysteriously unavailable at runtime.
+
+=== What is the potential impact?
+
+When child router endpoints are not properly registered:
+
+* API endpoints return 404 errors even though they are defined in the code
+* The automatic API documentation (Swagger UI/ReDoc) will not show the missing endpoints
+* Integration tests may fail unexpectedly
+* Client applications will be unable to access the affected endpoints
+
+This can cause significant debugging time as the code structure appears correct, but the runtime behavior doesn't match expectations. In production, this could mean critical API functionality is unavailable to users.
+
+== How to fix it in FastAPI
+
+Include all child routers in their parent routers before including the parent router in the FastAPI application. This ensures all path operations are registered when the parent router is added to the app.
+
+=== Code examples
+
+==== Noncompliant code example
+
+[source,python,diff-id=1,diff-type=noncompliant]
+----
+from fastapi import FastAPI, APIRouter
+
+app = FastAPI()
+parent_router = APIRouter()
+child_router = APIRouter()
+
+@child_router.get("/items")
+def get_items():
+    return {"items": []}
+
+app.include_router(parent_router, prefix="/api")
+parent_router.include_router(child_router)  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=1,diff-type=compliant]
+----
+from fastapi import FastAPI, APIRouter
+
+app = FastAPI()
+parent_router = APIRouter()
+child_router = APIRouter()
+
+@child_router.get("/items")
+def get_items():
+    return {"items": []}
+
+parent_router.include_router(child_router)
+app.include_router(parent_router, prefix="/api")
+----
+
+When organizing routers across multiple files, ensure the module-level includes happen in the correct order. Import and include child routers before including the parent router in the main application.
+
+==== Noncompliant code example
+
+[source,python,diff-id=2,diff-type=noncompliant]
+----
+# main.py
+from fastapi import FastAPI
+from .routers import parent, child
+
+app = FastAPI()
+app.include_router(parent.router)
+parent.router.include_router(child.router)  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=2,diff-type=compliant]
+----
+# main.py
+from fastapi import FastAPI
+from .routers import parent, child
+
+app = FastAPI()
+parent.router.include_router(child.router)
+app.include_router(parent.router)
+----
+
+For complex applications with multiple levels of nesting, build the router hierarchy from the bottom up. Include the deepest child routers first, then work your way up to the top-level routers.
+
+==== Noncompliant code example
+
+[source,python,diff-id=3,diff-type=noncompliant]
+----
+from fastapi import FastAPI, APIRouter
+
+app = FastAPI()
+api_router = APIRouter()
+v1_router = APIRouter()
+users_router = APIRouter()
+
+app.include_router(api_router)
+api_router.include_router(v1_router, prefix="/v1")  # Noncompliant
+v1_router.include_router(users_router, prefix="/users")  # Noncompliant
+----
+
+==== Compliant solution
+
+[source,python,diff-id=3,diff-type=compliant]
+----
+from fastapi import FastAPI, APIRouter
+
+app = FastAPI()
+api_router = APIRouter()
+v1_router = APIRouter()
+users_router = APIRouter()
+
+v1_router.include_router(users_router, prefix="/users")
+api_router.include_router(v1_router, prefix="/v1")
+app.include_router(api_router)
+----
+
+== Resources
+
+=== Documentation
+
+ * FastAPI - Bigger Applications - https://fastapi.tiangolo.com/tutorial/bigger-applications/[Official FastAPI documentation on structuring larger applications with multiple routers]
+
+ * FastAPI APIRouter Reference - https://fastapi.tiangolo.com/reference/apirouter/[API reference for the APIRouter class and its methods]
